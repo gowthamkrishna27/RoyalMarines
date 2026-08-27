@@ -1,24 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Droplets, Fish, Wheat, Skull, ClipboardList, Camera, 
-  MapPin, CheckCircle, Send, RefreshCw, Lock, Pill, Check 
+  MapPin, CheckCircle, RefreshCw, Pill 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
+import MarineLoader from '../../components/MarineLoader';
 
 const RECORD_TYPES = [
-  { key: 'WATER_QUALITY', label: 'Water Analysis', icon: Droplets, color: '#0018AD' },
-  { key: 'FEED_ENTRY', label: 'Feed Test', icon: Wheat, color: '#D97706' },
-  { key: 'BIOMASS_SAMPLING', label: 'Biomass', icon: Fish, color: '#2563D9' },
-  { key: 'MORTALITY_LOG', label: 'Mortality', icon: Skull, color: '#DC2626' },
-  { key: 'MEDICATION', label: 'Medication', icon: Pill, color: '#059669' },
-  { key: 'FARM_ACTIVITY', label: 'Farm Activity', icon: ClipboardList, color: '#7C3AED' },
-  { key: 'PHOTO_OBSERVATION', label: 'Photo', icon: Camera, color: '#475569' },
+  { key: 'WATER_QUALITY', label: 'Water Analysis', icon: Droplets },
+  { key: 'FEED_ENTRY', label: 'Feed Test', icon: Wheat },
+  { key: 'BIOMASS_SAMPLING', label: 'Biomass', icon: Fish },
+  { key: 'MORTALITY_LOG', label: 'Mortality', icon: Skull },
+  { key: 'MEDICATION', label: 'Medication', icon: Pill },
+  { key: 'FARM_ACTIVITY', label: 'Farm Activity', icon: ClipboardList },
+  { key: 'PHOTO_OBSERVATION', label: 'Photo', icon: Camera },
 ];
 
-const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', preselectedFarmerId = null, preselectedTankId = null, onSuccess }) => {
+const QuickRecordModal = ({ 
+  isOpen, 
+  onClose, 
+  initialType = 'FARM_ACTIVITY', 
+  preselectedFarmerId = null, 
+  preselectedTankId = null, 
+  onSuccess 
+}) => {
   const { db, getFarmersByAgentId, getTanksByFarmerId, recordFieldEntry } = useMockData();
   const session = getSession();
 
@@ -26,118 +34,106 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
   const [selectedFarmerId, setSelectedFarmerId] = useState(preselectedFarmerId || '');
   const [selectedTankId, setSelectedTankId] = useState(preselectedTankId || '');
   
-  // GPS State
+  // GPS & Submission States
   const [gpsData, setGpsData] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
-
-  // Photo
-  const [photoName, setPhotoName] = useState('');
-
-  // Confirmation state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRecord, setSubmittedRecord] = useState(null);
 
   // Form states
+  const [activityForm, setActivityForm] = useState({
+    activityType: 'Probiotic Application',
+    notes: 'Applied during morning aeration.',
+  });
+
   const [waterForm, setWaterForm] = useState({
     temperature: '28.6',
     ph: '7.8',
     do: '5.6',
     salinity: '16',
     ammonia: '0.12',
-    alkalinity: '120',
     notes: '',
   });
 
   const [feedForm, setFeedForm] = useState({
-    feedQuantity: '120',
-    feedType: 'Royals Premium 2.0 mm',
-    feedingTime: 'Morning (06:00 AM)',
+    feedType: 'Starter-1',
+    quantityKg: '15',
+    brand: 'Royals Supreme',
     notes: '',
   });
 
   const [biomassForm, setBiomassForm] = useState({
-    sampleCount: '30',
-    averageWeight: '18.5',
-    estimatedBiomass: '1,250',
+    sampleCount: '25',
+    totalWeightGram: '350',
+    abw: '14.0',
     notes: '',
   });
 
   const [mortalityForm, setMortalityForm] = useState({
-    mortalityCount: '25',
+    count: '25',
     reason: 'Moulting Stress',
-    notes: '',
+    notes: 'Checked aeration',
   });
 
   const [medicationForm, setMedicationForm] = useState({
-    medicineName: 'Probiotic Top Dressing',
+    medicineName: 'Probiotic Mix',
     dosage: '1 kg / acre',
-    purpose: 'Digestive health & water conditioning',
-    notes: '',
+    notes: 'Applied during morning aeration',
   });
 
-  const [activityForm, setActivityForm] = useState({
-    activityType: 'Probiotic Application',
-    notes: 'Applied during morning aeration.',
-  });
+  const [photoName, setPhotoName] = useState('');
 
-  const [photoForm, setPhotoForm] = useState({
-    photoTitle: 'Sampling Evidence',
-    notes: 'Healthy shrimp observed.',
-  });
-
-  // Calculate biomass automatically when count/weight change
-  useEffect(() => {
-    const count = parseFloat(biomassForm.sampleCount) || 0;
-    const avg = parseFloat(biomassForm.averageWeight) || 0;
-    if (count > 0 && avg > 0) {
-      const estimated = Math.round((avg * 65000) / 1000);
-      setBiomassForm(prev => ({ ...prev, estimatedBiomass: estimated.toLocaleString() }));
-    }
-  }, [biomassForm.sampleCount, biomassForm.averageWeight]);
-
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(session?.agentId) : (db?.farmers || []);
-  const ponds = selectedFarmerId ? (getTanksByFarmerId ? getTanksByFarmerId(selectedFarmerId) : (db?.tanks || []).filter(t => t.farmerId === selectedFarmerId)) : [];
+  const agentId = session?.agentId || 'agent001';
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const ponds = selectedFarmerId && getTanksByFarmerId 
+    ? getTanksByFarmerId(selectedFarmerId) 
+    : (db?.tanks || []);
 
   useEffect(() => {
     if (isOpen) {
-      setSubmittedRecord(null);
-      if (preselectedFarmerId) {
+      if (preselectedTankId) {
+        const allTanks = db?.tanks || [];
+        const foundTank = allTanks.find(t => t.id === preselectedTankId);
+        if (foundTank && foundTank.farmerId) {
+          setSelectedFarmerId(foundTank.farmerId);
+        } else if (assignedFarmers.length > 0) {
+          setSelectedFarmerId(assignedFarmers[0].id);
+        }
+        setSelectedTankId(preselectedTankId);
+      } else if (preselectedFarmerId) {
         setSelectedFarmerId(preselectedFarmerId);
+        const farmerPonds = getTanksByFarmerId ? getTanksByFarmerId(preselectedFarmerId) : [];
+        if (farmerPonds.length > 0) setSelectedTankId(farmerPonds[0].id);
       } else if (assignedFarmers.length > 0 && !selectedFarmerId) {
         setSelectedFarmerId(assignedFarmers[0].id);
       }
+    }
+  }, [isOpen, preselectedTankId, preselectedFarmerId, db, assignedFarmers]);
 
-      if (preselectedTankId) {
-        setSelectedTankId(preselectedTankId);
-      }
-
-      const existingGPS = getStoredGPS();
-      if (existingGPS) {
-        setGpsData(existingGPS);
+  useEffect(() => {
+    if (isOpen) {
+      const stored = getStoredGPS();
+      if (stored) {
+        setGpsData(stored);
       } else {
         refreshGPS();
       }
+      setSubmittedRecord(null);
+      setIsSubmitting(false);
     }
-  }, [isOpen, preselectedFarmerId, preselectedTankId]);
+  }, [isOpen]);
 
-  useEffect(() => {
-    if (ponds.length > 0 && (!selectedTankId || !ponds.some(p => p.id === selectedTankId))) {
-      setSelectedTankId(ponds[0].id);
-    }
-  }, [selectedFarmerId, ponds]);
-
-  const refreshGPS = () => {
+  const refreshGPS = async () => {
     setGpsLoading(true);
-    captureDeviceGPS(
-      (pos) => {
-        setGpsData(pos);
-        setGpsLoading(false);
-      },
-      () => {
-        const fallback = generateVerifiedFallbackGPS('Bhimavaram, AP');
-        setGpsData(fallback);
-        setGpsLoading(false);
-      }
-    );
+    try {
+      const live = await captureDeviceGPS({ timeout: 6000 });
+      setGpsData(live);
+    } catch (e) {
+      const fallback = generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
+      setGpsData(fallback);
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -147,10 +143,10 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
 
     const farmer = assignedFarmers.find(f => f.id === selectedFarmerId);
     const pond = ponds.find(p => p.id === selectedTankId);
-    const farmerName = farmer?.name || 'Ravi Kumar';
-    const pondName = pond?.name || 'Pond 01';
+    const farmerName = farmer?.name || 'Ravi';
+    const pondName = pond?.name || 'Tank 3';
 
-    let testTypeName = 'Water Analysis';
+    let testTypeName = 'Farm Activity';
     let formData = {};
 
     if (activeTab === 'WATER_QUALITY') {
@@ -173,10 +169,10 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
       formData = activityForm;
     } else if (activeTab === 'PHOTO_OBSERVATION') {
       testTypeName = 'Photo';
-      formData = photoForm;
+      formData = { photoName: photoName || 'pond_photo.jpg' };
     }
 
-    const recordId = `WQ-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const recordId = `FR-${Date.now().toString().slice(-6)}`;
     const now = new Date();
     const formattedDate = `${now.getDate()} Aug ${now.getFullYear()}`;
     const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -194,116 +190,111 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
       date: formattedDate,
       time: formattedTime,
       data: formData,
-      gps: gpsData || generateVerifiedFallbackGPS('Bhimavaram, AP'),
+      gps: gpsData || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram'),
       readOnly: true,
       lockedAt: new Date().toISOString(),
     };
 
-    if (recordFieldEntry) {
-      recordFieldEntry(submissionPayload);
-    } else {
-      queueOfflineRecord(submissionPayload);
-    }
+    setIsSubmitting(true);
 
-    setSubmittedRecord(submissionPayload);
-    if (onSuccess) onSuccess(submissionPayload);
+    setTimeout(() => {
+      if (recordFieldEntry) {
+        recordFieldEntry(submissionPayload);
+      } else {
+        queueOfflineRecord(submissionPayload);
+      }
+
+      setIsSubmitting(false);
+      setSubmittedRecord(submissionPayload);
+      if (onSuccess) onSuccess(submissionPayload);
+    }, 500);
   };
 
-  // SUCCESS CONFIRMATION SCREEN
-  if (submittedRecord) {
+  // 1. Loading State
+  if (isSubmitting) {
     return (
-      <div style={styles.overlay}>
-        <div style={styles.confirmationCard}>
-          <div style={styles.confirmIconCircle}>
-            <Check size={32} color="#15803D" strokeWidth={3} />
-          </div>
-
-          <h2 style={styles.confirmTitle}>✓ RECORD SUBMITTED</h2>
-
-          <div style={styles.confirmDetailsBox}>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Record Type</span>
-              <span style={styles.confirmVal}>{submittedRecord.testType}</span>
-            </div>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Farmer</span>
-              <span style={styles.confirmVal}>{submittedRecord.farmerName}</span>
-            </div>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Pond</span>
-              <span style={styles.confirmVal}>{submittedRecord.tankName}</span>
-            </div>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Timestamp</span>
-              <span style={styles.confirmVal}>{submittedRecord.date} • {submittedRecord.time}</span>
-            </div>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Location</span>
-              <span style={{ ...styles.confirmVal, color: '#16A34A' }}>
-                📍 GPS Verified (±{submittedRecord.gps?.accuracy || 8}m)
-              </span>
-            </div>
-            <div style={styles.confirmRow}>
-              <span style={styles.confirmLabel}>Record ID</span>
-              <span style={styles.confirmVal}>{submittedRecord.id}</span>
-            </div>
-          </div>
-
-          <div style={styles.lockNotice}>
-            <Lock size={11} /> Saved as Read Only.
-          </div>
-
-          <button style={styles.doneBtn} onClick={onClose}>
-            Done
-          </button>
+      <div className="animate-backdrop-in" style={styles.overlay}>
+        <div className="animate-modal-in" style={{ ...styles.card, padding: '32px 20px', textAlign: 'center' }}>
+          <MarineLoader message="Submitting Field Record..." size="compact" />
         </div>
       </div>
     );
   }
 
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div style={styles.modalHeader}>
-          <div>
-            <span style={styles.headerTag}>NEW RECORD</span>
-            <h2 style={styles.headerTitle}>Field Entry</h2>
+  // 2. Success Confirmation State
+  if (submittedRecord) {
+    return (
+      <div className="animate-backdrop-in" style={styles.overlay} onClick={onClose}>
+        <div className="animate-modal-in" style={styles.card} onClick={(e) => e.stopPropagation()}>
+          <div style={styles.successBox}>
+            <CheckCircle size={36} color="#16A34A" />
+            <h3 style={styles.successTitle}>Field Record Submitted</h3>
+            <p style={styles.successSub}>
+              {submittedRecord.testType} for {submittedRecord.farmerName} • {submittedRecord.tankName}
+            </p>
+            <button 
+              type="button" 
+              className="transition-all duration-150 active:scale-98 cursor-pointer"
+              style={styles.submitButton} 
+              onClick={onClose}
+            >
+              Done
+            </button>
           </div>
-          <button style={styles.closeBtn} onClick={onClose}>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Primary Clean Field Entry Form
+  return (
+    <div className="animate-backdrop-in" style={styles.overlay} onClick={onClose}>
+      <div className="animate-modal-in" style={styles.card} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={styles.header}>
+          <h2 style={styles.title}>Field Entry</h2>
+          <button 
+            type="button" 
+            className="transition-all duration-150 hover:opacity-70 active:scale-90 cursor-pointer"
+            style={styles.closeBtn} 
+            onClick={onClose}
+            aria-label="Close"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* Action Tabs */}
-        <div style={styles.tabScroll}>
+        {/* Record Type Compact 2-Column Grid */}
+        <div style={styles.recordGrid}>
           {RECORD_TYPES.map((t) => {
             const Icon = t.icon;
-            const isActive = activeTab === t.key;
+            const isSelected = activeTab === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
+                className="transition-all duration-150 cursor-pointer active:scale-97"
                 style={{
-                  ...styles.tabPill,
-                  backgroundColor: isActive ? '#0018AD' : '#FFFFFF',
-                  color: isActive ? '#FFFFFF' : '#475569',
-                  borderColor: isActive ? '#0018AD' : '#CBD5E1',
+                  ...styles.typeButton,
+                  backgroundColor: isSelected ? '#0018AD' : '#FFFFFF',
+                  color: isSelected ? '#FFFFFF' : '#334155',
+                  borderColor: isSelected ? '#0018AD' : '#CBD5E1',
+                  fontWeight: isSelected ? '600' : '500',
                 }}
                 onClick={() => setActiveTab(t.key)}
               >
-                <Icon size={13} />
+                <Icon size={14} color={isSelected ? '#FFFFFF' : '#64748B'} strokeWidth={2} />
                 <span>{t.label}</span>
               </button>
             );
           })}
         </div>
 
-        <form onSubmit={handleSubmit} style={styles.formContent}>
-          {/* Target Selection */}
-          <div style={styles.targetGrid}>
+        <form onSubmit={handleSubmit} style={styles.form}>
+          {/* Farmer & Pond (Two equal-width fields) */}
+          <div style={styles.twoColGrid}>
             <div>
-              <label style={styles.inputLabel}>Farmer</label>
+              <label style={styles.label}>Farmer</label>
               <select
                 value={selectedFarmerId}
                 onChange={(e) => setSelectedFarmerId(e.target.value)}
@@ -317,7 +308,7 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
             </div>
 
             <div>
-              <label style={styles.inputLabel}>Pond</label>
+              <label style={styles.label}>Pond</label>
               <select
                 value={selectedTankId}
                 onChange={(e) => setSelectedTankId(e.target.value)}
@@ -331,379 +322,254 @@ const QuickRecordModal = ({ isOpen, onClose, initialType = 'WATER_QUALITY', pres
             </div>
           </div>
 
-          {/* GPS Status Strip */}
-          <div style={styles.gpsStrip}>
-            <div style={styles.gpsLeft}>
-              <MapPin size={13} color="#15803D" />
+          {/* Location Strip */}
+          <div style={styles.locationStrip}>
+            <div style={styles.locationLeft}>
+              <MapPin size={14} color="#16A34A" />
               <div>
-                <span style={styles.gpsVerifiedText}>📍 Location Verified</span>
-                <span style={styles.gpsAccuracy}>Accuracy: ±{gpsData?.accuracy || 8}m ({gpsData?.locality || 'Bhimavaram'})</span>
+                <div style={styles.locationName}>
+                  {gpsData?.locality || 'Chinnamiram, Bhimavaram'}
+                </div>
+                <div style={styles.locationVerified}>
+                  ✓ Verified (±{gpsData?.accuracy || 8}m)
+                </div>
               </div>
             </div>
+
             <button 
               type="button" 
+              className="transition-all duration-150 hover:opacity-75 active:scale-90 cursor-pointer"
               style={styles.gpsRefreshBtn}
               onClick={refreshGPS}
               disabled={gpsLoading}
+              title="Refresh Location"
             >
-              <RefreshCw size={11} className={gpsLoading ? 'spin-animation' : ''} />
+              <RefreshCw size={12} className={gpsLoading ? 'spin-animation' : ''} />
             </button>
           </div>
 
-          {/* DYNAMIC FORM FIELDS */}
+          {/* Dynamic Activity/Parameter Fields */}
+          {activeTab === 'FARM_ACTIVITY' && (
+            <div>
+              <label style={styles.label}>Activity</label>
+              <select
+                value={activityForm.activityType}
+                onChange={(e) => setActivityForm({ ...activityForm, activityType: e.target.value })}
+                style={styles.selectInput}
+              >
+                <option value="Probiotic Application">Probiotic Application</option>
+                <option value="Aerator Maintenance">Aerator Maintenance</option>
+                <option value="Water Exchange">Water Exchange</option>
+                <option value="Weekly Audit Check">Weekly Audit Check</option>
+              </select>
+            </div>
+          )}
 
-          {/* 1. WATER ANALYSIS */}
-          {activeTab === 'WATER_QUALITY' && (
-            <div style={styles.fieldsStack}>
-              <div style={styles.grid2Col}>
-                <div>
-                  <label style={styles.fieldLabel}>Temperature (°C)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={waterForm.temperature}
-                    onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="28.6"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>pH Value</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={waterForm.ph}
-                    onChange={(e) => setWaterForm({ ...waterForm, ph: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="7.8"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>DO (mg/L)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={waterForm.do}
-                    onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="5.6"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Salinity (ppt)</label>
-                  <input
-                    type="number"
-                    value={waterForm.salinity}
-                    onChange={(e) => setWaterForm({ ...waterForm, salinity: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="16"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Ammonia (mg/L)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={waterForm.ammonia}
-                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="0.12"
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Alkalinity (mg/L)</label>
-                  <input
-                    type="number"
-                    value={waterForm.alkalinity}
-                    onChange={(e) => setWaterForm({ ...waterForm, alkalinity: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="120"
-                  />
-                </div>
+          {activeTab === 'MORTALITY_LOG' && (
+            <div style={styles.twoColGrid}>
+              <div>
+                <label style={styles.label}>Mortality Count</label>
+                <input
+                  type="number"
+                  value={mortalityForm.count}
+                  onChange={(e) => setMortalityForm({ ...mortalityForm, count: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="25"
+                  required
+                />
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Notes (Optional)</label>
+                <label style={styles.label}>Reason</label>
+                <select
+                  value={mortalityForm.reason}
+                  onChange={(e) => setMortalityForm({ ...mortalityForm, reason: e.target.value })}
+                  style={styles.selectInput}
+                >
+                  <option value="Moulting Stress">Moulting Stress</option>
+                  <option value="Low DO Level">Low DO Level</option>
+                  <option value="Temperature Shock">Temperature Shock</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'WATER_QUALITY' && (
+            <div style={styles.twoColGrid}>
+              <div>
+                <label style={styles.label}>Temperature (°C)</label>
                 <input
-                  type="text"
-                  value={waterForm.notes}
-                  onChange={(e) => setWaterForm({ ...waterForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="e.g. Normal phytoplankton bloom"
+                  type="number"
+                  step="0.1"
+                  value={waterForm.temperature}
+                  onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="28.6"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={styles.label}>pH Value</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={waterForm.ph}
+                  onChange={(e) => setWaterForm({ ...waterForm, ph: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="7.8"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={styles.label}>DO (mg/L)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={waterForm.do}
+                  onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="5.6"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={styles.label}>Salinity (ppt)</label>
+                <input
+                  type="number"
+                  value={waterForm.salinity}
+                  onChange={(e) => setWaterForm({ ...waterForm, salinity: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="16"
+                  required
                 />
               </div>
             </div>
           )}
 
-          {/* 2. FEED TEST */}
           {activeTab === 'FEED_ENTRY' && (
-            <div style={styles.fieldsStack}>
-              <div style={styles.grid2Col}>
-                <div>
-                  <label style={styles.fieldLabel}>Feed Quantity (kg)</label>
-                  <input
-                    type="number"
-                    value={feedForm.feedQuantity}
-                    onChange={(e) => setFeedForm({ ...feedForm, feedQuantity: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="120"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Feeding Time</label>
-                  <select
-                    value={feedForm.feedingTime}
-                    onChange={(e) => setFeedForm({ ...feedForm, feedingTime: e.target.value })}
-                    style={styles.fieldInput}
-                  >
-                    <option value="Morning (06:00 AM)">Morning (06:00 AM)</option>
-                    <option value="Noon (10:00 AM)">Noon (10:00 AM)</option>
-                    <option value="Afternoon (02:00 PM)">Afternoon (02:00 PM)</option>
-                    <option value="Evening (06:00 PM)">Evening (06:00 PM)</option>
-                  </select>
-                </div>
-              </div>
-
+            <div style={styles.twoColGrid}>
               <div>
-                <label style={styles.fieldLabel}>Feed Type / Brand</label>
+                <label style={styles.label}>Feed Type</label>
                 <input
                   type="text"
                   value={feedForm.feedType}
                   onChange={(e) => setFeedForm({ ...feedForm, feedType: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Royals Premium 2.0 mm"
+                  style={styles.textInput}
+                  placeholder="Starter-1"
                   required
                 />
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Notes (Optional)</label>
+                <label style={styles.label}>Quantity (kg)</label>
                 <input
-                  type="text"
-                  value={feedForm.notes}
-                  onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Check tray cleared"
+                  type="number"
+                  value={feedForm.quantityKg}
+                  onChange={(e) => setFeedForm({ ...feedForm, quantityKg: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="15"
+                  required
                 />
               </div>
             </div>
           )}
 
-          {/* 3. BIOMASS */}
           {activeTab === 'BIOMASS_SAMPLING' && (
-            <div style={styles.fieldsStack}>
-              <div style={styles.grid2Col}>
-                <div>
-                  <label style={styles.fieldLabel}>Sample Count</label>
-                  <input
-                    type="number"
-                    value={biomassForm.sampleCount}
-                    onChange={(e) => setBiomassForm({ ...biomassForm, sampleCount: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="30"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Average Weight (g)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={biomassForm.averageWeight}
-                    onChange={(e) => setBiomassForm({ ...biomassForm, averageWeight: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="18.5"
-                    required
-                  />
-                </div>
-              </div>
-
+            <div style={styles.twoColGrid}>
               <div>
-                <label style={styles.fieldLabel}>Estimated Biomass (kg)</label>
-                <div style={styles.calcPill}>
-                  {biomassForm.estimatedBiomass} kg (Calculated)
-                </div>
-              </div>
-
-              <div>
-                <label style={styles.fieldLabel}>Notes (Optional)</label>
+                <label style={styles.label}>Sample Count</label>
                 <input
-                  type="text"
-                  value={biomassForm.notes}
-                  onChange={(e) => setBiomassForm({ ...biomassForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Clean carapace"
+                  type="number"
+                  value={biomassForm.sampleCount}
+                  onChange={(e) => setBiomassForm({ ...biomassForm, sampleCount: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="25"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={styles.label}>ABW (g)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={biomassForm.abw}
+                  onChange={(e) => setBiomassForm({ ...biomassForm, abw: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="14.0"
+                  required
                 />
               </div>
             </div>
           )}
 
-          {/* 4. MORTALITY */}
-          {activeTab === 'MORTALITY_LOG' && (
-            <div style={styles.fieldsStack}>
-              <div style={styles.grid2Col}>
-                <div>
-                  <label style={styles.fieldLabel}>Mortality Count</label>
-                  <input
-                    type="number"
-                    value={mortalityForm.mortalityCount}
-                    onChange={(e) => setMortalityForm({ ...mortalityForm, mortalityCount: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="25"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Reason</label>
-                  <select
-                    value={mortalityForm.reason}
-                    onChange={(e) => setMortalityForm({ ...mortalityForm, reason: e.target.value })}
-                    style={styles.fieldInput}
-                  >
-                    <option value="Moulting Stress">Moulting Stress</option>
-                    <option value="Low DO Event">Low DO Event</option>
-                    <option value="Thermal Stress">Thermal Stress</option>
-                    <option value="Normal Baseline">Normal Baseline</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={styles.fieldLabel}>Notes (Optional)</label>
-                <input
-                  type="text"
-                  value={mortalityForm.notes}
-                  onChange={(e) => setMortalityForm({ ...mortalityForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Checked aeration"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* 5. MEDICATION */}
           {activeTab === 'MEDICATION' && (
-            <div style={styles.fieldsStack}>
-              <div style={styles.grid2Col}>
-                <div>
-                  <label style={styles.fieldLabel}>Medicine / Probiotic</label>
-                  <input
-                    type="text"
-                    value={medicationForm.medicineName}
-                    onChange={(e) => setMedicationForm({ ...medicationForm, medicineName: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="e.g. Probiotic Mix"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.fieldLabel}>Dosage</label>
-                  <input
-                    type="text"
-                    value={medicationForm.dosage}
-                    onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
-                    style={styles.fieldInput}
-                    placeholder="1 kg / acre"
-                    required
-                  />
-                </div>
-              </div>
-
+            <div style={styles.twoColGrid}>
               <div>
-                <label style={styles.fieldLabel}>Application Notes</label>
+                <label style={styles.label}>Medicine / Probiotic</label>
                 <input
                   type="text"
-                  value={medicationForm.notes}
-                  onChange={(e) => setMedicationForm({ ...medicationForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Applied during morning aeration"
+                  value={medicationForm.medicineName}
+                  onChange={(e) => setMedicationForm({ ...medicationForm, medicineName: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="Probiotic Mix"
+                  required
                 />
               </div>
-            </div>
-          )}
-
-          {/* 6. FARM ACTIVITY */}
-          {activeTab === 'FARM_ACTIVITY' && (
-            <div style={styles.fieldsStack}>
-              <div>
-                <label style={styles.fieldLabel}>Activity</label>
-                <select
-                  value={activityForm.activityType}
-                  onChange={(e) => setActivityForm({ ...activityForm, activityType: e.target.value })}
-                  style={styles.fieldInput}
-                >
-                  <option value="Probiotic Application">Probiotic Application</option>
-                  <option value="Aerator Maintenance">Aerator Maintenance</option>
-                  <option value="Water Exchange">Water Exchange</option>
-                  <option value="Weekly Audit Check">Weekly Audit Check</option>
-                </select>
-              </div>
 
               <div>
-                <label style={styles.fieldLabel}>Notes</label>
+                <label style={styles.label}>Dosage</label>
                 <input
                   type="text"
-                  value={activityForm.notes}
-                  onChange={(e) => setActivityForm({ ...activityForm, notes: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="Describe field activity"
+                  value={medicationForm.dosage}
+                  onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
+                  style={styles.textInput}
+                  placeholder="1 kg / acre"
                   required
                 />
               </div>
             </div>
           )}
 
-          {/* 7. PHOTO */}
           {activeTab === 'PHOTO_OBSERVATION' && (
-            <div style={styles.fieldsStack}>
-              <div>
-                <label style={styles.fieldLabel}>Photo Title</label>
-                <input
-                  type="text"
-                  value={photoForm.photoTitle}
-                  onChange={(e) => setPhotoForm({ ...photoForm, photoTitle: e.target.value })}
-                  style={styles.fieldInput}
-                  placeholder="e.g. Sampling Evidence"
-                  required
-                />
-              </div>
-
-              <div style={styles.photoBox}>
-                <Camera size={20} color="#0018AD" />
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#0018AD' }}>
-                  {photoName || 'Attach Photo'}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhotoName(e.target.files[0]?.name || 'Photo Attached')}
-                  style={{ display: 'none' }}
-                  id="photoUploadInput"
-                />
-                <label htmlFor="photoUploadInput" style={styles.uploadLabelBtn}>
-                  {photoName ? 'Change' : 'Select'}
-                </label>
-              </div>
+            <div>
+              <label style={styles.label}>Attach Photo</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoName(e.target.files[0]?.name || 'Photo Attached')}
+                style={styles.textInput}
+              />
             </div>
           )}
 
-          {/* Submit Button */}
-          <button type="submit" style={styles.submitBtn}>
-            <Send size={14} /> SUBMIT RECORD
+          {/* Notes */}
+          <div>
+            <label style={styles.label}>Notes</label>
+            <textarea
+              rows={2}
+              value={activeTab === 'FARM_ACTIVITY' ? activityForm.notes : (activeTab === 'MORTALITY_LOG' ? mortalityForm.notes : '')}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (activeTab === 'FARM_ACTIVITY') setActivityForm({ ...activityForm, notes: val });
+                if (activeTab === 'MORTALITY_LOG') setMortalityForm({ ...mortalityForm, notes: val });
+              }}
+              style={styles.textareaInput}
+              placeholder="Applied during morning aeration."
+            />
+          </div>
+
+          {/* Primary Submit Button */}
+          <button 
+            type="submit" 
+            className="transition-all duration-150 hover:brightness-110 active:scale-98 cursor-pointer"
+            style={styles.submitButton}
+          >
+            Submit Field Record
           </button>
         </form>
       </div>
@@ -718,279 +584,188 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 99999,
     padding: '16px',
   },
-  modalCard: {
+  card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '16px',
+    borderRadius: '12px',
     width: '100%',
-    maxWidth: '440px',
+    maxWidth: '420px',
     maxHeight: '92vh',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
-    overflow: 'hidden',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #E2E8F0',
+    overflowY: 'auto',
+    padding: '20px',
+    boxSizing: 'border-box',
   },
-  modalHeader: {
+  header: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: '14px 16px',
-    borderBottom: '1px solid #E2E8F0',
-    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    marginBottom: '14px',
   },
-  headerTag: {
-    fontSize: '10px',
-    fontWeight: '700',
-    color: '#0018AD',
-    letterSpacing: '0.4px',
-  },
-  headerTitle: {
-    fontSize: '16px',
-    fontWeight: '700',
+  title: {
+    fontSize: '18px',
+    fontWeight: '600',
     color: '#0F172A',
-    margin: '1px 0 0 0',
+    margin: 0,
   },
   closeBtn: {
     background: 'none',
     border: 'none',
     color: '#64748B',
     cursor: 'pointer',
-    padding: '2px',
-  },
-  tabScroll: {
+    padding: '4px',
     display: 'flex',
-    gap: '6px',
-    overflowX: 'auto',
-    padding: '10px 16px',
-    borderBottom: '1px solid #F1F5F9',
-    scrollbarWidth: 'none',
-  },
-  tabPill: {
-    display: 'inline-flex',
     alignItems: 'center',
-    gap: '5px',
-    padding: '5px 10px',
-    borderRadius: '14px',
-    border: '1px solid',
-    fontSize: '11px',
-    fontWeight: '600',
-    whiteSpace: 'nowrap',
-    cursor: 'pointer',
+    justifyContent: 'center',
   },
-  formContent: {
-    padding: '14px 16px',
-    overflowY: 'auto',
+  recordGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '6px',
+    marginBottom: '16px',
+  },
+  typeButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    height: '36px',
+    borderRadius: '8px',
+    border: '1px solid #CBD5E1',
+    fontSize: '11px',
+    padding: '0 4px',
+    whiteSpace: 'nowrap',
+    boxSizing: 'border-box',
+  },
+  form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
+    gap: '12px',
   },
-  targetGrid: {
+  twoColGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '8px',
+    gap: '10px',
   },
-  inputLabel: {
+  label: {
     fontSize: '11px',
     fontWeight: '600',
-    color: '#475569',
-    marginBottom: '3px',
+    color: '#64748B',
+    marginBottom: '4px',
     display: 'block',
   },
   selectInput: {
     width: '100%',
-    padding: '8px 10px',
-    borderRadius: '8px',
+    height: '42px',
+    padding: '0 10px',
+    borderRadius: '10px',
     border: '1px solid #CBD5E1',
     backgroundColor: '#FFFFFF',
-    fontSize: '12px',
-    fontWeight: '600',
+    fontSize: '14px',
     color: '#0F172A',
     outline: 'none',
     boxSizing: 'border-box',
   },
-  gpsStrip: {
+  textInput: {
+    width: '100%',
+    height: '42px',
+    padding: '0 12px',
+    borderRadius: '10px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    fontSize: '14px',
+    color: '#0F172A',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  textareaInput: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    fontSize: '13px',
+    color: '#0F172A',
+    outline: 'none',
+    resize: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  locationStrip: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F0FDF4',
-    border: '1px solid #BBF7D0',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
     borderRadius: '8px',
-    padding: '6px 10px',
+    padding: '6px 12px',
   },
-  gpsLeft: {
+  locationLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '8px',
   },
-  gpsVerifiedText: {
+  locationName: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#0F172A',
+    lineHeight: 1.2,
+  },
+  locationVerified: {
     fontSize: '11px',
-    fontWeight: '700',
-    color: '#166534',
-    display: 'block',
-  },
-  gpsAccuracy: {
-    fontSize: '10px',
+    fontWeight: '500',
     color: '#15803D',
   },
   gpsRefreshBtn: {
     background: 'none',
     border: 'none',
-    color: '#166534',
+    color: '#0018AD',
     cursor: 'pointer',
     padding: '2px',
-  },
-  fieldsStack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  grid2Col: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '8px',
-  },
-  fieldLabel: {
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: '3px',
-    display: 'block',
-  },
-  fieldInput: {
-    width: '100%',
-    padding: '8px 10px',
-    borderRadius: '8px',
-    border: '1px solid #CBD5E1',
-    backgroundColor: '#FFFFFF',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#0F172A',
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  calcPill: {
-    padding: '8px 10px',
-    borderRadius: '8px',
-    backgroundColor: '#EDF0FF',
-    color: '#0018AD',
-    fontWeight: '700',
-    fontSize: '12px',
-    border: '1px solid #CBD2FF',
-  },
-  photoBox: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '10px 12px',
-    backgroundColor: '#F8FAFC',
-    borderRadius: '8px',
-    border: '1px dashed #CBD5E1',
-  },
-  uploadLabelBtn: {
-    fontSize: '11px',
-    fontWeight: '700',
-    color: '#FFFFFF',
-    backgroundColor: '#0018AD',
-    padding: '5px 10px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-  },
-  submitBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
+  },
+  submitButton: {
+    width: '100%',
+    height: '46px',
+    borderRadius: '10px',
     backgroundColor: '#0018AD',
     color: '#FFFFFF',
     border: 'none',
-    padding: '11px',
-    borderRadius: '10px',
-    fontSize: '13px',
-    fontWeight: '700',
+    fontSize: '14px',
+    fontWeight: '600',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.3)',
+    boxShadow: '0 2px 6px rgba(0, 24, 173, 0.2)',
     marginTop: '4px',
   },
-  confirmationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '16px',
-    padding: '20px 16px',
-    width: '100%',
-    maxWidth: '400px',
+  successBox: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     textAlign: 'center',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+    gap: '8px',
+    padding: '12px 0',
   },
-  confirmIconCircle: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    backgroundColor: '#DCFCE7',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: '10px',
-  },
-  confirmTitle: {
-    fontSize: '16px',
-    fontWeight: '800',
-    color: '#0F172A',
-    margin: '0 0 12px 0',
-  },
-  confirmDetailsBox: {
-    width: '100%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: '10px',
-    padding: '10px 12px',
-    border: '1px solid #E2E8F0',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    marginBottom: '10px',
-    textAlign: 'left',
-  },
-  confirmRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '12px',
-    paddingBottom: '3px',
-    borderBottom: '1px solid #F1F5F9',
-  },
-  confirmLabel: {
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  confirmVal: {
-    color: '#0F172A',
+  successTitle: {
+    fontSize: '17px',
     fontWeight: '700',
+    color: '#0F172A',
+    margin: '4px 0 0 0',
   },
-  lockNotice: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: '14px',
-  },
-  doneBtn: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '8px',
-    border: 'none',
-    backgroundColor: '#0018AD',
-    color: '#FFFFFF',
+  successSub: {
     fontSize: '13px',
-    fontWeight: '700',
-    cursor: 'pointer',
+    color: '#64748B',
+    margin: '0 0 12px 0',
   },
 };
 

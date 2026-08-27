@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Plus, Clock, User } from 'lucide-react';
+import { Home, Users, Plus, History, User } from 'lucide-react';
 import QuickRecordModal from './QuickRecordModal';
 
 const BottomNavigation = () => {
@@ -10,9 +10,9 @@ const BottomNavigation = () => {
 
   const navItems = [
     { label: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician'] },
-    { label: 'My Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
+    { label: 'Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
     { label: 'New', isAction: true, icon: Plus },
-    { label: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history'] },
+    { label: 'History', path: '/tests', icon: History, match: ['/tests', '/history'] },
     { label: 'Profile', path: '/profile', icon: User, match: ['/profile'] },
   ];
 
@@ -23,48 +23,48 @@ const BottomNavigation = () => {
 
   return (
     <>
-      <nav style={styles.navContainer} aria-label="Mobile Navigation">
-        {navItems.map((item) => {
-          if (item.isAction) {
+      <nav style={styles.navContainer} aria-label="Mobile Bottom Navigation">
+        <div style={styles.innerNav}>
+          {navItems.map((item) => {
+            if (item.isAction) {
+              return (
+                <div key="action-new" style={styles.actionCol}>
+                  <button
+                    type="button"
+                    className="transition-all duration-150 active:scale-90 cursor-pointer"
+                    style={styles.floatingCenterBtn}
+                    onClick={() => setIsRecordModalOpen(true)}
+                    aria-label="New Field Record"
+                  >
+                    <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+                  </button>
+                </div>
+              );
+            }
+
+            const Icon = item.icon;
+            const active = isActive(item);
+
             return (
-              <div key="new-action" style={styles.actionWrapper}>
-                <button
-                  style={styles.floatingCenterBtn}
-                  onClick={() => setIsRecordModalOpen(true)}
-                  aria-label="New Field Record"
-                >
-                  <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
-                </button>
-                <span style={styles.centerLabel}>+ New</span>
-              </div>
+              <button
+                key={item.label}
+                type="button"
+                className="transition-all duration-150 active:scale-95 cursor-pointer"
+                style={styles.navBtn}
+                onClick={() => navigate(item.path)}
+                aria-label={item.label}
+              >
+                <div style={styles.iconWrapper}>
+                  <Icon 
+                    size={22} 
+                    strokeWidth={active ? 2.4 : 1.8} 
+                    color={active ? '#0018AD' : '#64748B'} 
+                  />
+                </div>
+              </button>
             );
-          }
-
-          const Icon = item.icon;
-          const active = isActive(item);
-
-          return (
-            <button
-              key={item.label}
-              style={{
-                ...styles.navBtn,
-                color: active ? '#0018AD' : '#64748B',
-              }}
-              onClick={() => navigate(item.path)}
-            >
-              <div style={styles.iconContainer}>
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-              </div>
-              <span style={{
-                ...styles.navLabel,
-                fontWeight: active ? '700' : '500',
-                color: active ? '#0018AD' : '#64748B',
-              }}>
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
+          })}
+        </div>
       </nav>
 
       <QuickRecordModal 
@@ -81,66 +81,66 @@ const styles = {
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60px',
+    height: '64px',
     backgroundColor: '#FFFFFF',
     borderTop: '1px solid #E2E8F0',
+    zIndex: 9999,
+    boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.03)',
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    userSelect: 'none',
+  },
+  innerNav: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    zIndex: 9999,
-    boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.03)',
-    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    justifyContent: 'space-between',
+    height: '100%',
+    maxWidth: '480px',
+    margin: '0 auto',
+    padding: '0 8px',
+    boxSizing: 'border-box',
   },
   navBtn: {
     flex: 1,
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
     background: 'none',
     border: 'none',
-    padding: '4px 0',
+    padding: 0,
+    margin: 0,
     cursor: 'pointer',
-    minWidth: '44px',
-    minHeight: '44px',
+    boxSizing: 'border-box',
   },
-  iconContainer: {
+  iconWrapper: {
+    width: '40px',
+    height: '36px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '22px',
   },
-  navLabel: {
-    fontSize: '10px',
-    marginTop: '2px',
-    letterSpacing: '0.2px',
-  },
-  actionWrapper: {
+  actionCol: {
     flex: 1,
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    top: '-10px',
+    height: '100%',
   },
   floatingCenterBtn: {
-    width: '46px',
-    height: '46px',
+    position: 'absolute',
+    top: '-16px',
+    width: '48px',
+    height: '48px',
     borderRadius: '50%',
     backgroundColor: '#0018AD',
-    border: '2px solid #FFFFFF',
+    border: '3px solid #FFFFFF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0, 24, 173, 0.35)',
-  },
-  centerLabel: {
-    fontSize: '10px',
-    fontWeight: '700',
-    color: '#0018AD',
-    marginTop: '2px',
+    boxShadow: '0 4px 12px rgba(0, 24, 173, 0.28)',
+    zIndex: 10,
   },
 };
 

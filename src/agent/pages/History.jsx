@@ -221,10 +221,7 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
-    paddingBottom: '24px',
-    maxWidth: '480px',
-    margin: '0 auto',
+    gap: '20px',
     width: '100%',
   },
   headerRow: {

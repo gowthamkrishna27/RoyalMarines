@@ -55,10 +55,11 @@ const Farmers = () => {
         </div>
 
         <button 
+          className="transition-all duration-200 hover:brightness-110 active:scale-95 cursor-pointer"
           style={styles.addFarmerBtn}
           onClick={() => navigate('/add-farmer')}
         >
-          <Plus size={14} strokeWidth={2.5} /> Add Farmer
+          <Plus size={15} strokeWidth={2.6} /> Add Farmer
         </button>
       </div>
 
@@ -162,10 +163,7 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
-    paddingBottom: '24px',
-    maxWidth: '480px',
-    margin: '0 auto',
+    gap: '20px',
     width: '100%',
   },
   headerRow: {
@@ -189,15 +187,18 @@ const styles = {
   addFarmerBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
+    justifyContent: 'center',
+    gap: '6px',
     backgroundColor: '#0018AD',
     color: '#FFFFFF',
     border: 'none',
-    padding: '7px 12px',
-    borderRadius: '8px',
-    fontSize: '12px',
+    height: '38px',
+    padding: '0 14px',
+    borderRadius: '10px',
+    fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.22)',
   },
   searchBox: {
     display: 'flex',

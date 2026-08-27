@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   MapPin, CheckCircle, AlertTriangle, Clock, Plus, 
-  Droplets, Fish, Wheat, Skull, ClipboardList, Camera, RefreshCw, ChevronRight, Check 
+  Droplets, Fish, Wheat, Skull, ClipboardList, Camera, RefreshCw, ChevronRight, Check,
+  Layers, Navigation, Eye
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
 import QuickRecordModal from '../components/QuickRecordModal';
-import SyncStatusModal from '../components/SyncStatusModal';
-import { getSyncStatus } from '../utils/syncService';
+import FarmLeafletMap from '../components/FarmLeafletMap';
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
@@ -19,10 +19,9 @@ const AgentDashboard = () => {
   const [gps, setGps] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [syncState, setSyncState] = useState(getSyncStatus());
+  const [modalInitialTank, setModalInitialTank] = useState(null);
+  const [selectedMapPond, setSelectedMapPond] = useState(null);
 
-  const technicianName = session?.name || 'Agent A';
   const agentId = session?.agentId || 'agent001';
 
   // Farmers assigned to this technician
@@ -35,8 +34,17 @@ const AgentDashboard = () => {
     .filter(s => !s.agentId || s.agentId === agentId)
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-  const isWeeklyCompleted = technicianSubmissions.length > 0;
   const recentRecords = technicianSubmissions.slice(0, 3);
+
+  // Nearby Pond Map Coordinates (Relative to current GPS locality)
+  const mapPonds = [
+    { id: assignedPonds[0]?.id || 'tank-01', name: assignedPonds[0]?.name || 'Pond 01', farmer: assignedFarmers[0]?.name || 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
+    { id: assignedPonds[1]?.id || 'tank-02', name: assignedPonds[1]?.name || 'Pond 02', farmer: assignedFarmers[0]?.name || 'Ravi', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
+    { id: assignedPonds[2]?.id || 'tank-03', name: assignedPonds[2]?.name || 'Pond 03', farmer: assignedFarmers[1]?.name || 'Naveen', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
+    { id: assignedPonds[3]?.id || 'tank-04', name: assignedPonds[3]?.name || 'Pond 04', farmer: assignedFarmers[1]?.name || 'Naveen', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
+  ];
+
+  // Default no pond selected until user clicks a pond pin on the map
 
   // Load GPS on mount
   useEffect(() => {
@@ -63,6 +71,11 @@ const AgentDashboard = () => {
     );
   };
 
+  const handleOpenRecordForPond = (pond) => {
+    setModalInitialTank(pond.id);
+    setIsQuickRecordOpen(true);
+  };
+
   const getRecordIcon = (type = '') => {
     const t = type.toUpperCase();
     if (t.includes('WATER')) return <Droplets size={18} color="#0018AD" />;
@@ -75,15 +88,7 @@ const AgentDashboard = () => {
 
   return (
     <div style={styles.container}>
-      {/* 1. Header (Greeting) */}
-      <div style={styles.headerRow}>
-        <div style={styles.greetingBox}>
-          <span style={styles.greetingSub}>Good Morning,</span>
-          <h1 style={styles.greetingTitle}>{technicianName}</h1>
-        </div>
-      </div>
-
-      {/* 2. Current Location Card */}
+      {/* 1. Current Location Card */}
       <div style={styles.card}>
         <div style={styles.cardHeaderRow}>
           <div style={styles.locationTag}>
@@ -91,6 +96,8 @@ const AgentDashboard = () => {
             <span>CURRENT LOCATION</span>
           </div>
           <button 
+            type="button"
+            className="transition-all duration-150 hover:bg-indigo-100 active:scale-95 cursor-pointer"
             style={styles.refreshBtn}
             onClick={handleRefreshGPS}
             disabled={gpsLoading}
@@ -109,12 +116,64 @@ const AgentDashboard = () => {
             <Check size={12} color="#15803D" strokeWidth={3} /> GPS Verified
           </span>
           <span style={styles.accuracyText}>
-            Accuracy: ±{gps?.accuracy || 119}m
+            Accuracy: ±{gps?.accuracy || 8}m
           </span>
         </div>
       </div>
 
-      {/* 3. Today's Work Card */}
+      {/* 2. Interactive Farm Pond Map */}
+      <div style={styles.card}>
+        <div style={styles.cardHeaderRow}>
+          <span style={styles.sectionHeaderSmall}>FARM POND MAP</span>
+        </div>
+
+        {/* Leaflet OpenStreetMap Container */}
+        <FarmLeafletMap
+          gps={gps}
+          ponds={mapPonds}
+          selectedPond={selectedMapPond}
+          onSelectPond={(pond) => setSelectedMapPond(pond)}
+        />
+
+        {/* Selected Pond Quick-Action Drawer */}
+        {selectedMapPond && (
+          <div style={styles.pondDetailDrawer}>
+            <div style={styles.drawerLeft}>
+              <div style={styles.drawerTitleRow}>
+                <span style={styles.drawerPondName}>{selectedMapPond.name}</span>
+                <span style={selectedMapPond.due ? styles.tagDue : styles.tagOptimal}>
+                  {selectedMapPond.status}
+                </span>
+              </div>
+              <div style={styles.drawerSub}>
+                {selectedMapPond.farmer} • {selectedMapPond.distance} away
+              </div>
+            </div>
+
+            <div style={styles.drawerActions}>
+              <button
+                type="button"
+                className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                style={styles.viewPondBtn}
+                onClick={() => navigate(`/tanks/${selectedMapPond.id}`)}
+              >
+                <Eye size={12} /> View
+              </button>
+
+              <button
+                type="button"
+                className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                style={styles.recordPondBtn}
+                onClick={() => handleOpenRecordForPond(selectedMapPond)}
+              >
+                <Plus size={12} strokeWidth={2.5} /> Record
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Today's Work Summary */}
       <div style={styles.card}>
         <div style={styles.sectionHeaderSmall}>TODAY'S WORK</div>
         <div style={styles.metricsGrid}>
@@ -135,32 +194,7 @@ const AgentDashboard = () => {
         </div>
       </div>
 
-      {/* 4. Weekly Test Compliance Card */}
-      <div style={styles.card}>
-        <div style={styles.sectionHeaderSmall}>WEEKLY TEST</div>
-        <div style={styles.weeklyContentRow}>
-          {isWeeklyCompleted ? (
-            <div style={styles.weeklySuccessState}>
-              <CheckCircle size={15} color="#16A34A" />
-              <span>Completed • 27 Aug 2026</span>
-            </div>
-          ) : (
-            <div style={styles.weeklyPendingState}>
-              <AlertTriangle size={15} color="#D97706" />
-              <span>Test Required</span>
-            </div>
-          )}
-
-          <button 
-            style={styles.startTestBtn}
-            onClick={() => setIsQuickRecordOpen(true)}
-          >
-            <Plus size={13} strokeWidth={2.5} /> Start Test
-          </button>
-        </div>
-      </div>
-
-      {/* 5. Recent Records Section */}
+      {/* 4. Recent Records Section */}
       <div style={styles.recentSection}>
         <div style={styles.recentHeaderRow}>
           <span style={styles.sectionHeaderSmall}>RECENT</span>
@@ -181,30 +215,27 @@ const AgentDashboard = () => {
             recentRecords.map((r, idx) => (
               <div 
                 key={r.id || idx} 
+                className="transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                 style={styles.recentRowCard}
                 onClick={() => navigate('/tests')}
               >
-                <div style={styles.recentRowLeft}>
+                <div style={styles.recentLeft}>
                   <div style={styles.iconContainer}>
                     {getRecordIcon(r.testType || r.recordType)}
                   </div>
-                  <div style={styles.recentTextGroup}>
-                    <span style={styles.recordTitle}>
+                  <div style={styles.recentInfo}>
+                    <span style={styles.recentTitle}>
                       {r.testType || r.recordType || 'Water Analysis'}
                     </span>
-                    <span style={styles.recordTarget}>
-                      {r.farmerName || r.farmerId || 'Ravi Kumar'} • {r.tankName || r.tankId || 'Pond 01'}
+                    <span style={styles.recentMeta}>
+                      {r.farmerName || 'Farmer'} • {r.tankName || 'Pond 01'}
                     </span>
                   </div>
                 </div>
 
-                <div style={styles.recentRowRight}>
-                  <span style={styles.recordTime}>
-                    {r.submittedAgo || r.time || '1 hour ago'}
-                  </span>
-                  <span style={styles.submittedStatus}>
-                    ✓ Submitted
-                  </span>
+                <div style={styles.recentRight}>
+                  <span style={styles.timeTag}>{r.time || '10:32 AM'}</span>
+                  <span style={styles.submittedTag}>✓ Submitted</span>
                 </div>
               </div>
             ))
@@ -212,18 +243,11 @@ const AgentDashboard = () => {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Quick Record Modal */}
       <QuickRecordModal 
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
-      />
-
-      <SyncStatusModal 
-        isOpen={isSyncModalOpen}
-        onClose={() => {
-          setIsSyncModalOpen(false);
-          setSyncState(getSyncStatus());
-        }}
+        preselectedTankId={modalInitialTank}
       />
     </div>
   );
@@ -233,33 +257,8 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
-    paddingBottom: '24px',
-    maxWidth: '480px',
-    margin: '0 auto',
+    gap: '20px',
     width: '100%',
-  },
-  headerRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: '4px',
-  },
-  greetingBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1px',
-  },
-  greetingSub: {
-    fontSize: '12px',
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  greetingTitle: {
-    fontSize: '18px',
-    fontWeight: '700',
-    color: '#0F172A',
-    margin: 0,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -269,7 +268,7 @@ const styles = {
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '10px',
   },
   cardHeaderRow: {
     display: 'flex',
@@ -279,7 +278,7 @@ const styles = {
   locationTag: {
     display: 'flex',
     alignItems: 'center',
-    gap: '5px',
+    gap: '6px',
     fontSize: '11px',
     fontWeight: '700',
     color: '#0018AD',
@@ -289,29 +288,30 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    background: 'none',
-    border: 'none',
-    color: '#64748B',
+    backgroundColor: '#EDF0FF',
+    color: '#0018AD',
+    border: '1px solid #CBD2FF',
+    padding: '4px 8px',
+    borderRadius: '6px',
     fontSize: '11px',
-    fontWeight: '600',
+    fontWeight: '700',
     cursor: 'pointer',
-    padding: '2px 4px',
   },
   locationName: {
     fontSize: '16px',
     fontWeight: '700',
     color: '#0F172A',
+    lineHeight: 1.2,
   },
   locationStatusRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    marginTop: '2px',
+    gap: '10px',
   },
   gpsVerifiedBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '3px',
+    gap: '4px',
     backgroundColor: '#DCFCE7',
     color: '#15803D',
     fontSize: '11px',
@@ -329,6 +329,193 @@ const styles = {
     fontWeight: '700',
     color: '#64748B',
     letterSpacing: '0.4px',
+  },
+  liveIndicator: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#0018AD',
+  },
+  pulseDot: {
+    width: '7px',
+    height: '7px',
+    borderRadius: '50%',
+    backgroundColor: '#16A34A',
+  },
+  mapCanvas: {
+    position: 'relative',
+    height: '190px',
+    borderRadius: '10px',
+    backgroundColor: '#F1F5F9',
+    border: '1px solid #E2E8F0',
+    overflow: 'hidden',
+  },
+  mapGridOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundImage: `
+      linear-gradient(to right, rgba(203, 213, 225, 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(203, 213, 225, 0.4) 1px, transparent 1px)
+    `,
+    backgroundSize: '24px 24px',
+  },
+  technicianPin: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    zIndex: 15,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(0, 24, 173, 0.2)',
+    animation: 'pulseSubtle 2s infinite',
+  },
+  techDot: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: '#0018AD',
+    border: '2px solid #FFFFFF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+    position: 'relative',
+    zIndex: 2,
+  },
+  techLabel: {
+    fontSize: '10px',
+    fontWeight: '700',
+    color: '#0018AD',
+    backgroundColor: '#FFFFFF',
+    padding: '1px 5px',
+    borderRadius: '4px',
+    marginTop: '3px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    whiteSpace: 'nowrap',
+  },
+  pondMarkerBox: {
+    position: 'absolute',
+    transform: 'translate(-50%, -50%)',
+  },
+  pondPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    border: '1px solid',
+    transition: 'all 0.15s ease',
+  },
+  dueDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#D97706',
+  },
+  pondDetailDrawer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: '10px',
+    padding: '8px 12px',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '4px',
+  },
+  drawerLeft: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: 0,
+    flex: 1,
+  },
+  drawerTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexWrap: 'nowrap',
+  },
+  drawerPondName: {
+    fontSize: '13px',
+    fontWeight: '700',
+    color: '#0F172A',
+    whiteSpace: 'nowrap',
+  },
+  tagOptimal: {
+    fontSize: '10px',
+    fontWeight: '600',
+    color: '#15803D',
+    backgroundColor: '#DCFCE7',
+    padding: '1px 6px',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap',
+  },
+  tagDue: {
+    fontSize: '10px',
+    fontWeight: '600',
+    color: '#B45309',
+    backgroundColor: '#FEF3C7',
+    padding: '1px 6px',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap',
+  },
+  drawerSub: {
+    fontSize: '11px',
+    color: '#64748B',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  drawerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0,
+  },
+  viewPondBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    backgroundColor: '#FFFFFF',
+    color: '#334155',
+    border: '1px solid #CBD5E1',
+    height: '30px',
+    padding: '0 9px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  recordPondBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    backgroundColor: '#0018AD',
+    color: '#FFFFFF',
+    border: 'none',
+    height: '30px',
+    padding: '0 11px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 2px 5px rgba(0, 24, 173, 0.2)',
+    whiteSpace: 'nowrap',
   },
   metricsGrid: {
     display: 'flex',
@@ -358,46 +545,10 @@ const styles = {
     height: '24px',
     backgroundColor: '#F1F5F9',
   },
-  weeklyContentRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: '2px',
-  },
-  weeklySuccessState: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#16A34A',
-  },
-  weeklyPendingState: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#D97706',
-  },
-  startTestBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    backgroundColor: '#0018AD',
-    color: '#FFFFFF',
-    border: 'none',
-    padding: '7px 12px',
-    borderRadius: '8px',
-    fontSize: '12px',
-    fontWeight: '700',
-    cursor: 'pointer',
-  },
   recentSection: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    marginTop: '4px',
+    gap: '10px',
   },
   recentHeaderRow: {
     display: 'flex',
@@ -412,7 +563,7 @@ const styles = {
     background: 'none',
     border: 'none',
     color: '#0018AD',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
     padding: 0,
@@ -427,13 +578,13 @@ const styles = {
     borderRadius: '12px',
     padding: '12px 14px',
     border: '1px solid #E2E8F0',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     cursor: 'pointer',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
   },
-  recentRowLeft: {
+  recentLeft: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
@@ -448,45 +599,46 @@ const styles = {
     justifyContent: 'center',
     flexShrink: 0,
   },
-  recentTextGroup: {
+  recentInfo: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '1px',
   },
-  recordTitle: {
+  recentTitle: {
     fontSize: '13px',
     fontWeight: '700',
     color: '#0F172A',
   },
-  recordTarget: {
+  recentMeta: {
     fontSize: '11px',
     color: '#64748B',
-    fontWeight: '500',
   },
-  recentRowRight: {
+  recentRight: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
-    gap: '3px',
+    gap: '2px',
   },
-  recordTime: {
+  timeTag: {
     fontSize: '11px',
-    color: '#94A3B8',
-    fontWeight: '500',
+    color: '#64748B',
   },
-  submittedStatus: {
+  submittedTag: {
     fontSize: '10px',
     fontWeight: '700',
-    color: '#16A34A',
+    color: '#15803D',
+    backgroundColor: '#DCFCE7',
+    padding: '1px 6px',
+    borderRadius: '4px',
   },
   emptyRecentBox: {
-    padding: '24px',
+    padding: '24px 16px',
     textAlign: 'center',
-    color: '#94A3B8',
-    fontSize: '12px',
     backgroundColor: '#FFFFFF',
     borderRadius: '12px',
     border: '1px dashed #CBD5E1',
+    color: '#64748B',
+    fontSize: '12px',
   },
 };
 

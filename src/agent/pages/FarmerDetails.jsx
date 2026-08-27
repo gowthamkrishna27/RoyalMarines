@@ -49,7 +49,7 @@ const FarmerDetails = () => {
           style={styles.newRecordBtn}
           onClick={() => handleOpenRecord()}
         >
-          <Plus size={13} strokeWidth={2.5} /> + New Record
+          <Plus size={14} strokeWidth={2.5} /> New Record
         </button>
       </div>
 
@@ -139,10 +139,7 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
-    paddingBottom: '24px',
-    maxWidth: '480px',
-    margin: '0 auto',
+    gap: '20px',
     width: '100%',
   },
   topBar: {

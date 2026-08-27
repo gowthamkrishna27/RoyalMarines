@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, Users, Plus, Clock, User, 
-  MapPin, Shield, LogOut, CheckCircle 
+  Home, Users, Plus, Clock, User, LogOut 
 } from 'lucide-react';
 import { getSession, clearSession } from '../utils/agentAuth';
 import QuickRecordModal from './QuickRecordModal';
@@ -25,7 +24,6 @@ const Sidebar = () => {
     { name: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician'] },
     { name: 'My Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
     { name: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history'] },
-    { name: 'Profile', path: '/profile', icon: User, match: ['/profile'] },
   ];
 
   const isItemActive = (item) => {
@@ -35,22 +33,24 @@ const Sidebar = () => {
   return (
     <>
       <aside style={styles.sidebar}>
-        {/* Brand Header */}
-        <div style={styles.brandHeader} onClick={() => navigate('/dashboard')} title="Home">
+        {/* 1. Brand Header */}
+        <div style={styles.brandHeader} onClick={() => navigate('/dashboard')} title="Royals Marine">
           <img src={topnavlogo} alt="Royals Marine" style={styles.brandLogoImg} />
         </div>
 
-        {/* Action Button: + New Record */}
-        <div style={{ padding: '0 16px', marginBottom: '16px' }}>
+        {/* 2. Primary Action Button: + New Record */}
+        <div style={styles.actionSection}>
           <button 
+            className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
             style={styles.quickRecordBtn}
             onClick={() => setIsQuickRecordOpen(true)}
+            aria-label="New Field Record"
           >
-            <Plus size={16} /> + New Record
+            <Plus size={16} strokeWidth={2.5} /> New Record
           </button>
         </div>
 
-        {/* 5 Core Navigation Links */}
+        {/* 3. Core Navigation Links */}
         <nav style={styles.navMenu}>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -60,34 +60,39 @@ const Sidebar = () => {
               <NavLink
                 key={item.name}
                 to={item.path}
+                className="transition-all duration-150 hover:bg-slate-50 active:scale-98"
                 style={{
                   ...styles.navLink,
                   backgroundColor: active ? '#EDF0FF' : 'transparent',
                   color: active ? '#0018AD' : '#475569',
-                  fontWeight: active ? '800' : '600',
+                  fontWeight: active ? '700' : '500',
                 }}
               >
-                <Icon size={18} color={active ? '#0018AD' : '#64748B'} />
+                <Icon size={18} color={active ? '#0018AD' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
                 <span>{item.name}</span>
               </NavLink>
             );
           })}
         </nav>
 
-        {/* Footer with Technician Profile Card */}
+        {/* 4. Footer with Technician Profile Card & Logout */}
         <div style={styles.footerSection}>
-          <div style={styles.userCard}>
+          <div 
+            style={styles.userCard}
+            onClick={() => navigate('/profile')}
+            title="View Profile & Settings"
+          >
             <div style={styles.avatarMini}>
-              <User size={16} color="#0018AD" />
+              <User size={15} color="#0018AD" strokeWidth={2.2} />
             </div>
-            <div style={{ overflow: 'hidden' }}>
+            <div style={styles.userInfo}>
               <div style={styles.userName}>{session?.name || 'Arun Kumar'}</div>
-              <div style={styles.userIdText}>TECH-00128</div>
+              <div style={styles.userIdText}>{session?.agentId || 'agent001'}</div>
             </div>
           </div>
 
           <button style={styles.logoutBtn} onClick={handleLogout} title="Logout">
-            <LogOut size={15} /> Logout
+            <LogOut size={14} /> Logout
           </button>
         </div>
       </aside>
@@ -102,7 +107,7 @@ const Sidebar = () => {
 
 const styles = {
   sidebar: {
-    width: '240px',
+    width: '260px',
     backgroundColor: '#FFFFFF',
     borderRight: '1px solid #E2E8F0',
     display: 'flex',
@@ -111,19 +116,28 @@ const styles = {
     position: 'sticky',
     top: 0,
     boxSizing: 'border-box',
+    userSelect: 'none',
+    zIndex: 100,
   },
   brandHeader: {
     display: 'flex',
     alignItems: 'center',
-    padding: '16px',
+    justifyContent: 'center',
+    padding: '8px 16px',
     borderBottom: '1px solid #F1F5F9',
     marginBottom: '16px',
     cursor: 'pointer',
+    height: '96px',
+    boxSizing: 'border-box',
   },
   brandLogoImg: {
-    height: '46px',
-    maxWidth: '180px',
+    height: '75px',
+    maxWidth: '228px',
     objectFit: 'contain',
+  },
+  actionSection: {
+    padding: '0 16px',
+    marginBottom: '16px',
   },
   quickRecordBtn: {
     width: '100%',
@@ -134,59 +148,68 @@ const styles = {
     backgroundColor: '#0018AD',
     color: '#FFFFFF',
     border: 'none',
-    padding: '11px',
-    borderRadius: '12px',
+    padding: '10px 14px',
+    borderRadius: '10px',
     fontSize: '13px',
-    fontWeight: '800',
+    fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(0, 24, 173, 0.3)',
+    boxShadow: '0 3px 10px rgba(0, 24, 173, 0.25)',
+    transition: 'background-color 0.15s ease',
   },
   navMenu: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
-    padding: '0 12px',
+    gap: '6px',
+    padding: '0 14px',
     flex: 1,
   },
   navLink: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '10px 14px',
-    borderRadius: '10px',
+    padding: '9px 12px',
+    borderRadius: '8px',
     textDecoration: 'none',
     fontSize: '13px',
     transition: 'all 0.15s ease',
   },
   footerSection: {
-    padding: '16px',
+    padding: '14px 16px',
     borderTop: '1px solid #F1F5F9',
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
+    gap: '8px',
+    backgroundColor: '#FAFCFF',
   },
   userCard: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '8px',
-    borderRadius: '10px',
-    backgroundColor: '#F8FAFC',
+    gap: '10px',
+    padding: '6px 8px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    backgroundColor: '#FFFFFF',
     border: '1px solid #E2E8F0',
   },
   avatarMini: {
     width: '30px',
     height: '30px',
-    borderRadius: '8px',
+    borderRadius: '50%',
     backgroundColor: '#EDF0FF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
+  userInfo: {
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    lineHeight: 1.2,
+  },
   userName: {
     fontSize: '12px',
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#0F172A',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -194,20 +217,21 @@ const styles = {
   },
   userIdText: {
     fontSize: '10px',
-    color: '#64748B',
     fontWeight: '600',
+    color: '#0018AD',
+    marginTop: '1px',
   },
   logoutBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    background: 'none',
-    border: '1px solid #CBD5E1',
-    padding: '8px',
+    backgroundColor: 'transparent',
+    color: '#DC2626',
+    border: '1px solid #FEE2E2',
+    padding: '7px 10px',
     borderRadius: '8px',
-    color: '#64748B',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
   },

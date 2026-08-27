@@ -5,7 +5,7 @@ import BottomNavigation from './BottomNavigation';
 import topnavlogo from '../../assets/topnavlogo.png';
 import { getSession } from '../utils/agentAuth';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
-import { MapPin } from 'lucide-react';
+import { MapPin, User } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
@@ -13,10 +13,8 @@ const Layout = ({ children }) => {
   const [currentGps, setCurrentGps] = useState(null);
 
   useEffect(() => {
-    // 1. Load session
     setSession(getSession());
 
-    // 2. Fetch or initialize GPS locality
     const stored = getStoredGPS();
     if (stored) {
       setCurrentGps(stored);
@@ -24,7 +22,7 @@ const Layout = ({ children }) => {
       captureDeviceGPS(
         (coords) => setCurrentGps(coords),
         (err) => {
-          const fallback = generateVerifiedFallbackGPS('Coastal Aqua Zone, Krishnapatnam');
+          const fallback = generateVerifiedFallbackGPS('Bhimavaram, AP');
           setCurrentGps(fallback);
         }
       );
@@ -38,8 +36,6 @@ const Layout = ({ children }) => {
     };
   }, []);
 
-  const agentId = session?.agentId || 'agent001';
-
   return (
     <>
       <style>{`
@@ -49,11 +45,12 @@ const Layout = ({ children }) => {
           width: 100vw;
           background-color: #F8FAFC;
           overflow: hidden;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         
         .desktop-sidebar-pane {
           display: none;
+          flex-shrink: 0;
         }
 
         .main-stage-pane {
@@ -63,8 +60,10 @@ const Layout = ({ children }) => {
           height: 100vh;
           overflow: hidden;
           position: relative;
+          background-color: #F8FAFC;
         }
 
+        /* Mobile Top Header */
         .mobile-top-header {
           display: flex;
           align-items: center;
@@ -73,20 +72,21 @@ const Layout = ({ children }) => {
           background-color: #FFFFFF;
           border-bottom: 1px solid #E2E8F0;
           flex-shrink: 0;
-          height: 96px;
+          height: 88px;
           z-index: 50;
           box-sizing: border-box;
         }
 
+        /* Desktop Top Header Bar */
         .desktop-top-header {
           display: none;
           align-items: center;
           justifyContent: space-between;
-          padding: 14px 28px;
+          padding: 0 32px;
           background-color: #FFFFFF;
           border-bottom: 1px solid #E2E8F0;
           flex-shrink: 0;
-          height: 64px;
+          height: 60px;
           z-index: 50;
           box-sizing: border-box;
         }
@@ -101,10 +101,12 @@ const Layout = ({ children }) => {
           box-sizing: border-box;
         }
 
+        /* Centered max-width container ~780-820px */
         .desktop-content-container {
-          max-width: 1200px;
+          max-width: 800px;
           margin: 0 auto;
           width: 100%;
+          box-sizing: border-box;
         }
 
         .mobile-bottom-nav-pane {
@@ -126,8 +128,8 @@ const Layout = ({ children }) => {
             display: none;
           }
           .scrollable-content-stage {
-            padding: 24px 28px;
-            padding-bottom: 30px;
+            padding: 28px 36px;
+            padding-bottom: 40px;
           }
         }
       `}</style>
@@ -140,7 +142,7 @@ const Layout = ({ children }) => {
 
         {/* Main Stage View */}
         <div className="main-stage-pane">
-          {/* Mobile Top Header: Brand Logo on Left, Only Clean Agent ID on Top Right */}
+          {/* Mobile Top Header: Logo on Left, Round Profile Button on Right */}
           <header className="mobile-top-header">
             <div style={styles.headerLeft} onClick={() => navigate('/dashboard')}>
               <img
@@ -150,47 +152,50 @@ const Layout = ({ children }) => {
               />
             </div>
 
-            <div
-              style={styles.mobileAgentIdPill}
+            <button
+              type="button"
+              className="transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-md"
+              style={styles.profileRoundBtn}
               onClick={() => navigate('/profile')}
-              title="Technician Profile"
+              title="Profile & Settings"
+              aria-label="Profile"
             >
-              <span>{agentId}</span>
-            </div>
+              <User size={18} color="#0018AD" strokeWidth={2.4} />
+            </button>
           </header>
 
-          {/* Desktop Top Header Bar */}
+          {/* Desktop Top Header Bar: Location on Left, Profile Round Button on Far Right */}
           <header className="desktop-top-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={styles.desktopGpsPill}>
-                <MapPin size={15} color="#0018AD" />
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#0018AD' }}>
-                  {currentGps?.locality || 'RMP Farm 1, Krishnapatnam'}
-                </span>
-                <span style={styles.desktopGpsAccuracy}>
-                  ✓ GPS Verified (±{currentGps?.accuracy || 8}m)
-                </span>
-              </div>
+            <div style={styles.desktopGpsPill}>
+              <MapPin size={15} color="#0018AD" />
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#0018AD' }}>
+                {currentGps?.locality || 'Bhimavaram, AP'}
+              </span>
+              <span style={styles.desktopGpsAccuracy}>
+                ✓ GPS Verified (±{currentGps?.accuracy || 8}m)
+              </span>
             </div>
 
-            <div
-              style={styles.desktopAgentIdPill}
+            <button
+              type="button"
+              className="transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-md"
+              style={styles.profileRoundBtn}
               onClick={() => navigate('/profile')}
-              title="Technician Profile"
+              title="Profile & Settings"
+              aria-label="Profile"
             >
-              <span style={styles.agentIdLabel}>ID:</span>
-              <span style={styles.agentIdValue}>{agentId}</span>
-            </div>
+              <User size={18} color="#0018AD" strokeWidth={2.4} />
+            </button>
           </header>
 
-          {/* Scrollable Content Container */}
+          {/* Centered Main Stage Content (max-width: 800px) */}
           <main className="scrollable-content-stage">
-            <div className="desktop-content-container">
+            <div className="desktop-content-container animate-fade-in">
               {children}
             </div>
           </main>
 
-          {/* Mobile Bottom Navigation Pane */}
+          {/* Mobile Bottom Navigation */}
           <div className="mobile-bottom-nav-pane">
             <BottomNavigation />
           </div>
@@ -205,27 +210,27 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     cursor: 'pointer',
+    height: '100%',
   },
   minimizedLogoMobile: {
-    height: '86px',
-    maxWidth: '320px',
+    height: '78px',
+    maxWidth: '300px',
     objectFit: 'contain',
   },
-  mobileAgentIdPill: {
-    display: 'inline-flex',
+  profileRoundBtn: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    backgroundColor: '#EDF0FF',
+    border: '1.5px solid #CBD2FF',
+    display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EDF0FF',
-    color: '#0018AD',
-    border: '1px solid #CBD2FF',
-    padding: '5px 12px',
-    borderRadius: '16px',
-    fontSize: '12px',
-    fontWeight: '800',
-    letterSpacing: '0.3px',
     cursor: 'pointer',
     userSelect: 'none',
     marginLeft: 'auto',
+    flexShrink: 0,
+    boxShadow: '0 1px 4px rgba(0, 24, 173, 0.1)',
   },
   desktopGpsPill: {
     display: 'inline-flex',
@@ -234,7 +239,7 @@ const styles = {
     backgroundColor: '#EDF0FF',
     border: '1px solid #CBD2FF',
     padding: '6px 14px',
-    borderRadius: '12px',
+    borderRadius: '10px',
   },
   desktopGpsAccuracy: {
     fontSize: '11px',
@@ -243,29 +248,6 @@ const styles = {
     padding: '2px 8px',
     borderRadius: '6px',
     fontWeight: '700',
-  },
-  desktopAgentIdPill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    backgroundColor: '#EDF0FF',
-    border: '1px solid #CBD2FF',
-    padding: '6px 14px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    userSelect: 'none',
-    marginLeft: 'auto',
-  },
-  agentIdLabel: {
-    fontSize: '11px',
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  agentIdValue: {
-    fontSize: '13px',
-    fontWeight: '800',
-    color: '#0018AD',
-    letterSpacing: '0.3px',
   },
 };
 

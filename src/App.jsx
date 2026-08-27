@@ -17,6 +17,7 @@ import History from './agent/pages/History';
 import Reports from './agent/pages/Reports';
 import Profile from './agent/pages/Profile';
 import Harvest from './agent/pages/Harvest';
+import MyAnalytics from './agent/pages/MyAnalytics';
 
 // Layout
 import Layout from './agent/components/Layout';
@@ -113,6 +114,10 @@ function App() {
 
           <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />
           <Route path="/harvest" element={<ProtectedRoute><Layout><Harvest /></Layout></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Layout><MyAnalytics /></Layout></ProtectedRoute>} />
+          <Route path="/technician/analytics" element={<ProtectedRoute><Layout><MyAnalytics /></Layout></ProtectedRoute>} />
+          <Route path="/my-analytics" element={<ProtectedRoute><Layout><MyAnalytics /></Layout></ProtectedRoute>} />
+
           <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
           <Route path="/technician/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
 

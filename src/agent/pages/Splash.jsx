@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isAuthenticated } from '../utils/agentAuth';
-import logo from '../../assets/splash-logo.png';
+import topnavlogo from '../../assets/topnavlogo.png';
+import MarineLoader from '../../components/MarineLoader';
 
 const Splash = () => {
   const navigate = useNavigate();
@@ -13,22 +14,16 @@ const Splash = () => {
       } else {
         navigate('/login');
       }
-    }, 2000); // 2 second splash
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, [navigate]);
 
   return (
-    <div className="auth-container" style={styles.container}>
+    <div className="auth-container animate-fade-in" style={styles.container}>
       <div className="auth-box" style={styles.content}>
-        <img src={logo} alt="Royals Marine Food" style={styles.logoImage} />
-      </div>
-
-      <div style={styles.loaderContainer}>
-        <div style={styles.loaderBar}>
-          <div style={styles.loaderProgress}></div>
-        </div>
-        <p style={styles.loadingText}>LOADING SYSTEM...</p>
+        <img src={topnavlogo} alt="Royals Marine" style={styles.logoImage} />
+        <MarineLoader message="INITIALIZING MARINE NETWORK..." />
       </div>
     </div>
   );
