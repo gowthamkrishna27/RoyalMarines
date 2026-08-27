@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Plus, History, User } from 'lucide-react';
+import { Home, Users, Plus, History, FileText } from 'lucide-react';
 import QuickRecordModal from './QuickRecordModal';
 
 const BottomNavigation = () => {
@@ -13,7 +13,7 @@ const BottomNavigation = () => {
     { label: 'Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
     { label: 'New', isAction: true, icon: Plus },
     { label: 'History', path: '/tests', icon: History, match: ['/tests', '/history'] },
-    { label: 'Profile', path: '/profile', icon: User, match: ['/profile'] },
+    { label: 'Reports', path: '/reports', icon: FileText, match: ['/reports'] },
   ];
 
   const isActive = (item) => {
@@ -36,7 +36,7 @@ const BottomNavigation = () => {
                     onClick={() => setIsRecordModalOpen(true)}
                     aria-label="New Field Record"
                   >
-                    <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+                    <Plus size={24} color="#FFFFFF" strokeWidth={2.6} />
                   </button>
                 </div>
               );
@@ -81,11 +81,11 @@ const styles = {
     bottom: 0,
     left: 0,
     right: 0,
-    height: '64px',
+    height: '60px',
     backgroundColor: '#FFFFFF',
     borderTop: '1px solid #E2E8F0',
     zIndex: 9999,
-    boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.03)',
+    boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.03)',
     paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     userSelect: 'none',
   },
@@ -96,11 +96,12 @@ const styles = {
     height: '100%',
     maxWidth: '480px',
     margin: '0 auto',
-    padding: '0 8px',
+    padding: '0 4px',
     boxSizing: 'border-box',
+    width: '100%',
   },
   navBtn: {
-    flex: 1,
+    flex: '1 1 0',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -120,7 +121,7 @@ const styles = {
     justifyContent: 'center',
   },
   actionCol: {
-    flex: 1,
+    flex: '1 1 0',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -129,9 +130,9 @@ const styles = {
   },
   floatingCenterBtn: {
     position: 'absolute',
-    top: '-16px',
-    width: '48px',
-    height: '48px',
+    top: '-18px',
+    width: '50px',
+    height: '50px',
     borderRadius: '50%',
     backgroundColor: '#0018AD',
     border: '3px solid #FFFFFF',

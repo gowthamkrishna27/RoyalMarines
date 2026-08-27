@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, Users, Plus, Clock, User, LogOut 
+  Home, Users, Plus, Clock, FileText, User, LogOut 
 } from 'lucide-react';
 import { getSession, clearSession } from '../utils/agentAuth';
 import QuickRecordModal from './QuickRecordModal';
@@ -24,6 +24,7 @@ const Sidebar = () => {
     { name: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician'] },
     { name: 'My Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
     { name: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history'] },
+    { name: 'Reports', path: '/reports', icon: FileText, match: ['/reports'] },
   ];
 
   const isItemActive = (item) => {
