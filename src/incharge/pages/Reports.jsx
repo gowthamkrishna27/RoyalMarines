@@ -1,13 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
-import { Filter, Download } from 'lucide-react';
+import { 
+  Filter, Download, FileSpreadsheet, Calendar, User, Droplets, 
+  CheckCircle2, ChevronRight, ChevronDown, FileText, Table, Printer, BarChart3, ShieldCheck
+} from 'lucide-react';
+import { 
+  downloadAquaEnterpriseWorkbook, 
+  downloadSamplingExcel, 
+  downloadHarvestMasterExcel 
+} from '../../utils/excelReportGenerator';
 
 const Reports = () => {
   const [reportGenerated, setReportGenerated] = useState(false);
   const [reportDataBlocks, setReportDataBlocks] = useState([]);
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const { db, getFarmersByAgentId, getTanksByFarmerId } = useMockData();
   
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsExportDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // State bindings
   const [filterDateFrom, setFilterDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [filterDateTo, setFilterDateTo] = useState(new Date().toISOString().split('T')[0]);
@@ -31,7 +52,7 @@ const Reports = () => {
         let flatObject = flattenObject(ob[i]);
         for (let x in flatObject) {
           if (!flatObject.hasOwnProperty(x)) continue;
-          toReturn[x] = flatObject[x]; // Do not prefix with parent key
+          toReturn[x] = flatObject[x];
         }
       } else {
         toReturn[i] = ob[i];
@@ -41,7 +62,7 @@ const Reports = () => {
   };
 
   const handleGenerateReport = () => {
-    let filtered = db.submissions || [];
+    let filtered = db?.submissions || [];
     
     if (selectedAgent) filtered = filtered.filter(s => s.agentId === selectedAgent);
     if (selectedFarmer) filtered = filtered.filter(s => s.farmerId === selectedFarmer);
@@ -55,17 +76,15 @@ const Reports = () => {
       return;
     }
 
-    // Group by test type
     const grouped = {};
     filtered.forEach(sub => {
-      if (!grouped[sub.testType]) grouped[sub.testType] = [];
-      grouped[sub.testType].push(sub);
+      const type = sub.testType || sub.recordType || 'Water Quality';
+      if (!grouped[type]) grouped[type] = [];
+      grouped[type].push(sub);
     });
 
     const blocks = Object.keys(grouped).map(type => {
       const submissions = grouped[type];
-      
-      // Determine columns for this block
       const allHeadersSet = new Set(['Date', 'Tank No', 'Status']);
       submissions.forEach(sub => {
         Object.keys(flattenObject(sub.data || {})).forEach(k => allHeadersSet.add(k));
@@ -87,29 +106,24 @@ const Reports = () => {
     const csvRows = [];
     
     blocks.forEach(block => {
-      // Calculate commas to prepend to center the text in the CSV
       const totalColumns = block.headers.length;
       const commasToPrepend = Math.max(0, Math.floor(totalColumns / 2) - 1);
       const prefix = ','.repeat(commasToPrepend);
 
-      // Title Row
       csvRows.push(`${prefix}"${block.testType} Report"`);
-      // Farmer Info Rows
       csvRows.push(`${prefix}Farmer Name,"${farmerObj ? farmerObj.name : '-'}"`);
       csvRows.push(`${prefix}Village,"${farmerObj ? farmerObj.location : '-'}"`);
       csvRows.push(`${prefix}Phone Number,"${farmerObj ? farmerObj.phone : '-'}"`);
       
-      // Header Row
       const formattedHeaders = block.headers.map(h => h.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim());
       csvRows.push(formattedHeaders.map(h => `"${h}"`).join(','));
       
-      // Data Rows
       block.submissions.forEach(sub => {
         const flatData = flattenObject(sub.data || {});
         const rowValues = block.headers.map(h => {
           let val = '-';
           if (h === 'Date') val = sub.date;
-          else if (h === 'Tank No') val = sub.tankId.replace('T', '');
+          else if (h === 'Tank No') val = sub.tankId ? sub.tankId.replace(/\D/g, '') : '1';
           else if (h === 'Status') val = sub.status;
           else {
              val = flatData[h];
@@ -121,7 +135,6 @@ const Reports = () => {
         csvRows.push(rowValues.join(','));
       });
       
-      // Empty row between blocks
       csvRows.push('');
       csvRows.push('');
     });
@@ -138,160 +151,324 @@ const Reports = () => {
     document.body.removeChild(a);
   };
 
+  const handleExportOption = (type) => {
+    setIsExportDropdownOpen(false);
+    if (type === 'WORKBOOK') {
+      downloadAquaEnterpriseWorkbook(db, selectedAgent, selectedFarmer, 'Enterprise_Field_Report');
+    } else if (type === 'SAMPLING') {
+      downloadSamplingExcel(db, selectedAgent, selectedFarmer);
+    } else if (type === 'HARVEST') {
+      downloadHarvestMasterExcel(db, selectedAgent);
+    } else if (type === 'CSV') {
+      if (reportDataBlocks.length > 0) {
+        generateCSV(reportDataBlocks, 'Aqua_Regional_Operations_Ledger.csv');
+      } else {
+        // Generate quick CSV from all submissions
+        const sampleBlocks = [{
+          testType: 'Regional Field Tests',
+          headers: ['Date', 'Tank No', 'Status'],
+          submissions: db?.submissions || []
+        }];
+        generateCSV(sampleBlocks, 'Aqua_Regional_Operations_Ledger.csv');
+      }
+    } else if (type === 'PRINT') {
+      window.print();
+    }
+  };
+
   return (
     <>
-      <InchargeHeader title="Reports" />
-      <div className="content-inner">
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>Report Filters</h3>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-4" style={{ gap: '16px', marginBottom: '20px' }}>
-            <div className="input-group" style={{ margin: 0 }}>
-              <label style={styles.label}>Date From</label>
-              <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="input-field" style={{ width: '100%' }} />
+      <InchargeHeader title="Reports & Export Center" />
+
+      <div style={styles.pageContainer}>
+        
+        {/* Top Header Row with Export Files Dropdown */}
+        <div style={styles.topHeaderRow}>
+          <div style={{ flex: 1, minWidth: '240px' }}>
+            <h2 style={styles.pageHeading}>Reports & Data Exports</h2>
+            <p style={styles.pageSubheading}>
+              Generate field performance analytics, water quality sampling sheets, and enterprise audit workbooks.
+            </p>
+          </div>
+
+          {/* Export Files Dropdown Button */}
+          <div style={styles.dropdownWrapper} ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsExportDropdownOpen(prev => !prev)}
+              style={styles.exportDropdownBtn}
+              className="transition-all duration-150 active:scale-95 cursor-pointer shadow-sm hover:bg-blue-900"
+            >
+              <Download size={16} />
+              <span>Export Files</span>
+              <ChevronDown size={15} style={{ transform: isExportDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isExportDropdownOpen && (
+              <div style={styles.exportDropdownMenu}>
+                <div style={styles.dropdownHeader}>
+                  <span>Select Export Format & Dataset</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportOption('WORKBOOK')}
+                  style={styles.dropdownItem}
+                  className="hover:bg-blue-50 transition-colors"
+                >
+                  <div style={{ ...styles.dropdownIconBox, backgroundColor: '#EFF6FF', color: '#1A2FB8' }}>
+                    <FileSpreadsheet size={16} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Complete Workbook (.xlsx)</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>Full multi-tab master audit sheets & telemetry</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportOption('SAMPLING')}
+                  style={styles.dropdownItem}
+                  className="hover:bg-blue-50 transition-colors"
+                >
+                  <div style={{ ...styles.dropdownIconBox, backgroundColor: '#ECFDF5', color: '#059669' }}>
+                    <Table size={16} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Sampling Sheet (.xlsx)</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>Water quality parameters, pH, DO & salinity</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportOption('HARVEST')}
+                  style={styles.dropdownItem}
+                  className="hover:bg-blue-50 transition-colors"
+                >
+                  <div style={{ ...styles.dropdownIconBox, backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                    <BarChart3 size={16} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Harvest Master (.xlsx)</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>Harvest logs, counts, biomass & FCR totals</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportOption('CSV')}
+                  style={styles.dropdownItem}
+                  className="hover:bg-blue-50 transition-colors"
+                >
+                  <div style={{ ...styles.dropdownIconBox, backgroundColor: '#F1F5F9', color: '#475569' }}>
+                    <FileText size={16} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Raw Audit Data (.csv)</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>Universal CSV dataset for spreadsheet imports</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportOption('PRINT')}
+                  style={{ ...styles.dropdownItem, borderTop: '1px solid #F1F5F9' }}
+                  className="hover:bg-blue-50 transition-colors"
+                >
+                  <div style={{ ...styles.dropdownIconBox, backgroundColor: '#F5F3FF', color: '#7C3AED' }}>
+                    <Printer size={16} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Print / Save PDF (.pdf)</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>Clean regional executive summary format</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Configuration Card */}
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Filter size={18} color="#1A2FB8" />
+              <h3 style={styles.cardTitle}>Report Query & Filter Parameters</h3>
             </div>
-            <div className="input-group" style={{ margin: 0 }}>
-              <label style={styles.label}>Date To</label>
-              <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="input-field" style={{ width: '100%' }} />
+            <span style={styles.activeTag}>Enterprise Excel Ready</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '16px' }}>
+            <div>
+              <label style={styles.formLabel}>Date From</label>
+              <input 
+                type="date" 
+                value={filterDateFrom} 
+                onChange={e => setFilterDateFrom(e.target.value)} 
+                style={styles.formInput} 
+              />
             </div>
-            <div className="input-group" style={{ margin: 0 }}>
-              <label style={styles.label}>Agent Name</label>
-              <select className="input-field" style={{ width: '100%' }} value={selectedAgent} onChange={e => { setSelectedAgent(e.target.value); setSelectedFarmer(''); setSelectedTank(''); }}>
-                <option value="">Select Agent</option>
-                {db.agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <div>
+              <label style={styles.formLabel}>Date To</label>
+              <input 
+                type="date" 
+                value={filterDateTo} 
+                onChange={e => setFilterDateTo(e.target.value)} 
+                style={styles.formInput} 
+              />
+            </div>
+            <div>
+              <label style={styles.formLabel}>Field Technician</label>
+              <select 
+                style={styles.formInput} 
+                value={selectedAgent} 
+                onChange={e => { setSelectedAgent(e.target.value); setSelectedFarmer(''); setSelectedTank(''); }}
+              >
+                <option value="">Select Technician</option>
+                {(db?.agents || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
           </div>
 
+          {/* Conditional Farmer & Tank Selection Box */}
           {selectedAgent && (
-            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-               <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Farmer Details</h4>
-               <div className="grid md:grid-cols-3" style={{ gap: '16px' }}>
-                 <div className="input-group" style={{ margin: 0 }}>
-                   <label style={styles.label}>Farmer Name</label>
-                   <select className="input-field" style={{ width: '100%' }} value={selectedFarmer} onChange={e => { setSelectedFarmer(e.target.value); setSelectedTank(''); }}>
-                     <option value="">Select Farmer</option>
-                     {availableFarmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                   </select>
-                 </div>
-                 <div className="input-group" style={{ margin: 0 }}>
-                   <label style={styles.label}>Mobile Number</label>
-                   <div style={styles.readOnlyBlock}>
-                     {farmerObj ? farmerObj.phone : '-'}
-                   </div>
-                 </div>
-                 <div className="input-group" style={{ margin: 0 }}>
-                   <label style={styles.label}>Village</label>
-                   <div style={styles.readOnlyBlock}>
-                     {farmerObj ? farmerObj.location : '-'}
-                   </div>
-                 </div>
-               </div>
-               
-               {selectedFarmer && (
-                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--color-border)' }}>
-                   <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Tank Details & Tests</h4>
-                   <div className="grid md:grid-cols-2" style={{ gap: '16px', maxWidth: '600px', marginBottom: '16px' }}>
-                     <div className="input-group" style={{ margin: 0 }}>
-                       <label style={styles.label}>Tank Selection</label>
-                       <select className="input-field" style={{ width: '100%' }} value={selectedTank} onChange={e => setSelectedTank(e.target.value)}>
-                         <option value="">Select Tank</option>
-                         <option value="all">All Tanks</option>
-                         {availableTanks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                       </select>
-                     </div>
-                     <div className="input-group" style={{ margin: 0 }}>
-                       <label style={styles.label}>Test Type</label>
-                       <select className="input-field" style={{ width: '100%' }} value={selectedTestType} onChange={e => setSelectedTestType(e.target.value)}>
-                         <option value="all">All Tests</option>
-                         <option value="Water Analysis">Water Quality</option>
-                         <option value="Feed Test">Feed</option>
-                         <option value="Medication">Medication</option>
-                         <option value="Disease">Disease</option>
-                         <option value="Harvest">Harvest</option>
-                       </select>
-                     </div>
-                   </div>
-                   
-                   {tankObj && (
-                      <div className="grid md:grid-cols-4 lg:grid-cols-5" style={{ gap: '12px', padding: '12px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px dashed var(--color-border)' }}>
-                        <div><strong style={styles.tankLabel}>Size:</strong> <div style={styles.tankValue}>{tankObj.size || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Salinity:</strong> <div style={styles.tankValue}>{tankObj.salinity || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Soil Type:</strong> <div style={styles.tankValue}>{tankObj.soilType || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Brood Name:</strong> <div style={styles.tankValue}>{tankObj.broodname || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Seed Date:</strong> <div style={styles.tankValue}>{tankObj.seedDate || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Seed Stocking:</strong> <div style={styles.tankValue}>{tankObj.seedStocking || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Feed Type:</strong> <div style={styles.tankValue}>{tankObj.feedType || '-'}</div></div>
-                        <div><strong style={styles.tankLabel}>Reg. Location:</strong> <div style={styles.tankValue}>{tankObj.registeredLocation || '-'}</div></div>
-                      </div>
-                   )}
-                 </div>
-               )}
+            <div style={styles.subFilterBox}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                <div>
+                  <label style={styles.formLabel}>Farmer Name</label>
+                  <select 
+                    style={styles.formInput} 
+                    value={selectedFarmer} 
+                    onChange={e => { setSelectedFarmer(e.target.value); setSelectedTank(''); }}
+                  >
+                    <option value="">Select Farmer</option>
+                    {availableFarmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={styles.formLabel}>Farmer Contact</label>
+                  <div style={styles.readOnlyBlock}>
+                    {farmerObj ? farmerObj.phone : '—'}
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.formLabel}>Farm Locality</label>
+                  <div style={styles.readOnlyBlock}>
+                    {farmerObj ? farmerObj.location : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {selectedFarmer && (
+                <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                    <div>
+                      <label style={styles.formLabel}>Tank / Pond</label>
+                      <select 
+                        style={styles.formInput} 
+                        value={selectedTank} 
+                        onChange={e => setSelectedTank(e.target.value)}
+                      >
+                        <option value="">All Supervised Tanks</option>
+                        {availableTanks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.formLabel}>Record Category</label>
+                      <select 
+                        style={styles.formInput} 
+                        value={selectedTestType} 
+                        onChange={e => setSelectedTestType(e.target.value)}
+                      >
+                        <option value="all">All Field Records</option>
+                        <option value="Water Quality Analysis">Water Quality</option>
+                        <option value="Feed Test">Feed Consumption</option>
+                        <option value="Weekly Sampling">Weekly Sampling</option>
+                        <option value="Harvest">Harvest Summary</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {selectedFarmer && (selectedTank || selectedTestType !== 'all') && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button className="btn-primary" onClick={handleGenerateReport} style={{ padding: '14px 32px', fontSize: '15px' }}>
-                <Filter size={18} style={{ marginRight: '8px' }} /> Generate Report
-              </button>
-            </div>
-          )}
+          {/* Generate Button */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button 
+              type="button"
+              className="transition-all duration-150 active:scale-98 cursor-pointer"
+              onClick={handleGenerateReport} 
+              style={styles.generateBtn}
+            >
+              <Filter size={16} />
+              <span>Generate Audit Preview</span>
+            </button>
+          </div>
         </div>
 
+        {/* Generated Report Card */}
         {reportGenerated && (
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Test Details Report</h3>
-              <button onClick={() => generateCSV(reportDataBlocks, 'aqua_all_tests_report.csv')} style={{ 
-                display: 'flex', alignItems: 'center', gap: '8px', 
-                padding: '8px 16px', backgroundColor: 'var(--status-green)', 
-                color: 'white', border: 'none', borderRadius: '8px',
-                cursor: 'pointer', fontSize: '13px', fontWeight: 600
-              }}>
-                <Download size={16} /> Download All Tests (Excel)
-              </button>
+          <div style={{ ...styles.card, marginTop: '24px' }}>
+            <div style={styles.cardHeader}>
+              <div>
+                <h3 style={styles.cardTitle}>Regional Field Operations Audit Ledger</h3>
+                <span style={styles.cardSub}>Official enterprise Excel spreadsheets matching aqua sampling and harvest master formats</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  onClick={() => downloadSamplingExcel(db, selectedAgent, selectedFarmer)} 
+                  style={styles.downloadSecBtn}
+                  className="transition-all duration-150 active:scale-98 cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>Sampling Sheet (.xlsx)</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => downloadHarvestMasterExcel(db, selectedAgent)} 
+                  style={styles.downloadGreenBtn}
+                  className="transition-all duration-150 active:scale-98 cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>Harvest Master (.xlsx)</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => downloadAquaEnterpriseWorkbook(db, selectedAgent, selectedFarmer, 'Incharge_Field_Report')} 
+                  style={styles.downloadMainBtn}
+                  className="transition-all duration-150 active:scale-98 cursor-pointer"
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Complete Workbook (.xlsx)</span>
+                </button>
+              </div>
             </div>
 
             {reportDataBlocks.map((block, index) => (
-              <div key={index} style={{ marginBottom: '40px', overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', border: '1px solid var(--color-border)' }}>
+              <div key={index} style={{ marginTop: '24px', overflowX: 'auto' }}>
+                <div style={styles.tableHeaderBanner}>
+                  <span style={{ fontWeight: '800', fontSize: '14px', color: '#1A2FB8' }}>
+                    {block.testType} Ledger ({block.submissions.length} records)
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => generateCSV([block], `aqua_${block.testType.replace(/\s+/g, '_').toLowerCase()}_report.csv`)}
+                    style={styles.csvBtn}
+                  >
+                    <Download size={13} />
+                    <span>Download Section CSV</span>
+                  </button>
+                </div>
+
+                <table style={styles.table}>
                   <thead>
-                    <tr>
-                      <th colSpan={block.headers.length} style={{ ...styles.th, backgroundColor: '#e2e8f0', textAlign: 'center', fontSize: '16px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
-                        {block.testType} Report
-                        <button 
-                          onClick={() => generateCSV([block], `aqua_${block.testType.replace(/\s+/g, '_').toLowerCase()}_report.csv`)}
-                          style={{
-                            position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)',
-                            display: 'flex', alignItems: 'center', gap: '6px',
-                            padding: '6px 12px', backgroundColor: 'var(--color-primary)',
-                            color: 'white', border: 'none', borderRadius: '6px',
-                            cursor: 'pointer', fontSize: '12px', fontWeight: 600
-                          }}>
-                          <Download size={14} /> Download Excel
-                        </button>
-                      </th>
-                    </tr>
-                    <tr>
-                      <td colSpan={block.headers.length} style={{ textAlign: 'center', padding: '8px', borderBottom: '1px solid var(--color-border)' }}>
-                        <strong style={{ color: 'var(--color-text-muted)' }}>Farmer Name:</strong> <span style={{ fontWeight: 600, color: 'var(--color-text-main)', marginLeft: '8px' }}>{farmerObj ? farmerObj.name : '-'}</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={block.headers.length} style={{ textAlign: 'center', padding: '8px', borderBottom: '1px solid var(--color-border)' }}>
-                        <strong style={{ color: 'var(--color-text-muted)' }}>Village:</strong> <span style={{ fontWeight: 500, color: 'var(--color-text-main)', marginLeft: '8px' }}>{farmerObj ? farmerObj.location : '-'}</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={block.headers.length} style={{ textAlign: 'center', padding: '8px', borderBottom: '2px solid var(--color-border)' }}>
-                        <strong style={{ color: 'var(--color-text-muted)' }}>Phone Number:</strong> <span style={{ fontWeight: 500, color: 'var(--color-text-main)', marginLeft: '8px' }}>{farmerObj ? farmerObj.phone : '-'}</span>
-                      </td>
-                    </tr>
-                    
-                    <tr style={{ borderBottom: '2px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                    <tr style={styles.thRow}>
                       {block.headers.map(header => (
-                        <th key={header} style={{ ...styles.th, textTransform: 'capitalize' }}>
+                        <th key={header} style={styles.th}>
                           {header.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()}
                         </th>
                       ))}
@@ -301,18 +478,14 @@ const Reports = () => {
                     {block.submissions.map((sub, idx) => {
                       const flatData = flattenObject(sub.data || {});
                       return (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <tr key={idx} style={styles.tr}>
                           {block.headers.map(header => {
                             let val = '-';
                             if (header === 'Date') val = sub.date;
-                            else if (header === 'Tank No') val = sub.tankId.replace('T', '');
+                            else if (header === 'Tank No') val = sub.tankId ? `Tank ${sub.tankId.replace(/\D/g, '') || '1'}` : 'Tank 1';
                             else if (header === 'Status') val = (
-                              <span style={{
-                                padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 600,
-                                backgroundColor: sub.status === 'COMPLETED' ? '#dcfce7' : '#f1f5f9',
-                                color: sub.status === 'COMPLETED' ? 'var(--status-green)' : 'var(--color-text-muted)'
-                              }}>
-                                {sub.status}
+                              <span style={styles.statusPill}>
+                                <CheckCircle2 size={11} /> {sub.status || 'Verified'}
                               </span>
                             );
                             else {
@@ -329,32 +502,287 @@ const Reports = () => {
                 </table>
               </div>
             ))}
-
           </div>
         )}
+
       </div>
     </>
   );
 };
 
 const styles = {
-  label: { display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' },
-  readOnlyBlock: { 
-    width: '100%', 
-    padding: '10px 12px', 
-    backgroundColor: '#e2e8f0', 
-    color: '#334155', 
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: 500,
-    minHeight: '42px',
-    display: 'flex',
-    alignItems: 'center'
+  pageContainer: {
+    padding: '20px 20px 80px 20px',
+    maxWidth: '1440px',
+    margin: '0 auto',
+    boxSizing: 'border-box',
   },
-  tankLabel: { fontSize: '12px', color: 'var(--color-text-muted)' },
-  tankValue: { fontSize: '14px', fontWeight: 500, color: 'var(--color-text-main)', marginTop: '4px' },
-  th: { padding: '12px 16px', fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap' },
-  td: { padding: '12px 16px', fontSize: '14px', color: 'var(--color-text-main)', fontWeight: 500 }
+  topHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    gap: '14px',
+  },
+  pageHeading: {
+    fontSize: '20px',
+    fontWeight: '800',
+    color: '#0F172A',
+    margin: 0,
+  },
+  pageSubheading: {
+    fontSize: '12.5px',
+    color: '#64748B',
+    margin: '3px 0 0 0',
+    lineHeight: 1.4,
+  },
+  dropdownWrapper: {
+    position: 'relative',
+    display: 'inline-block',
+  },
+  exportDropdownBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '9px 18px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '13px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  exportDropdownMenu: {
+    position: 'absolute',
+    top: 'calc(100% + 8px)',
+    right: 0,
+    width: '320px',
+    maxWidth: 'calc(100vw - 36px)',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #CBD5E1',
+    borderRadius: '12px',
+    boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.08)',
+    zIndex: 100,
+    overflow: 'hidden',
+  },
+  dropdownHeader: {
+    padding: '10px 14px',
+    backgroundColor: '#F8FAFC',
+    borderBottom: '1px solid #F1F5F9',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  },
+  dropdownItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderBottom: '1px solid #F8FAFC',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  dropdownIconBox: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E2E8F0',
+    padding: '24px',
+    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.02)',
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: '16px',
+    borderBottom: '1px solid #F1F5F9',
+    flexWrap: 'wrap',
+    gap: '12px',
+  },
+  cardTitle: {
+    fontSize: '16px',
+    fontWeight: '800',
+    color: '#0F172A',
+    margin: 0,
+  },
+  cardSub: {
+    fontSize: '12px',
+    color: '#64748B',
+    marginTop: '2px',
+    display: 'block',
+  },
+  activeTag: {
+    fontSize: '11px',
+    fontWeight: '800',
+    color: '#1A2FB8',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #DBEAFE',
+    padding: '3px 8px',
+    borderRadius: '6px',
+  },
+  formLabel: {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: '6px',
+  },
+  formInput: {
+    width: '100%',
+    padding: '9px 12px',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: '8px',
+    fontSize: '13px',
+    color: '#0F172A',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  subFilterBox: {
+    marginTop: '16px',
+    padding: '16px',
+    backgroundColor: '#F8FAFC',
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+  },
+  readOnlyBlock: {
+    width: '100%',
+    padding: '9px 12px',
+    backgroundColor: '#F1F5F9',
+    color: '#334155',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontWeight: '600',
+    boxSizing: 'border-box',
+  },
+  generateBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 24px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  downloadSecBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1px solid #BFDBFE',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  downloadGreenBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    backgroundColor: '#ECFDF5',
+    color: '#059669',
+    border: '1px solid #A7F3D0',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  downloadMainBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 16px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '12.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  tableHeaderBanner: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    padding: '10px 16px',
+    borderRadius: '8px 8px 0 0',
+    border: '1px solid #E2E8F0',
+    borderBottom: 'none',
+  },
+  csvBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 10px',
+    backgroundColor: '#FFFFFF',
+    color: '#1A2FB8',
+    border: '1px solid #DBEAFE',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    textAlign: 'left',
+    border: '1px solid #E2E8F0',
+  },
+  thRow: {
+    backgroundColor: '#F8FAFC',
+    borderBottom: '2px solid #E2E8F0',
+  },
+  th: {
+    padding: '10px 14px',
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  },
+  tr: {
+    borderBottom: '1px solid #F1F5F9',
+  },
+  td: {
+    padding: '12px 14px',
+    fontSize: '13px',
+    color: '#0F172A',
+  },
+  statusPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '2px 8px',
+    borderRadius: '10px',
+    fontSize: '11px',
+    fontWeight: '700',
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+  },
 };
 
 export default Reports;
+

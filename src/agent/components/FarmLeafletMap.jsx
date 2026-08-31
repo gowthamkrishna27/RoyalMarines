@@ -4,7 +4,10 @@ import { LocateFixed } from 'lucide-react';
 
 const FarmLeafletMap = ({ 
   gps, 
-  ponds = [], 
+  tanks = [],
+  selectedTank,
+  onSelectTank,
+  ponds, 
   selectedPond, 
   onSelectPond 
 }) => {
@@ -13,6 +16,10 @@ const FarmLeafletMap = ({
   const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const polygonsLayerRef = useRef(null);
+
+  const activeTanks = (tanks && tanks.length > 0) ? tanks : (ponds || []);
+  const activeSelectedTank = selectedTank || selectedPond;
+  const handleSelect = onSelectTank || onSelectPond;
 
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
 
@@ -56,9 +63,21 @@ const FarmLeafletMap = ({
       markersLayerRef.current = markersLayer;
       tileLayerRef.current = tileLayer;
       mapInstanceRef.current = map;
+
+      // Handle orientation change and container resize
+      const handleResize = () => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      };
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', handleResize);
+      setTimeout(handleResize, 300);
     }
 
     return () => {
+      window.removeEventListener('resize', () => {});
+      window.removeEventListener('orientationchange', () => {});
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -77,7 +96,7 @@ const FarmLeafletMap = ({
     tileLayerRef.current.setUrl(tileUrl);
   }, [mapType]);
 
-  // Update center, pond water bodies, and pond markers (Radius removed)
+  // Update center, tank water bodies, and tank markers
   useEffect(() => {
     const map = mapInstanceRef.current;
     const markersLayer = markersLayerRef.current;
@@ -101,19 +120,19 @@ const FarmLeafletMap = ({
 
     L.marker([centerLat, centerLng], { icon: gmapsUserIcon, zIndexOffset: 1000 }).addTo(markersLayer);
 
-    // 2. SAMPLE FAR-AWAY POND / TANK WATER BODIES (Spread out across wider area)
-    const pondGeometries = [
+    // 2. SAMPLE TANK WATER BODIES (Spread out across wider area)
+    const tankGeometries = [
       { offsetLat: 0.0035, offsetLng: -0.0042, width: 0.0016, height: 0.0012, name: 'Tank 1' },
       { offsetLat: 0.0042, offsetLng: 0.0050, width: 0.0018, height: 0.0012, name: 'Tank 2' },
       { offsetLat: -0.0038, offsetLng: -0.0035, width: 0.0016, height: 0.0012, name: 'Tank 3' },
       { offsetLat: -0.0045, offsetLng: 0.0048, width: 0.0018, height: 0.0012, name: 'Tank 4' },
     ];
 
-    ponds.forEach((pond, idx) => {
-      const geom = pondGeometries[idx % pondGeometries.length];
+    activeTanks.forEach((tank, idx) => {
+      const geom = tankGeometries[idx % tankGeometries.length];
       const pLat = centerLat + geom.offsetLat;
       const pLng = centerLng + geom.offsetLng;
-      const isSelected = selectedPond?.id === pond.id;
+      const isSelected = activeSelectedTank?.id === tank.id;
 
       // Draw rectangular water tank polygon on map
       const bounds = [
@@ -121,26 +140,26 @@ const FarmLeafletMap = ({
         [pLat + geom.height / 2, pLng + geom.width / 2],
       ];
 
-      const pondPolygon = L.rectangle(bounds, {
-        color: isSelected ? '#0018AD' : (pond.due ? '#EA4335' : '#0284C7'),
+      const tankPolygon = L.rectangle(bounds, {
+        color: isSelected ? '#0018AD' : (tank.due ? '#EA4335' : '#0284C7'),
         weight: isSelected ? 2.5 : 1.5,
         fillColor: isSelected ? '#0018AD' : '#38BDF8',
         fillOpacity: isSelected ? 0.35 : 0.22,
         dashArray: isSelected ? null : '2, 3',
       }).addTo(polygonsLayer);
 
-      pondPolygon.on('click', () => {
-        if (onSelectPond) onSelectPond(pond);
+      tankPolygon.on('click', () => {
+        if (handleSelect) handleSelect(tank);
       });
 
-      // 3. POND / AQUACULTURE TANK WATER SYMBOL PIN
-      const pinBg = isSelected ? '#0018AD' : (pond.due ? '#FEF2F2' : '#FFFFFF');
-      const pinBorder = isSelected ? '#0018AD' : (pond.due ? '#EA4335' : '#0284C7');
+      // 3. AQUACULTURE TANK WATER SYMBOL PIN
+      const pinBg = isSelected ? '#0018AD' : (tank.due ? '#FEF2F2' : '#FFFFFF');
+      const pinBorder = isSelected ? '#0018AD' : (tank.due ? '#EA4335' : '#0284C7');
       const textColor = isSelected ? '#FFFFFF' : '#0F172A';
-      const waveColor = isSelected ? '#93C5FD' : (pond.due ? '#EF4444' : '#0284C7');
+      const waveColor = isSelected ? '#93C5FD' : (tank.due ? '#EF4444' : '#0284C7');
 
-      const pondSymbolIcon = L.divIcon({
-        className: 'gmaps-pond-symbol-marker',
+      const tankSymbolIcon = L.divIcon({
+        className: 'gmaps-tank-symbol-marker',
         html: `
           <div style="position:relative; display:flex; flex-direction:column; align-items:center; transform:translate(-50%, -100%); cursor:pointer;">
             
@@ -158,7 +177,7 @@ const FarmLeafletMap = ({
               transition:transform 0.15s ease;
               white-space:nowrap;
             ">
-              <!-- Water Wave / Pond Tank Icon -->
+              <!-- Water Wave / Tank Icon -->
               <div style="
                 width:20px;
                 height:20px;
@@ -182,10 +201,10 @@ const FarmLeafletMap = ({
                 color:${textColor};
                 font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               ">
-                ${pond.name}
+                ${tank.name}
               </span>
 
-              ${pond.due && !isSelected ? '<span style="width:6px;height:6px;border-radius:50%;background:#EA4335;"></span>' : ''}
+              ${tank.due && !isSelected ? '<span style="width:6px;height:6px;border-radius:50%;background:#EA4335;"></span>' : ''}
             </div>
 
             <!-- Pointer Arrow Indicator -->
@@ -203,15 +222,15 @@ const FarmLeafletMap = ({
       });
 
       const marker = L.marker([pLat, pLng], { 
-        icon: pondSymbolIcon,
+        icon: tankSymbolIcon,
         zIndexOffset: isSelected ? 500 : 100 
       }).addTo(markersLayer);
 
       marker.on('click', () => {
-        if (onSelectPond) onSelectPond(pond);
+        if (handleSelect) handleSelect(tank);
       });
     });
-  }, [centerLat, centerLng, gps, ponds, selectedPond, onSelectPond]);
+  }, [centerLat, centerLng, gps, activeTanks, activeSelectedTank, handleSelect]);
 
   return (
     <div style={styles.mapWrapper}>
@@ -263,8 +282,8 @@ const FarmLeafletMap = ({
 const styles = {
   mapWrapper: {
     width: '100%',
-    height: '230px',
-    borderRadius: '10px',
+    height: 'clamp(240px, 38vh, 360px)',
+    borderRadius: '12px',
     overflow: 'hidden',
     border: '1px solid #DADCE0',
     position: 'relative',

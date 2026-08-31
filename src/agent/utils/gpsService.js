@@ -68,15 +68,30 @@ export function estimateLocality(lat, lng) {
  * Request high-accuracy GPS coordinates from the device
  * Returns Promise resolving to GPS object or rejecting with detailed error
  */
-export function captureDeviceGPS(options = {}) {
-  const { timeout = 12000, maxAccuracyThreshold = 60 } = options;
+export function captureDeviceGPS(options = {}, maybeErrorCb) {
+  let successCb = null;
+  let errorCb = null;
+  let actualOptions = {};
+
+  if (typeof options === 'function') {
+    successCb = options;
+    if (typeof maybeErrorCb === 'function') {
+      errorCb = maybeErrorCb;
+    }
+  } else if (typeof options === 'object' && options !== null) {
+    actualOptions = options;
+  }
+
+  const { timeout = 12000, maxAccuracyThreshold = 60 } = actualOptions;
 
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject({
+      const err = {
         code: 'NOT_SUPPORTED',
         message: 'Geolocation is not supported by your browser or device.',
-      });
+      };
+      if (errorCb) errorCb(err);
+      reject(err);
       return;
     }
 
@@ -115,6 +130,7 @@ export function captureDeviceGPS(options = {}) {
         // Cache in localStorage
         saveStoredGPS(gpsData);
 
+        if (successCb) successCb(gpsData);
         resolve(gpsData);
       },
       (error) => {
@@ -138,7 +154,9 @@ export function captureDeviceGPS(options = {}) {
             break;
         }
 
-        reject({ code, message, originalError: error });
+        const rejection = { code, message, originalError: error };
+        if (errorCb) errorCb(rejection);
+        reject(rejection);
       },
       geoOptions
     );

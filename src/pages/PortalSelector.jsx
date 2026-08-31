@@ -18,7 +18,7 @@ const PortalSelector = () => {
       badge: 'Mobile / Field',
     },
     {
-      title: 'Incharge Portal',
+      title: 'ASM Portal',
       subtitle: 'Regional Oversight & Allocations',
       icon: LayoutTemplate,
       color: '#2563EB',

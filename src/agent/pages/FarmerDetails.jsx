@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, ChevronRight 
+  ArrowLeft, Plus, ChevronRight, Scale 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -15,9 +15,10 @@ const FarmerDetails = () => {
 
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [selectedTankId, setSelectedTankId] = useState(null);
+  const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
 
   const farmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
-  const ponds = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (db?.tanks || []).filter(t => t.farmerId === farmerId);
+  const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (db?.tanks || []).filter(t => t.farmerId === farmerId);
 
   if (!farmer) {
     return (
@@ -32,8 +33,15 @@ const FarmerDetails = () => {
     );
   }
 
-  const handleOpenRecord = (pondId = null) => {
-    setSelectedTankId(pondId || (ponds[0]?.id || ''));
+  const handleOpenRecord = (tankId = null) => {
+    setSelectedTankId(tankId || (tanks[0]?.id || ''));
+    setModalInitialType('WATER_QUALITY');
+    setIsRecordModalOpen(true);
+  };
+
+  const handleOpenHarvest = (tankId = null) => {
+    setSelectedTankId(tankId || (tanks[0]?.id || ''));
+    setModalInitialType('HARVEST_ENTRY');
     setIsRecordModalOpen(true);
   };
 
@@ -45,12 +53,23 @@ const FarmerDetails = () => {
           <ArrowLeft size={16} /> Back
         </button>
 
-        <button 
-          style={styles.newRecordBtn}
-          onClick={() => handleOpenRecord()}
-        >
-          <Plus size={14} strokeWidth={2.5} /> New Record
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button 
+            style={styles.harvestBtn}
+            onClick={() => handleOpenHarvest()}
+            title="Record Crop Harvest"
+          >
+            <Scale size={14} strokeWidth={2.4} /> Harvest
+          </button>
+
+          <button 
+            style={styles.newRecordBtn}
+            onClick={() => handleOpenRecord()}
+            title="Record Field Test"
+          >
+            <Plus size={14} strokeWidth={2.5} /> New Record
+          </button>
+        </div>
       </div>
 
       {/* Farmer Profile Card */}
@@ -67,8 +86,12 @@ const FarmerDetails = () => {
 
         <div style={styles.infoGrid}>
           <div style={styles.infoCol}>
-            <span style={styles.infoLabel}>Assigned Ponds</span>
-            <span style={styles.infoValue}>{ponds.length} Ponds</span>
+            <span style={styles.infoLabel}>Total Extent</span>
+            <span style={styles.infoValue}>{farmer.extent || farmer.acres ? `${farmer.extent || farmer.acres} Acres` : 'N/A'}</span>
+          </div>
+          <div style={styles.infoCol}>
+            <span style={styles.infoLabel}>Assigned Tanks</span>
+            <span style={styles.infoValue}>{tanks.length} Tanks</span>
           </div>
           <div style={styles.infoCol}>
             <span style={styles.infoLabel}>Assigned Technician</span>
@@ -77,40 +100,54 @@ const FarmerDetails = () => {
         </div>
       </div>
 
-      {/* Ponds Section */}
+      {/* Tanks Section */}
       <div style={styles.pondsSection}>
         <div style={styles.sectionHeaderRow}>
-          <span style={styles.sectionHeaderSmall}>PONDS ({ponds.length})</span>
+          <span style={styles.sectionHeaderSmall}>TANKS ({tanks.length})</span>
         </div>
 
         <div style={styles.pondsList}>
-          {ponds.length === 0 ? (
+          {tanks.length === 0 ? (
             <div style={styles.emptyPonds}>
-              <span>No ponds registered for this farmer.</span>
+              <span>No tanks registered for this farmer.</span>
             </div>
           ) : (
-            ponds.map((pond, idx) => {
-              const stockingDate = pond.stockingDate || '2026-06-12';
+            tanks.map((tank, idx) => {
+              const stockingDate = tank.stockingDate || '2026-06-12';
               const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 76;
+              const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+              const tKey = `${farmer.id}_${tank.id}`;
+              const tStore = harvestStore[tKey];
+              const isDone = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || (tStore?.harvests || []).some(h => h.harvestType === 'Final Harvest' || h.isFinal);
 
               return (
                 <div
-                  key={pond.id}
+                  key={tank.id}
                   style={styles.pondCard}
-                  onClick={() => navigate(`/tanks/${pond.id}`)}
+                  onClick={() => navigate(`/tanks/${tank.id}`)}
                 >
                   <div style={styles.pondLeft}>
                     <div style={styles.pondHeaderRow}>
-                      <span style={styles.pondTitle}>{pond.name || `Pond 0${idx + 1}`}</span>
-                      <span style={styles.speciesTag}>{pond.species || 'Vannamei'}</span>
+                      <span style={styles.pondTitle}>{tank.name || `Tank ${idx + 1}`}</span>
+                      <span style={styles.speciesTag}>{tank.species || 'Vannamei'}</span>
                     </div>
 
                     <div style={styles.pondSpecsRow}>
-                      <span>{pond.size || pond.area || '2.5'} acres</span>
+                      <span>{tank.size || tank.area || '2.5'} acres</span>
                       <span>•</span>
                       <span>{days} Days</span>
                       <span>•</span>
-                      <span style={styles.activeTag}>Active</span>
+                      {isDone ? (
+                        <span style={{
+                          ...styles.activeTag,
+                          backgroundColor: '#EFF6FF',
+                          color: '#1D4ED8',
+                        }}>
+                          Harvest Completed
+                        </span>
+                      ) : (
+                        <span style={styles.activeTag}>Active</span>
+                      )}
                     </div>
                   </div>
 
@@ -128,6 +165,7 @@ const FarmerDetails = () => {
       <QuickRecordModal 
         isOpen={isRecordModalOpen}
         onClose={() => setIsRecordModalOpen(false)}
+        initialType={modalInitialType}
         preselectedFarmerId={farmer.id}
         preselectedTankId={selectedTankId}
       />
@@ -147,6 +185,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: '4px',
+    flexWrap: 'wrap',
+    gap: '10px',
   },
   backLink: {
     display: 'inline-flex',
@@ -155,34 +195,54 @@ const styles = {
     background: 'none',
     border: 'none',
     color: '#0F172A',
-    fontWeight: '600',
-    fontSize: '13px',
+    fontWeight: '700',
+    fontSize: '13.5px',
     cursor: 'pointer',
     padding: 0,
+  },
+  harvestBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1.5px solid #BFDBFE',
+    height: '38px',
+    padding: '0 14px',
+    borderRadius: '10px',
+    fontSize: '13px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+    transition: 'all 0.15s ease',
   },
   newRecordBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    backgroundColor: '#0018AD',
+    gap: '6px',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    padding: '7px 12px',
-    borderRadius: '8px',
-    fontSize: '12px',
+    height: '38px',
+    padding: '0 14px',
+    borderRadius: '10px',
+    fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.22)',
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '12px',
-    padding: '14px 16px',
+    borderRadius: '14px',
+    padding: 'clamp(14px, 3.5vw, 22px)',
     border: '1px solid #E2E8F0',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+    boxSizing: 'border-box',
+    width: '100%',
   },
   farmerName: {
-    fontSize: '18px',
-    fontWeight: '700',
+    fontSize: 'clamp(18px, 4vw, 22px)',
+    fontWeight: '800',
     color: '#0F172A',
     margin: 0,
   },
@@ -190,19 +250,20 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    fontSize: '12px',
+    fontSize: '12.5px',
     color: '#64748B',
     marginTop: '4px',
+    flexWrap: 'wrap',
   },
   divider: {
     height: '1px',
     backgroundColor: '#F1F5F9',
-    margin: '12px 0',
+    margin: '14px 0',
   },
   infoGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '10px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
+    gap: '12px',
   },
   infoCol: {
     display: 'flex',

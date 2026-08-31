@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { getAdminSession } from '../utils/adminAuth';
-import { Bell, Search, LogOut, User } from 'lucide-react';
+import { Bell, Search, LogOut, User, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import { useMockData } from '../../context/MockDataContext';
 
-const AdminHeader = () => {
+const AdminHeader = ({ onToggleSidebar }) => {
   const session = getAdminSession();
   const navigate = useNavigate();
   const mockData = useMockData();
@@ -63,31 +63,44 @@ const AdminHeader = () => {
 
   return (
     <header style={styles.header}>
-      {/* LEFT - BRAND */}
-      <div
-        style={styles.brand}
-        onClick={() => navigate('/admin/dashboard')}
-      >
-        <img
-          src={logoImg}
-          alt="Royal's Marine Logo"
-          style={styles.logo}
-        />
+      {/* LEFT - BRAND & HAMBURGER */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {onToggleSidebar && (
+          <button
+            type="button"
+            className="flex lg:hidden items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer border border-slate-200"
+            onClick={onToggleSidebar}
+            aria-label="Open Admin Menu"
+          >
+            <Menu size={20} color="#1e293b" />
+          </button>
+        )}
 
-        <div style={styles.brandText}>
-          <div style={styles.brandTitle}>
-            ROYAL'S MARINE FOOD
-          </div>
+        <div
+          style={styles.brand}
+          onClick={() => navigate('/admin/dashboard')}
+        >
+          <img
+            src={logoImg}
+            alt="Royal's Marine Logo"
+            style={styles.logo}
+          />
 
-          <div style={styles.brandSubtitle}>
-            Aqua Field &amp; Feed Performance Platform
+          <div className="hidden sm:flex flex-col">
+            <div style={styles.brandTitle}>
+              ROYAL'S MARINE FOOD
+            </div>
+
+            <div style={styles.brandSubtitle}>
+              Aqua Field &amp; Feed Performance Platform
+            </div>
           </div>
         </div>
       </div>
 
       {/* CENTER - SEARCH */}
-      <div style={styles.searchWrapper}>
-        <div style={styles.searchBar}>
+      <div className="hidden md:flex relative flex-1 max-w-md mx-4">
+        <div style={styles.searchBar} className="w-full">
           <Search
             size={17}
             color="#94a3b8"

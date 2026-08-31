@@ -1,82 +1,221 @@
-import React from 'react';
-import { Bell, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { User, MapPin, Shield, Clock } from 'lucide-react';
 import { getInchargeSession } from '../utils/inchargeAuth';
+import { useMockData } from '../../context/MockDataContext';
 import BackButton from '../../components/BackButton';
+import topnavlogo from '../../assets/topnavlogo.png';
 
-const InchargeHeader = ({ title = "Dashboard" }) => {
+const InchargeHeader = ({ title = "Dashboard", showBack = false }) => {
+  const navigate = useNavigate();
   const session = getInchargeSession();
-  
+  const { db } = useMockData();
+  const [timeStr, setTimeStr] = useState('');
+  const [dateStr, setDateStr] = useState('');
+
+  const pendingVerificationsCount = (db?.submissions || []).filter(s => s.status === 'PENDING_VERIFICATION').length;
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTimeStr(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }));
+      setDateStr(now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div style={{
-      height: '70px',
-      backgroundColor: 'white',
-      borderBottom: '1px solid var(--color-border)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 24px',
-      position: 'sticky',
-      top: 0,
-      zIndex: 10
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <BackButton fallback="/incharge/dashboard" />
-        <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--color-text-main)', margin: 0 }}>{title}</h1>
-          {session && title === 'Dashboard' && (
-            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
-              Welcome back, Incharge {session.name}
-            </p>
-          )}
+    <header style={styles.header}>
+      {/* 1. LEFT: Mobile Logo only (or BackButton when showBack is true) */}
+      <div style={styles.leftGroup}>
+        {showBack && <BackButton fallback="/incharge/dashboard" />}
+        
+        {/* Royals Marine Logo (Only visible on mobile/tablet where sidebar is hidden) */}
+        <div 
+          className="flex lg:hidden items-center cursor-pointer"
+          onClick={() => navigate('/incharge/dashboard')}
+          title="Royals Marine"
+        >
+          <img 
+            src={topnavlogo} 
+            alt="Royals Marine" 
+            style={styles.logoImg}
+          />
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <span style={{ fontSize: '14px', fontWeight: 500 }}>{session?.region || 'Region'}</span>
-          <span style={{ fontSize: '10px' }}>▼</span>
+      {/* 2. RIGHT: Date/Time + Profile Symbol */}
+      <div style={styles.rightGroup}>
+        {/* Live Date / Time Badge: Clock Mon, 31 Aug | 11:10 AM */}
+        <div style={styles.timeBadge} title="System Live Time">
+          <Clock size={13} color="#1A2FB8" />
+          <span style={styles.dateLabel}>{dateStr}</span>
+          <span style={styles.verticalDivider}>|</span>
+          <span style={styles.timeLabel}>{timeStr}</span>
         </div>
 
-        <div style={{ position: 'relative', cursor: 'pointer' }}>
-          <Bell size={20} color="var(--color-text-muted)" />
-          <span style={{
-            position: 'absolute',
-            top: '-4px',
-            right: '-4px',
-            backgroundColor: 'var(--status-red)',
-            color: 'white',
-            fontSize: '10px',
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold'
-          }}>3</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '24px', borderLeft: '1px solid var(--color-border)' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: '#e2e8f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-primary)'
-          }}>
-            <User size={20} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600 }}>{session?.name || 'Incharge User'}</span>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Incharge ▼</span>
-          </div>
-        </div>
+        {/* User Profile Button */}
+        <button 
+          type="button" 
+          onClick={() => navigate('/incharge/settings')}
+          style={styles.profileRoundBtn}
+          title="ASM Profile & Settings"
+          aria-label="Profile"
+          className="transition-all duration-150 active:scale-95 cursor-pointer hover:bg-blue-100 hover:border-blue-300"
+        >
+          <User size={18} color="#1A2FB8" strokeWidth={2.4} />
+        </button>
       </div>
-    </div>
+    </header>
   );
+};
+
+const styles = {
+  header: {
+    height: '58px',
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #E2E8F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 16px',
+    position: 'sticky',
+    top: 0,
+    zIndex: 30,
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+  },
+  leftGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minWidth: 0,
+  },
+  menuBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '34px',
+    height: '34px',
+    borderRadius: '8px',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #DBEAFE',
+    color: '#1A2FB8',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  logoImg: {
+    height: '42px',
+    maxWidth: '180px',
+    objectFit: 'contain',
+    display: 'block',
+  },
+  inchargeTag: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    fontSize: '9px',
+    fontWeight: '800',
+    padding: '1.5px 5px',
+    borderRadius: '4px',
+    border: '1px solid #DBEAFE',
+    letterSpacing: '0.4px',
+    whiteSpace: 'nowrap',
+  },
+  titleText: {
+    fontSize: '16px',
+    fontWeight: '800',
+    color: '#0F172A',
+    margin: 0,
+    lineHeight: 1.2,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  rightGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0,
+  },
+  timeBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    padding: '5px 12px',
+    fontSize: '12px',
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  dateLabel: {
+    color: '#64748B',
+    fontWeight: '600',
+    whiteSpace: 'nowrap',
+    fontSize: '12px',
+  },
+  verticalDivider: {
+    color: '#CBD5E1',
+    fontWeight: '400',
+    margin: '0 6px',
+    fontSize: '12px',
+    lineHeight: 1,
+  },
+  timeLabel: {
+    color: '#1A2FB8',
+    fontWeight: '800',
+    whiteSpace: 'nowrap',
+    fontSize: '12px',
+  },
+  profileRoundBtn: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #DBEAFE',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'all 0.15s',
+  },
+  bellBtn: {
+    position: 'relative',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'all 0.15s',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: '-2px',
+    right: '-2px',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    fontSize: '9px',
+    fontWeight: '800',
+    width: '15px',
+    height: '15px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1.5px solid #FFFFFF',
+  },
 };
 
 export default InchargeHeader;

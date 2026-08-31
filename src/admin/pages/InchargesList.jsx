@@ -330,9 +330,9 @@ const InchargesList = () => {
       {/* 1. Header Row */}
       <div style={styles.headerRow}>
         <div>
-          <h1 style={styles.pageTitle}>INCHARGE PERSONNEL MANAGEMENT</h1>
+          <h1 style={styles.pageTitle}>ASM PERSONNEL MANAGEMENT</h1>
           <p style={styles.pageSubtitle}>
-            Manage regional operations incharges, jurisdiction scopes, agent assignments, and transfer logs
+            Manage regional operations ASMs, jurisdiction scopes, agent assignments, and transfer logs
           </p>
         </div>
 
@@ -342,7 +342,7 @@ const InchargesList = () => {
             <Search size={16} color="#94a3b8" />
             <input 
               type="text"
-              placeholder="Search incharge, ID, region.."
+              placeholder="Search ASM, ID, region.."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={styles.searchInput}

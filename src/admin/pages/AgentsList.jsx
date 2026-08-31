@@ -822,7 +822,7 @@ const AgentsList = () => {
                     required
                   />
                   <span style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'block' }}>
-                    Specific village or pond cluster assigned to this agent under the incharge
+                    Specific village or tank cluster assigned to this agent under the incharge
                   </span>
                 </div>
               </div>

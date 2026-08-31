@@ -2,22 +2,27 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
+import QuickRecordModal from '../../agent/components/QuickRecordModal';
+import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import { 
-  Search, Filter, Eye, X, UserPlus, Phone, MapPin, 
+  Search, Filter, Eye, X, Phone, MapPin, 
   Users, Droplets, CheckCircle2, Calendar, ShieldCheck, User,
-  TrendingUp, Activity, Scale, Fish, Layers, Sparkles
+  TrendingUp, Activity, Scale, Fish, Layers, Sparkles, UserCheck, Shield, UserPlus, FileText, Award
 } from 'lucide-react';
 
-const Farmers = () => {
+const MyFarmers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocality, setFilterLocality] = useState('ALL');
-  const { db, createFarmerWithTanks, getTanksByFarmerId, getAgentById, getFarmersByInchargeId } = useMockData();
+  const { db, createFarmerWithTanks, getTanksByFarmerId, getAgentById, getMyFarmersByInchargeId } = useMockData();
+  const [selectedFarmer, setSelectedFarmer] = useState(null);
+  const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
+
+  // Form State for Adding New Farmer & Quick Recording
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [recordModalType, setRecordModalType] = useState('WATER_QUALITY');
   const [tanksData, setTanksData] = useState([]);
-  const [selectedFarmer, setSelectedFarmer] = useState(null);
-
-  // Form State
   const [farmerName, setFarmerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [areaMandal, setAreaMandal] = useState('');
@@ -27,8 +32,10 @@ const Farmers = () => {
   const [numberOfTanks, setNumberOfTanks] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
-  const allFarmersList = db?.farmers || [];
-  const farmers = allFarmersList.map(f => {
+  // Personal Farmers specifically allocated by Admin directly to this incharge (INC001)
+  const inchargeFarmersList = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
+  
+  const myFarmers = inchargeFarmersList.map(f => {
     const tanks = getTanksByFarmerId(f.id);
     const agent = getAgentById(f.agentId);
     return {
@@ -36,16 +43,16 @@ const Farmers = () => {
       locality: f.location || f.village || 'Bhimavaram',
       tanks: tanks.length,
       acres: f.acres || 5,
-      agent: agent ? agent.name : 'Direct Incharge',
+      agent: agent ? agent.name : 'Unassigned',
       lastTest: tanks[0] ? tanks[0].lastTest : '22 Aug',
       nextTest: tanks[0] ? tanks[0].nextTest : '29 Aug',
       status: f.status === 'ACTIVE' ? 'Active' : 'Active'
     };
   });
 
-  const localities = Array.from(new Set(farmers.map(f => f.locality).filter(Boolean)));
+  const localities = Array.from(new Set(myFarmers.map(f => f.locality).filter(Boolean)));
 
-  const filteredFarmers = farmers
+  const filteredFarmers = myFarmers
     .filter(farmer => {
       const matchesSearch = 
         farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -56,8 +63,8 @@ const Farmers = () => {
     })
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
-  const totalAcres = farmers.reduce((acc, f) => acc + (parseFloat(f.acres) || 0), 0);
-  const totalTanks = farmers.reduce((acc, f) => acc + f.tanks, 0);
+  const totalAcres = myFarmers.reduce((acc, f) => acc + (parseFloat(f.acres) || 0), 0);
+  const totalTanks = myFarmers.reduce((acc, f) => acc + f.tanks, 0);
 
   const handleAddFarmer = (e) => {
     e.preventDefault();
@@ -86,6 +93,12 @@ const Farmers = () => {
     setIsTankModalOpen(true);
   };
 
+  const handleTankChange = (index, field, value) => {
+    const updated = [...tanksData];
+    updated[index] = { ...updated[index], [field]: value };
+    setTanksData(updated);
+  };
+
   const handleSaveTanks = () => {
     createFarmerWithTanks(
       null,
@@ -95,7 +108,8 @@ const Farmers = () => {
         village: village || 'Bhimavaram',
         area: areaMandal || 'Coastal Cluster',
         acres: totalLandArea || 5,
-        waterSource: waterSource || 'Canal'
+        waterSource: waterSource || 'Canal',
+        inchargeId: 'INC001'
       },
       tanksData
     );
@@ -112,49 +126,102 @@ const Farmers = () => {
     setIsTankModalOpen(false);
   };
 
-  const handleTankChange = (index, field, value) => {
-    const newTanks = [...tanksData];
-    newTanks[index][field] = value;
-    setTanksData(newTanks);
-  };
-
   return (
     <>
-      <InchargeHeader title="Farmers" />
+      <InchargeHeader 
+        title="My Farmers" 
+      />
 
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
-        {/* Summary Quick Bar */}
+        
+        {/* Admin Allocation Notice Banner with New Farmer Button */}
+        <div style={styles.adminBanner} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
+            <div style={styles.adminBannerIcon}>
+              <Shield size={18} color="#1A2FB8" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
+                  Admin Allocated Farmers
+                </span>
+                <span style={styles.adminAllocPill}>
+                  <UserCheck size={11} /> {myFarmers.length} Assigned Farmers
+                </span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px', lineHeight: 1.35 }}>
+                These aquaculture farmers and ponds are assigned to your supervision by the central administrator.
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons: 3 equal columns on mobile, flex row on tablet/desktop */}
+          <div className="grid grid-cols-3 gap-2 w-full md:w-auto md:flex md:items-center">
+            <button
+              type="button"
+              onClick={() => { setRecordModalType('WATER_QUALITY'); setIsRecordModalOpen(true); }}
+              style={styles.recordBannerBtn}
+              className="transition-all duration-150 active:scale-95 cursor-pointer"
+              title="Record Water Analysis, Feed, or Disease"
+            >
+              <Droplets size={14} />
+              <span>New Record</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRecordModalType('HARVEST_ENTRY'); setIsRecordModalOpen(true); }}
+              style={styles.harvestBannerBtn}
+              className="transition-all duration-150 active:scale-95 cursor-pointer"
+              title="Record Crop Harvest"
+            >
+              <Scale size={14} />
+              <span>Harvest</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              style={styles.newFarmerBannerBtn}
+              className="transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              <UserPlus size={14} />
+              <span>New Farmer</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 1. Summary Quick Bar */}
         <div style={styles.summaryBar}>
           <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Total Farmers</span>
-            <span style={styles.summaryValue}>{farmers.length}</span>
+            <span style={styles.summaryLabel}>Assigned Farmers</span>
+            <span style={styles.summaryValue}>{myFarmers.length}</span>
           </div>
           <div style={styles.summaryDivider} />
           <div style={styles.summaryItem}>
             <span style={styles.summaryLabel}>Total Cultivation Area</span>
-            <span style={styles.summaryValue}>{totalAcres.toFixed(1)} Acres</span>
+            <span style={{ ...styles.summaryValue, color: '#1A2FB8' }}>{totalAcres.toFixed(1)} Acres</span>
           </div>
           <div style={styles.summaryDivider} />
           <div style={styles.summaryItem}>
             <span style={styles.summaryLabel}>Active Ponds / Tanks</span>
-            <span style={styles.summaryValue}>{totalTanks} Tanks</span>
+            <span style={{ ...styles.summaryValue, color: '#0284C7' }}>{totalTanks} Tanks</span>
           </div>
           <div style={styles.summaryDivider} />
           <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Active Status</span>
+            <span style={styles.summaryLabel}>Supervision Status</span>
             <span style={{ ...styles.summaryValue, color: '#16A34A' }}>100% Active</span>
           </div>
         </div>
 
-        {/* Main Content Table Card */}
+        {/* 2. Main Table Card */}
         <div style={styles.mainCard}>
-          <div style={styles.actionBar}>
+          {/* Action & Filter Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div style={styles.searchGroup}>
               <div style={styles.searchBox}>
                 <Search size={17} color="#64748B" />
-                <input
-                  type="text"
-                  placeholder="Search farmer by name, phone, or village..."
+                <input 
+                  type="text" 
+                  placeholder="Search my farmers by name, phone, or village..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={styles.searchInput}
@@ -175,15 +242,39 @@ const Farmers = () => {
               )}
             </div>
 
-            <button 
-              type="button"
-              style={styles.addFarmerBtn} 
-              onClick={() => setIsModalOpen(true)}
-              className="transition-all duration-150 active:scale-98 cursor-pointer"
-            >
-              <UserPlus size={16} />
-              <span>Add Farmer</span>
-            </button>
+            <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center">
+              <button 
+                type="button"
+                style={styles.recordBtn}
+                onClick={() => { setRecordModalType('WATER_QUALITY'); setIsRecordModalOpen(true); }}
+                className="transition-all duration-150 active:scale-95 cursor-pointer"
+                title="Record Water Analysis, Feed, or Disease"
+              >
+                <Droplets size={14} />
+                <span>New Record</span>
+              </button>
+
+              <button 
+                type="button"
+                style={styles.harvestBtn}
+                onClick={() => { setRecordModalType('HARVEST_ENTRY'); setIsRecordModalOpen(true); }}
+                className="transition-all duration-150 active:scale-95 cursor-pointer"
+                title="Record Pond Harvest"
+              >
+                <Scale size={14} />
+                <span>Harvest</span>
+              </button>
+
+              <button 
+                type="button"
+                style={styles.addBtn}
+                onClick={() => setIsModalOpen(true)}
+                className="transition-all duration-150 active:scale-95 cursor-pointer"
+              >
+                <UserPlus size={15} />
+                <span>New Farmer</span>
+              </button>
+            </div>
           </div>
 
           {/* Table */}
@@ -278,7 +369,7 @@ const Farmers = () => {
                         type="button"
                         style={styles.actionBtn}
                         onClick={() => setSelectedFarmer(farmer)}
-                        title="View Farmer Profile"
+                        title="View Farmer Profile & Tank Growth"
                       >
                         <Eye size={16} />
                       </button>
@@ -289,7 +380,7 @@ const Farmers = () => {
                 {filteredFarmers.length === 0 && (
                   <tr>
                     <td colSpan="10" style={styles.emptyTd}>
-                      No farmers found matching your criteria.
+                      No assigned farmers found matching your criteria.
                     </td>
                   </tr>
                 )}
@@ -299,7 +390,7 @@ const Farmers = () => {
         </div>
       </div>
 
-      {/* Add Farmer Modal */}
+      {/* Step 1: Add New Farmer Modal */}
       {isModalOpen && createPortal(
         <div style={styles.modalBackdrop} onClick={() => { setIsModalOpen(false); setPhoneError(''); }}>
           <div style={styles.modalCard} onClick={e => e.stopPropagation()}>
@@ -429,7 +520,7 @@ const Farmers = () => {
         document.body
       )}
 
-      {/* Tank Details Modal */}
+      {/* Step 2: Tank Baseline Configurations Modal */}
       {isTankModalOpen && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setIsTankModalOpen(false)}>
           <div style={{ ...styles.modalCard, maxWidth: '780px' }} onClick={e => e.stopPropagation()}>
@@ -450,48 +541,69 @@ const Farmers = () => {
             <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '12px 0' }}>
               {tanksData.map((tank, index) => (
                 <div key={index} style={{ marginBottom: '20px', padding: '14px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                  <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#1A2FB8', marginBottom: '12px' }}>
-                    Tank #{index + 1} Configuration
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Droplets size={16} color="#1A2FB8" />
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>Tank #{index + 1}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                     <div>
-                      <label style={styles.formLabel}>Tank Size (Acres)</label>
+                      <label style={styles.formLabel}>Size (Acres)</label>
                       <input 
                         type="number" 
-                        placeholder="e.g. 1.5" 
+                        step="0.1" 
                         value={tank.size} 
                         onChange={e => handleTankChange(index, 'size', e.target.value)} 
-                        style={styles.formInput}
+                        style={styles.formInput} 
                       />
                     </div>
                     <div>
                       <label style={styles.formLabel}>Salinity (ppt)</label>
                       <input 
                         type="number" 
-                        placeholder="e.g. 15" 
                         value={tank.salinity} 
                         onChange={e => handleTankChange(index, 'salinity', e.target.value)} 
-                        style={styles.formInput}
+                        style={styles.formInput} 
                       />
                     </div>
                     <div>
                       <label style={styles.formLabel}>Soil Type</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Clay" 
+                      <select 
                         value={tank.soilType} 
                         onChange={e => handleTankChange(index, 'soilType', e.target.value)} 
                         style={styles.formInput}
+                      >
+                        <option value="Clay">Clay</option>
+                        <option value="Sandy Clay">Sandy Clay</option>
+                        <option value="Loamy">Loamy</option>
+                        <option value="Clay Loam">Clay Loam</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.formLabel}>Broodstock / Species</label>
+                      <input 
+                        type="text" 
+                        value={tank.broodname} 
+                        onChange={e => handleTankChange(index, 'broodname', e.target.value)} 
+                        style={styles.formInput} 
                       />
                     </div>
                     <div>
-                      <label style={styles.formLabel}>Broodstock Type</label>
+                      <label style={styles.formLabel}>Stocking Date</label>
                       <input 
-                        type="text" 
-                        placeholder="SPF Vannamei" 
-                        value={tank.broodname} 
-                        onChange={e => handleTankChange(index, 'broodname', e.target.value)} 
-                        style={styles.formInput}
+                        type="date" 
+                        value={tank.seedDate} 
+                        onChange={e => handleTankChange(index, 'seedDate', e.target.value)} 
+                        style={styles.formInput} 
+                      />
+                    </div>
+                    <div>
+                      <label style={styles.formLabel}>Seed Stocking Count</label>
+                      <input 
+                        type="number" 
+                        value={tank.seedStocking} 
+                        onChange={e => handleTankChange(index, 'seedStocking', e.target.value)} 
+                        style={styles.formInput} 
                       />
                     </div>
                   </div>
@@ -499,17 +611,17 @@ const Farmers = () => {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid #F1F5F9', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid #E2E8F0', paddingTop: '14px' }}>
               <button 
                 type="button" 
-                style={styles.cancelBtn} 
-                onClick={() => setIsTankModalOpen(false)}
+                style={styles.cancelBtn}
+                onClick={() => { setIsTankModalOpen(false); setIsModalOpen(true); }}
               >
-                Cancel
+                ← Back
               </button>
               <button 
                 type="button" 
-                style={styles.saveBtn} 
+                style={styles.saveBtn}
                 onClick={handleSaveTanks}
               >
                 Save Farmer & Complete Registration
@@ -527,10 +639,6 @@ const Farmers = () => {
           { id: 'T001', name: 'Tank 1', size: selectedFarmer.acres ? (selectedFarmer.acres / 2).toFixed(1) : '2.5', species: 'SPF Vannamei', doc: 68, abw: '22.8g', biomass: '2,850 kg', fcr: '1.18', survival: '89%', salinity: '16', soilType: 'Clay Loam', seedStocking: '150000', lastTest: selectedFarmer.lastTest, nextTest: selectedFarmer.nextTest },
           { id: 'T002', name: 'Tank 2', size: selectedFarmer.acres ? (selectedFarmer.acres / 2).toFixed(1) : '2.5', species: 'SPF Vannamei', doc: 54, abw: '17.2g', biomass: '2,150 kg', fcr: '1.14', survival: '91%', salinity: '15', soilType: 'Clay Loam', seedStocking: '150000', lastTest: selectedFarmer.lastTest, nextTest: selectedFarmer.nextTest }
         ];
-
-        const farmerExtent = String(selectedFarmer.acres || '').toLowerCase().includes('acre')
-          ? selectedFarmer.acres
-          : `${selectedFarmer.acres || 0} Acres`;
 
         return createPortal(
           <div style={styles.modalBackdrop} onClick={() => setSelectedFarmer(null)}>
@@ -550,7 +658,7 @@ const Farmers = () => {
                       </span>
                     </div>
                     <p style={styles.modalSub}>
-                      📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality || selectedFarmer.village} • 👤 Tech: {selectedFarmer.agent}
+                      📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality} • 👤 Tech: {selectedFarmer.agent}
                     </p>
                   </div>
                 </div>
@@ -558,9 +666,8 @@ const Farmers = () => {
                   type="button"
                   onClick={() => setSelectedFarmer(null)}
                   style={styles.modalCloseBtn}
-                  className="transition-all hover:bg-slate-200"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
 
@@ -568,7 +675,7 @@ const Farmers = () => {
               <div style={styles.farmerSummaryBar}>
                 <div style={styles.farmerSummaryCol}>
                   <span style={styles.farmerSummaryLabel}>Total Extent</span>
-                  <span style={styles.farmerSummaryValue}>{farmerExtent}</span>
+                  <span style={styles.farmerSummaryValue}>{selectedFarmer.acres} Acres</span>
                 </div>
                 <div style={styles.farmerSummaryDivider} />
                 <div style={styles.farmerSummaryCol}>
@@ -583,7 +690,7 @@ const Farmers = () => {
                 <div style={styles.farmerSummaryDivider} />
                 <div style={styles.farmerSummaryCol}>
                   <span style={styles.farmerSummaryLabel}>Next Audit Due</span>
-                  <span style={{ ...styles.farmerSummaryValue, color: '#16A34A' }}>{selectedFarmer.nextTest || '28 Aug 2026'}</span>
+                  <span style={{ ...styles.farmerSummaryValue, color: '#16A34A' }}>{selectedFarmer.nextTest}</span>
                 </div>
               </div>
 
@@ -608,11 +715,7 @@ const Farmers = () => {
                     const fcrVal = tank.fcr || (1.15 + (idx * 0.03)).toFixed(2);
                     const survivalVal = tank.survival || (88 + (idx * 2)) + '%';
                     const progressPercent = Math.min(100, Math.round((parseFloat(abwVal) / 30) * 100));
-
-                    const rawSize = tank.size || tank.acres || '2.5';
-                    const sizeDisplay = String(rawSize).toLowerCase().includes('acre')
-                      ? rawSize
-                      : `${rawSize} Acres`;
+                    const tankAcres = String(tank.size || tank.acres || '2.5').replace(/\s*acres?/i, '');
 
                     return (
                       <div key={tank.id || idx} style={styles.tankGrowthCard}>
@@ -625,14 +728,41 @@ const Farmers = () => {
                             <div>
                               <span style={styles.tankCardTitle}>{tank.name || `Tank ${idx + 1}`}</span>
                               <span style={styles.tankSpeciesText}>
-                                {tank.species || tank.broodname || 'SPF Vannamei'} • {sizeDisplay}
+                                {tank.species || tank.broodname || 'SPF Vannamei'} • {tankAcres} Acres
                               </span>
                             </div>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={styles.activePondBadge}>
-                              <CheckCircle2 size={12} /> Active Culture
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHarvestTank({
+                                ...tank,
+                                farmer: selectedFarmer.name,
+                                farmerId: selectedFarmer.id,
+                                locality: selectedFarmer.locality || selectedFarmer.village,
+                                size: tankAcres + ' Acres'
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: '#FEF3C7',
+                                color: '#92400E',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                border: '1px solid #FDE68A',
+                                cursor: 'pointer'
+                              }}
+                              className="transition-transform active:scale-95"
+                              title="View Full Harvest Records, FCR & Biomass Audit"
+                            >
+                              <Scale size={11} /> Harvest Report
+                            </button>
+                            <span style={tank.status === 'Harvested' ? styles.harvestedPondBadge || styles.activePondBadge : styles.activePondBadge}>
+                              <CheckCircle2 size={12} /> {tank.status === 'Harvested' ? 'Harvested' : 'Active Culture'}
                             </span>
                           </div>
                         </div>
@@ -687,9 +817,9 @@ const Farmers = () => {
                           <span>•</span>
                           <span><strong>Stocking:</strong> {tank.seedStocking ? `${parseInt(tank.seedStocking)/100000} Lakh` : '1.5 Lakh Seed'}</span>
                           <span>•</span>
-                          <span><strong>Last Tested:</strong> {tank.lastTest || selectedFarmer.lastTest || '22 Aug'}</span>
+                          <span><strong>Last Tested:</strong> {tank.lastTest || selectedFarmer.lastTest || '22 Aug 2026'}</span>
                           <span>•</span>
-                          <span><strong>Next Due:</strong> {tank.nextTest || selectedFarmer.nextTest || '29 Aug'}</span>
+                          <span><strong>Next Due:</strong> {tank.nextTest || selectedFarmer.nextTest || '29 Aug 2026'}</span>
                         </div>
                       </div>
                     );
@@ -713,11 +843,117 @@ const Farmers = () => {
           document.body
         );
       })()}
+
+      {/* Harvest Completed Comprehensive Modal */}
+      {selectedHarvestTank && (
+        <HarvestCompletedModal
+          isOpen={Boolean(selectedHarvestTank)}
+          onClose={() => setSelectedHarvestTank(null)}
+          tank={selectedHarvestTank}
+          farmer={selectedFarmer || { name: selectedHarvestTank?.farmer, location: selectedHarvestTank?.locality }}
+        />
+      )}
+
+      {/* Quick Record & Harvest Modal */}
+      <QuickRecordModal 
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        initialType={recordModalType}
+        userRole="INCHARGE"
+      />
     </>
   );
 };
 
 const styles = {
+  adminBanner: {
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #DBEAFE',
+    borderRadius: '12px',
+    padding: '14px 20px',
+    marginBottom: '20px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px',
+  },
+  adminBannerIcon: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    backgroundColor: '#DBEAFE',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  adminAllocPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    fontSize: '11px',
+    fontWeight: '700',
+    padding: '3px 10px',
+    borderRadius: '14px',
+    whiteSpace: 'nowrap',
+  },
+  recordBannerBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    backgroundColor: '#FFFFFF',
+    border: '1.5px solid #BFDBFE',
+    color: '#1A2FB8',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(26, 47, 184, 0.06)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
+  },
+  harvestBannerBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    backgroundColor: '#FEF3C7',
+    border: '1.5px solid #FDE68A',
+    color: '#92400E',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(146, 64, 14, 0.06)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
+  },
+  newFarmerBannerBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    backgroundColor: '#16A34A',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
+  },
   summaryBar: {
     display: 'flex',
     alignItems: 'center',
@@ -793,28 +1029,69 @@ const styles = {
     width: '100%',
   },
   selectFilter: {
-    padding: '8px 14px',
+    padding: '8px 12px',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
     borderRadius: '8px',
     fontSize: '13px',
-    color: '#0F172A',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#334155',
     outline: 'none',
     cursor: 'pointer',
   },
-  addFarmerBtn: {
+  recordBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '9px 18px',
+    justifyContent: 'center',
+    gap: '5px',
+    padding: '6px 12px',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1.5px solid #BFDBFE',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(26, 47, 184, 0.06)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
+  },
+  harvestBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    padding: '6px 12px',
+    backgroundColor: '#FEF3C7',
+    color: '#92400E',
+    border: '1.5px solid #FDE68A',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(146, 64, 14, 0.06)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
+  },
+  addBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '5px',
+    padding: '6px 12px',
     backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: '8px',
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: '700',
     cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(26, 47, 184, 0.25)',
+    whiteSpace: 'nowrap',
+    height: '36px',
+    boxSizing: 'border-box',
   },
   table: {
     width: '100%',
@@ -857,11 +1134,6 @@ const styles = {
     fontSize: '13.5px',
     fontWeight: '700',
     color: '#0F172A',
-  },
-  farmerIdTag: {
-    fontSize: '11px',
-    color: '#94A3B8',
-    fontWeight: '500',
   },
   tanksBadge: {
     display: 'inline-flex',
@@ -920,22 +1192,97 @@ const styles = {
     borderRadius: '16px',
     padding: '24px',
     width: '100%',
-    maxWidth: '480px',
+    maxWidth: '540px',
+    maxHeight: '88vh',
+    overflowY: 'auto',
     boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
-    border: '1px solid #E2E8F0',
     boxSizing: 'border-box',
+    border: '1px solid #E2E8F0',
+    animation: 'modalSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   modalCardWide: {
     backgroundColor: '#FFFFFF',
     borderRadius: '16px',
     padding: '24px',
     width: '100%',
-    maxWidth: '820px',
-    maxHeight: '90vh',
+    maxWidth: '840px',
+    maxHeight: '88vh',
     overflowY: 'auto',
     boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
-    border: '1px solid #E2E8F0',
     boxSizing: 'border-box',
+    border: '1px solid #E2E8F0',
+    animation: 'modalSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+  },
+  modalIconBox: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    backgroundColor: '#EFF6FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: '14px',
+    borderBottom: '1px solid #F1F5F9',
+  },
+  modalTitle: {
+    fontSize: '16px',
+    fontWeight: '800',
+    color: '#0F172A',
+    margin: 0,
+  },
+  modalSub: {
+    fontSize: '12px',
+    color: '#64748B',
+    margin: '2px 0 0 0',
+  },
+  modalCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#94A3B8',
+    cursor: 'pointer',
+  },
+  formLabel: {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: '4px',
+  },
+  formInput: {
+    width: '100%',
+    padding: '9px 12px',
+    border: '1px solid #E2E8F0',
+    borderRadius: '8px',
+    fontSize: '13px',
+    outline: 'none',
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
+    boxSizing: 'border-box',
+  },
+  cancelBtn: {
+    padding: '9px 16px',
+    backgroundColor: '#FFFFFF',
+    color: '#475569',
+    border: '1px solid #CBD5E1',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  saveBtn: {
+    padding: '9px 20px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontWeight: '700',
+    cursor: 'pointer',
   },
   farmerDetailAvatar: {
     width: '42px',
@@ -962,23 +1309,22 @@ const styles = {
     borderRadius: '6px',
   },
   farmerSummaryBar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-around',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
     borderRadius: '12px',
     padding: '14px 16px',
     marginTop: '16px',
-    flexWrap: 'wrap',
     gap: '12px',
+    alignItems: 'center',
   },
   farmerSummaryCol: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '3px',
     textAlign: 'center',
+    gap: '3px',
   },
   farmerSummaryLabel: {
     fontSize: '11px',
@@ -993,9 +1339,7 @@ const styles = {
     color: '#0F172A',
   },
   farmerSummaryDivider: {
-    width: '1px',
-    height: '28px',
-    backgroundColor: '#E2E8F0',
+    display: 'none',
   },
   growthSectionTitleRow: {
     display: 'flex',
@@ -1123,105 +1467,6 @@ const styles = {
     color: '#64748B',
     flexWrap: 'wrap',
   },
-  modalHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: '14px',
-    borderBottom: '1px solid #F1F5F9',
-  },
-  modalIconBox: {
-    width: '38px',
-    height: '38px',
-    borderRadius: '10px',
-    backgroundColor: '#EFF6FF',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitle: {
-    fontSize: '16px',
-    fontWeight: '800',
-    color: '#0F172A',
-    margin: 0,
-  },
-  modalSub: {
-    fontSize: '12px',
-    color: '#64748B',
-    margin: '2px 0 0 0',
-  },
-  modalCloseBtn: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
-    backgroundColor: '#F1F5F9',
-    border: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    color: '#64748B',
-    flexShrink: 0,
-    transition: 'all 0.15s ease',
-  },
-  formLabel: {
-    display: 'block',
-    fontSize: '12.5px',
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: '6px',
-  },
-  formInput: {
-    width: '100%',
-    padding: '10px 12px',
-    backgroundColor: '#F8FAFC',
-    border: '1px solid #E2E8F0',
-    borderRadius: '8px',
-    fontSize: '13px',
-    color: '#0F172A',
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  cancelBtn: {
-    padding: '10px 16px',
-    backgroundColor: '#F1F5F9',
-    color: '#475569',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '13px',
-    fontWeight: '700',
-    cursor: 'pointer',
-  },
-  saveBtn: {
-    padding: '10px 20px',
-    backgroundColor: '#1A2FB8',
-    color: '#FFFFFF',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '13px',
-    fontWeight: '700',
-    cursor: 'pointer',
-  },
-  detailRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '8px 12px',
-    backgroundColor: '#F8FAFC',
-    borderRadius: '8px',
-    border: '1px solid #F1F5F9',
-  },
-  detailLabel: {
-    fontSize: '12.5px',
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  detailValue: {
-    fontSize: '13px',
-    fontWeight: '700',
-    color: '#0F172A',
-  },
 };
 
-export default Farmers;
-
+export default MyFarmers;

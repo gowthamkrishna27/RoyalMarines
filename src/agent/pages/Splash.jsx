@@ -20,10 +20,23 @@ const Splash = () => {
   }, [navigate]);
 
   return (
-    <div className="auth-container animate-fade-in" style={styles.container}>
-      <div className="auth-box" style={styles.content}>
+    <div className="animate-fade-in" style={styles.container}>
+      <div style={styles.content}>
         <img src={topnavlogo} alt="Royals Marine" style={styles.logoImage} />
         <MarineLoader message="INITIALIZING MARINE NETWORK..." />
+        
+        <button
+          onClick={() => {
+            if (isAuthenticated()) {
+              navigate('/dashboard');
+            } else {
+              navigate('/login');
+            }
+          }}
+          style={styles.skipBtn}
+        >
+          Click to continue →
+        </button>
       </div>
     </div>
   );
@@ -31,24 +44,40 @@ const Splash = () => {
 
 const styles = {
   container: {
-    backgroundColor: '#F3F6FA',
+    minHeight: '100vh',
+    width: '100%',
+    backgroundColor: '#F8FAFC',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     textAlign: 'center',
-    padding: '20px',
+    padding: '24px 16px',
+    boxSizing: 'border-box',
+    fontFamily: "'Inter', sans-serif",
   },
   content: {
-    flex: 1,
+    maxWidth: '420px',
+    width: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  skipBtn: {
+    marginTop: '24px',
+    background: 'none',
+    border: 'none',
+    color: '#64748B',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    padding: '8px 16px',
+    borderRadius: '8px',
+  },
   logoImage: {
     width: '100%',
-    maxWidth: '400px',
+    maxWidth: '320px',
     height: 'auto',
     marginBottom: '20px',
   },

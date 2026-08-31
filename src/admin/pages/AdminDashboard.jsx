@@ -80,7 +80,7 @@ const AdminDashboard = () => {
       id: 3,
       type: 'FEED',
       title: 'Kavali Delta Cluster (3 Active Tanks)',
-      desc: 'Pond temperature trending at 31.8°C. Feed conversion slowing. Recommend reducing noon ration by 10% to prevent bottom wastage.',
+      desc: 'Tank temperature trending at 31.8°C. Feed conversion slowing. Recommend reducing noon ration by 10% to prevent bottom wastage.',
       tag: 'FEED EFFICIENCY CALIBRATION',
       tagColor: '#d97706',
       tagBg: '#fef3c7',

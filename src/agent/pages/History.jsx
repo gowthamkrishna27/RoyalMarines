@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Lock, Droplets, Fish, Wheat, Skull, ClipboardList, 
   Camera, MapPin, CheckCircle, Clock, Search, X 
@@ -28,6 +29,41 @@ const History = () => {
     { id: 'PHOTO', label: 'Photo' },
   ];
 
+  // Helper to get Farmer Name (removes farmerId like F002)
+  const getFarmerName = (record) => {
+    if (record?.farmerName && !record.farmerName.startsWith('F00') && !record.farmerName.startsWith('FAR-')) {
+      return record.farmerName;
+    }
+    const farmer = (db?.farmers || []).find(f => f.id === record?.farmerId);
+    if (farmer?.name) return farmer.name;
+    const farmerMap = {
+      'F001': 'Ravi',
+      'F002': 'Ravi',
+      'F003': 'Nagesh',
+      'F004': 'Venkatesh',
+      'F005': 'Balaiah',
+      'F006': 'Siva',
+      'F007': 'K. Prasad',
+      'F008': 'Ch. Babu',
+      'F009': 'M. Naidu',
+    };
+    return farmerMap[record?.farmerId] || record?.farmerName || 'Ravi';
+  };
+
+  // Helper to get Tank Number (removes tankId like T003 -> Tank 3)
+  const getTankName = (record) => {
+    if (record?.tankName && !record.tankName.startsWith('T00') && !record.tankName.startsWith('tank-0')) {
+      return record.tankName;
+    }
+    const tank = (db?.tanks || []).find(t => t.id === record?.tankId);
+    if (tank?.name) return tank.name;
+    if (record?.tankId) {
+      const num = record.tankId.replace(/\D/g, '');
+      if (num) return `Tank ${parseInt(num, 10)}`;
+    }
+    return 'Tank 1';
+  };
+
   const filteredSubmissions = submissions.filter(item => {
     const type = (item.testType || item.recordType || '').toUpperCase();
     if (activeFilter === 'WATER' && !type.includes('WATER')) return false;
@@ -39,8 +75,8 @@ const History = () => {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const farmer = (item.farmerName || item.farmerId || '').toLowerCase();
-      const tank = (item.tankName || item.tankId || '').toLowerCase();
+      const farmer = getFarmerName(item).toLowerCase();
+      const tank = getTankName(item).toLowerCase();
       return farmer.includes(q) || tank.includes(q);
     }
     return true;
@@ -74,7 +110,7 @@ const History = () => {
         <Search size={15} color="#64748B" />
         <input
           type="text"
-          placeholder="Search farmer or pond..."
+          placeholder="Search farmer or tank..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={styles.searchInput}
@@ -130,7 +166,7 @@ const History = () => {
                     {record.testType || record.recordType || 'Water Analysis'}
                   </span>
                   <span style={styles.recordTarget}>
-                    {record.farmerName || record.farmerId || 'Farmer'} • {record.tankName || record.tankId || 'Pond 01'}
+                    {getFarmerName(record)} • {getTankName(record)}
                   </span>
                 </div>
               </div>
@@ -149,69 +185,100 @@ const History = () => {
       </div>
 
       {/* Read-Only Record Detail Modal */}
-      {selectedRecord && (
-        <div style={styles.modalOverlay} onClick={() => setSelectedRecord(null)}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+      {selectedRecord && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay} 
+          onClick={() => setSelectedRecord(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={styles.modalCard} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
             <div style={styles.modalHeader}>
-              <div>
-                <div style={styles.lockBadge}>
-                  <Lock size={11} /> SUBMITTED RECORD • READ ONLY
+              <div style={styles.modalHeaderLeft}>
+                <div style={styles.headerIconCircle}>
+                  {getRecordIcon(selectedRecord.testType || selectedRecord.recordType)}
                 </div>
-                <h3 style={styles.modalTitle}>
-                  {selectedRecord.testType || selectedRecord.recordType || 'Water Quality'}
-                </h3>
+                <div>
+                  <div style={styles.lockBadge}>
+                    <Lock size={10} strokeWidth={2.4} /> SUBMITTED RECORD • READ ONLY
+                  </div>
+                  <h3 style={styles.modalTitle}>
+                    {selectedRecord.testType || selectedRecord.recordType || 'Water Quality Test'}
+                  </h3>
+                </div>
               </div>
-              <button style={styles.modalCloseBtn} onClick={() => setSelectedRecord(null)}>
-                <X size={18} />
+              <button 
+                type="button"
+                style={styles.modalCloseBtn} 
+                onClick={() => setSelectedRecord(null)}
+                aria-label="Close"
+              >
+                <X size={18} strokeWidth={2.4} />
               </button>
             </div>
 
+            {/* Body */}
             <div style={styles.modalBody}>
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Farmer</span>
-                <span style={styles.detailValue}>{selectedRecord.farmerName || selectedRecord.farmerId}</span>
+                <span style={styles.detailValue}>{getFarmerName(selectedRecord)}</span>
               </div>
               <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Pond</span>
-                <span style={styles.detailValue}>{selectedRecord.tankName || selectedRecord.tankId}</span>
+                <span style={styles.detailLabel}>Tank Number</span>
+                <span style={styles.detailValue}>{getTankName(selectedRecord)}</span>
               </div>
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Timestamp</span>
-                <span style={styles.detailValue}>{selectedRecord.date} • {selectedRecord.time}</span>
+                <span style={styles.detailValue}>{selectedRecord.date || 'Today'} • {selectedRecord.time || '10:30 AM'}</span>
               </div>
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>GPS Locality</span>
-                <span style={{ ...styles.detailValue, color: '#16A34A', fontWeight: '700' }}>
-                  ✓ {selectedRecord.gps?.locality || 'Bhimavaram, AP'} (±{selectedRecord.gps?.accuracy || 8}m)
+                <span style={{ ...styles.detailValue, color: '#16A34A', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin size={13} /> {selectedRecord.gps?.locality || 'Bhimavaram, AP'} (±{selectedRecord.gps?.accuracy || 8}m)
                 </span>
               </div>
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Record ID</span>
-                <span style={styles.detailValue}>{selectedRecord.id || 'WQ-2026-00128'}</span>
+                <span style={{ ...styles.detailValue, fontFamily: 'monospace', color: '#1A2FB8', letterSpacing: '0.5px' }}>
+                  {selectedRecord.id || 'WQ-2026-00128'}
+                </span>
               </div>
 
               {selectedRecord.data && (
                 <div style={styles.dataBox}>
                   <div style={styles.dataBoxTitle}>Recorded Parameters</div>
-                  {Object.entries(selectedRecord.data).map(([key, val]) => (
-                    typeof val === 'object' ? null : (
-                      <div key={key} style={styles.paramRow}>
-                        <span style={styles.paramKey}>{key}:</span>
-                        <span style={styles.paramVal}>{String(val)}</span>
-                      </div>
-                    )
-                  ))}
+                  <div style={styles.paramGrid}>
+                    {Object.entries(selectedRecord.data).map(([key, val]) => (
+                      typeof val === 'object' ? null : (
+                        <div key={key} style={styles.paramRow}>
+                          <span style={styles.paramKey}>{key.replace(/([A-Z])/g, ' $1')}:</span>
+                          <span style={styles.paramVal}>{String(val)}</span>
+                        </div>
+                      )
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
+            {/* Footer */}
             <div style={styles.modalFooter}>
-              <button style={styles.closeModalBtn} onClick={() => setSelectedRecord(null)}>
+              <button 
+                type="button"
+                className="transition-all duration-150 active:scale-98 cursor-pointer"
+                style={styles.closeModalBtn} 
+                onClick={() => setSelectedRecord(null)}
+              >
                 Close
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -371,73 +438,106 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    width: '100vw',
+    height: '100vh',
+    height: '100dvh',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backdropFilter: 'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 99999,
+    zIndex: 999999,
     padding: '16px',
+    boxSizing: 'border-box',
   },
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: '16px',
     width: '100%',
-    maxWidth: '420px',
-    maxHeight: '90vh',
+    maxWidth: '440px',
+    maxHeight: 'calc(100vh - 32px)',
+    maxHeight: 'calc(100dvh - 32px)',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.06)',
     overflow: 'hidden',
+    position: 'relative',
+    margin: 'auto',
   },
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: '16px',
+    alignItems: 'center',
+    padding: '14px 18px',
     borderBottom: '1px solid #E2E8F0',
     backgroundColor: '#F8FAFC',
+    flexShrink: 0,
+  },
+  modalHeaderLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  headerIconCircle: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    backgroundColor: '#EDF0FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   lockBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    fontSize: '10px',
+    fontSize: '9.5px',
     fontWeight: '700',
     color: '#475569',
     backgroundColor: '#E2E8F0',
     padding: '2px 6px',
     borderRadius: '4px',
-    marginBottom: '3px',
+    marginBottom: '2px',
+    letterSpacing: '0.3px',
   },
   modalTitle: {
-    fontSize: '16px',
+    fontSize: '15.5px',
     fontWeight: '700',
     color: '#0F172A',
     margin: 0,
   },
   modalCloseBtn: {
-    background: 'none',
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    backgroundColor: 'transparent',
     border: 'none',
     color: '#64748B',
     cursor: 'pointer',
-    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   modalBody: {
-    padding: '16px',
+    padding: '16px 18px',
     overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '10px',
   },
   detailRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: '6px',
+    paddingBottom: '8px',
     borderBottom: '1px solid #F1F5F9',
   },
   detailLabel: {
-    fontSize: '12px',
+    fontSize: '12.5px',
     color: '#64748B',
     fontWeight: '500',
   },
@@ -445,50 +545,64 @@ const styles = {
     fontSize: '13px',
     fontWeight: '700',
     color: '#0F172A',
+    textAlign: 'right',
   },
   dataBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: '10px',
-    padding: '10px 12px',
+    borderRadius: '12px',
+    padding: '12px 14px',
     border: '1px solid #E2E8F0',
     marginTop: '4px',
   },
   dataBoxTitle: {
-    fontSize: '10px',
+    fontSize: '10.5px',
     fontWeight: '700',
     color: '#475569',
     textTransform: 'uppercase',
-    marginBottom: '6px',
+    letterSpacing: '0.4px',
+    marginBottom: '8px',
+  },
+  paramGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
   },
   paramRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: '12px',
+    alignItems: 'center',
+    fontSize: '12.5px',
     padding: '2px 0',
   },
   paramKey: {
     color: '#64748B',
     textTransform: 'capitalize',
+    fontWeight: '500',
   },
   paramVal: {
     fontWeight: '700',
     color: '#0F172A',
   },
   modalFooter: {
-    padding: '12px 16px',
+    padding: '12px 18px',
     borderTop: '1px solid #E2E8F0',
     backgroundColor: '#F8FAFC',
+    flexShrink: 0,
   },
   closeModalBtn: {
     width: '100%',
-    padding: '10px',
-    borderRadius: '8px',
+    height: '42px',
+    borderRadius: '10px',
     border: 'none',
-    backgroundColor: '#0018AD',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: '700',
     cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.25)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 };
 

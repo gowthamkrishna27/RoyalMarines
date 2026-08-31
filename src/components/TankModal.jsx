@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, Trash2, Droplets, Database, Calendar } from 'lucide-react';
 import { useMockData } from '../context/MockDataContext';
 
@@ -9,7 +10,13 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
     farmerId: farmerId || '',
     agentId: defaultAgentId || 'agent001',
     acres: '3 Acres',
-    salinity: '15 ppt',
+    salinity: '16 ppt',
+    soilType: 'Loam',
+    hatchery: 'Golden Marine Hatchery',
+    brooder: 'Kona Bay',
+    seedDate: new Date().toISOString().split('T')[0],
+    seedStockingLak: '2.5',
+    feedType: 'Premium',
     waterSource: 'Borewell',
     abw: '12g',
     biomass: '800kg',
@@ -25,8 +32,14 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         name: tank.name || '',
         farmerId: tank.farmerId || farmerId || '',
         agentId: tank.agentId || defaultAgentId || 'agent001',
-        acres: tank.acres || '3 Acres',
-        salinity: tank.salinity || '15 ppt',
+        acres: tank.acres || (tank.area ? `${tank.area} Acres` : '3 Acres'),
+        salinity: tank.salinity ? (String(tank.salinity).includes('ppt') ? tank.salinity : `${tank.salinity} ppt`) : '16 ppt',
+        soilType: tank.soilType || 'Loam',
+        hatchery: tank.hatchery || 'Golden Marine Hatchery',
+        brooder: tank.brooder || 'Kona Bay',
+        seedDate: tank.seedDate || (tank.stockingDate || new Date().toISOString().split('T')[0]),
+        seedStockingLak: tank.seedStockingLak || '2.5',
+        feedType: tank.feedType || 'Premium',
         waterSource: tank.waterSource || 'Borewell',
         abw: tank.abw || '12g',
         biomass: tank.biomass || '800kg',
@@ -34,12 +47,22 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         testStatus: tank.testStatus || 'Due'
       });
     } else {
+      const targetFarmerId = farmerId || (db?.farmers?.[0]?.id || '');
+      const existingFarmerTanks = (db?.tanks || []).filter(t => t.farmerId === targetFarmerId);
+      const defaultTankName = `Tank ${existingFarmerTanks.length + 1}`;
+
       setFormData({
-        name: '',
-        farmerId: farmerId || (db.farmers[0] ? db.farmers[0].id : ''),
+        name: defaultTankName,
+        farmerId: targetFarmerId,
         agentId: defaultAgentId || 'agent001',
         acres: '3 Acres',
-        salinity: '15 ppt',
+        salinity: '16 ppt',
+        soilType: 'Loam',
+        hatchery: 'Golden Marine Hatchery',
+        brooder: 'Kona Bay',
+        seedDate: new Date().toISOString().split('T')[0],
+        seedStockingLak: '2.5',
+        feedType: 'Premium',
         waterSource: 'Borewell',
         abw: '12g',
         biomass: '800kg',
@@ -73,9 +96,9 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
     }
   };
 
-  return (
-    <div style={styles.overlay}>
-      <div style={styles.modalCard}>
+  return createPortal(
+    <div className="animate-backdrop-in" style={styles.overlay} onClick={onClose}>
+      <div className="animate-modal-in" style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={20} color="#2563D9" />
@@ -91,7 +114,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
             <label style={styles.label}>Tank Name / Number *</label>
             <input
               type="text"
-              placeholder="e.g. Tank 1 or North Pond 2"
+              placeholder="e.g. Tank 1 or North Tank 2"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               style={styles.input}
@@ -116,24 +139,106 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={styles.label}>Tank Size / Acres</label>
+              <label style={styles.label}>Tank Size (Acres) *</label>
               <input
                 type="text"
-                placeholder="e.g. 4 Acres"
+                placeholder="e.g. 2.5 Acres"
                 value={formData.acres}
                 onChange={(e) => setFormData({ ...formData, acres: e.target.value })}
                 style={styles.input}
               />
             </div>
             <div>
-              <label style={styles.label}>Salinity Level</label>
+              <label style={styles.label}>Salinity Level *</label>
               <input
                 type="text"
-                placeholder="e.g. 15 ppt"
+                placeholder="e.g. 16 ppt"
                 value={formData.salinity}
                 onChange={(e) => setFormData({ ...formData, salinity: e.target.value })}
                 style={styles.input}
               />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={styles.label}>Soil Type *</label>
+              <select
+                value={formData.soilType}
+                onChange={(e) => setFormData({ ...formData, soilType: e.target.value })}
+                style={styles.input}
+              >
+                <option value="Loam">Loam</option>
+                <option value="Clay">Clay</option>
+                <option value="Sandy">Sandy</option>
+                <option value="Clay Loam">Clay Loam</option>
+                <option value="Sandy Clay">Sandy Clay</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={styles.label}>Hatchery Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. Golden Marine Hatchery"
+                value={formData.hatchery}
+                onChange={(e) => setFormData({ ...formData, hatchery: e.target.value })}
+                style={styles.input}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={styles.label}>Brooder *</label>
+              <select
+                value={formData.brooder}
+                onChange={(e) => setFormData({ ...formData, brooder: e.target.value })}
+                style={styles.input}
+              >
+                <option value="Syaqua">Syaqua</option>
+                <option value="Kona Bay">Kona Bay</option>
+                <option value="SIS">SIS (Shrimp Improvement Systems)</option>
+                <option value="American Penaeid">American Penaeid</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={styles.label}>Seed Date *</label>
+              <input
+                type="date"
+                value={formData.seedDate}
+                onChange={(e) => setFormData({ ...formData, seedDate: e.target.value })}
+                style={styles.input}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={styles.label}>Seed NumberStocking (Lak) *</label>
+              <input
+                type="text"
+                placeholder="e.g. 2.5"
+                value={formData.seedStockingLak}
+                onChange={(e) => setFormData({ ...formData, seedStockingLak: e.target.value })}
+                style={styles.input}
+              />
+            </div>
+            <div>
+              <label style={styles.label}>Feed Type *</label>
+              <select
+                value={formData.feedType}
+                onChange={(e) => setFormData({ ...formData, feedType: e.target.value })}
+                style={styles.input}
+              >
+                <option value="Premium">Premium</option>
+                <option value="Functional">Functional</option>
+                <option value="Hypro">Hypro</option>
+                <option value="Tiger Feed">Tiger Feed</option>
+                <option value="Royals Supreme">Royals Supreme</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
 
@@ -249,7 +354,8 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -260,21 +366,31 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(23, 35, 60, 0.5)',
+    width: '100vw',
+    height: '100vh',
+    height: '100dvh',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     backdropFilter: 'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 9999,
-    padding: '20px'
+    zIndex: 999999,
+    padding: '16px',
+    boxSizing: 'border-box',
   },
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: '16px',
     width: '100%',
     maxWidth: '520px',
+    maxHeight: 'calc(100vh - 32px)',
+    maxHeight: 'calc(100dvh - 32px)',
     padding: '24px',
-    boxShadow: '0 20px 25px -5px rgba(23, 35, 60, 0.1), 0 10px 10px -5px rgba(23, 35, 60, 0.04)'
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    margin: 'auto',
   },
   modalHeader: {
     display: 'flex',

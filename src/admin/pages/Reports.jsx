@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PageHeader from '../components/PageHeader';
-import { FileText, Calendar, Map, Filter, Download } from 'lucide-react';
+import { FileText, Calendar, Map, Filter, Download, FileSpreadsheet } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { 
+  downloadAquaEnterpriseWorkbook, 
+  downloadSamplingExcel, 
+  downloadHarvestMasterExcel 
+} from '../../utils/excelReportGenerator';
 
 const Reports = () => {
   const [consolidationMode, setConsolidationMode] = useState('DATE');
@@ -21,10 +26,10 @@ const Reports = () => {
     .filter(f => selectedArea === 'ALL' || f.location.toLowerCase().includes(selectedArea.toLowerCase()));
 
   const handleExportCSV = () => {
-    let headers = ['Farmer Name', 'Area/Location', 'Land Acres', 'Water Source', 'Total Ponds (Tanks)'];
+    let headers = ['Farmer Name', 'Area/Location', 'Land Acres', 'Water Source', 'Total Tanks'];
     let rows = filteredFarmers.map(f => {
-      const pondsCount = (db.tanks || []).filter(t => t.farmerId === f.id).length;
-      return [f.name, f.location, f.acres, f.waterSource, pondsCount];
+      const tanksCount = (db.tanks || []).filter(t => t.farmerId === f.id).length;
+      return [f.name, f.location, f.acres, f.waterSource, tanksCount];
     });
 
     const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
@@ -52,7 +57,7 @@ const Reports = () => {
               <FileText size={32} />
             </div>
             <h2 style={{ fontSize: '20px', fontWeight: 700 }}>Organization Consolidated Report Generator</h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Date-wise, Month-wise, Area-wise, Farmer-wise & Pond-wise consolidated exports</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Date-wise, Month-wise, Area-wise, Farmer-wise & Tank-wise consolidated exports</p>
           </div>
 
           {/* Mode Selector */}
@@ -123,10 +128,26 @@ const Reports = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-            <button className="btn-secondary" onClick={() => { setSelectedArea('ALL'); setSelectedFarmer('ALL'); setConsolidationMode('DATE'); }} style={{ padding: '12px 24px' }}>Reset Filters</button>
-            <button className="btn-primary" onClick={handleExportCSV} style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Download size={18} /> Export Consolidated CSV
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={() => { setSelectedArea('ALL'); setSelectedFarmer('ALL'); setConsolidationMode('DATE'); }} style={{ width: 'auto', padding: '10px 18px' }}>Reset Filters</button>
+            <button 
+              onClick={() => downloadSamplingExcel(db, null, selectedFarmer)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', backgroundColor: '#EFF6FF', color: '#1A2FB8', border: '1px solid #BFDBFE', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
+            >
+              <Download size={15} /> Sampling Sheet (.xlsx)
+            </button>
+            <button 
+              onClick={() => downloadHarvestMasterExcel(db, null)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
+            >
+              <Download size={15} /> Harvest Master (.xlsx)
+            </button>
+            <button 
+              className="btn-primary" 
+              onClick={() => downloadAquaEnterpriseWorkbook(db, null, selectedFarmer, 'Admin_Consolidated_Master')}
+              style={{ width: 'auto', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1A2FB8' }}
+            >
+              <FileSpreadsheet size={16} /> Complete Master Workbook (.xlsx)
             </button>
           </div>
         </div>

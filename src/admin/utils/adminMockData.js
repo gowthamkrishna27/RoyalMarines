@@ -550,10 +550,38 @@ export const getAgentById = (id) => adminAgents.find(a => a.id === id);
 
 export const getFarmers = () => adminFarmers;
 export const getFarmersByAgent = (agentId) => adminFarmers.filter(f => f.agentId === agentId);
+export const getFarmersByIncharge = (inchargeId) => {
+  const incharge = getInchargeById(inchargeId);
+  const incName = incharge ? incharge.name.split(' ')[0] : '';
+  const agents = getAgentsByIncharge(inchargeId);
+  const agentIds = agents.map(a => a.id);
+  return adminFarmers
+    .filter(f => 
+      f.inchargeId === inchargeId || 
+      (incName && f.incharge?.includes(incName)) ||
+      agentIds.includes(f.agentId)
+    )
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+};
 export const getFarmerById = (id) => adminFarmers.find(f => f.id === id);
 
 export const getTanks = () => adminTanks;
 export const getTanksByFarmer = (farmerId) => adminTanks.filter(t => t.farmerId === farmerId);
+export const getTanksByIncharge = (inchargeId) => {
+  const farmers = getFarmersByIncharge(inchargeId);
+  const farmerIds = farmers.map(f => f.id);
+  return adminTanks
+    .filter(t => farmerIds.includes(t.farmerId) || t.inchargeId === inchargeId)
+    .sort((a, b) => {
+      const fA = farmers.find(f => f.id === a.farmerId);
+      const fB = farmers.find(f => f.id === b.farmerId);
+      const nameA = fA ? fA.name : '';
+      const nameB = fB ? fB.name : '';
+      const farmerDiff = nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      if (farmerDiff !== 0) return farmerDiff;
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
+};
 export const getTankById = (id) => adminTanks.find(t => t.id === id);
 
 export const getActivities = () => adminActivities;

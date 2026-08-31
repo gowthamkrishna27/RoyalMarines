@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import PageHeader from '../components/PageHeader';
-import { Download, Table, CheckSquare } from 'lucide-react';
+import { Download, Table, CheckSquare, FileSpreadsheet } from 'lucide-react';
 import { getIncharges, getAgentsByIncharge, getFarmersByAgent, getFarmerById, getTanksByFarmer } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
+import { 
+  downloadAquaEnterpriseWorkbook, 
+  downloadSamplingExcel, 
+  downloadHarvestMasterExcel 
+} from '../../utils/excelReportGenerator';
 
 const ExportCenter = () => {
+  const { db } = useMockData();
   const [selectedFields, setSelectedFields] = useState({
     farmerDetails: true,
     tankDetails: true,
@@ -26,33 +33,7 @@ const ExportCenter = () => {
   const farmers = selectedAgent ? getFarmersByAgent(selectedAgent) : [];
 
   const handleDownload = () => {
-    if (!selectedFarmer) {
-      alert("Please select a farmer to download their data.");
-      return;
-    }
-    
-    const farmer = getFarmerById(selectedFarmer);
-    const tanks = getTanksByFarmer(selectedFarmer);
-    
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "FARMER DETAILS\n";
-    csvContent += "Name,Phone,Village,Acres,Agent,Incharge,Region,Status\n";
-    csvContent += `${farmer.name},${farmer.phone},${farmer.village},${farmer.acres},${farmer.agent},${farmer.incharge},${farmer.region},${farmer.status}\n\n`;
-
-    csvContent += "TANKS\n";
-    csvContent += "Tank Name,Culture Cycle,ABW (g),Biomass (kg),FCR,Weekly Compliance (%)\n";
-    
-    tanks.forEach(tank => {
-      csvContent += `${tank.name},${tank.currentCycle},${tank.abw},${tank.biomass},${tank.fcr},${tank.compliance}\n`;
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${farmer.name.replace(/\s+/g, '_')}_data.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadAquaEnterpriseWorkbook(db, selectedAgent || null, selectedFarmer || 'ALL', 'Royals_Marine_Export');
   };
 
   const toggleField = (key) => {
@@ -166,17 +147,31 @@ const ExportCenter = () => {
               ))}
             </div>
 
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                 {Object.values(selectedFields).filter(Boolean).length} modules selected for export
               </div>
-              <button 
-                className="btn-primary" 
-                style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                onClick={handleDownload}
-              >
-                <Download size={18} /> Download Excel
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  onClick={() => downloadSamplingExcel(db, selectedAgent || null, selectedFarmer || 'ALL')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', backgroundColor: '#EFF6FF', color: '#1A2FB8', border: '1px solid #BFDBFE', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '12.5px' }}
+                >
+                  <Download size={14} /> Sampling (.xlsx)
+                </button>
+                <button 
+                  onClick={() => downloadHarvestMasterExcel(db, selectedAgent || null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px', backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '12.5px' }}
+                >
+                  <Download size={14} /> Harvest (.xlsx)
+                </button>
+                <button 
+                  className="btn-primary" 
+                  style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1A2FB8' }}
+                  onClick={handleDownload}
+                >
+                  <FileSpreadsheet size={16} /> Complete Workbook (.xlsx)
+                </button>
+              </div>
             </div>
           </div>
 
