@@ -370,8 +370,8 @@ const AgentsList = () => {
                 <th style={styles.th}>LOCALITY &amp; INCHARGE (HEAD)</th>
                 <th style={styles.th}>ASSIGNED PARTICULAR AREA</th>
                 <th style={styles.th}>ASSIGNED FARMERS</th>
-                <th style={styles.th}>SITE VISITS</th>
-                <th style={styles.th}>STATUS</th>
+                <th style={styles.th}>TESTS COMPLETED</th>
+                <th style={styles.th}>DUE TESTS</th>
                 <th style={{ ...styles.th, textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
@@ -428,21 +428,29 @@ const AgentsList = () => {
                         </span>
                       </td>
 
-                      {/* Site Visits */}
+                      {/* Tests Completed */}
                       <td style={styles.td}>
-                        <span style={styles.siteVisitsText}>
-                          {ag.siteVisits || 0} Visits
+                        <span 
+                          style={{...styles.siteVisitsText, cursor: 'pointer', color: '#2563eb', textDecoration: 'underline'}}
+                          onClick={() => navigate('/admin/field-data', { state: { searchTerm: ag.id } })}
+                          title={`View tests for ${ag.shortName || ag.name}`}
+                        >
+                          {ag.tests || 0} Tests
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* Due Tests */}
                       <td style={styles.td}>
                         <span style={{
-                          ...styles.statusBadge,
-                          backgroundColor: ag.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
-                          color: ag.status === 'ACTIVE' ? '#16a34a' : '#dc2626'
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          backgroundColor: '#fffbeb',
+                          color: '#d97706',
+                          border: '1px solid #fde68a'
                         }}>
-                          {ag.status}
+                          {ag.dueTests !== undefined ? ag.dueTests : (ag.tanks ? Math.ceil(ag.tanks / 2) : 2)} Due
                         </span>
                       </td>
 
@@ -1051,7 +1059,7 @@ const styles = {
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '8px 12px',
+    padding: '9px 14px',
     width: '280px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
@@ -1076,9 +1084,9 @@ const styles = {
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',
-    padding: '9px 18px',
+    padding: '10px 20px',
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '0.4px',
     cursor: 'pointer',
     display: 'flex',
@@ -1091,7 +1099,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '16px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   table: {
@@ -1104,9 +1112,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1119,7 +1127,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'
@@ -1132,7 +1140,7 @@ const styles = {
   },
   agentNameClickable: {
     fontSize: '14px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#0f172a',
     transition: 'color 0.15s',
     '&:hover': {

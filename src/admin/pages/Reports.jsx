@@ -43,8 +43,8 @@ const Reports = () => {
       <PageHeader title="Consolidated Reports" breadcrumbs={[{ label: 'Reports' }, { label: 'Generate Reports', active: true }]} />
       <div className="content-inner">
 
-        <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div className="card" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <div style={{
               width: '64px', height: '64px', backgroundColor: '#f1f5f9', borderRadius: '16px',
               display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 16px', color: 'var(--color-primary)'
@@ -83,7 +83,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2" style={{ gap: '20px', marginBottom: '24px' }}>
+          <div className="grid md:grid-cols-2" style={{ gap: '24px', marginBottom: '28px' }}>
             {consolidationMode === 'MONTH' ? (
               <div className="input-group">
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Select Month (Month-wise)</label>
@@ -123,7 +123,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
             <button className="btn-secondary" onClick={() => { setSelectedArea('ALL'); setSelectedFarmer('ALL'); setConsolidationMode('DATE'); }} style={{ padding: '12px 24px' }}>Reset Filters</button>
             <button className="btn-primary" onClick={handleExportCSV} style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Download size={18} /> Export Consolidated CSV

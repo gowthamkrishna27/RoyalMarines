@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFarmerById, getFarmers, getTanksByFarmer } from '../utils/adminMockData';
+import { getFarmerById, getFarmers, getTanksByFarmer, calculateBiomass, calculateFCR } from '../utils/adminMockData';
 import PageHeader from '../components/PageHeader';
 import { 
   Database, Download, TrendingUp, Activity, 
@@ -44,25 +44,35 @@ const FarmerDetail = () => {
       }
     ];
 
-    return sourceTanks.map((t, idx) => ({
-      id: t.id || `T-${farmer?.id || '349'}-${idx + 1}`,
-      name: t.name || `Tank ${idx + 1}`,
-      acres: parseFloat(t.acres) || 4.0,
-      doc: t.doc || (50 + idx * 5),
-      abw: t.abw || (20.0 + idx * 3.5),
-      biomass: t.biomass || Math.round((parseFloat(t.acres) || 4.0) * 850),
-      fcr: t.fcr || (1.28 + idx * 0.04),
-      currentCycle: t.currentCycle || `Cycle 1 (2026)`,
-      compliance: t.compliance || 100,
-      waterSource: t.waterSource || farmer?.waterSource || (idx % 2 === 0 ? 'Creek / Estuary' : 'Sea / Coastal Canal'),
-      salinity: t.salinity || (14 + (idx * 2)),
-      soilType: t.soilType || (idx % 3 === 0 ? 'Clay Loam' : idx % 3 === 1 ? 'Loam' : 'Clay'),
-      hatcheryName: t.hatcheryName || (idx % 2 === 0 ? 'Apex Marine Hatcheries (Nellore)' : 'BMR Marine SPF Hatchery'),
-      brooder: t.brooder || (idx % 2 === 0 ? 'Kona Bay (USA)' : 'Syaqua (Thailand)'),
-      seedDate: t.seedDate || `2026-05-${10 + idx * 5}`,
-      seedStockingLak: t.seedStockingLak || parseFloat(((parseFloat(t.acres) || 4.0) * 0.8).toFixed(1)),
-      feedType: t.feedType || (idx % 2 === 0 ? 'Premium Pellets (Royal Pro)' : 'Functional Feed (Aqua Boost)')
-    }));
+    return sourceTanks.map((t, idx) => {
+      const acres = parseFloat(t.acres) || 4.0;
+      const abw = t.abw || (20.0 + idx * 3.5);
+      const seedStockingLak = t.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+      const biomass = calculateBiomass(seedStockingLak, abw);
+      const feed = t.feed || (biomass * (t.fcr || 1.30)); // fallback feed if not present in mock
+      const fcr = calculateFCR(feed, biomass);
+      
+      return {
+        id: t.id || `T-${farmer?.id || '349'}-${idx + 1}`,
+        name: t.name || `Tank ${idx + 1}`,
+        acres,
+        doc: t.doc || (50 + idx * 5),
+        abw,
+        biomass,
+        fcr,
+        feed,
+        currentCycle: t.currentCycle || `Cycle 1 (2026)`,
+        compliance: t.compliance || 100,
+        waterSource: t.waterSource || farmer?.waterSource || (idx % 2 === 0 ? 'Creek / Estuary' : 'Sea / Coastal Canal'),
+        salinity: t.salinity || (14 + (idx * 2)),
+        soilType: t.soilType || (idx % 3 === 0 ? 'Clay Loam' : idx % 3 === 1 ? 'Loam' : 'Clay'),
+        hatcheryName: t.hatcheryName || (idx % 2 === 0 ? 'Apex Marine Hatcheries (Nellore)' : 'BMR Marine SPF Hatchery'),
+        brooder: t.brooder || (idx % 2 === 0 ? 'Kona Bay (USA)' : 'Syaqua (Thailand)'),
+        seedDate: t.seedDate || `2026-05-${10 + idx * 5}`,
+        seedStockingLak,
+        feedType: t.feedType || (idx % 2 === 0 ? 'Premium Pellets (Royal Pro)' : 'Functional Feed (Aqua Boost)')
+      };
+    });
   });
 
   const [activeTankIndex, setActiveTankIndex] = useState(0);
@@ -120,7 +130,13 @@ const FarmerDetail = () => {
 
     const updatedAcres = parseFloat(editTankForm.acres) || activeTank.acres;
     const updatedABW = parseFloat(editTankForm.abw) || activeTank.abw;
-    const updatedBiomass = Math.round(updatedABW * updatedAcres * 115);
+    const updatedSeedStockingLak = parseFloat(editTankForm.seedStockingLak) || activeTank.seedStockingLak;
+    const updatedBiomass = calculateBiomass(updatedSeedStockingLak, updatedABW);
+    // Since FCR is derived from feed and biomass, we preserve feed and recalculate FCR,
+    // but the edit modal's FCR is considered "Target FCR". We'll just store the target FCR as targetFcr
+    // and keep the actual fcr calculated dynamically.
+    const updatedTargetFcr = parseFloat(editTankForm.fcr) || 1.30;
+    const updatedFCR = calculateFCR(activeTank.feed, updatedBiomass);
 
     const updatedTank = {
       ...activeTank,
@@ -132,12 +148,13 @@ const FarmerDetail = () => {
       hatcheryName: editTankForm.hatcheryName.trim(),
       brooder: editTankForm.brooder,
       seedDate: editTankForm.seedDate,
-      seedStockingLak: parseFloat(editTankForm.seedStockingLak) || 3.5,
+      seedStockingLak: updatedSeedStockingLak,
       feedType: editTankForm.feedType,
       currentCycle: editTankForm.currentCycle.trim(),
       abw: updatedABW,
       biomass: updatedBiomass,
-      fcr: parseFloat(editTankForm.fcr) || 1.30
+      fcr: updatedFCR,
+      targetFcr: updatedTargetFcr
     };
 
     const updatedTanksList = tanksList.map((t, idx) => idx === activeTankIndex ? updatedTank : t);
@@ -274,9 +291,10 @@ const FarmerDetail = () => {
     const baseABW = (doc / 70) * (activeTank.abw || 24.0);
     
     const abwVal = parseFloat(baseABW.toFixed(2));
-    const biomassVal = Math.round(abwVal * tankAcres * 115);
-    const fcrVal = parseFloat((0.88 + (doc / 70) * 0.44).toFixed(2));
-    const feedVal = Math.round(biomassVal * fcrVal);
+    const biomassVal = calculateBiomass(activeTank.seedStockingLak, abwVal);
+    const hypotheticalFcr = 0.88 + (doc / 70) * 0.44;
+    const feedVal = Math.round(biomassVal * hypotheticalFcr);
+    const fcrVal = parseFloat(calculateFCR(feedVal, biomassVal));
 
     entry.abw = abwVal;
     entry.biomass = biomassVal;
@@ -1226,7 +1244,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '12px',
     border: '1px solid #e2e8f0',
-    padding: '20px 22px',
+    padding: '24px 32px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   profileHeader: {
@@ -1239,7 +1257,7 @@ const styles = {
   },
   farmerTitle: {
     fontSize: '20px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1297,10 +1315,10 @@ const styles = {
   profileGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '12px',
+    gap: '16px',
     backgroundColor: '#f8fafc',
     borderRadius: '8px',
-    padding: '14px 16px',
+    padding: '16px 20px',
     border: '1px solid #e2e8f0'
   },
   profileBlock: {
@@ -1323,7 +1341,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '10px',
     border: '1px solid #e2e8f0',
-    padding: '10px 16px',
+    padding: '16px 24px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   selectTankLabel: {
@@ -1369,14 +1387,14 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: '10px',
-    marginBottom: '14px',
-    paddingBottom: '10px',
+    gap: '12px',
+    marginBottom: '20px',
+    paddingBottom: '16px',
     borderBottom: '1px solid #f1f5f9'
   },
   sectionCardTitle: {
     fontSize: '15px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1413,16 +1431,16 @@ const styles = {
   specsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '10px'
+    gap: '16px'
   },
   specItemCard: {
     backgroundColor: '#f8fafc',
     border: '1px solid #e2e8f0',
     borderRadius: '8px',
-    padding: '10px 12px',
+    padding: '14px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px'
+    gap: '4px'
   },
   specLabel: {
     fontSize: '10px',
@@ -1487,9 +1505,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   qualityTh: {
-    padding: '8px 10px',
+    padding: '12px 16px',
     fontSize: '10.5px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#475569',
     textTransform: 'uppercase',
     letterSpacing: '0.3px',
@@ -1499,7 +1517,7 @@ const styles = {
     borderBottom: '1px solid #f1f5f9'
   },
   qualityTd: {
-    padding: '10px 10px',
+    padding: '14px 16px',
     verticalAlign: 'middle',
     color: '#334155',
     fontSize: '12.5px',

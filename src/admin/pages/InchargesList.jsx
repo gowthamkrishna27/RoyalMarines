@@ -1052,7 +1052,7 @@ const styles = {
   },
   pageTitle: {
     fontSize: '22px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: '0 0 4px 0',
     letterSpacing: '-0.3px'
@@ -1074,7 +1074,7 @@ const styles = {
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '8px 12px',
+    padding: '9px 14px',
     width: '280px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
@@ -1099,9 +1099,9 @@ const styles = {
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',
-    padding: '9px 18px',
+    padding: '10px 20px',
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '0.4px',
     cursor: 'pointer',
     display: 'flex',
@@ -1114,7 +1114,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '16px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   table: {
@@ -1127,9 +1127,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1142,7 +1142,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'

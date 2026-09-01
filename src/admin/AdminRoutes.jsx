@@ -13,8 +13,6 @@ import FarmerDetail from './pages/FarmerDetail';
 import TanksList from './pages/TanksList';
 import TankHistory from './pages/TankHistory';
 import FieldData from './pages/FieldData';
-import WeeklyTests from './pages/WeeklyTests';
-import Verifications from './pages/Verifications';
 import Analytics from './pages/Analytics';
 import Reports from './pages/Reports';
 import ExportCenter from './pages/ExportCenter';
@@ -36,8 +34,6 @@ const AdminRoutes = () => {
       <Route path="tanks" element={<TanksList />} />
       <Route path="tanks/:tankId" element={<TankHistory />} />
       <Route path="field-data" element={<FieldData />} />
-      <Route path="weekly-tests" element={<WeeklyTests />} />
-      <Route path="verifications" element={<Verifications />} />
       <Route path="analytics" element={<Analytics />} />
       <Route path="reports" element={<Reports />} />
       <Route path="export-center" element={<ExportCenter />} />

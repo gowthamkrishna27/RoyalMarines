@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import InchargeHeader from '../components/InchargeHeader';
 import { Download } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { calculateBiomass, calculateFCR } from '../../admin/utils/adminMockData';
 
 const ExportData = () => {
   const { db, getFarmersByAgentId, getTanksByFarmerId, getFarmerById } = useMockData();
@@ -37,7 +38,14 @@ const ExportData = () => {
     csvContent += "TANKS\n";
     csvContent += "Tank Name,Status,Test Status,ABW,Biomass,FCR,Last Test,Next Test\n";
     selectedTanks.forEach(t => {
-      csvContent += `"${t.name}","${t.status}","${t.testStatus}","${t.abw}","${t.biomass}","${t.fcr}","${t.lastTest}","${t.nextTest}"\n`;
+      const acres = parseFloat(t.acres) || 4.0;
+      const abw = parseFloat(t.abw) || 20.0;
+      const seedStockingLak = t.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+      const biomass = calculateBiomass(seedStockingLak, abw) || t.biomass;
+      const feed = t.feed || (biomass * (t.fcr || 1.30));
+      const fcr = calculateFCR(feed, biomass);
+      
+      csvContent += `"${t.name}","${t.status}","${t.testStatus}","${t.abw}","${biomass}","${fcr}","${t.lastTest}","${t.nextTest}"\n`;
     });
     
     csvContent += "\nTEST DETAILS\n";

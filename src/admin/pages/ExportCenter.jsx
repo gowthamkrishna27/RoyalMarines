@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { Download, Table, CheckSquare } from 'lucide-react';
-import { getIncharges, getAgentsByIncharge, getFarmersByAgent, getFarmerById, getTanksByFarmer } from '../utils/adminMockData';
+import { getIncharges, getAgentsByIncharge, getFarmersByAgent, getFarmerById, getTanksByFarmer, calculateBiomass, calculateFCR } from '../utils/adminMockData';
 
 const ExportCenter = () => {
   const [selectedFields, setSelectedFields] = useState({
@@ -43,7 +43,14 @@ const ExportCenter = () => {
     csvContent += "Tank Name,Culture Cycle,ABW (g),Biomass (kg),FCR,Weekly Compliance (%)\n";
     
     tanks.forEach(tank => {
-      csvContent += `${tank.name},${tank.currentCycle},${tank.abw},${tank.biomass},${tank.fcr},${tank.compliance}\n`;
+      const acres = parseFloat(tank.acres) || 4.0;
+      const abw = parseFloat(tank.abw) || 20.0;
+      const seedStockingLak = tank.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+      const biomass = calculateBiomass(seedStockingLak, abw) || tank.biomass;
+      const feed = tank.feed || (biomass * (tank.fcr || 1.30));
+      const fcr = calculateFCR(feed, biomass);
+      
+      csvContent += `${tank.name},${tank.currentCycle},${abw},${biomass},${fcr},${tank.compliance}\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
@@ -79,15 +86,15 @@ const ExportCenter = () => {
         
         <div className="grid md:grid-cols-3" style={{ gap: '24px' }}>
           
-          <div className="card md:col-span-1" style={{ alignSelf: 'flex-start' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="card md:col-span-1" style={{ alignSelf: 'flex-start', padding: '24px 32px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FilterIcon /> Export Scope
             </h3>
             
             <div className="input-group">
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Select Incharge</label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
                 value={selectedIncharge}
                 onChange={(e) => {
                   setSelectedIncharge(e.target.value);
@@ -103,7 +110,7 @@ const ExportCenter = () => {
             <div className="input-group">
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Select Agent</label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
                 value={selectedAgent}
                 onChange={(e) => {
                   setSelectedAgent(e.target.value);
@@ -119,7 +126,7 @@ const ExportCenter = () => {
             <div className="input-group">
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Select Farmer</label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#f8fafc', outline: 'none' }}
                 value={selectedFarmer}
                 onChange={(e) => setSelectedFarmer(e.target.value)}
                 disabled={!selectedAgent}
@@ -130,21 +137,21 @@ const ExportCenter = () => {
             </div>
           </div>
 
-          <div className="card md:col-span-2">
-            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="card md:col-span-2" style={{ padding: '24px 32px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Table size={18} /> Excel Columns Selection
             </h3>
             <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '24px' }}>
               Select the data points you want to include in the exported Excel spreadsheet.
             </p>
 
-            <div className="grid md:grid-cols-2" style={{ gap: '16px' }}>
+            <div className="grid md:grid-cols-2" style={{ gap: '20px' }}>
               {fields.map(field => (
                 <div 
                   key={field.key} 
                   style={{ 
                     display: 'flex', alignItems: 'center', gap: '12px', 
-                    padding: '12px', border: '1px solid var(--color-border)', 
+                    padding: '16px', border: '1px solid var(--color-border)', 
                     borderRadius: '8px', cursor: 'pointer',
                     backgroundColor: selectedFields[field.key] ? '#f0fdf4' : 'white',
                     borderColor: selectedFields[field.key] ? '#86efac' : 'var(--color-border)'

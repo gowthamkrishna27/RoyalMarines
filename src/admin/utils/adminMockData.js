@@ -380,9 +380,9 @@ export const adminFarmers = [
     waterSource: 'Creek / Estuary',
     tanks: 3, 
     tankBreakdown: [
-      { id: 'T-003-1', name: 'Tank 1', acres: 3.0, doc: 70, abw: 26.5, fcr: 1.35, biomass: 4200, waterSource: 'Creek / Estuary', salinity: 18, soilType: 'Clay Loam', hatcheryName: 'Apex Marine Hatcheries (Nellore)', brooder: 'Kona Bay', seedDate: '2026-05-15', seedStockingLak: 2.5, feedType: 'Premium Pellets' },
-      { id: 'T-003-2', name: 'Tank 2', acres: 2.5, doc: 55, abw: 18.0, fcr: 1.30, biomass: 2800, waterSource: 'Sea / Coastal Canal', salinity: 20, soilType: 'Clay', hatcheryName: 'BMR Marine SPF Hatchery', brooder: 'Syaqua', seedDate: '2026-05-25', seedStockingLak: 2.0, feedType: 'Functional Feed' },
-      { id: 'T-003-3', name: 'Tank 3', acres: 2.5, doc: 40, abw: 12.0, fcr: 1.25, biomass: 1600, waterSource: 'Creek / Estuary', salinity: 16, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries (Nellore)', brooder: 'Kona Bay', seedDate: '2026-06-05', seedStockingLak: 2.0, feedType: 'Premium Pellets' }
+      { id: 'T-003-1', name: 'Tank 1', acres: 3.0, doc: 70, abw: 26.5, fcr: 1.35, biomass: 4200, waterSource: 'Creek / Estuary', salinity: 18, soilType: 'Clay Loam', hatcheryName: 'Apex Marine Hatcheries (Nellore)', brooder: 'Kona Bay', seedDate: '2026-05-15', seedStockingLak: 2.5, feed: 8944, feedType: 'Premium Pellets' },
+      { id: 'T-003-2', name: 'Tank 2', acres: 2.5, doc: 55, abw: 18.0, fcr: 1.30, biomass: 2800, waterSource: 'Sea / Coastal Canal', salinity: 20, soilType: 'Clay', hatcheryName: 'BMR Marine SPF Hatchery', brooder: 'Syaqua', seedDate: '2026-05-25', seedStockingLak: 2.0, feed: 4680, feedType: 'Functional Feed' },
+      { id: 'T-003-3', name: 'Tank 3', acres: 2.5, doc: 40, abw: 12.0, fcr: 1.25, biomass: 1600, waterSource: 'Creek / Estuary', salinity: 16, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries (Nellore)', brooder: 'Kona Bay', seedDate: '2026-06-05', seedStockingLak: 2.0, feed: 3000, feedType: 'Premium Pellets' }
     ],
     status: 'Active' 
   },
@@ -402,7 +402,7 @@ export const adminFarmers = [
     waterSource: 'River / Freshwater Canal',
     tanks: 1, 
     tankBreakdown: [
-      { id: 'T-349-1', name: 'Tank 1', acres: 4.5, doc: 45, abw: 12.5, fcr: 1.22, biomass: 1500, waterSource: 'River / Freshwater Canal', salinity: 12, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-20', seedStockingLak: 3.5, feedType: 'Premium Pellets' }
+      { id: 'T-349-1', name: 'Tank 1', acres: 4.5, doc: 45, abw: 12.5, fcr: 1.22, biomass: 1500, waterSource: 'River / Freshwater Canal', salinity: 12, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-20', seedStockingLak: 3.5, feed: 5338, feedType: 'Premium Pellets' }
     ],
     status: 'Active' 
   },
@@ -422,7 +422,7 @@ export const adminFarmers = [
     waterSource: 'Creek / Estuary',
     tanks: 1, 
     tankBreakdown: [
-      { id: 'T-581-1', name: 'Tank 1', acres: 6.0, doc: 52, abw: 15.0, fcr: 1.25, biomass: 2100, waterSource: 'Creek / Estuary', salinity: 15, soilType: 'Clay Loam', hatcheryName: 'BMR Marine SPF Hatchery', brooder: 'Syaqua', seedDate: '2026-05-18', seedStockingLak: 4.5, feedType: 'Functional Feed' }
+      { id: 'T-581-1', name: 'Tank 1', acres: 6.0, doc: 52, abw: 15.0, fcr: 1.25, biomass: 2100, waterSource: 'Creek / Estuary', salinity: 15, soilType: 'Clay Loam', hatcheryName: 'BMR Marine SPF Hatchery', brooder: 'Syaqua', seedDate: '2026-05-18', seedStockingLak: 4.5, feed: 8438, feedType: 'Functional Feed' }
     ],
     status: 'Active' 
   },
@@ -442,7 +442,7 @@ export const adminFarmers = [
     waterSource: 'Sea / Coastal Canal',
     tanks: 1, 
     tankBreakdown: [
-      { id: 'T-005-1', name: 'Tank 1', acres: 5.0, doc: 65, abw: 22.0, fcr: 1.40, biomass: 3200, waterSource: 'Sea / Coastal Canal', salinity: 22, soilType: 'Clay Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-10', seedStockingLak: 4.0, feedType: 'Premium Pellets' }
+      { id: 'T-005-1', name: 'Tank 1', acres: 5.0, doc: 65, abw: 22.0, fcr: 1.40, biomass: 3200, waterSource: 'Sea / Coastal Canal', salinity: 22, soilType: 'Clay Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-10', seedStockingLak: 4.0, feed: 12320, feedType: 'Premium Pellets' }
     ],
     status: 'Active' 
   },
@@ -462,7 +462,7 @@ export const adminFarmers = [
     waterSource: 'Creek / Estuary',
     tanks: 1, 
     tankBreakdown: [
-      { id: 'T-004-1', name: 'Tank 1', acres: 3.5, doc: 48, abw: 14.2, fcr: 1.35, biomass: 1800, waterSource: 'Creek / Estuary', salinity: 14, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-22', seedStockingLak: 2.8, feedType: 'Premium Pellets' }
+      { id: 'T-004-1', name: 'Tank 1', acres: 3.5, doc: 48, abw: 14.2, fcr: 1.35, biomass: 1800, waterSource: 'Creek / Estuary', salinity: 14, soilType: 'Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-22', seedStockingLak: 2.8, feed: 5368, feedType: 'Premium Pellets' }
     ],
     status: 'Active' 
   },
@@ -482,8 +482,8 @@ export const adminFarmers = [
     waterSource: 'Borewell / Ground Water',
     tanks: 2, 
     tankBreakdown: [
-      { id: 'T-002-1', name: 'Tank 1', acres: 3.0, doc: 60, abw: 20.5, fcr: 1.38, biomass: 3100, waterSource: 'Borewell / Ground Water', salinity: 10, soilType: 'Sandy Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-12', seedStockingLak: 2.4, feedType: 'Premium Pellets' },
-      { id: 'T-002-2', name: 'Tank 2', acres: 3.0, doc: 45, abw: 13.5, fcr: 1.28, biomass: 1900, waterSource: 'Borewell / Ground Water', salinity: 10, soilType: 'Sandy Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-28', seedStockingLak: 2.4, feedType: 'Functional Feed' }
+      { id: 'T-002-1', name: 'Tank 1', acres: 3.0, doc: 60, abw: 20.5, fcr: 1.38, biomass: 3100, waterSource: 'Borewell / Ground Water', salinity: 10, soilType: 'Sandy Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-12', seedStockingLak: 2.4, feed: 6790, feedType: 'Premium Pellets' },
+      { id: 'T-002-2', name: 'Tank 2', acres: 3.0, doc: 45, abw: 13.5, fcr: 1.28, biomass: 1900, waterSource: 'Borewell / Ground Water', salinity: 10, soilType: 'Sandy Loam', hatcheryName: 'Apex Marine Hatcheries', brooder: 'Kona Bay', seedDate: '2026-05-28', seedStockingLak: 2.4, feed: 4147, feedType: 'Functional Feed' }
     ],
     status: 'Active' 
   }
@@ -557,3 +557,15 @@ export const getTanksByFarmer = (farmerId) => adminTanks.filter(t => t.farmerId 
 export const getTankById = (id) => adminTanks.find(t => t.id === id);
 
 export const getActivities = () => adminActivities;
+
+// Dynamic FCR Calculations
+export const calculateBiomass = (seedStockingLak, abw) => {
+  if (!seedStockingLak || !abw) return 0;
+  // biomass in kg = (seed count in lakhs * 100,000) * (abw in grams / 1,000) = seedStockingLak * abw * 100
+  return seedStockingLak * abw * 100;
+};
+
+export const calculateFCR = (cumulativeFeed, biomass) => {
+  if (!biomass || biomass <= 0 || !cumulativeFeed) return "0.00";
+  return (cumulativeFeed / biomass).toFixed(2);
+};
