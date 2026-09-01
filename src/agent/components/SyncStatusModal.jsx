@@ -189,7 +189,7 @@ const SyncStatusModal = ({ isOpen, onClose }) => {
                       <span style={styles.itemTime}>{new Date(item.queuedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div style={styles.itemMeta}>
-                      Farmer: <b>{item.farmerId}</b> • Pond: <b>{item.tankId}</b>
+                      Farmer: <b>{item.farmerName || item.farmerId}</b> • Tank: <b>{item.tankName || (item.tankId ? `Tank ${item.tankId.replace(/\D/g, '') || item.tankId}` : 'Tank 1')}</b>
                     </div>
                     <div style={styles.itemGps}>
                       📍 {item.gps?.locality || 'GPS Attached'} (±{item.gps?.accuracy || 8}m)

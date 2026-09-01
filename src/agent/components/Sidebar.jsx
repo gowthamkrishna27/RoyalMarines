@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, Users, Plus, Clock, FileText, User, LogOut 
+  Home, Users, Plus, Clock, FileText, User, LogOut, Scale
 } from 'lucide-react';
 import { getSession, clearSession } from '../utils/agentAuth';
 import QuickRecordModal from './QuickRecordModal';
@@ -12,6 +12,7 @@ const Sidebar = () => {
   const location = useLocation();
   const session = getSession();
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
+  const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
 
   const handleLogout = () => {
     if (window.confirm('Log out of Technician Portal?')) {
@@ -39,16 +40,33 @@ const Sidebar = () => {
           <img src={topnavlogo} alt="Royals Marine" style={styles.brandLogoImg} />
         </div>
 
-        {/* 2. Primary Action Button: + New Record */}
+        {/* 2. Primary Action Buttons: New Record & Harvest */}
         <div style={styles.actionSection}>
-          <button 
-            className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
-            style={styles.quickRecordBtn}
-            onClick={() => setIsQuickRecordOpen(true)}
-            aria-label="New Field Record"
-          >
-            <Plus size={16} strokeWidth={2.5} /> New Record
-          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button 
+              className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
+              style={styles.quickRecordBtn}
+              onClick={() => {
+                setModalInitialType('WATER_QUALITY');
+                setIsQuickRecordOpen(true);
+              }}
+              aria-label="New Field Record"
+            >
+              <Plus size={14} strokeWidth={2.5} /> Record
+            </button>
+
+            <button 
+              className="transition-all duration-200 hover:brightness-105 active:scale-98 cursor-pointer"
+              style={styles.harvestSideBtn}
+              onClick={() => {
+                setModalInitialType('HARVEST_ENTRY');
+                setIsQuickRecordOpen(true);
+              }}
+              aria-label="Record Crop Harvest"
+            >
+              <Scale size={14} strokeWidth={2.4} /> Harvest
+            </button>
+          </div>
         </div>
 
         {/* 3. Core Navigation Links */}
@@ -64,12 +82,12 @@ const Sidebar = () => {
                 className="transition-all duration-150 hover:bg-slate-50 active:scale-98"
                 style={{
                   ...styles.navLink,
-                  backgroundColor: active ? '#EDF0FF' : 'transparent',
-                  color: active ? '#0018AD' : '#475569',
+                  backgroundColor: active ? '#EFF6FF' : 'transparent',
+                  color: active ? '#1A2FB8' : '#475569',
                   fontWeight: active ? '700' : '500',
                 }}
               >
-                <Icon size={18} color={active ? '#0018AD' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
+                <Icon size={18} color={active ? '#1A2FB8' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
                 <span>{item.name}</span>
               </NavLink>
             );
@@ -84,7 +102,7 @@ const Sidebar = () => {
             title="View Profile & Settings"
           >
             <div style={styles.avatarMini}>
-              <User size={15} color="#0018AD" strokeWidth={2.2} />
+              <User size={15} color="#1A2FB8" strokeWidth={2.2} />
             </div>
             <div style={styles.userInfo}>
               <div style={styles.userName}>{session?.name || 'Arun Kumar'}</div>
@@ -101,6 +119,7 @@ const Sidebar = () => {
       <QuickRecordModal 
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
+        initialType={modalInitialType}
       />
     </>
   );
@@ -124,16 +143,16 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '8px 16px',
+    padding: '12px 16px',
     borderBottom: '1px solid #F1F5F9',
-    marginBottom: '16px',
+    marginBottom: '14px',
     cursor: 'pointer',
-    height: '96px',
+    height: '80px',
     boxSizing: 'border-box',
   },
   brandLogoImg: {
-    height: '75px',
-    maxWidth: '228px',
+    height: '54px',
+    maxWidth: '210px',
     objectFit: 'contain',
   },
   actionSection: {
@@ -145,17 +164,36 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
-    backgroundColor: '#0018AD',
+    gap: '4px',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    padding: '10px 14px',
+    padding: '9px 10px',
     borderRadius: '10px',
-    fontSize: '13px',
+    fontSize: '12.5px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 3px 10px rgba(0, 24, 173, 0.25)',
+    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.22)',
     transition: 'background-color 0.15s ease',
+    boxSizing: 'border-box',
+  },
+  harvestSideBtn: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1.5px solid #BFDBFE',
+    padding: '9px 10px',
+    borderRadius: '10px',
+    fontSize: '12.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+    transition: 'all 0.15s ease',
+    boxSizing: 'border-box',
   },
   navMenu: {
     display: 'flex',

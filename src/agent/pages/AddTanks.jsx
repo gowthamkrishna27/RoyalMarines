@@ -10,7 +10,7 @@ const AddTanks = () => {
   const [session, setSession] = useState(null);
   const [tanksData, setTanksData] = useState([]);
   const { createFarmerWithTanks } = useMockData();
-  
+
   const farmerData = location.state?.farmerData;
 
   useEffect(() => {
@@ -28,13 +28,15 @@ const AddTanks = () => {
 
     const numTanks = parseInt(farmerData.numberOfTanks) || 1;
     const initialTanksArray = Array.from({ length: numTanks }, () => ({
-      size: '',
-      salinity: '',
-      soilType: '',
-      hatchery: '',
-      brooder: '',
+      size: '2.5',
+      salinity: '16',
+      soilType: 'Loam',
+      hatchery: 'Golden Marine Hatchery',
+      brooder: 'Kona Bay',
       seedDate: new Date().toISOString().split('T')[0],
-      seedType: ''
+      seedStockingLak: '2.5',
+      feedType: 'Premium',
+      species: 'Vannamei'
     }));
     setTanksData(initialTanksArray);
   }, [farmerData, navigate]);
@@ -84,88 +86,133 @@ const AddTanks = () => {
             </div>
             <h3 style={styles.tankTitle}>Tank {index + 1}</h3>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2">
+
+          <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '16px' }}>
+            {/* 1. Tank Size- Acres */}
             <div className="input-group">
-              <label style={styles.label}>Tank Size (Acres)</label>
+              <label style={styles.label}>Tank Size (Acres) *</label>
               <div className="input-field">
-                <input 
-                  type="number" 
-                  value={tank.size} 
-                  placeholder="e.g. 1.5"
-                  onChange={e => handleTankChange(index, 'size', e.target.value)} 
-                />
-              </div>
-            </div>
-            
-            <div className="input-group">
-              <label style={styles.label}>Salinity (ppt)</label>
-              <div className="input-field">
-                <input 
-                  type="number" 
-                  value={tank.salinity} 
-                  placeholder="e.g. 15"
-                  onChange={e => handleTankChange(index, 'salinity', e.target.value)} 
+                <input
+                  type="number"
+                  step="0.1"
+                  value={tank.size}
+                  placeholder="e.g. 2.5"
+                  onChange={e => handleTankChange(index, 'size', e.target.value)}
+                  required
                 />
               </div>
             </div>
 
+            {/* 2. Salinity */}
             <div className="input-group">
-              <label style={styles.label}>Soil Type</label>
+              <label style={styles.label}>Salinity (ppt) *</label>
               <div className="input-field">
-                <input 
-                  type="text" 
-                  value={tank.soilType} 
-                  placeholder="e.g. Clay Loam"
-                  onChange={e => handleTankChange(index, 'soilType', e.target.value)} 
+                <input
+                  type="number"
+                  step="0.1"
+                  value={tank.salinity}
+                  placeholder="e.g. 16"
+                  onChange={e => handleTankChange(index, 'salinity', e.target.value)}
+                  required
                 />
               </div>
             </div>
 
+            {/* 3. Soil Type */}
             <div className="input-group">
-              <label style={styles.label}>Hatchery Name</label>
+              <label style={styles.label}>Soil Type *</label>
               <div className="input-field">
-                <input 
-                  type="text" 
-                  value={tank.hatchery} 
-                  placeholder="e.g. ABC Hatcheries"
-                  onChange={e => handleTankChange(index, 'hatchery', e.target.value)} 
+                <select value={tank.soilType} onChange={e => handleTankChange(index, 'soilType', e.target.value)} required>
+                  <option value="Loam">Loam</option>
+                  <option value="Clay">Clay</option>
+                  <option value="Sandy">Sandy</option>
+                  <option value="Clay Loam">Clay Loam</option>
+                  <option value="Sandy Clay">Sandy Clay</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 4. Hatchery Name */}
+            <div className="input-group">
+              <label style={styles.label}>Hatchery Name *</label>
+              <div className="input-field">
+                <input
+                  type="text"
+                  value={tank.hatchery}
+                  placeholder="e.g. Golden Marine / BMR"
+                  onChange={e => handleTankChange(index, 'hatchery', e.target.value)}
+                  required
                 />
               </div>
             </div>
 
+            {/* 5. Brooder */}
             <div className="input-group">
-              <label style={styles.label}>Brooder</label>
+              <label style={styles.label}>Brooder *</label>
               <div className="input-field">
-                <input 
-                  type="text" 
-                  value={tank.brooder} 
-                  placeholder="e.g. SPF"
-                  onChange={e => handleTankChange(index, 'brooder', e.target.value)} 
+                <select value={tank.brooder} onChange={e => handleTankChange(index, 'brooder', e.target.value)} required>
+                  <option value="Syaqua">Syaqua</option>
+                  <option value="Kona Bay">Kona Bay</option>
+                  <option value="SIS">SIS (Shrimp Improvement Systems)</option>
+                  <option value="American Penaeid">American Penaeid</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 6. Seed Date */}
+            <div className="input-group">
+              <label style={styles.label}>Seed Date *</label>
+              <div className="input-field">
+                <input
+                  type="date"
+                  value={tank.seedDate}
+                  onChange={e => handleTankChange(index, 'seedDate', e.target.value)}
+                  required
                 />
               </div>
             </div>
 
+            {/* 7. Seed NumberStocking (Lak) */}
             <div className="input-group">
-              <label style={styles.label}>Seed Date</label>
+              <label style={styles.label}>Seed NumberStocking (Lak) *</label>
               <div className="input-field">
-                <input 
-                  type="date" 
-                  value={tank.seedDate} 
-                  onChange={e => handleTankChange(index, 'seedDate', e.target.value)} 
+                <input
+                  type="number"
+                  step="0.01"
+                  value={tank.seedStockingLak}
+                  placeholder="e.g. 2.5"
+                  onChange={e => handleTankChange(index, 'seedStockingLak', e.target.value)}
+                  required
                 />
               </div>
             </div>
-            
+
+            {/* 8. Feed Type */}
             <div className="input-group">
-              <label style={styles.label}>Seed Type</label>
+              <label style={styles.label}>Feed Type *</label>
               <div className="input-field">
-                <select value={tank.seedType} onChange={e => handleTankChange(index, 'seedType', e.target.value)}>
-                  <option value="">Select Type</option>
+                <select value={tank.feedType} onChange={e => handleTankChange(index, 'feedType', e.target.value)} required>
+                  <option value="Premium">Premium</option>
+                  <option value="Functional">Functional</option>
+                  <option value="Hypro">Hypro</option>
+                  <option value="Tiger Feed">Tiger Feed</option>
+                  <option value="Royals Supreme">Royals Supreme</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 9. Species */}
+            <div className="input-group">
+              <label style={styles.label}>Species *</label>
+              <div className="input-field">
+                <select value={tank.species} onChange={e => handleTankChange(index, 'species', e.target.value)}>
                   <option value="Vannamei">Vannamei</option>
-                  <option value="Monodon">Monodon</option>
+                  <option value="Monodon">Monodon (Black Tiger)</option>
                   <option value="Scampi">Scampi</option>
-                  <option value="Fish">Fish</option>
+                  <option value="Fish">Fish / Tilapia</option>
                 </select>
               </div>
             </div>

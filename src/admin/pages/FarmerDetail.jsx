@@ -685,7 +685,7 @@ const FarmerDetail = () => {
         </div>
       </div>
 
-      {/* 3. Section: Tank Specifications & Pond Setup */}
+      {/* 3. Section: Tank Specifications & Tank Setup */}
       <div style={styles.card}>
         <div style={styles.sectionHeaderRow}>
           <div>
@@ -693,7 +693,7 @@ const FarmerDetail = () => {
               {activeTank.name} Setup Specifications
             </h3>
             <p style={styles.sectionCardSubtitle}>
-              Biophysical specifications and pond origin parameters
+              Biophysical specifications and tank origin parameters
             </p>
           </div>
 
@@ -723,7 +723,7 @@ const FarmerDetail = () => {
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SALINITY</span>
             <span style={styles.specPrimaryValue}>{activeTank.salinity} ppt</span>
-            <span style={styles.specFootnote}>Baseline Pond Salinity</span>
+            <span style={styles.specFootnote}>Baseline Tank Salinity</span>
           </div>
 
           <div style={styles.specItemCard}>

@@ -60,12 +60,14 @@ const AdminProtectedRoute = ({ children }) => {
 
 // Mock Data Context
 import { MockDataProvider } from './context/MockDataContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <MockDataProvider>
-      <Router>
-        <Routes>
+    <ErrorBoundary>
+      <MockDataProvider>
+        <Router>
+          <Routes>
           <Route path="/" element={<Splash />} />
           <Route path="/login" element={<PortalSelector />} />
           <Route path="/agent-login" element={<AgentLogin />} />
@@ -101,6 +103,7 @@ function App() {
           <Route path="/technician/farmers/:farmerId" element={<ProtectedRoute><Layout><FarmerDetails /></Layout></ProtectedRoute>} />
 
           <Route path="/tanks/:tankId" element={<ProtectedRoute><Layout><TankDetails /></Layout></ProtectedRoute>} />
+          <Route path="/technician/tanks/:tankId" element={<ProtectedRoute><Layout><TankDetails /></Layout></ProtectedRoute>} />
           <Route path="/technician/ponds/:tankId" element={<ProtectedRoute><Layout><TankDetails /></Layout></ProtectedRoute>} />
 
           <Route path="/visit/:tankId" element={<ProtectedRoute><Layout><SiteVisit /></Layout></ProtectedRoute>} />
@@ -126,6 +129,7 @@ function App() {
         </Routes>
       </Router>
     </MockDataProvider>
+  </ErrorBoundary>
   );
 }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  MapPin, CheckCircle, AlertTriangle, Clock, Plus, 
+import {
+  MapPin, CheckCircle, AlertTriangle, Clock, Plus,
   Droplets, Fish, Wheat, Skull, ClipboardList, Camera, RefreshCw, ChevronRight, Check,
   Layers, Navigation, Eye
 } from 'lucide-react';
@@ -20,31 +20,31 @@ const AgentDashboard = () => {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
   const [modalInitialTank, setModalInitialTank] = useState(null);
-  const [selectedMapPond, setSelectedMapPond] = useState(null);
+  const [selectedMapTank, setSelectedMapTank] = useState(null);
 
   const agentId = session?.agentId || 'agent001';
 
   // Farmers assigned to this technician
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
   const allTanks = db?.tanks || [];
-  const assignedPonds = allTanks.filter(t => assignedFarmers.some(f => f.id === t.farmerId));
+  const assignedTanks = allTanks.filter(t => assignedFarmers.some(f => f.id === t.farmerId));
 
-  // Submissions made by this technician
+  // Submissions made by this technician (excluding Harvest records as Harvest has its dedicated portal)
   const technicianSubmissions = (db?.submissions || [])
-    .filter(s => !s.agentId || s.agentId === agentId)
+    .filter(s => (!s.agentId || s.agentId === agentId) && !((s.testType || s.recordType || '').toUpperCase().includes('HARVEST')))
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   const recentRecords = technicianSubmissions.slice(0, 3);
 
-  // Nearby Pond Map Coordinates (Relative to current GPS locality)
-  const mapPonds = [
-    { id: assignedPonds[0]?.id || 'tank-01', name: assignedPonds[0]?.name || 'Pond 01', farmer: assignedFarmers[0]?.name || 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
-    { id: assignedPonds[1]?.id || 'tank-02', name: assignedPonds[1]?.name || 'Pond 02', farmer: assignedFarmers[0]?.name || 'Ravi', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
-    { id: assignedPonds[2]?.id || 'tank-03', name: assignedPonds[2]?.name || 'Pond 03', farmer: assignedFarmers[1]?.name || 'Naveen', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
-    { id: assignedPonds[3]?.id || 'tank-04', name: assignedPonds[3]?.name || 'Pond 04', farmer: assignedFarmers[1]?.name || 'Naveen', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
+  // Nearby Tank Map Coordinates (Relative to current GPS locality)
+  const mapTanks = [
+    { id: assignedTanks[0]?.id || 'tank-01', name: assignedTanks[0]?.name || 'Tank 01', farmer: assignedFarmers[0]?.name || 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
+    { id: assignedTanks[1]?.id || 'tank-02', name: assignedTanks[1]?.name || 'Tank 02', farmer: assignedFarmers[0]?.name || 'Ravi', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
+    { id: assignedTanks[2]?.id || 'tank-03', name: assignedTanks[2]?.name || 'Tank 03', farmer: assignedFarmers[1]?.name || 'Naveen', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
+    { id: assignedTanks[3]?.id || 'tank-04', name: assignedTanks[3]?.name || 'Tank 04', farmer: assignedFarmers[1]?.name || 'Naveen', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
   ];
 
-  // Default no pond selected until user clicks a pond pin on the map
+  // Default no tank selected until user clicks a tank pin on the map
 
   // Load GPS on mount
   useEffect(() => {
@@ -56,23 +56,21 @@ const AgentDashboard = () => {
     }
   }, []);
 
-  const handleRefreshGPS = () => {
+  const handleRefreshGPS = async () => {
     setGpsLoading(true);
-    captureDeviceGPS(
-      (pos) => {
-        setGps(pos);
-        setGpsLoading(false);
-      },
-      () => {
-        const fallback = generateVerifiedFallbackGPS('Bhimavaram, AP');
-        setGps(fallback);
-        setGpsLoading(false);
-      }
-    );
+    try {
+      const live = await captureDeviceGPS({ timeout: 6000 });
+      setGps(live);
+    } catch (e) {
+      const fallback = generateVerifiedFallbackGPS('Bhimavaram, AP');
+      setGps(fallback);
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
-  const handleOpenRecordForPond = (pond) => {
-    setModalInitialTank(pond.id);
+  const handleOpenRecordForTank = (tank) => {
+    setModalInitialTank(tank.id);
     setIsQuickRecordOpen(true);
   };
 
@@ -86,6 +84,27 @@ const AgentDashboard = () => {
     return <ClipboardList size={18} color="#7C3AED" />;
   };
 
+  const getRecordFarmer = (record) => {
+    if (record?.farmerName && !record.farmerName.startsWith('F00') && !record.farmerName.startsWith('FAR-')) {
+      return record.farmerName;
+    }
+    const farmer = (db?.farmers || []).find(f => f.id === record?.farmerId);
+    return farmer?.name || 'Ravi';
+  };
+
+  const getRecordTank = (record) => {
+    if (record?.tankName && !record.tankName.startsWith('T00') && !record.tankName.startsWith('tank-0')) {
+      return record.tankName;
+    }
+    const tank = (db?.tanks || []).find(t => t.id === record?.tankId);
+    if (tank?.name) return tank.name;
+    if (record?.tankId) {
+      const num = record.tankId.replace(/\D/g, '');
+      if (num) return `Tank ${parseInt(num, 10)}`;
+    }
+    return 'Tank 1';
+  };
+
   return (
     <div style={styles.container}>
       {/* 1. Current Location Card */}
@@ -95,7 +114,7 @@ const AgentDashboard = () => {
             <MapPin size={13} color="#0018AD" />
             <span>CURRENT LOCATION</span>
           </div>
-          <button 
+          <button
             type="button"
             className="transition-all duration-150 hover:bg-indigo-100 active:scale-95 cursor-pointer"
             style={styles.refreshBtn}
@@ -121,32 +140,32 @@ const AgentDashboard = () => {
         </div>
       </div>
 
-      {/* 2. Interactive Farm Pond Map */}
+      {/* 2. Interactive Farm Tank Map */}
       <div style={styles.card}>
         <div style={styles.cardHeaderRow}>
-          <span style={styles.sectionHeaderSmall}>FARM POND MAP</span>
+          <span style={styles.sectionHeaderSmall}>FARM TANK MAP</span>
         </div>
 
         {/* Leaflet OpenStreetMap Container */}
         <FarmLeafletMap
           gps={gps}
-          ponds={mapPonds}
-          selectedPond={selectedMapPond}
-          onSelectPond={(pond) => setSelectedMapPond(pond)}
+          tanks={mapTanks}
+          selectedTank={selectedMapTank}
+          onSelectTank={(tank) => setSelectedMapTank(tank)}
         />
 
-        {/* Selected Pond Quick-Action Drawer */}
-        {selectedMapPond && (
+        {/* Selected Tank Quick-Action Drawer */}
+        {selectedMapTank && (
           <div style={styles.pondDetailDrawer}>
             <div style={styles.drawerLeft}>
               <div style={styles.drawerTitleRow}>
-                <span style={styles.drawerPondName}>{selectedMapPond.name}</span>
-                <span style={selectedMapPond.due ? styles.tagDue : styles.tagOptimal}>
-                  {selectedMapPond.status}
+                <span style={styles.drawerPondName}>{selectedMapTank.name}</span>
+                <span style={selectedMapTank.due ? styles.tagDue : styles.tagOptimal}>
+                  {selectedMapTank.status}
                 </span>
               </div>
               <div style={styles.drawerSub}>
-                {selectedMapPond.farmer} • {selectedMapPond.distance} away
+                {selectedMapTank.farmer} • {selectedMapTank.distance} away
               </div>
             </div>
 
@@ -155,7 +174,7 @@ const AgentDashboard = () => {
                 type="button"
                 className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
                 style={styles.viewPondBtn}
-                onClick={() => navigate(`/tanks/${selectedMapPond.id}`)}
+                onClick={() => navigate(`/tanks/${selectedMapTank.id}`)}
               >
                 <Eye size={12} /> View
               </button>
@@ -164,7 +183,7 @@ const AgentDashboard = () => {
                 type="button"
                 className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
                 style={styles.recordPondBtn}
-                onClick={() => handleOpenRecordForPond(selectedMapPond)}
+                onClick={() => handleOpenRecordForTank(selectedMapTank)}
               >
                 <Plus size={12} strokeWidth={2.5} /> Record
               </button>
@@ -175,7 +194,7 @@ const AgentDashboard = () => {
 
       {/* 3. Today's Work Summary */}
       <div style={styles.card}>
-        <div style={styles.sectionHeaderSmall}>TODAY'S WORK</div>
+        <div style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</div>
         <div style={styles.metricsGrid}>
           <div style={styles.metricCol}>
             <span style={styles.metricVal}>{assignedFarmers.length || 6}</span>
@@ -183,8 +202,8 @@ const AgentDashboard = () => {
           </div>
           <div style={styles.metricDivider} />
           <div style={styles.metricCol}>
-            <span style={styles.metricVal}>{assignedPonds.length || 6}</span>
-            <span style={styles.metricLabel}>Ponds</span>
+            <span style={styles.metricVal}>{assignedTanks.length || 6}</span>
+            <span style={styles.metricLabel}>Tanks</span>
           </div>
           <div style={styles.metricDivider} />
           <div style={styles.metricCol}>
@@ -198,7 +217,7 @@ const AgentDashboard = () => {
       <div style={styles.recentSection}>
         <div style={styles.recentHeaderRow}>
           <span style={styles.sectionHeaderSmall}>RECENT</span>
-          <button 
+          <button
             style={styles.viewHistoryLink}
             onClick={() => navigate('/tests')}
           >
@@ -213,8 +232,8 @@ const AgentDashboard = () => {
             </div>
           ) : (
             recentRecords.map((r, idx) => (
-              <div 
-                key={r.id || idx} 
+              <div
+                key={r.id || idx}
                 className="transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                 style={styles.recentRowCard}
                 onClick={() => navigate('/tests')}
@@ -228,7 +247,7 @@ const AgentDashboard = () => {
                       {r.testType || r.recordType || 'Water Analysis'}
                     </span>
                     <span style={styles.recentMeta}>
-                      {r.farmerName || 'Farmer'} • {r.tankName || 'Pond 01'}
+                      {getRecordFarmer(r)} • {getRecordTank(r)}
                     </span>
                   </div>
                 </div>
@@ -244,7 +263,7 @@ const AgentDashboard = () => {
       </div>
 
       {/* Quick Record Modal */}
-      <QuickRecordModal 
+      <QuickRecordModal
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
         preselectedTankId={modalInitialTank}
@@ -428,26 +447,27 @@ const styles = {
   pondDetailDrawer: {
     backgroundColor: '#F8FAFC',
     borderRadius: '10px',
-    padding: '8px 12px',
+    padding: '10px 12px',
     border: '1px solid #E2E8F0',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: '10px',
-    marginTop: '4px',
+    marginTop: '6px',
+    flexWrap: 'wrap',
   },
   drawerLeft: {
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
-    minWidth: 0,
-    flex: 1,
+    minWidth: '140px',
+    flex: '1 1 auto',
   },
   drawerTitleRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    flexWrap: 'nowrap',
+    flexWrap: 'wrap',
   },
   drawerPondName: {
     fontSize: '13px',
@@ -493,10 +513,10 @@ const styles = {
     backgroundColor: '#FFFFFF',
     color: '#334155',
     border: '1px solid #CBD5E1',
-    height: '30px',
-    padding: '0 9px',
-    borderRadius: '6px',
-    fontSize: '11px',
+    height: '32px',
+    padding: '0 10px',
+    borderRadius: '8px',
+    fontSize: '11.5px',
     fontWeight: '600',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -505,23 +525,23 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '3px',
-    backgroundColor: '#0018AD',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    height: '30px',
-    padding: '0 11px',
-    borderRadius: '6px',
-    fontSize: '11px',
+    height: '32px',
+    padding: '0 12px',
+    borderRadius: '8px',
+    fontSize: '11.5px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 5px rgba(0, 24, 173, 0.2)',
+    boxShadow: '0 2px 5px rgba(26, 47, 184, 0.2)',
     whiteSpace: 'nowrap',
   },
   metricsGrid: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-around',
-    padding: '4px 0',
+    padding: '6px 0',
   },
   metricCol: {
     display: 'flex',
@@ -530,9 +550,9 @@ const styles = {
     gap: '2px',
   },
   metricVal: {
-    fontSize: '22px',
-    fontWeight: '700',
-    color: '#0018AD',
+    fontSize: 'clamp(20px, 4vw, 24px)',
+    fontWeight: '800',
+    color: '#1A2FB8',
     lineHeight: 1.1,
   },
   metricLabel: {
@@ -562,7 +582,7 @@ const styles = {
     gap: '2px',
     background: 'none',
     border: 'none',
-    color: '#0018AD',
+    color: '#1A2FB8',
     fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
@@ -583,17 +603,20 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     cursor: 'pointer',
+    gap: '8px',
   },
   recentLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '10px',
+    minWidth: 0,
+    flex: 1,
   },
   iconContainer: {
     width: '36px',
     height: '36px',
     borderRadius: '8px',
-    backgroundColor: '#EDF0FF',
+    backgroundColor: '#EFF6FF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

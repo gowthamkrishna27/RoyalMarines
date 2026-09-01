@@ -24,6 +24,68 @@ const AdminDashboard = () => {
   const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
   const overdueTests = 3;
 
+  // 1. Donut chart distribution data
+  const tankStatusData = [
+    { name: 'Active', value: 65, color: '#10b981' },
+    { name: 'Harvested', value: 10, color: '#6366f1' },
+    { name: 'Maintenance', value: 25, color: '#d97706' }
+  ];
+
+  // 2. FCR & ABW Trend Data (DOC 10 to 70)
+  const fcrTrendData = [
+    { doc: 10, fcr: 0.92, abw: 3.2 },
+    { doc: 20, fcr: 1.03, abw: 6.8 },
+    { doc: 30, fcr: 1.16, abw: 11.4 },
+    { doc: 40, fcr: 1.33, abw: 16.2 },
+    { doc: 50, fcr: 1.55, abw: 20.8 },
+    { doc: 60, fcr: 1.90, abw: 24.5 },
+    { doc: 70, fcr: 2.18, abw: 28.1 }
+  ];
+
+  // 3. Feed Intake vs Biomass Growth (kg)
+  const feedVsBiomassData = [
+    { doc: 10, feed: 180, biomass: 220 },
+    { doc: 20, feed: 350, biomass: 380 },
+    { doc: 30, feed: 850, biomass: 750 },
+    { doc: 40, feed: 1600, biomass: 1200 },
+    { doc: 50, feed: 2700, biomass: 1650 },
+    { doc: 60, feed: 4100, biomass: 2150 },
+    { doc: 70, feed: 6000, biomass: 2750 }
+  ];
+
+  // 4. Data-driven operational recommendations
+  const recommendations = [
+    {
+      id: 1,
+      type: 'CRITICAL',
+      title: 'Tank 2 - Nellore Coastal Belt (V. Subba Rao)',
+      desc: 'Dissolved Oxygen dropped below 3.2 mg/L at 04:30 AM. Auto-aeration backup engaged. Immediate water exchange recommended.',
+      tag: 'CRITICAL ACTION REQUIRED',
+      tagColor: '#ef4444',
+      tagBg: '#fee2e2',
+      borderLeft: '#ef4444'
+    },
+    {
+      id: 2,
+      type: 'OPTIMIZATION',
+      title: 'Tank 1 - Bhimavaram Aqua Zone (Imported Test Farmer 2)',
+      desc: 'Target ABW reached 28.5g with FCR stable at 1.22. Market price peak window is active for next 48 hours for harvest.',
+      tag: 'HARVEST READY • PROFIT OPTIMIZATION',
+      tagColor: '#16a34a',
+      tagBg: '#dcfce7',
+      borderLeft: '#16a34a'
+    },
+    {
+      id: 3,
+      type: 'FEED',
+      title: 'Kavali Delta Cluster (3 Active Tanks)',
+      desc: 'Tank temperature trending at 31.8°C. Feed conversion slowing. Recommend reducing noon ration by 10% to prevent bottom wastage.',
+      tag: 'FEED EFFICIENCY CALIBRATION',
+      tagColor: '#d97706',
+      tagBg: '#fef3c7',
+      borderLeft: '#f59e0b'
+    }
+  ];
   // Harvest Records History State
   const [harvestRecords, setHarvestRecords] = useState([
     { id: 'REC-3', doc: 60, date: 'Mar 1, 2026', type: 'Partial Harvest', fcr: '1.90', abw: '24.5g', farmerName: 'Ashok', name: 'Tank 1' },
@@ -218,15 +280,15 @@ const AdminDashboard = () => {
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginLeft: '12px' }}>DOC:</span>
               <input
                 type="number"
-                style={{...styles.searchInput, width: '60px', flex: 'none'}}
+                style={{ ...styles.searchInput, width: '60px', flex: 'none' }}
                 placeholder="e.g. 75"
                 value={docInput}
                 onChange={e => setDocInput(e.target.value)}
               />
             </div>
-            
+
             <div style={{ ...styles.searchInputWrapper, minWidth: '160px' }}>
-              <select 
+              <select
                 style={{ ...styles.searchInput, marginLeft: '12px', cursor: 'pointer', paddingRight: '12px' }}
                 value={harvestType}
                 onChange={e => setHarvestType(e.target.value)}
@@ -236,12 +298,12 @@ const AdminDashboard = () => {
                 <option value="Final Harvest">Final Harvest</option>
               </select>
             </div>
-            
-            <button 
+
+            <button
               onClick={handleAddRecord}
               style={{
-                backgroundColor: '#2563eb', color: 'white', border: 'none', 
-                borderRadius: '8px', padding: '9px 16px', fontSize: '13px', 
+                backgroundColor: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', padding: '9px 16px', fontSize: '13px',
                 fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
               }}
             >
@@ -252,16 +314,16 @@ const AdminDashboard = () => {
           <div style={styles.filteredList}>
             {[...harvestRecords].sort((a, b) => b.doc - a.doc).map((record) => (
               <div key={record.id} style={styles.filteredItem}>
-                <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={styles.filteredFarmerName}>
                     {record.type}
                     {record.isNew && (
-                      <span style={{marginLeft: '8px', color: '#16a34a', fontSize: '10px', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px'}}>NEW</span>
+                      <span style={{ marginLeft: '8px', color: '#16a34a', fontSize: '10px', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>NEW</span>
                     )}
                   </span>
                   <span style={styles.filteredTankName}>{record.date} • {record.farmerName} ({record.name})</span>
                 </div>
-                <div style={{display:'flex', gap:'12px', alignItems:'center'}}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={styles.statCol}>
                     <span style={styles.statLbl}>ABW</span>
                     <span style={styles.statVal}>{record.abw}</span>
@@ -270,9 +332,9 @@ const AdminDashboard = () => {
                     <span style={styles.statLbl}>FCR</span>
                     <span style={styles.statVal}>{record.fcr}</span>
                   </div>
-                  <div style={{...styles.statCol, backgroundColor:'#eff6ff', padding:'4px 8px', borderRadius:'6px'}}>
-                    <span style={{...styles.statLbl, color:'#2563eb'}}>DOC</span>
-                    <span style={{...styles.statVal, color:'#1d4ed8'}}>{record.doc}</span>
+                  <div style={{ ...styles.statCol, backgroundColor: '#eff6ff', padding: '4px 8px', borderRadius: '6px' }}>
+                    <span style={{ ...styles.statLbl, color: '#2563eb' }}>DOC</span>
+                    <span style={{ ...styles.statVal, color: '#1d4ed8' }}>{record.doc}</span>
                   </div>
                 </div>
               </div>

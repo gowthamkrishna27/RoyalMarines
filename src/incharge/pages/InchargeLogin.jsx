@@ -17,7 +17,7 @@ const InchargeLogin = () => {
     setError('');
 
     if (!identifier || !password) {
-      setError('Please enter both Incharge ID/Mobile and Password');
+      setError('Please enter both ASM ID/Mobile and Password');
       return;
     }
 
@@ -42,7 +42,7 @@ const InchargeLogin = () => {
       <div style={styles.loginCard}>
         <div style={styles.header}>
           <img src={logo} alt="Royals Marine Food" style={styles.logo} />
-          <h2 style={styles.title}>Incharge Sign In</h2>
+          <h2 style={styles.title}>ASM Sign In</h2>
           <p style={styles.subtitle}>Regional operations & field team allocations</p>
         </div>
 
@@ -50,7 +50,7 @@ const InchargeLogin = () => {
 
         <form onSubmit={handleLogin} style={styles.form}>
           <div>
-            <label style={styles.label}>Incharge ID or Mobile</label>
+            <label style={styles.label}>ASM ID or Mobile</label>
             <div style={styles.inputBox}>
               <User size={16} color="#64748B" />
               <input
@@ -87,7 +87,7 @@ const InchargeLogin = () => {
             }}
             disabled={loading}
           >
-            <span>{loading ? 'Signing in...' : 'Sign In as Incharge'}</span>
+            <span>{loading ? 'Signing in...' : 'Sign In as ASM'}</span>
             <ArrowRight size={16} />
           </button>
 

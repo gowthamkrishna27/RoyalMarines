@@ -72,6 +72,29 @@ const SiteVisit = () => {
 
   if (!tank || !session) return <div style={styles.loading}>Initializing Visit...</div>;
 
+  const isTankClosed = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted;
+
+  if (isTankClosed) {
+    return (
+      <div style={{ padding: '32px 20px', maxWidth: '500px', margin: '40px auto', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1.5px solid #CBD5E1', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+          <CheckCircle size={28} color="#1D4ED8" />
+        </div>
+        <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 8px 0' }}>Final Harvest Completed</h2>
+        <p style={{ fontSize: '13.5px', color: '#64748B', lineHeight: 1.5, margin: '0 0 24px 0' }}>
+          {tank.name} has already completed its final harvest. No new visits or field test records can be entered for this closed crop cycle.
+        </p>
+        <button 
+          type="button"
+          onClick={() => navigate(`/tanks/${tankId}`)}
+          style={{ backgroundColor: '#1A2FB8', color: '#FFFFFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '700', fontSize: '13.5px', cursor: 'pointer' }}
+        >
+          ← Return to Tank Details
+        </button>
+      </div>
+    );
+  }
+
   const handleNext = () => {
     if (currentStep === 0) {
       setCurrentStep('MENU');
@@ -309,7 +332,7 @@ const SiteVisit = () => {
                     ⚠️ GPS Signal Out of Range (Red Light Signal)
                   </div>
                   <div style={{ fontSize: '13px', color: '#b91c1c' }}>
-                    Device location is 1.4km away from registered tank coordinates. Please stand closer to the pond bank.
+                    Device location is 1.4km away from registered tank coordinates. Please stand closer to the tank bank.
                   </div>
                 </div>
               )}

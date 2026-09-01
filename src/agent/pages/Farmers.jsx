@@ -19,12 +19,12 @@ const Farmers = () => {
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
 
   const farmerItems = assignedFarmers.map((farmer) => {
-    const ponds = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
-    const hasPendingTest = ponds.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
+    const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
+    const hasPendingTest = tanks.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
 
     return {
       ...farmer,
-      pondCount: ponds.length || parseInt(farmer.numberOfTanks) || 0,
+      tankCount: tanks.length || parseInt(farmer.numberOfTanks) || 0,
       testStatus: hasPendingTest ? 'Test Due' : 'Up to date',
       isDue: hasPendingTest,
     };
@@ -68,7 +68,7 @@ const Farmers = () => {
         <Search size={15} color="#64748B" />
         <input
           type="text"
-          placeholder="Search farmers, ponds, or village..."
+          placeholder="Search farmers, tanks, or village..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={styles.searchInput}
@@ -133,7 +133,7 @@ const Farmers = () => {
               <div style={styles.cardLeft}>
                 <span style={styles.farmerName}>{farmer.name}</span>
                 <div style={styles.farmerMeta}>
-                  <span>{farmer.pondCount} Ponds</span>
+                  <span>{farmer.tankCount} Tanks</span>
                   <span>•</span>
                   <span>{farmer.village || farmer.location || 'Bhimavaram'}</span>
                 </div>
@@ -171,16 +171,18 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: '4px',
+    flexWrap: 'wrap',
+    gap: '10px',
   },
   headerTag: {
     fontSize: '11px',
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#64748B',
-    letterSpacing: '0.4px',
+    letterSpacing: '0.5px',
   },
   headerTitle: {
-    fontSize: '20px',
-    fontWeight: '700',
+    fontSize: 'clamp(18px, 4vw, 22px)',
+    fontWeight: '800',
     color: '#0F172A',
     margin: '1px 0 0 0',
   },
@@ -189,16 +191,16 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    backgroundColor: '#0018AD',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    height: '38px',
-    padding: '0 14px',
+    minHeight: '40px',
+    padding: '0 16px',
     borderRadius: '10px',
     fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.22)',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.22)',
   },
   searchBox: {
     display: 'flex',
@@ -207,14 +209,15 @@ const styles = {
     backgroundColor: '#FFFFFF',
     border: '1px solid #CBD5E1',
     borderRadius: '10px',
-    padding: '9px 12px',
+    padding: '0 12px',
+    minHeight: '42px',
   },
   searchInput: {
     border: 'none',
     outline: 'none',
     backgroundColor: 'transparent',
     width: '100%',
-    fontSize: '13px',
+    fontSize: '13.5px',
     color: '#0F172A',
   },
   clearBtn: {
@@ -229,13 +232,15 @@ const styles = {
     display: 'flex',
     gap: '6px',
     overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
     scrollbarWidth: 'none',
+    paddingBottom: '2px',
   },
   tabBtn: {
-    padding: '6px 12px',
+    padding: '7px 14px',
     borderRadius: '14px',
     border: '1px solid',
-    fontSize: '11px',
+    fontSize: '11.5px',
     fontWeight: '600',
     whiteSpace: 'nowrap',
     cursor: 'pointer',

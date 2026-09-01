@@ -24,13 +24,14 @@ const AddFarmer = () => {
     district: 'West Godavari',
     address: '',
     waterSource: 'Canal',
-    numberOfPonds: '2',
+    numberOfTanks: '2',
+    extent: '',
     status: 'ACTIVE',
   });
 
   const [gpsData, setGpsData] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [pondsData, setPondsData] = useState([]);
+  const [tanksData, setTanksData] = useState([]);
 
   useEffect(() => {
     const cached = getStoredGPS();
@@ -57,7 +58,7 @@ const AddFarmer = () => {
     setFarmerForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleProceedToPonds = (e) => {
+  const handleProceedToTanks = (e) => {
     if (e && e.preventDefault) e.preventDefault();
 
     if (!farmerForm.name.trim()) {
@@ -79,68 +80,89 @@ const AddFarmer = () => {
       setGpsData(fallback);
     }
 
-    const numPonds = parseInt(farmerForm.numberOfPonds) || 1;
-    const initialPonds = Array.from({ length: numPonds }, (_, i) => ({
-      name: `Pond ${String(i + 1).padStart(2, '0')}`,
-      area: '2.5',
-      waterArea: '2.2',
+    const numTanks = parseInt(farmerForm.numberOfTanks) || 1;
+    const defaultTankArea = farmerForm.extent && parseFloat(farmerForm.extent) > 0
+      ? (parseFloat(farmerForm.extent) / numTanks).toFixed(1)
+      : '2.5';
+    const defaultWaterArea = (parseFloat(defaultTankArea) * 0.88).toFixed(1);
+
+    const initialTanks = Array.from({ length: numTanks }, (_, i) => ({
+      name: `Tank ${i + 1}`,
+      area: defaultTankArea,
+      waterArea: defaultWaterArea,
+      salinity: '16',
+      soilType: 'Loam',
+      hatchery: 'Golden Marine Hatchery',
+      brooder: 'Kona Bay',
+      seedDate: new Date().toISOString().split('T')[0],
+      seedStockingLak: '2.5',
+      feedType: 'Premium',
       species: 'Vannamei',
       cultureType: 'Semi-Intensive',
       stockingDate: new Date().toISOString().split('T')[0],
-      seedQuantity: '200,000',
+      seedQuantity: '250,000',
       initialBiomass: '0',
       biomass: '600kg',
       abw: '10g',
       fcr: '1.15',
-      salinity: '16',
       status: 'ACTIVE',
       notes: '',
     }));
 
-    setPondsData(initialPonds);
+    setTanksData(initialTanks);
     setStep(2);
   };
 
-  const handlePondChange = (index, field, value) => {
-    setPondsData(prev => {
+  const handleTankChange = (index, field, value) => {
+    setTanksData(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
   };
 
-  const handleAddExtraPond = () => {
-    setPondsData(prev => [
+  const handleAddExtraTank = () => {
+    setTanksData(prev => [
       ...prev,
       {
-        name: `Pond ${String(prev.length + 1).padStart(2, '0')}`,
+        name: `Tank ${prev.length + 1}`,
         area: '2.5',
         waterArea: '2.2',
+        salinity: '16',
+        soilType: 'Loam',
+        hatchery: 'Golden Marine Hatchery',
+        brooder: 'Kona Bay',
+        seedDate: new Date().toISOString().split('T')[0],
+        seedStockingLak: '2.5',
+        feedType: 'Premium',
         species: 'Vannamei',
         cultureType: 'Semi-Intensive',
         stockingDate: new Date().toISOString().split('T')[0],
-        seedQuantity: '200,000',
+        seedQuantity: '250,000',
         initialBiomass: '0',
         biomass: '500kg',
         abw: '8g',
         fcr: '1.2',
-        salinity: '16',
         status: 'ACTIVE',
         notes: '',
       }
     ]);
   };
 
-  const handleRemovePond = (index) => {
-    if (pondsData.length <= 1) {
-      alert('At least one pond is required.');
+  const handleRemoveTank = (index) => {
+    if (tanksData.length <= 1) {
+      alert('At least one tank is required.');
       return;
     }
-    setPondsData(prev => prev.filter((_, i) => i !== index));
+    setTanksData(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleFinalSave = () => {
     const agentId = session?.agentId || 'agent001';
+    const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
+    const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
+      ? parseFloat(farmerForm.extent) 
+      : calculatedAcres;
 
     const farmerPayload = {
       name: farmerForm.name.trim(),
@@ -151,13 +173,14 @@ const AddFarmer = () => {
       district: farmerForm.district,
       address: farmerForm.address,
       waterSource: farmerForm.waterSource,
-      acres: pondsData.reduce((acc, p) => acc + (parseFloat(p.area) || 2.5), 0),
-      numberOfTanks: pondsData.length.toString(),
+      acres: finalAcres,
+      extent: finalAcres,
+      numberOfTanks: tanksData.length.toString(),
       status: farmerForm.status,
       gps: gpsData,
     };
 
-    const createdFarmerId = createFarmerWithTanks(agentId, farmerPayload, pondsData);
+    const createdFarmerId = createFarmerWithTanks(agentId, farmerPayload, tanksData);
     navigate(`/farmers/${createdFarmerId || ''}`);
   };
 
@@ -175,7 +198,7 @@ const AddFarmer = () => {
         </button>
 
         <div style={styles.stepBadge}>
-          Step {step} of 2: {step === 1 ? 'Farmer Details' : 'Pond Setup'}
+          Step {step} of 2: {step === 1 ? 'Farmer Details' : 'Tank Setup'}
         </div>
       </div>
 
@@ -192,7 +215,7 @@ const AddFarmer = () => {
             </div>
           </div>
 
-          <form onSubmit={handleProceedToPonds} style={styles.form}>
+          <form onSubmit={handleProceedToTanks} style={styles.form}>
             <div style={styles.grid2Col}>
               <div>
                 <label style={styles.fieldLabel}>Farmer Full Name *</label>
@@ -246,20 +269,34 @@ const AddFarmer = () => {
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Initial Number of Ponds *</label>
+                <label style={styles.fieldLabel}>Initial Number of Tanks *</label>
                 <select
-                  name="numberOfPonds"
-                  value={farmerForm.numberOfPonds}
+                  name="numberOfTanks"
+                  value={farmerForm.numberOfTanks}
                   onChange={handleFarmerChange}
                   style={styles.textInput}
                 >
-                  <option value="1">1 Pond</option>
-                  <option value="2">2 Ponds</option>
-                  <option value="3">3 Ponds</option>
-                  <option value="4">4 Ponds</option>
-                  <option value="5">5 Ponds</option>
-                  <option value="6">6 Ponds</option>
+                  <option value="1">1 Tank</option>
+                  <option value="2">2 Tanks</option>
+                  <option value="3">3 Tanks</option>
+                  <option value="4">4 Tanks</option>
+                  <option value="5">5 Tanks</option>
+                  <option value="6">6 Tanks</option>
                 </select>
+              </div>
+
+              <div>
+                <label style={styles.fieldLabel}>Extent (Acres)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  name="extent"
+                  value={farmerForm.extent}
+                  onChange={handleFarmerChange}
+                  style={styles.textInput}
+                  placeholder="e.g. 5.0"
+                />
               </div>
 
               <div>
@@ -309,20 +346,20 @@ const AddFarmer = () => {
               className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
               style={styles.primaryActionBtn}
             >
-              <span>Continue to Pond Details</span>
+              <span>Continue to Tank Details</span>
               <ArrowRight size={16} />
             </button>
           </form>
         </div>
       ) : (
-        /* STEP 2: Pond Details Form */
+        /* STEP 2: Tank Details Form */
         <div style={styles.step2Container}>
           <div style={styles.summaryCard}>
             <div>
-              <span style={styles.summarySub}>Configuring ponds for</span>
+              <span style={styles.summarySub}>Configuring tanks for</span>
               <h3 style={styles.summaryFarmerName}>{farmerForm.name}</h3>
               <span style={styles.summaryMeta}>
-                📍 {farmerForm.village} • 📱 {farmerForm.phone}
+                📍 {farmerForm.village} • 📱 {farmerForm.phone} {farmerForm.extent ? `• 🌾 ${farmerForm.extent} Acres` : ''}
               </span>
             </div>
 
@@ -330,35 +367,35 @@ const AddFarmer = () => {
               type="button"
               className="transition-all duration-150 hover:bg-indigo-100 active:scale-95 cursor-pointer"
               style={styles.addPondBtn}
-              onClick={handleAddExtraPond}
+              onClick={handleAddExtraTank}
             >
-              <Plus size={14} strokeWidth={2.5} /> Add Pond
+              <Plus size={14} strokeWidth={2.5} /> Add Tank
             </button>
           </div>
 
           <div style={styles.pondsList}>
-            {pondsData.map((pond, idx) => (
+            {tanksData.map((tank, idx) => (
               <div key={idx} style={styles.pondCard}>
                 <div style={styles.pondCardHeader}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={styles.pondNumBadge}>{idx + 1}</div>
                     <input
                       type="text"
-                      value={pond.name}
-                      onChange={(e) => handlePondChange(idx, 'name', e.target.value)}
+                      value={tank.name}
+                      onChange={(e) => handleTankChange(idx, 'name', e.target.value)}
                       style={styles.pondNameInput}
-                      placeholder={`Pond ${idx + 1}`}
+                      placeholder={`Tank ${idx + 1}`}
                       required
                     />
                   </div>
 
-                  {pondsData.length > 1 && (
+                  {tanksData.length > 1 && (
                     <button
                       type="button"
                       className="transition-all duration-150 hover:opacity-80 active:scale-90 cursor-pointer"
                       style={styles.removePondBtn}
-                      onClick={() => handleRemovePond(idx)}
-                      title="Remove Pond"
+                      onClick={() => handleRemoveTank(idx)}
+                      title="Remove Tank"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -366,24 +403,132 @@ const AddFarmer = () => {
                 </div>
 
                 <div style={styles.grid2Col}>
+                  {/* 1. Tank Size- Acres */}
                   <div>
-                    <label style={styles.fieldLabel}>Pond Area (Acres) *</label>
+                    <label style={styles.fieldLabel}>Tank Size (Acres) *</label>
                     <input
                       type="number"
                       step="0.1"
-                      value={pond.area}
-                      onChange={(e) => handlePondChange(idx, 'area', e.target.value)}
+                      value={tank.area}
+                      onChange={(e) => handleTankChange(idx, 'area', e.target.value)}
                       style={styles.textInput}
                       placeholder="2.5"
                       required
                     />
                   </div>
 
+                  {/* 2. Salinity */}
+                  <div>
+                    <label style={styles.fieldLabel}>Salinity (ppt) *</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={tank.salinity}
+                      onChange={(e) => handleTankChange(idx, 'salinity', e.target.value)}
+                      style={styles.textInput}
+                      placeholder="16"
+                      required
+                    />
+                  </div>
+
+                  {/* 3. Soil Type */}
+                  <div>
+                    <label style={styles.fieldLabel}>Soil Type *</label>
+                    <select
+                      value={tank.soilType}
+                      onChange={(e) => handleTankChange(idx, 'soilType', e.target.value)}
+                      style={styles.textInput}
+                      required
+                    >
+                      <option value="Loam">Loam</option>
+                      <option value="Clay">Clay</option>
+                      <option value="Sandy">Sandy</option>
+                      <option value="Clay Loam">Clay Loam</option>
+                      <option value="Sandy Clay">Sandy Clay</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* 4. Hatchery Name */}
+                  <div>
+                    <label style={styles.fieldLabel}>Hatchery Name *</label>
+                    <input
+                      type="text"
+                      value={tank.hatchery}
+                      onChange={(e) => handleTankChange(idx, 'hatchery', e.target.value)}
+                      style={styles.textInput}
+                      placeholder="e.g. Golden Marine / BMR"
+                      required
+                    />
+                  </div>
+
+                  {/* 5. Brooder */}
+                  <div>
+                    <label style={styles.fieldLabel}>Brooder *</label>
+                    <select
+                      value={tank.brooder}
+                      onChange={(e) => handleTankChange(idx, 'brooder', e.target.value)}
+                      style={styles.textInput}
+                      required
+                    >
+                      <option value="Syaqua">Syaqua</option>
+                      <option value="Kona Bay">Kona Bay</option>
+                      <option value="SIS">SIS (Shrimp Improvement Systems)</option>
+                      <option value="American Penaeid">American Penaeid</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* 6. Seed Date */}
+                  <div>
+                    <label style={styles.fieldLabel}>Seed Date *</label>
+                    <input
+                      type="date"
+                      value={tank.seedDate}
+                      onChange={(e) => handleTankChange(idx, 'seedDate', e.target.value)}
+                      style={styles.textInput}
+                      required
+                    />
+                  </div>
+
+                  {/* 7. Seed NumberStocking (Lak) */}
+                  <div>
+                    <label style={styles.fieldLabel}>Seed NumberStocking (Lak) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={tank.seedStockingLak}
+                      onChange={(e) => handleTankChange(idx, 'seedStockingLak', e.target.value)}
+                      style={styles.textInput}
+                      placeholder="2.5"
+                      required
+                    />
+                  </div>
+
+                  {/* 8. Feed Type */}
+                  <div>
+                    <label style={styles.fieldLabel}>Feed Type *</label>
+                    <select
+                      value={tank.feedType}
+                      onChange={(e) => handleTankChange(idx, 'feedType', e.target.value)}
+                      style={styles.textInput}
+                      required
+                    >
+                      <option value="Premium">Premium</option>
+                      <option value="Functional">Functional</option>
+                      <option value="Hypro">Hypro</option>
+                      <option value="Tiger Feed">Tiger Feed</option>
+                      <option value="Royals Supreme">Royals Supreme</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* 9. Species */}
                   <div>
                     <label style={styles.fieldLabel}>Species *</label>
                     <select
-                      value={pond.species}
-                      onChange={(e) => handlePondChange(idx, 'species', e.target.value)}
+                      value={tank.species}
+                      onChange={(e) => handleTankChange(idx, 'species', e.target.value)}
                       style={styles.textInput}
                     >
                       <option value="Vannamei">Vannamei</option>
@@ -414,7 +559,7 @@ const AddFarmer = () => {
               onClick={handleFinalSave}
             >
               <Save size={15} />
-              <span>Save Farmer & {pondsData.length} Ponds</span>
+              <span>Save Farmer & {tanksData.length} Tanks</span>
             </button>
           </div>
         </div>
@@ -457,29 +602,33 @@ const styles = {
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '12px',
-    padding: '24px',
+    borderRadius: '14px',
+    padding: 'clamp(14px, 3.5vw, 24px)',
     border: '1px solid #E2E8F0',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+    boxSizing: 'border-box',
+    width: '100%',
   },
-  cardHeader: {
+  header: {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
+    gap: '12px',
     marginBottom: '20px',
+    paddingBottom: '14px',
+    borderBottom: '1px solid #F1F5F9',
   },
   iconCircle: {
     width: '40px',
     height: '40px',
     borderRadius: '10px',
-    backgroundColor: '#EDF0FF',
+    backgroundColor: '#EFF6FF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   title: {
-    fontSize: '18px',
+    fontSize: 'clamp(17px, 3.5vw, 20px)',
     fontWeight: '700',
     color: '#0F172A',
     margin: 0,
@@ -492,35 +641,35 @@ const styles = {
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '18px',
+    gap: '16px',
   },
   grid2Col: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '14px 16px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+    gap: '12px 16px',
   },
   fieldLabel: {
     display: 'block',
     fontSize: '12px',
     fontWeight: '600',
     color: '#475569',
-    marginBottom: '6px',
+    marginBottom: '5px',
   },
   textInput: {
     width: '100%',
-    height: '40px',
+    height: '42px',
     padding: '0 12px',
-    borderRadius: '8px',
+    borderRadius: '10px',
     border: '1px solid #CBD5E1',
     backgroundColor: '#FFFFFF',
-    fontSize: '14px',
+    fontSize: '13.5px',
     color: '#0F172A',
     boxSizing: 'border-box',
     outline: 'none',
   },
   gpsSection: {
     backgroundColor: '#F8FAFC',
-    borderRadius: '10px',
+    borderRadius: '12px',
     padding: '12px 14px',
     border: '1px solid #E2E8F0',
   },
@@ -528,6 +677,8 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
   },
   gpsStatusLeft: {
     display: 'flex',
@@ -547,9 +698,9 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    backgroundColor: '#EDF0FF',
-    color: '#0018AD',
-    border: '1px solid #CBD2FF',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1px solid #BFDBFE',
     padding: '6px 12px',
     borderRadius: '8px',
     fontSize: '12px',
@@ -558,9 +709,9 @@ const styles = {
   },
   primaryActionBtn: {
     width: '100%',
-    height: '44px',
-    borderRadius: '10px',
-    backgroundColor: '#0018AD',
+    height: '46px',
+    borderRadius: '12px',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
     display: 'flex',
@@ -570,7 +721,7 @@ const styles = {
     fontSize: '14px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.25)',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.25)',
   },
   step2Container: {
     display: 'flex',
@@ -579,12 +730,14 @@ const styles = {
   },
   summaryCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '12px',
-    padding: '16px 20px',
+    borderRadius: '14px',
+    padding: 'clamp(12px, 3vw, 18px)',
     border: '1px solid #E2E8F0',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '10px',
   },
   summarySub: {
     fontSize: '11px',
@@ -605,9 +758,9 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    backgroundColor: '#EDF0FF',
-    color: '#0018AD',
-    border: '1px solid #CBD2FF',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    border: '1px solid #BFDBFE',
     padding: '7px 12px',
     borderRadius: '8px',
     fontSize: '12px',
@@ -621,10 +774,12 @@ const styles = {
   },
   pondCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '12px',
-    padding: '16px 18px',
+    borderRadius: '14px',
+    padding: 'clamp(14px, 3.5vw, 20px)',
     border: '1px solid #E2E8F0',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+    boxSizing: 'border-box',
+    width: '100%',
   },
   pondCardHeader: {
     display: 'flex',
@@ -638,7 +793,7 @@ const styles = {
     width: '24px',
     height: '24px',
     borderRadius: '50%',
-    backgroundColor: '#0018AD',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     fontSize: '11px',
     fontWeight: '700',
@@ -667,32 +822,36 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     marginTop: '6px',
+    flexWrap: 'wrap',
   },
   secondaryBtn: {
     padding: '0 18px',
-    height: '42px',
-    borderRadius: '10px',
+    height: '44px',
+    borderRadius: '12px',
     border: '1px solid #CBD5E1',
     backgroundColor: '#FFFFFF',
     color: '#475569',
-    fontSize: '13px',
+    fontSize: '13.5px',
     fontWeight: '700',
     cursor: 'pointer',
+    flex: '1 1 120px',
   },
   saveAllBtn: {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '6px',
-    backgroundColor: '#0018AD',
+    backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
     padding: '0 20px',
-    height: '42px',
-    borderRadius: '10px',
-    fontSize: '13px',
+    height: '44px',
+    borderRadius: '12px',
+    fontSize: '13.5px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.25)',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.25)',
+    flex: '2 1 180px',
   },
 };
 

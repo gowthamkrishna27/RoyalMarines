@@ -6,11 +6,11 @@ import {
   History, Settings 
 } from 'lucide-react';
 
-const AdminSidebar = () => {
+const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={18} /> },
     { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={18} /> },
-    { name: 'Incharges', path: '/admin/incharges', icon: <Users size={18} /> },
+    { name: 'ASMs', path: '/admin/incharges', icon: <Users size={18} /> },
     { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
     { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
     { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> },
@@ -22,7 +22,10 @@ const AdminSidebar = () => {
   ];
 
   return (
-    <aside style={styles.sidebarContainer}>
+    <aside style={{
+      ...styles.sidebarContainer,
+      ...(isMobileDrawer ? styles.mobileSidebarOverride : {})
+    }}>
       <div style={styles.portalTag}>
         ENTERPRISE ADMIN PORTAL
       </div>
@@ -32,6 +35,7 @@ const AdminSidebar = () => {
           <NavLink
             key={idx}
             to={item.path}
+            onClick={() => onNavigate && onNavigate()}
             style={({ isActive }) => ({
               ...styles.link,
               ...(isActive ? styles.activeLink : styles.inactiveLink)
@@ -77,6 +81,15 @@ const styles = {
     overflowY: 'auto',
     flexShrink: 0,
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+  },
+  mobileSidebarOverride: {
+    width: '100%',
+    margin: 0,
+    border: 'none',
+    boxShadow: 'none',
+    height: 'auto',
+    borderRadius: 0,
+    padding: '8px 4px',
   },
   portalTag: {
     fontSize: '11px',

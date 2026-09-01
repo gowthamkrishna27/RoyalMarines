@@ -324,7 +324,7 @@ const AgentDetail = () => {
               Farmers Allocated to {agent.shortName || agent.name} ({allocatedFarmers.length})
             </h3>
             <p style={styles.sectionCardSubtitle}>
-              Pond clusters, acreage, and telemetry status assigned to this field agent
+              Tank clusters, acreage, and telemetry status assigned to this field agent
             </p>
           </div>
         </div>
