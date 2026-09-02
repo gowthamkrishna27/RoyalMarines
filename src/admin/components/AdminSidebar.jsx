@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutGrid, Globe, Users, UserCheck, Tractor, 
   ClipboardList, ShieldCheck, BarChart3, Download, 
-  History, Settings 
+  History, Settings, MapPin
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
@@ -14,6 +14,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
     { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
     { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
     { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> },
+    { name: 'GPS Tracking', path: '/admin/gps-tracking', icon: <MapPin size={18} /> },
 
     { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={18} /> },
     { name: 'Export Center', path: '/admin/export-center', icon: <Download size={18} /> },

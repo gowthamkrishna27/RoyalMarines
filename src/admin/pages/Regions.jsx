@@ -372,13 +372,6 @@ const Regions = () => {
 
       {/* 2. Cascading Geographic Selector Card (Region -> Locality -> Area) */}
       <div style={styles.filterCard}>
-        <div style={styles.filterCardHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Compass size={18} color="#2563eb" />
-            <span style={styles.filterCardTitle}>GEOGRAPHIC AREA EXPLORER</span>
-          </div>
-        </div>
-
         <div style={styles.filterGrid}>
           {/* Step 1: Select Region */}
           <div style={styles.filterField}>

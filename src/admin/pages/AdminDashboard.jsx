@@ -93,7 +93,6 @@ const AdminDashboard = () => {
     { id: 'REC-1', doc: 30, date: 'Jan 31, 2026', type: 'Normal', fcr: '1.16', abw: '11.4g', farmerName: 'Ashok', name: 'Tank 1' }
   ]);
   const [docInput, setDocInput] = useState('');
-  const [harvestType, setHarvestType] = useState('Partial Harvest');
 
   const handleAddRecord = () => {
     if (!docInput) return;
@@ -104,7 +103,7 @@ const AdminDashboard = () => {
       id: `REC-${Date.now()}`,
       doc: docValue,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      type: harvestType,
+      type: 'Record',
       fcr: (1.1 + (docValue * 0.012)).toFixed(2),
       abw: `${(docValue * 0.4).toFixed(1)}g`,
       farmerName: 'Ashok',
@@ -287,18 +286,6 @@ const AdminDashboard = () => {
               />
             </div>
 
-            <div style={{ ...styles.searchInputWrapper, minWidth: '160px' }}>
-              <select
-                style={{ ...styles.searchInput, marginLeft: '12px', cursor: 'pointer', paddingRight: '12px' }}
-                value={harvestType}
-                onChange={e => setHarvestType(e.target.value)}
-              >
-                <option value="Normal">Normal</option>
-                <option value="Partial Harvest">Partial Harvest</option>
-                <option value="Final Harvest">Final Harvest</option>
-              </select>
-            </div>
-
             <button
               onClick={handleAddRecord}
               style={{
@@ -312,33 +299,38 @@ const AdminDashboard = () => {
           </div>
 
           <div style={styles.filteredList}>
-            {[...harvestRecords].sort((a, b) => b.doc - a.doc).map((record) => (
-              <div key={record.id} style={styles.filteredItem}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={styles.filteredFarmerName}>
-                    {record.type}
-                    {record.isNew && (
-                      <span style={{ marginLeft: '8px', color: '#16a34a', fontSize: '10px', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>NEW</span>
-                    )}
-                  </span>
-                  <span style={styles.filteredTankName}>{record.date} • {record.farmerName} ({record.name})</span>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={styles.statCol}>
-                    <span style={styles.statLbl}>ABW</span>
-                    <span style={styles.statVal}>{record.abw}</span>
-                  </div>
-                  <div style={styles.statCol}>
-                    <span style={styles.statLbl}>FCR</span>
-                    <span style={styles.statVal}>{record.fcr}</span>
-                  </div>
-                  <div style={{ ...styles.statCol, backgroundColor: '#eff6ff', padding: '4px 8px', borderRadius: '6px' }}>
-                    <span style={{ ...styles.statLbl, color: '#2563eb' }}>DOC</span>
-                    <span style={{ ...styles.statVal, color: '#1d4ed8' }}>{record.doc}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {!docInput ? null : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>Farmer Name</th>
+                    <th style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>Tank</th>
+                    <th style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>ABW</th>
+                    <th style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>FCR</th>
+                    <th style={{ padding: '8px 12px', fontSize: '12px', color: '#64748b' }}>DOC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...harvestRecords]
+                    .filter(r => r.doc <= parseInt(docInput || '0'))
+                    .sort((a, b) => b.doc - a.doc)
+                    .map((record) => (
+                      <tr key={record.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px', fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                          {record.farmerName}
+                          {record.doc === parseInt(docInput) && (
+                            <span style={{ marginLeft: '8px', color: '#16a34a', fontSize: '10px', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>NEW</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', fontSize: '13px', color: '#64748b' }}>{record.name}</td>
+                        <td style={{ padding: '12px', fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{record.abw}</td>
+                        <td style={{ padding: '12px', fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{record.fcr}</td>
+                        <td style={{ padding: '12px', fontSize: '13px', fontWeight: 700, color: '#2563eb' }}>{record.doc}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 

@@ -142,23 +142,21 @@ const Reports = () => {
             >
               <Download size={15} /> Harvest Master (.xlsx)
             </button>
+            <button className="btn-primary" onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px' }}>
+              <Download size={15} /> Export CSV
+            </button>
             <button
               className="btn-primary"
               onClick={() => downloadAquaEnterpriseWorkbook(db, null, selectedFarmer, 'Admin_Consolidated_Master')}
               style={{ width: 'auto', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1A2FB8' }}
             >
               <FileSpreadsheet size={16} /> Complete Master Workbook (.xlsx)
-              <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
-                <button className="btn-secondary" onClick={() => { setSelectedArea('ALL'); setSelectedFarmer('ALL'); setConsolidationMode('DATE'); }} style={{ padding: '12px 24px' }}>Reset Filters</button>
-                <button className="btn-primary" onClick={handleExportCSV} style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Download size={18} /> Export Consolidated CSV
-                </button>
-              </div>
+            </button>
           </div>
-
         </div>
-      </>
-      );
+      </div>
+    </>
+  );
 };
 
-      export default Reports;
+export default Reports;

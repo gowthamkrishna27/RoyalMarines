@@ -1,40 +1,106 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMockData } from '../../context/MockDataContext';
-import { getTankById, calculateBiomass, calculateFCR, getAgentById } from '../utils/adminMockData';
-import { Search, Filter, Calendar, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { 
+  getTankById, calculateBiomass, calculateFCR, getAgentById, 
+  getIncharges, getAgents, getFarmers, getTanks 
+} from '../utils/adminMockData';
+import { Search, Filter, Calendar, FileText, CheckCircle2, Clock, User, Users, UserCircle, Droplet } from 'lucide-react';
 
 const FieldData = () => {
   const mockData = useMockData();
   const db = mockData?.db;
   const submissions = db?.submissions || [];
   const location = useLocation();
-  const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
 
-  let filteredSubmissions = submissions.filter(sub => {
-    return sub.tankId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.farmerId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.testType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.agentId?.toLowerCase().includes(searchTerm.toLowerCase());
+  const incharges = getIncharges();
+  const allAgents = getAgents();
+  const allFarmers = getFarmers();
+  const allTanks = getTanks();
+
+  const [filters, setFilters] = useState({
+    incharge: '',
+    agent: '',
+    farmer: '',
+    tank: '',
+    dateFrom: '',
+    dateTo: ''
   });
 
-  const targetAgent = getAgentById(searchTerm.toUpperCase());
-  if (targetAgent && targetAgent.tests) {
-    const expectedTests = targetAgent.tests;
+  const handleFilterChange = (field, value) => {
+    const newFilters = { ...filters, [field]: value };
+    if (field === 'incharge') {
+      newFilters.agent = '';
+      newFilters.farmer = '';
+      newFilters.tank = '';
+    }
+    if (field === 'agent') {
+      newFilters.farmer = '';
+      newFilters.tank = '';
+    }
+    if (field === 'farmer') {
+      newFilters.tank = '';
+    }
+    setFilters(newFilters);
+  };
+
+  const availableIncharges = useMemo(() => {
+    return incharges.map(i => i.name.split(' (')[0]);
+  }, [incharges]);
+
+  const availableAgents = useMemo(() => {
+    let filtered = allAgents;
+    if (filters.incharge) filtered = filtered.filter(a => a.incharge === filters.incharge);
+    return filtered.map(a => a.name.split(' (')[0]);
+  }, [filters.incharge, allAgents]);
+
+  const availableFarmers = useMemo(() => {
+    let filtered = allFarmers;
+    if (filters.incharge) filtered = filtered.filter(f => f.incharge === filters.incharge);
+    if (filters.agent) filtered = filtered.filter(f => f.agent && f.agent.includes(filters.agent));
+    return filtered.map(f => f.name);
+  }, [filters.incharge, filters.agent, allFarmers]);
+
+  const availableTanks = useMemo(() => {
+    let filtered = allTanks;
+    if (filters.incharge) filtered = filtered.filter(t => t.incharge === filters.incharge);
+    if (filters.agent) filtered = filtered.filter(t => t.agent && t.agent.includes(filters.agent));
+    if (filters.farmer) filtered = filtered.filter(t => t.farmer === filters.farmer);
+    return filtered.map(t => t.name || t.id);
+  }, [filters.incharge, filters.agent, filters.farmer, allTanks]);
+
+  let filteredSubmissions = submissions.filter(sub => {
+    const tank = getTankById(sub.tankId) || {};
+    const farmer = allFarmers.find(f => f.id === sub.farmerId || f.name === sub.farmerId) || {};
+    
+    if (filters.incharge && (farmer.incharge !== filters.incharge && tank.incharge !== filters.incharge)) return false;
+    if (filters.agent && (farmer.agent && !farmer.agent.includes(filters.agent))) return false;
+    if (filters.farmer && sub.farmerId !== filters.farmer && farmer.name !== filters.farmer) return false;
+    if (filters.tank && sub.tankId !== filters.tank && tank.name !== filters.tank) return false;
+    if (filters.dateFrom && sub.date < filters.dateFrom) return false;
+    if (filters.dateTo && sub.date > filters.dateTo) return false;
+    
+    return true;
+  });
+
+  // Re-inject dummy logic if a specific agent is selected
+  const selectedAgentObj = allAgents.find(a => a.name.split(' (')[0] === filters.agent);
+  if (selectedAgentObj && selectedAgentObj.tests) {
+    const expectedTests = selectedAgentObj.tests;
     const currentCompleted = filteredSubmissions.filter(s => s.status === 'COMPLETED').length;
     
     if (currentCompleted < expectedTests) {
       const needed = expectedTests - currentCompleted;
       const testTypes = ['Water Analysis', 'Feed Test', 'Medication', 'Disease Observation'];
       const farmerNames = ['Ashok', 'Ravi', 'Kumar', 'Siva', 'Ganesh'];
-      const formattedAgentId = `agent${targetAgent.id.split('-').pop().padStart(3, '0')}`;
+      const formattedAgentId = `agent${selectedAgentObj.id.split('-').pop().padStart(3, '0')}`;
       
       for (let i = 0; i < needed; i++) {
         const dummySub = {
-          id: `SUB-GEN-${targetAgent.id.split('-').pop()}-${i}`,
+          id: `SUB-GEN-${selectedAgentObj.id.split('-').pop()}-${i}`,
           agentId: formattedAgentId,
-          farmerId: farmerNames[i % 5],
-          tankId: `Tank ${(i % 10) + 1}`,
+          farmerId: filters.farmer || farmerNames[i % 5],
+          tankId: filters.tank || `Tank ${(i % 10) + 1}`,
           testType: testTypes[i % testTypes.length],
           date: new Date(Date.now() - (i * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
           status: 'COMPLETED',
@@ -50,9 +116,9 @@ const FieldData = () => {
         filteredSubmissions.push(dummySub);
       }
     }
-    
-    filteredSubmissions.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
+  
+  filteredSubmissions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
     <div style={styles.container}>
@@ -65,15 +131,83 @@ const FieldData = () => {
 
       <div style={styles.card}>
         <div style={styles.filterBar}>
-          <div style={styles.searchBox}>
-            <Search size={17} color="#94a3b8" />
-            <input
-              type="text"
-              placeholder="Search by Tank, Farmer ID, or Test Type..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px', width: '100%' }}>
+            {/* Date From Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Date From</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <Calendar size={15} color="#94a3b8" />
+                <input 
+                  type="date"
+                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} 
+                  value={filters.dateFrom} 
+                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Date To Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Date To</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <Calendar size={15} color="#94a3b8" />
+                <input 
+                  type="date"
+                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} 
+                  value={filters.dateTo} 
+                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Incharge Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>ASM / Incharge</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <User size={15} color="#94a3b8" />
+                <select style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} value={filters.incharge} onChange={(e) => handleFilterChange('incharge', e.target.value)}>
+                  <option value="">All Incharges</option>
+                  {availableIncharges.map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Agent Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Field Agent</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <Users size={15} color="#94a3b8" />
+                <select style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} value={filters.agent} onChange={(e) => handleFilterChange('agent', e.target.value)}>
+                  <option value="">All Agents</option>
+                  {availableAgents.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Farmer Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Farmer</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <UserCircle size={15} color="#94a3b8" />
+                <select style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} value={filters.farmer} onChange={(e) => handleFilterChange('farmer', e.target.value)}>
+                  <option value="">All Farmers</option>
+                  {availableFarmers.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Tank Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Tank</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
+                <Droplet size={15} color="#94a3b8" />
+                <select style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} value={filters.tank} onChange={(e) => handleFilterChange('tank', e.target.value)}>
+                  <option value="">All Tanks</option>
+                  {availableTanks.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -110,12 +244,15 @@ const FieldData = () => {
                   }
                   const dynamicFcr = calculateFCR(cumulativeFeed, dynamicBiomass);
 
+                  const farmerObj = (db?.farmers || []).find(f => f.id === item.farmerId || f.name === item.farmerId) || allFarmers.find(f => f.id === item.farmerId || f.name === item.farmerId) || {};
+                  const farmerNameToDisplay = farmerObj.name || item.farmerId;
+
                   return (
                     <tr key={item.id} style={styles.tr}>
                       <td style={{ ...styles.td, fontWeight: 700, color: '#1d4ed8' }}>{item.id}</td>
                       <td style={styles.td}>{item.date} <span style={{ color: '#94a3b8', fontSize: '11px' }}>({item.submittedAgo})</span></td>
                       <td style={{ ...styles.td, fontWeight: 600 }}>{tank.name || item.tankId}</td>
-                      <td style={styles.td}>{item.farmerId}</td>
+                      <td style={styles.td}>{farmerNameToDisplay}</td>
                       <td style={styles.td}>{item.agentId}</td>
                       <td style={styles.td}>
                         <span style={styles.typeBadge}>{item.testType}</span>

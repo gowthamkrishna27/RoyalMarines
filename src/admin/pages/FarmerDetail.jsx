@@ -79,6 +79,7 @@ const FarmerDetail = () => {
   const [growthMetric, setGrowthMetric] = useState('ABW'); // 'ABW', 'BIOMASS', 'FCR', 'FEED'
   const [toastMessage, setToastMessage] = useState('');
   const [showEditTankModal, setShowEditTankModal] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
 
   const activeTank = tanksList[activeTankIndex] || tanksList[0];
 
@@ -675,13 +676,22 @@ const FarmerDetail = () => {
             ))}
           </div>
 
-          <button 
-            style={styles.editTankQuickBtn}
-            onClick={openEditTankModal}
-          >
-            <Edit size={13} />
-            <span>Edit {activeTank.name} Details</span>
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              style={{...styles.editTankQuickBtn, color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4'}}
+              onClick={() => setShowCompareModal(true)}
+            >
+              <FileSpreadsheet size={13} />
+              <span>Compare All Tanks</span>
+            </button>
+            <button 
+              style={styles.editTankQuickBtn}
+              onClick={openEditTankModal}
+            >
+              <Edit size={13} />
+              <span>Edit {activeTank.name} Details</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1199,6 +1209,101 @@ const FarmerDetail = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Compare All Tanks */}
+      {showCompareModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalBox, width: '900px', maxWidth: '95vw' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                  Compare All Tanks
+                </h3>
+                <div style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                  Farmer: {farmer.name} ({farmer.id}) • Total Tanks: {tanksList.length}
+                </div>
+              </div>
+              <button onClick={() => setShowCompareModal(false)} style={styles.modalCloseBtn}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ ...styles.modalBody, padding: '10px 0' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 700, width: '20%' }}>Metric / Parameter</th>
+                      {tanksList.map((t, i) => (
+                        <th key={i} style={{ padding: '12px', color: '#0f172a', fontWeight: 700, borderLeft: '1px solid #e2e8f0' }}>
+                          {t.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Setup Specifications */}
+                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                      <td colSpan={tanksList.length + 1} style={{ padding: '8px 12px', fontWeight: 700, color: '#334155', fontSize: '11px', textTransform: 'uppercase' }}>Setup Specifications</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Tank Size (Acres)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 600 }}>{t.acres} Ac</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Water Source</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.waterSource}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Salinity</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.salinity} ppt</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Soil Type</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.soilType}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Seed Date</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.seedDate}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Stocking Count</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.seedStockingLak} Lakhs</td>)}
+                    </tr>
+                    
+                    {/* Performance & Test Details */}
+                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                      <td colSpan={tanksList.length + 1} style={{ padding: '8px 12px', fontWeight: 700, color: '#334155', fontSize: '11px', textTransform: 'uppercase', marginTop: '10px' }}>Performance & Test Details</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Current ABW (g)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a' }}>{t.abw?.toFixed(1) || t.abw} g</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Est. Biomass (kg)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#2563eb' }}>{t.biomass?.toLocaleString() || t.biomass} kg</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Current FCR</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#16a34a' }}>{t.fcr}</td>)}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ ...styles.modalFooter, marginTop: '16px' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowCompareModal(false)}
+                style={{ ...styles.cancelBtn, width: '100%', padding: '10px', fontSize: '14px' }}
+              >
+                Close Comparison
+              </button>
+            </div>
           </div>
         </div>
       )}

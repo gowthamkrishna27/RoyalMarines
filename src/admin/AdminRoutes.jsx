@@ -18,6 +18,7 @@ import Reports from './pages/Reports';
 import ExportCenter from './pages/ExportCenter';
 import ActivityLog from './pages/ActivityLog';
 import Settings from './pages/Settings';
+import GPSRouteTracking from './pages/GPSRouteTracking';
 
 const AdminRoutes = () => {
   return (
@@ -40,6 +41,7 @@ const AdminRoutes = () => {
       <Route path="activity-log" element={<ActivityLog />} />
       <Route path="audit-logs" element={<ActivityLog />} />
       <Route path="settings" element={<Settings />} />
+      <Route path="gps-tracking" element={<GPSRouteTracking />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>
   );

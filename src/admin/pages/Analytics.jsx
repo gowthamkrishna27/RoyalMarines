@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
 import { getRegions, getIncharges, getAgents, getFarmers, getTanks } from '../utils/adminMockData';
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, Scale, Wheat, Filter, Calendar, Map, MapPin, User, Users, Droplet, UserCircle } from 'lucide-react';
 
 const Analytics = () => {
@@ -133,33 +133,6 @@ const Analytics = () => {
     ];
   }, [filteredTanks, allTanks.length]);
 
-  const comparisonData = useMemo(() => {
-    if (filteredTanks.length === 0) return [];
-
-    // Group by an appropriate level based on filters
-    let groupKey = 'region';
-    if (filters.farmer) groupKey = 'id'; // Tank ID
-    else if (filters.agent) groupKey = 'farmer';
-    else if (filters.incharge) groupKey = 'agent';
-    else if (filters.locality) groupKey = 'incharge';
-    else if (filters.region) groupKey = 'locality';
-
-    const grouped = {};
-    filteredTanks.forEach(t => {
-      const key = t[groupKey] || 'Unknown';
-      if (!grouped[key]) grouped[key] = { name: key, sumFeed: 0, sumBiomass: 0 };
-      grouped[key].sumFeed += t.feed || 0;
-      grouped[key].sumBiomass += t.biomass || 0;
-    });
-
-    return Object.values(grouped).map(g => {
-      const fcrVal = g.sumBiomass > 0 ? (g.sumFeed / g.sumBiomass) : 0;
-      return {
-        name: g.name.split(' (')[0], // simplify names like "K. V. Rajesh (Incharge...)"
-        fcr: Number(fcrVal.toFixed(2))
-      };
-    });
-  }, [filteredTanks, filters]);
 
   const waterQualityData = [
     { day: 'Mon', do: 5.4, ph: 7.8 },
@@ -350,7 +323,6 @@ const Analytics = () => {
           </div>
 
           {/* Conditional Chart 2 */}
-          {filters.farmer && filters.tank ? (
             <div className="card" style={{ padding: '24px 32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'flex-start' }}>
                 <div>
@@ -369,7 +341,7 @@ const Analytics = () => {
               
               <div style={{ height: '260px' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={waterQualityData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                  <AreaChart data={filters.farmer && filters.tank ? waterQualityData : []} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorDo" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.3} />
@@ -391,26 +363,6 @@ const Analytics = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-          ) : (
-            <div className="card" style={{ padding: '24px 32px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '24px' }}>FCR Comparison Breakdown</h3>
-              <div style={{ height: '300px' }}>
-                {filteredTanks.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={comparisonData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={-10} domain={[0, 2]} />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
-                      <Bar dataKey="fcr" name="FCR" fill="#818cf8" radius={[4, 4, 0, 0]} barSize={40} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>No data available</div>
-                )}
-              </div>
-            </div>
-          )}
 
         </div>
 

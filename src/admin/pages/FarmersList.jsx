@@ -4,7 +4,7 @@ import { getFarmers, getRegions, getAgents, getIncharges, calculateBiomass, calc
 import PageHeader from '../components/PageHeader';
 import {
   Search, Filter, Eye, Plus, Trash2, Check, X,
-  MapPin, Phone, User, ShieldAlert, Tractor, Layers, Edit, SortAsc
+  MapPin, Phone, User, ShieldAlert, Tractor, Layers, Edit
 } from 'lucide-react';
 
 const FarmersList = () => {
@@ -325,10 +325,6 @@ const FarmersList = () => {
 
 
           <div style={styles.filterGroup}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '7px 12px', fontSize: '12px', fontWeight: 700 }}>
-              <SortAsc size={14} color="#16a34a" />
-              <span>Alphabetical (A-Z)</span>
-            </div>
 
 
 
@@ -360,7 +356,7 @@ const FarmersList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadRow}>
-                <th style={styles.th}>FARMER NAME / ID</th>
+                <th style={styles.th}>FARMER NAME</th>
                 <th style={styles.th}>VILLAGE &amp; LOCALITY</th>
                 <th style={styles.th}>AGENT &amp; INCHARGE</th>
                 <th style={styles.th}>REGION</th>
@@ -377,7 +373,7 @@ const FarmersList = () => {
 
                   return (
                     <tr key={item.id} style={styles.tr}>
-                      {/* Farmer Name & ID */}
+                      {/* Farmer Name */}
                       <td style={styles.td}>
                         <div
                           style={{ display: 'flex', flexDirection: 'column', gap: '3px', cursor: 'pointer' }}
@@ -385,7 +381,6 @@ const FarmersList = () => {
                           title="Click to view Tank Growth Graphs"
                         >
                           <span style={styles.farmerName}>{item.name}</span>
-                          <span style={styles.farmerId}>{item.id}</span>
                         </div>
                       </td>
 
