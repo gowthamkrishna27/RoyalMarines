@@ -8,6 +8,7 @@ import {
 
 import { useMockData } from '../../context/MockDataContext';
 import { getRegions } from '../utils/adminMockData';
+import HarvestedTanksModal from '../components/HarvestedTanksModal';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -93,6 +94,7 @@ const AdminDashboard = () => {
     { id: 'REC-1', doc: 30, date: 'Jan 31, 2026', type: 'Normal', fcr: '1.16', abw: '11.4g', farmerName: 'Ashok', name: 'Tank 1' }
   ]);
   const [docInput, setDocInput] = useState('');
+  const [showHarvestedModal, setShowHarvestedModal] = useState(false);
 
   const handleAddRecord = () => {
     if (!docInput) return;
@@ -203,7 +205,7 @@ const AdminDashboard = () => {
           <div style={styles.kpiValue}>{harvestedTanks}</div>
           <div
             style={{ ...styles.kpiLink, color: '#8b5cf6' }}
-            onClick={() => navigate('/admin/tanks')}
+            onClick={() => setShowHarvestedModal(true)}
           >
             <span>View Harvested</span>
             <ArrowUpRight size={14} />
@@ -337,7 +339,10 @@ const AdminDashboard = () => {
 
       </div>
 
-
+      {/* Modals */}
+      {showHarvestedModal && (
+        <HarvestedTanksModal onClose={() => setShowHarvestedModal(false)} />
+      )}
     </div>
   );
 };
