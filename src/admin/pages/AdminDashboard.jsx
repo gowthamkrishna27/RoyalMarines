@@ -289,16 +289,7 @@ const AdminDashboard = () => {
               />
             </div>
 
-            <button
-              onClick={handleAddRecord}
-              style={{
-                backgroundColor: '#2563eb', color: 'white', border: 'none',
-                borderRadius: '8px', padding: '9px 16px', fontSize: '13px',
-                fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
-              }}
-            >
-              Add Record
-            </button>
+
           </div>
 
           <div style={styles.filteredList}>
