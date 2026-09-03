@@ -7,8 +7,9 @@ import {
   Skull, Pill, ClipboardList, Camera, Clock, Lock, 
   X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck
 } from 'lucide-react';
-import { useMockData, getTankWeeklyTestBreakdown, ROUTINE_TEST_TYPES } from '../../context/MockDataContext';
+import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 // Standard baseline harvest records for demo (no final harvest by default)
 const defaultTankHarvests = [
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
   { id: 'ACTIVITY', label: 'Farm Activity', icon: ClipboardList },
   { id: 'HARVEST', label: 'Harvest History', icon: Scale },
+  { id: 'REPORTS', label: 'Reports', icon: FileText },
 ];
 
 const TankDetails = () => {
@@ -64,7 +66,7 @@ const TankDetails = () => {
     name: 'Ravi',
     phone: '+91 9876543211',
     location: 'Chinnamiram',
-    assignedAgent: 'Agent A',
+    assignedAgent: 'Ramesh',
     tanks: ['Tank 1']
   };
 
@@ -182,7 +184,7 @@ const TankDetails = () => {
     : '1.14';
 
   const cultureDays = 77; // As requested in example
-  const weeklyBreakdown = getTankWeeklyTestBreakdown(tank, db?.submissions);
+  const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
   return (
     <div style={styles.pageContainer}>
@@ -277,12 +279,13 @@ const TankDetails = () => {
       <div style={styles.farmerCard}>
         <div style={styles.farmerHeaderRow}>
           <div>
+            <span style={styles.cardHeaderSmallTag}>FARMER INFORMATION</span>
             <h2 style={styles.farmerPrimaryName}>{farmer?.name || 'Ravi'}</h2>
           </div>
 
           <div style={styles.technicianBadge}>
             <User size={14} color="#1A2FB8" />
-            <span>Assigned: <strong>{farmer?.assignedAgent || 'Agent A'}</strong></span>
+            <span>Assigned: <strong>{farmer?.assignedAgent || 'Ramesh'}</strong></span>
           </div>
         </div>
 
@@ -317,7 +320,7 @@ const TankDetails = () => {
             <span style={styles.infoLabel}>Assigned Technician</span>
             <div style={styles.infoValueRow}>
               <ShieldCheck size={15} color="#0284C7" />
-              <span style={styles.infoValueText}>{farmer?.assignedAgent || 'Agent A'}</span>
+              <span style={styles.infoValueText}>{farmer?.assignedAgent || 'Ramesh'}</span>
             </div>
           </div>
         </div>
@@ -329,7 +332,7 @@ const TankDetails = () => {
       <div style={styles.tankCard}>
         <div style={styles.tankTopRow}>
           <div style={styles.tankTitleGroup}>
-            <h1 style={styles.tankMainTitle}>{tank.name || 'Tank 3'}</h1>
+            <h1 style={styles.tankMainTitle}>{tank.name || 'Tank 1'}</h1>
             <span style={styles.speciesPillBadge}>{tank.species || 'Vannamei'}</span>
           </div>
 
@@ -338,15 +341,15 @@ const TankDetails = () => {
               <CheckCircle2 size={13} strokeWidth={2.4} color="#1D4ED8" />
               <span>Harvest Completed</span>
             </span>
-          ) : tank.testStatus === 'Due' || tank.isDue ? (
-            <span style={{ ...styles.activeStatusPill, backgroundColor: '#FEF3C7', borderColor: '#FDE68A', color: '#D97706' }}>
-              <Clock size={13} strokeWidth={2.4} color="#D97706" />
+          ) : !weeklySchedule.isAllDone ? (
+            <span style={styles.weeklyTestDueBadge}>
+              <Clock size={13} strokeWidth={2.4} color="#B45309" />
               <span>Weekly Test Due</span>
             </span>
           ) : (
             <span style={styles.activeStatusPill}>
               <CheckCircle2 size={13} strokeWidth={2.4} />
-              <span>Active • Up to date</span>
+              <span>Active</span>
             </span>
           )}
         </div>
@@ -368,94 +371,107 @@ const TankDetails = () => {
 
           <div style={styles.tankSpecItem}>
             <span style={styles.tankSpecLabel}>Weekly Status</span>
-            <span style={{ ...styles.tankSpecValue, color: hasFinalHarvest ? '#1D4ED8' : (tank.testStatus === 'Due' || tank.isDue ? '#D97706' : '#16A34A') }}>
-              {hasFinalHarvest ? 'Harvest Completed' : (tank.testStatus === 'Due' || tank.isDue ? 'Test Due (Mon-Sun)' : 'Completed (Mon-Sun)')}
+            <span style={{ 
+              ...styles.tankSpecValue, 
+              color: hasFinalHarvest ? '#1D4ED8' : (weeklySchedule.isAllDone ? '#16A34A' : '#D97706') 
+            }}>
+              {hasFinalHarvest 
+                ? 'Harvest Completed' 
+                : (weeklySchedule.isAllDone ? 'Completed (7/7 Done)' : 'Test Due (Mon-Sun)')}
             </span>
           </div>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* 3.5. WEEKLY ROUTINE TESTS CHECKLIST (Mon - Sun) */}
+      {/* 3B. WEEKLY ROUTINE TESTS SCHEDULE (MATCHING IMAGE 2) */}
       {/* ========================================================= */}
-      {!hasFinalHarvest && (
-        <div style={styles.weeklyTestsCard}>
-          <div style={styles.weeklyHeaderRow}>
-            <div>
-              <span style={styles.weeklyCardTag}>WEEKLY TEST SCHEDULE • MON - SUN</span>
-              <h3 style={styles.weeklyCardHeading}>
-                Weekly Routine Tests ({weeklyBreakdown.completedCount}/{weeklyBreakdown.totalTestsCount} Done)
-              </h3>
-            </div>
-            <span style={{
-              ...styles.weeklyStatusBadge,
-              backgroundColor: weeklyBreakdown.allUpToDate ? '#DCFCE7' : '#FEF3C7',
-              color: weeklyBreakdown.allUpToDate ? '#15803D' : '#D97706',
-              borderColor: weeklyBreakdown.allUpToDate ? '#86EFAC' : '#FDE68A',
-            }}>
-              {weeklyBreakdown.allUpToDate ? '✓ All Tests Done This Week' : `${weeklyBreakdown.dueCount} Tests Due This Week`}
-            </span>
+      <div style={styles.weeklyScheduleCard}>
+        <div style={styles.scheduleHeaderRow}>
+          <div>
+            <div style={styles.scheduleMiniTag}>WEEKLY TEST SCHEDULE • MON - SUN</div>
+            <h2 style={styles.scheduleTitle}>
+              Weekly Routine Tests ({weeklySchedule.doneCount}/7 Done)
+            </h2>
           </div>
 
-          <div style={styles.weeklyGrid}>
-            {ROUTINE_TEST_TYPES.map((test) => {
-              const isCompleted = weeklyBreakdown.completedTests.some(ct => ct.key === test.key);
-              const completedRecord = weeklyBreakdown.completedTests.find(ct => ct.key === test.key);
+          <span style={weeklySchedule.isAllDone ? styles.allTestsDoneBadge : styles.testsDueBadge}>
+            {weeklySchedule.isAllDone ? (
+              <>
+                <CheckCircle2 size={13} color="#15803D" /> All Tests Completed
+              </>
+            ) : (
+              <>
+                <Clock size={13} color="#B45309" /> {weeklySchedule.dueCount} Tests Due This Week
+              </>
+            )}
+          </span>
+        </div>
 
-              return (
-                <div 
-                  key={test.key}
-                  style={{
-                    ...styles.weeklyItemCard,
-                    borderColor: isCompleted ? '#86EFAC' : '#FDE68A',
-                    backgroundColor: isCompleted ? '#F0FDF4' : '#FFFDF5',
-                  }}
-                  onClick={() => {
-                    if (!isCompleted) {
-                      setModalInitialType(test.key);
-                      setIsRecordModalOpen(true);
-                    }
-                  }}
-                >
-                  <div style={styles.weeklyItemLeft}>
-                    <div style={{
-                      ...styles.weeklyIconBadge,
-                      backgroundColor: isCompleted ? '#DCFCE7' : '#FEF3C7',
-                      color: isCompleted ? '#16A34A' : '#D97706',
-                    }}>
-                      {isCompleted ? <CheckCircle2 size={16} /> : <Clock size={16} />}
-                    </div>
-                    <div>
-                      <span style={styles.weeklyItemName}>{test.label}</span>
-                      <span style={styles.weeklyItemStatus}>
-                        {isCompleted ? `Completed (${completedRecord?.completedAt || 'This Week'})` : 'Due this week • Click to record'}
-                      </span>
-                    </div>
-                  </div>
+        <div style={styles.scheduleList}>
+          {weeklySchedule.testList.map((test) => {
+            const isDone = test.isDone;
 
-                  <div style={styles.weeklyItemRight}>
-                    {isCompleted ? (
-                      <span style={styles.completedPill}>✓ Done</span>
+            return (
+              <div 
+                key={test.key}
+                style={{
+                  ...styles.testRowCard,
+                  backgroundColor: isDone ? '#F0FDF4' : '#FEFCE8',
+                  borderColor: isDone ? '#BBF7D0' : '#FEF08A',
+                }}
+              >
+                <div style={styles.testRowLeft}>
+                  <div style={{
+                    ...styles.testIconBadge,
+                    backgroundColor: isDone ? '#DCFCE7' : '#FEF3C7',
+                    color: isDone ? '#16A34A' : '#D97706',
+                  }}>
+                    {isDone ? (
+                      <CheckCircle2 size={18} strokeWidth={2.4} color="#16A34A" />
                     ) : (
-                      <button 
-                        type="button"
-                        style={styles.recordNowBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModalInitialType(test.key);
-                          setIsRecordModalOpen(true);
-                        }}
-                      >
-                        <Plus size={12} strokeWidth={2.5} /> Record
-                      </button>
+                      <Clock size={18} strokeWidth={2.4} color="#D97706" />
                     )}
                   </div>
+
+                  <div>
+                    <div style={styles.testRowTitle}>{test.label}</div>
+                    <div style={{
+                      ...styles.testRowSub,
+                      color: isDone ? '#15803D' : '#92400E',
+                    }}>
+                      {isDone 
+                        ? `Completed (${test.completedDate || '2026-09-01'})` 
+                        : 'Due this week • Click to record'}
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <div style={styles.testRowRight}>
+                  {isDone ? (
+                    <span style={styles.doneBadgePill}>
+                      ✓ Done
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                      style={styles.recordTestBtn}
+                      onClick={() => {
+                        setModalInitialType(test.key);
+                        setIsRecordModalOpen(true);
+                      }}
+                      title={`Record ${test.label}`}
+                    >
+                      <Plus size={13} strokeWidth={2.8} /> Record
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {/* ========================================================= */}
       {/* 4. QUICK PERFORMANCE SUMMARY (6 Cards Grid) */}
@@ -786,72 +802,80 @@ const TankDetails = () => {
       )}
 
       {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, Medication, Mortality, Farm Activity) */}
+      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
       {/* ========================================================= */}
-      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY'].includes(activeTab) && (
+      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (
         <div style={styles.sectionCard}>
           <div style={styles.sectionHeaderRow}>
             <div>
               <h3 style={styles.sectionTitle}>
-                {TABS.find(t => t.id === activeTab)?.label} History
+                {TABS.find(t => t.id === activeTab)?.label} Logs
               </h3>
-              <span style={styles.sectionSub}>Submitted field test history for {tank.name}</span>
+              <span style={styles.sectionSub}>Submitted field test records for {tank.name}</span>
             </div>
+
+            {!hasFinalHarvest ? (
+              <button 
+                type="button" 
+                style={styles.addHarvestActionBtn}
+                onClick={() => {
+                  setModalInitialType(
+                    activeTab === 'WATER' ? 'WATER_QUALITY' :
+                    activeTab === 'FEED' ? 'FEED_ENTRY' :
+                    activeTab === 'MEDICATION' ? 'MEDICATION' :
+                    activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                    activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                  );
+                  setIsRecordModalOpen(true);
+                }}
+              >
+                <Plus size={14} /> New Entry
+              </button>
+            ) : (
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Lock size={12} /> Closed (Final Harvest Done)
+              </span>
+            )}
           </div>
 
-          {(() => {
-            const tabRecords = tankSubmissions.filter(s => {
-              const st = (s.testType || s.recordType || '').toUpperCase();
-              if (activeTab === 'WATER') return st.includes('WATER');
-              if (activeTab === 'FEED') return st.includes('FEED');
-              if (activeTab === 'BIOMASS') return st.includes('BIOMASS');
-              if (activeTab === 'MEDICATION') return st.includes('MEDICAT') || st.includes('MEDICINE');
-              if (activeTab === 'MORTALITY') return st.includes('MORTALITY');
-              if (activeTab === 'ACTIVITY') return st.includes('ACTIVITY') || st.includes('FARM');
-              return true;
-            });
-
-            return (
-              <div style={{ marginTop: '16px' }}>
-                {tabRecords.length === 0 ? (
-                  <div style={styles.emptyStateBox}>
-                    <Clock size={32} color="#94A3B8" />
-                    <p style={{ margin: '8px 0 0 0', fontWeight: '600', color: '#475569' }}>
-                      No {TABS.find(t => t.id === activeTab)?.label.toLowerCase()} records logged for this tank.
-                    </p>
-                    <span style={{ fontSize: '13px', color: '#94A3B8' }}>
-                      Test history logs will appear here once submitted.
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {tabRecords.map((rec) => (
-                      <div 
-                        key={rec.id}
-                        style={styles.recordListItem}
-                        onClick={() => setSelectedReadRecord(rec)}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={styles.recordIconCircle}>
-                            <FileText size={16} color="#1A2FB8" />
-                          </div>
-                          <div>
-                            <span style={styles.recordItemTitle}>{rec.testType || rec.recordType || 'Field Test'}</span>
-                            <div style={styles.recordItemTime}>{rec.date} • {rec.time || '10:30 AM'} • By {rec.agentName || 'Technician'}</div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={styles.verifiedTag}>✓ Verified</span>
-                          <ChevronRight size={16} color="#94A3B8" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <div style={{ marginTop: '16px' }}>
+            {tankSubmissions.length === 0 ? (
+              <div style={styles.emptyStateBox}>
+                <Clock size={32} color="#94A3B8" />
+                <p style={{ margin: '8px 0 0 0', fontWeight: '600', color: '#475569' }}>
+                  No records submitted for this category yet.
+                </p>
+                <span style={{ fontSize: '13px', color: '#94A3B8' }}>
+                  Use "New Record" button above to log data.
+                </span>
               </div>
-            );
-          })()}
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {tankSubmissions.map((rec) => (
+                  <div 
+                    key={rec.id}
+                    style={styles.recordListItem}
+                    onClick={() => setSelectedReadRecord(rec)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={styles.recordIconCircle}>
+                        <FileText size={16} color="#1A2FB8" />
+                      </div>
+                      <div>
+                        <span style={styles.recordItemTitle}>{rec.testType || rec.recordType || 'Field Test'}</span>
+                        <div style={styles.recordItemTime}>{rec.date} • {rec.time || '10:30 AM'} • By {rec.agentName || 'Technician'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={styles.verifiedTag}>✓ Verified</span>
+                      <ChevronRight size={16} color="#94A3B8" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1612,112 +1636,141 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weeklyTestsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '14px',
-    padding: 'clamp(14px, 3.5vw, 20px)',
-    border: '1px solid #E2E8F0',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-    boxSizing: 'border-box',
-    width: '100%',
-  },
-  weeklyHeaderRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: '10px',
-    marginBottom: '14px',
-  },
-  weeklyCardTag: {
-    fontSize: '11px',
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: '0.4px',
-    textTransform: 'uppercase',
-    display: 'block',
-  },
-  weeklyCardHeading: {
-    fontSize: '16px',
-    fontWeight: '800',
-    color: '#0F172A',
-    margin: '2px 0 0 0',
-  },
-  weeklyStatusBadge: {
+  weeklyTestDueBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '5px',
     padding: '4px 10px',
-    borderRadius: '20px',
-    border: '1px solid',
+    borderRadius: '8px',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#B45309',
     fontSize: '12px',
     fontWeight: '700',
   },
-  weeklyGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
-    gap: '10px',
+  weeklyScheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    padding: 'clamp(16px, 3.5vw, 24px)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(15, 23, 42, 0.03)',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
   },
-  weeklyItemCard: {
+  scheduleHeaderRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '10px 14px',
-    borderRadius: '10px',
-    border: '1px solid',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-  },
-  weeklyItemLeft: {
-    display: 'flex',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: '10px',
   },
-  weeklyIconBadge: {
-    width: '32px',
-    height: '32px',
+  scheduleMiniTag: {
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: '0.4px',
+    marginBottom: '2px',
+  },
+  scheduleTitle: {
+    fontSize: 'clamp(15px, 3vw, 17px)',
+    fontWeight: '700',
+    color: '#0F172A',
+    margin: 0,
+  },
+  testsDueBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 12px',
     borderRadius: '8px',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#B45309',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  allTestsDoneBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 12px',
+    borderRadius: '8px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #86EFAC',
+    color: '#15803D',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  scheduleList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  testRowCard: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 14px',
+    borderRadius: '12px',
+    border: '1px solid',
+    gap: '12px',
+    transition: 'all 0.15s ease',
+  },
+  testRowLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    minWidth: 0,
+    flex: 1,
+  },
+  testIconBadge: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  weeklyItemName: {
-    fontSize: '13px',
+  testRowTitle: {
+    fontSize: '14px',
     fontWeight: '700',
     color: '#0F172A',
-    display: 'block',
   },
-  weeklyItemStatus: {
-    fontSize: '11px',
-    color: '#64748B',
-    display: 'block',
-    marginTop: '1px',
+  testRowSub: {
+    fontSize: '12px',
+    fontWeight: '500',
+    marginTop: '2px',
   },
-  weeklyItemRight: {
+  testRowRight: {
+    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
   },
-  completedPill: {
-    fontSize: '11px',
-    fontWeight: '700',
-    color: '#15803D',
-    backgroundColor: '#DCFCE7',
-    padding: '3px 8px',
+  doneBadgePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '4px 10px',
     borderRadius: '6px',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
+    fontWeight: '700',
+    fontSize: '12px',
   },
-  recordNowBtn: {
+  recordTestBtn: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
     backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    borderRadius: '6px',
-    padding: '4px 10px',
-    fontSize: '12px',
+    padding: '6px 14px',
+    borderRadius: '8px',
+    fontSize: '12.5px',
     fontWeight: '700',
     cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
   }
 };
 

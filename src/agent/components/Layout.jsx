@@ -69,6 +69,7 @@ const Layout = ({ children }) => {
   const drawerNavItems = [
     { name: 'Home', path: '/dashboard', icon: Home },
     { name: 'My Farmers', path: '/farmers', icon: Users },
+    { name: 'Harvest Management', path: '/harvest', icon: Scale },
     { name: 'Field History', path: '/tests', icon: Clock },
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Technician Profile', path: '/profile', icon: User },

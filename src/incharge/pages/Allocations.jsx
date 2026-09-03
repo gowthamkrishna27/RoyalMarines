@@ -209,14 +209,9 @@ const Allocations = () => {
                   {availableAgents.map((agent) => (
                     <tr key={agent.id} style={styles.tr}>
                       <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={styles.agentAvatarBox}>
-                            {agent.name ? agent.name[0] : 'A'}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>{agent.name}</div>
-                            <div style={{ fontSize: '11px', color: '#64748B' }}>Active Technician</div>
-                          </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>{agent.name}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>Active Technician</div>
                         </div>
                       </td>
 
@@ -378,14 +373,9 @@ const Allocations = () => {
                         }}
                         className="transition-all duration-150 active:scale-98 cursor-pointer"
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={styles.agentAvatarBox}>
-                            {agent.name ? agent.name[0] : 'A'}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '14px', fontWeight: '700', color: isSelected ? '#1A2FB8' : '#0F172A' }}>{agent.name}</div>
-                            <div style={{ fontSize: '12px', color: '#64748B' }}>{agent.locality}</div>
-                          </div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: isSelected ? '#1A2FB8' : '#0F172A' }}>{agent.name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748B' }}>{agent.locality}</div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

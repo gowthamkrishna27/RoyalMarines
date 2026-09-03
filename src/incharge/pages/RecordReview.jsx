@@ -25,7 +25,7 @@ const RecordReview = () => {
       const agent = getAgentById(s.agentId);
       const farmerName = farmer ? farmer.name : (s.farmerName || 'Ravi');
       const tankName = tank ? tank.name : (s.tankName || (s.tankId ? `Tank ${s.tankId.replace(/\D/g, '') || '1'}` : 'Tank 1'));
-      const agentName = agent ? agent.name : 'Agent A';
+      const agentName = agent ? agent.name : 'Ramesh';
 
       setRecord({
         id: s.id,

@@ -41,7 +41,7 @@ const Profile = () => {
             <User size={22} color="#0018AD" />
           </div>
           <div>
-            <div style={styles.nameTitle}>{session?.name || 'Agent A'}</div>
+            <div style={styles.nameTitle}>{session?.name || 'Ramesh'}</div>
             <div style={styles.techIdText}>Technician ID: {session?.agentId || 'agent001'}</div>
           </div>
         </div>

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Lock, Droplets, Fish, Wheat, Skull, ClipboardList, 
-  Camera, MapPin, CheckCircle, Clock, Search, X, Scale,
-  Pill, Activity
+  Camera, MapPin, CheckCircle, Clock, Search, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -16,56 +15,7 @@ const History = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Retrieve harvest store records to merge with submissions
-  const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
-  const harvestSubmissions = [];
-  Object.entries(harvestStore).forEach(([key, tStore]) => {
-    const [fId, tId] = key.split('_');
-    const farmer = (db?.farmers || []).find(f => f.id === fId);
-    const tank = (db?.tanks || []).find(t => t.id === tId);
-
-    // Sort harvests chronologically for consistent sequence numbering
-    const sortedTankHarvests = [...(tStore?.harvests || [])].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
-    let partialSeq = 0;
-
-    sortedTankHarvests.forEach(h => {
-      const existsInDb = (db?.submissions || []).some(s => s.id === h.id || (s.tankId === tId && s.date === h.date && (s.testType === h.harvestType || s.testType === h.displayTitle)));
-      if (!existsInDb) {
-        const isFinal = Boolean(h.isFinal || h.harvestType === 'Final Harvest' || (h.displayTitle && h.displayTitle.includes('Final')));
-        let hType = 'Final Harvest';
-        if (!isFinal) {
-          partialSeq += 1;
-          hType = `Partial Harvest - ${partialSeq}`;
-        }
-
-        harvestSubmissions.push({
-          id: h.id || `H-${Date.now()}-${Math.random()}`,
-          agentId: session?.agentId || 'agent001',
-          farmerId: fId,
-          farmerName: farmer?.name || 'Ravi',
-          tankId: tId,
-          tankName: tank?.name || 'Tank 1',
-          testType: hType,
-          recordType: 'HARVEST_ENTRY',
-          date: h.date || '28 Aug',
-          time: '10:00 AM',
-          data: {
-            harvestType: hType,
-            isFinal,
-            doc: h.doc,
-            abw: h.abw,
-            harvestedNumber: h.harvestedNumber,
-            harvestedBiomass: h.harvestedBiomass,
-            remarks: h.remarks,
-          },
-          readOnly: true,
-        });
-      }
-    });
-  });
-
-  const allSubmissions = [...(db?.submissions || []), ...harvestSubmissions];
-  const submissions = allSubmissions
+  const submissions = (db?.submissions || [])
     .filter(s => !s.agentId || !session?.agentId || s.agentId === session.agentId)
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
@@ -73,10 +23,8 @@ const History = () => {
     { id: 'ALL', label: 'All' },
     { id: 'WATER', label: 'Water' },
     { id: 'FEED', label: 'Feed' },
-    { id: 'DISEASE', label: 'Disease' },
-    { id: 'MEDICATION', label: 'Medication' },
+    { id: 'BIOMASS', label: 'Biomass' },
     { id: 'MORTALITY', label: 'Mortality' },
-    { id: 'HARVEST', label: 'Harvest' },
     { id: 'ACTIVITY', label: 'Activity' },
     { id: 'PHOTO', label: 'Photo' },
   ];
@@ -116,48 +64,14 @@ const History = () => {
     return 'Tank 1';
   };
 
-  // Helper to format record display name with sequential partial harvest numbers
-  const getRecordDisplayName = (record) => {
-    const rawType = record.testType || record.recordType || 'Water Analysis';
-    const upper = rawType.toUpperCase();
-    if (upper.includes('HARVEST') || upper.includes('PARTIAL') || upper.includes('FINAL')) {
-      if (record.data?.isFinal || upper === 'FINAL HARVEST' || upper.includes('FINAL')) {
-        return 'Final Harvest';
-      }
-      const match = rawType.match(/Partial Harvest\s*[-–]?\s*(\d+)/i);
-      if (match) {
-        return `Partial Harvest - ${match[1]}`;
-      }
-      const sameTankHarvests = submissions
-        .filter(s => (s.tankId === record.tankId || s.tankName === record.tankName) && 
-          ((s.testType || s.recordType || '').toUpperCase().includes('HARVEST') || (s.testType || s.recordType || '').toUpperCase().includes('PARTIAL')))
-        .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
-      
-      const partialsOnly = sameTankHarvests.filter(s => {
-        const t = (s.testType || s.recordType || '').toUpperCase();
-        return !s.data?.isFinal && !t.includes('FINAL');
-      });
-      const idx = partialsOnly.findIndex(s => s.id === record.id);
-      if (idx >= 0) {
-        return `Partial Harvest - ${idx + 1}`;
-      }
-      return 'Partial Harvest - 1';
-    }
-    if (upper.includes('DISEASE')) return 'Disease Observation';
-    if (upper.includes('MEDICAT') || upper.includes('MEDICINE')) return 'Medication';
-    return rawType;
-  };
-
   const filteredSubmissions = submissions.filter(item => {
     const type = (item.testType || item.recordType || '').toUpperCase();
     if (activeFilter === 'WATER' && !type.includes('WATER')) return false;
+    if (activeFilter === 'BIOMASS' && !type.includes('BIOMASS')) return false;
     if (activeFilter === 'FEED' && !type.includes('FEED')) return false;
-    if (activeFilter === 'DISEASE' && !type.includes('DISEASE')) return false;
-    if (activeFilter === 'MEDICATION' && !type.includes('MEDICAT') && !type.includes('MEDICINE')) return false;
     if (activeFilter === 'MORTALITY' && !type.includes('MORTALITY')) return false;
-    if (activeFilter === 'HARVEST' && !type.includes('HARVEST') && !type.includes('PARTIAL') && !type.includes('FINAL')) return false;
     if (activeFilter === 'ACTIVITY' && !type.includes('ACTIVITY') && !type.includes('FARM')) return false;
-    if (activeFilter === 'PHOTO' && (!type.includes('PHOTO') || type.includes('DISEASE'))) return false;
+    if (activeFilter === 'PHOTO' && !type.includes('PHOTO') && !type.includes('OBSERVATION')) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -171,11 +85,9 @@ const History = () => {
   const getRecordIcon = (type = '') => {
     const t = type.toUpperCase();
     if (t.includes('WATER')) return <Droplets size={18} color="#0018AD" />;
+    if (t.includes('BIOMASS')) return <Fish size={18} color="#2563D9" />;
     if (t.includes('FEED')) return <Wheat size={18} color="#D97706" />;
-    if (t.includes('DISEASE')) return <Activity size={18} color="#DC2626" />;
-    if (t.includes('MEDICAT') || t.includes('MEDICINE')) return <Pill size={18} color="#0284C7" />;
     if (t.includes('MORTALITY')) return <Skull size={18} color="#DC2626" />;
-    if (t.includes('HARVEST') || t.includes('PARTIAL') || t.includes('FINAL')) return <Scale size={18} color="#15803D" />;
     if (t.includes('PHOTO')) return <Camera size={18} color="#059669" />;
     return <ClipboardList size={18} color="#7C3AED" />;
   };
@@ -251,7 +163,7 @@ const History = () => {
                 </div>
                 <div style={styles.recordTextGroup}>
                   <span style={styles.recordTitle}>
-                    {getRecordDisplayName(record)}
+                    {record.testType || record.recordType || 'Water Analysis'}
                   </span>
                   <span style={styles.recordTarget}>
                     {getFarmerName(record)} • {getTankName(record)}
@@ -295,7 +207,7 @@ const History = () => {
                     <Lock size={10} strokeWidth={2.4} /> SUBMITTED RECORD • READ ONLY
                   </div>
                   <h3 style={styles.modalTitle}>
-                    {getRecordDisplayName(selectedRecord)}
+                    {selectedRecord.testType || selectedRecord.recordType || 'Water Quality Test'}
                   </h3>
                 </div>
               </div>

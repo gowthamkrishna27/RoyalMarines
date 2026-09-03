@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { getAdminSession } from '../utils/adminAuth';
 import { Bell, Search, LogOut, User, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import logoImg from '../../assets/logo.png';
+import logoImg from '../../assets/new_logo_v2.png';
 import { useMockData } from '../../context/MockDataContext';
 
 const AdminHeader = ({ onToggleSidebar }) => {
@@ -252,7 +252,9 @@ const AdminHeader = ({ onToggleSidebar }) => {
               setShowProfileMenu(!showProfileMenu)
             }
           >
-            <div style={styles.avatar}>R</div>
+            <div style={styles.avatar}>
+              <User size={15} color="#FFFFFF" />
+            </div>
 
             <span style={styles.profileName}>
               {session?.name
@@ -330,8 +332,7 @@ const styles = {
   },
 
   logo: {
-    width: '38px',
-    height: '38px',
+    height: '56px',
     objectFit: 'contain',
   },
 

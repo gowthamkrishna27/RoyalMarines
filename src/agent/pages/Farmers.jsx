@@ -1,82 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  Search, Plus, Check, AlertTriangle, Clock,
+  Search, Plus, Check, AlertTriangle, 
   ChevronRight, X 
 } from 'lucide-react';
-import { useMockData, getTankWeeklyTestBreakdown, getTankOverdueBreakdown } from '../../context/MockDataContext';
+import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 
 const Farmers = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const session = getSession();
   const { db, getFarmersByAgentId, getTanksByFarmerId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState(location.state?.filterMode || 'ALL');
-
-  useEffect(() => {
-    if (location.state?.filterMode) {
-      setFilterMode(location.state.filterMode);
-    }
-  }, [location.state]);
+  const [filterMode, setFilterMode] = useState('ALL');
 
   const agentId = session?.agentId || 'agent001';
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
 
   const farmerItems = assignedFarmers.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
-    
-    // Check overdue tests (last week's uncompleted works)
-    const overdueBreakdowns = tanks.map(t => ({
-      tank: t,
-      breakdown: getTankOverdueBreakdown(t, db?.submissions)
-    })).filter(item => item.breakdown.isOverdue && item.breakdown.overdueCount > 0);
-
-    const isOverdue = overdueBreakdowns.length > 0;
-    const overdueWorksCount = overdueBreakdowns.reduce((sum, item) => sum + item.breakdown.overdueCount, 0);
-
-    // Check tests due for current Monday-Sunday week
-    const weeklyBreakdowns = tanks.map(t => ({
-      tank: t,
-      breakdown: getTankWeeklyTestBreakdown(t, db?.submissions)
-    })).filter(item => !item.breakdown.isHarvested && item.breakdown.dueCount > 0);
-
-    const dueTestsCount = weeklyBreakdowns.reduce((sum, item) => sum + item.breakdown.dueCount, 0);
-    const isDue = dueTestsCount > 0;
-
-    let statusText = 'Up to date';
-    if (isOverdue) {
-      statusText = 'Overdue';
-    } else if (isDue) {
-      statusText = 'Test Due';
-    }
+    const hasPendingTest = tanks.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
 
     return {
       ...farmer,
       tankCount: tanks.length || parseInt(farmer.numberOfTanks) || 0,
-      testStatus: statusText,
-      isDue,
-      dueTestsCount,
-      weeklyBreakdowns,
-      isOverdue,
-      overdueWorksCount,
-      overdueBreakdowns,
-      overdueTanksCount: overdueBreakdowns.length,
+      testStatus: hasPendingTest ? 'Test Due' : 'Up to date',
+      isDue: hasPendingTest,
     };
   });
 
-  const totalDueTests = farmerItems.reduce((acc, f) => acc + f.dueTestsCount, 0);
-  const totalOverdueTests = farmerItems.reduce((acc, f) => acc + f.overdueWorksCount, 0);
-  const dueFarmersCount = farmerItems.filter(f => f.dueTestsCount > 0).length;
-  const overdueFarmersCount = farmerItems.filter(f => f.isOverdue || f.overdueWorksCount > 0).length;
-  const upToDateFarmersCount = farmerItems.filter(f => f.dueTestsCount === 0 && !f.isOverdue).length;
-
   const filteredFarmers = farmerItems.filter(f => {
-    if (filterMode === 'OVERDUE' && !f.isOverdue && f.overdueWorksCount === 0) return false;
-    if (filterMode === 'DUE' && f.dueTestsCount === 0) return false;
-    if (filterMode === 'UP_TO_DATE' && (f.dueTestsCount > 0 || f.isOverdue)) return false;
+    if (filterMode === 'DUE' && !f.isDue) return false;
+    if (filterMode === 'UP_TO_DATE' && f.isDue) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -94,6 +50,7 @@ const Farmers = () => {
       {/* Header */}
       <div style={styles.headerRow}>
         <div>
+          <span style={styles.headerTag}>DIRECTORY</span>
           <h1 style={styles.headerTitle}>My Farmers</h1>
         </div>
 
@@ -139,35 +96,24 @@ const Farmers = () => {
         <button
           style={{
             ...styles.tabBtn,
-            backgroundColor: filterMode === 'DUE' ? '#0018AD' : '#FFFFFF',
+            backgroundColor: filterMode === 'DUE' ? '#D97706' : '#FFFFFF',
             color: filterMode === 'DUE' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'DUE' ? '#0018AD' : '#CBD5E1',
+            borderColor: filterMode === 'DUE' ? '#D97706' : '#CBD5E1',
           }}
           onClick={() => setFilterMode('DUE')}
         >
-          Test Due ({dueFarmersCount})
+          ⚠ Test Due ({farmerItems.filter(f => f.isDue).length})
         </button>
         <button
           style={{
             ...styles.tabBtn,
-            backgroundColor: filterMode === 'OVERDUE' ? '#0018AD' : '#FFFFFF',
-            color: filterMode === 'OVERDUE' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'OVERDUE' ? '#0018AD' : '#CBD5E1',
-          }}
-          onClick={() => setFilterMode('OVERDUE')}
-        >
-          Overdue ({overdueFarmersCount})
-        </button>
-        <button
-          style={{
-            ...styles.tabBtn,
-            backgroundColor: filterMode === 'UP_TO_DATE' ? '#0018AD' : '#FFFFFF',
+            backgroundColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#FFFFFF',
             color: filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'UP_TO_DATE' ? '#0018AD' : '#CBD5E1',
+            borderColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#CBD5E1',
           }}
           onClick={() => setFilterMode('UP_TO_DATE')}
         >
-          Up to date ({upToDateFarmersCount})
+          ✓ Up to date ({farmerItems.filter(f => !f.isDue).length})
         </button>
       </div>
 
@@ -175,21 +121,7 @@ const Farmers = () => {
       <div style={styles.farmersList}>
         {filteredFarmers.length === 0 ? (
           <div style={styles.emptyState}>
-            {filterMode === 'DUE' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <Check size={26} color="#16A34A" />
-                <span style={{ fontWeight: '700', color: '#1E293B', fontSize: '13.5px' }}>All Tests Up to Date!</span>
-                <span style={{ fontSize: '11.5px', color: '#64748B' }}>No routine tests are currently pending for this week.</span>
-              </div>
-            ) : filterMode === 'OVERDUE' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <Check size={26} color="#16A34A" />
-                <span style={{ fontWeight: '700', color: '#1E293B', fontSize: '13.5px' }}>No Overdue Works</span>
-                <span style={{ fontSize: '11.5px', color: '#64748B' }}>All previous week tasks and routine tests are completed.</span>
-              </div>
-            ) : (
-              <span>No farmers found.</span>
-            )}
+            <span>No farmers found.</span>
           </div>
         ) : (
           filteredFarmers.map((farmer) => (
@@ -198,32 +130,26 @@ const Farmers = () => {
               style={styles.farmerCard}
               onClick={() => navigate(`/farmers/${farmer.id}`)}
             >
-              <div style={styles.cardHeaderArea}>
-                <div style={styles.cardLeft}>
-                  <span style={styles.farmerName}>{farmer.name}</span>
-                  <div style={styles.farmerMeta}>
-                    <span>{farmer.tankCount} Tanks</span>
-                    <span>•</span>
-                    <span>{farmer.village || farmer.location || 'Bhimavaram'}</span>
-                  </div>
+              <div style={styles.cardLeft}>
+                <span style={styles.farmerName}>{farmer.name}</span>
+                <div style={styles.farmerMeta}>
+                  <span>{farmer.tankCount} Tanks</span>
+                  <span>•</span>
+                  <span>{farmer.village || farmer.location || 'Bhimavaram'}</span>
                 </div>
+              </div>
 
-                <div style={styles.cardRight}>
-                  {farmer.isOverdue ? (
-                    <span style={styles.statusOverdue}>
-                      <Clock size={11} strokeWidth={2.5} /> {farmer.overdueWorksCount} Overdue
-                    </span>
-                  ) : farmer.isDue ? (
-                    <span style={styles.statusDue}>
-                      <AlertTriangle size={11} /> {farmer.dueTestsCount} Tests Due
-                    </span>
-                  ) : (
-                    <span style={styles.statusUpToDate}>
-                      <Check size={11} strokeWidth={3} /> Up to date
-                    </span>
-                  )}
-                  <ChevronRight size={15} color="#94A3B8" />
-                </div>
+              <div style={styles.cardRight}>
+                {farmer.isDue ? (
+                  <span style={styles.statusDue}>
+                    <AlertTriangle size={11} /> Test Due
+                  </span>
+                ) : (
+                  <span style={styles.statusUpToDate}>
+                    <Check size={11} strokeWidth={3} /> Up to date
+                  </span>
+                )}
+                <ChevronRight size={15} color="#94A3B8" />
               </div>
             </div>
           ))
@@ -313,9 +239,7 @@ const styles = {
   tabBtn: {
     padding: '7px 14px',
     borderRadius: '14px',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#CBD5E1',
+    border: '1px solid',
     fontSize: '11.5px',
     fontWeight: '600',
     whiteSpace: 'nowrap',
@@ -336,12 +260,6 @@ const styles = {
     alignItems: 'center',
     cursor: 'pointer',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
-  },
-  cardHeaderArea: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
   },
   cardLeft: {
     display: 'flex',
@@ -365,18 +283,6 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
   },
-  infoBannerDue: {
-    backgroundColor: '#FEF3C7',
-    border: '1px solid #FDE68A',
-    borderRadius: '10px',
-    padding: '10px 14px',
-  },
-  infoBannerOverdue: {
-    backgroundColor: '#FEF2F2',
-    border: '1px solid #FECACA',
-    borderRadius: '10px',
-    padding: '10px 14px',
-  },
   statusUpToDate: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -396,18 +302,6 @@ const styles = {
     fontWeight: '700',
     color: '#B45309',
     backgroundColor: '#FEF3C7',
-    padding: '2px 7px',
-    borderRadius: '6px',
-  },
-  statusOverdue: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '3px',
-    fontSize: '11px',
-    fontWeight: '700',
-    color: '#DC2626',
-    backgroundColor: '#FEE2E2',
-    border: '1px solid #FECACA',
     padding: '2px 7px',
     borderRadius: '6px',
   },

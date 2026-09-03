@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRegions, getFarmers, getAgents, getIncharges } from '../utils/adminMockData';
-import { 
-  MapPin, Plus, FileSpreadsheet, Search, Check, X, 
-  Layers, Compass, Building, User, Phone, Droplets, 
-  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3 
+import {
+  MapPin, Plus, FileSpreadsheet, Search, Check, X,
+  Layers, Compass, Building, User, Phone, Droplets,
+  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3
 } from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip as RechartsTooltip, ResponsiveContainer, Cell 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Cell
 } from 'recharts';
 
 const Regions = () => {
@@ -58,10 +58,10 @@ const Regions = () => {
   const [agents, setAgents] = useState(() => {
     const saved = localStorage.getItem('royal_admin_agents_data');
     if (saved) {
-      try { 
-        const parsed = JSON.parse(saved); 
+      try {
+        const parsed = JSON.parse(saved);
         return normalizeFarmerData(parsed);
-      } catch (e) {}
+      } catch (e) { }
     }
     return getAgents();
   });
@@ -70,10 +70,10 @@ const Regions = () => {
   const [farmers, setFarmers] = useState(() => {
     const saved = localStorage.getItem('royal_admin_farmers_data');
     if (saved) {
-      try { 
+      try {
         const parsed = JSON.parse(saved);
         return normalizeFarmerData(parsed);
-      } catch (e) {}
+      } catch (e) { }
     }
     return getFarmers();
   });
@@ -103,8 +103,8 @@ const Regions = () => {
   // Helper to find Incharge object
   const getInchargeDetails = (inchargeName, localityName, regionName) => {
     if (!inchargeName) return allIncharges[0];
-    let found = allIncharges.find(inc => 
-      inc.name === inchargeName || 
+    let found = allIncharges.find(inc =>
+      inc.name === inchargeName ||
       inc.shortName === inchargeName ||
       inchargeName.toLowerCase().includes(inc.shortName?.toLowerCase() || '___')
     );
@@ -121,8 +121,8 @@ const Regions = () => {
       if (byId) return byId;
     }
     if (agentName) {
-      const byName = agents.find(ag => 
-        ag.name === agentName || 
+      const byName = agents.find(ag =>
+        ag.name === agentName ||
         ag.shortName === agentName ||
         agentName.toLowerCase().includes(ag.shortName?.toLowerCase() || '___')
       );
@@ -268,15 +268,14 @@ const Regions = () => {
       // 4. Search Term
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const matchesSearch = 
+        const matchesSearch =
           f.name?.toLowerCase().includes(term) ||
           f.id?.toLowerCase().includes(term) ||
           f.phone?.includes(term) ||
           f.village?.toLowerCase().includes(term) ||
           f.locality?.toLowerCase().includes(term) ||
           f.agent?.toLowerCase().includes(term) ||
-          f.incharge?.toLowerCase().includes(term) ||
-          f.waterSource?.toLowerCase().includes(term);
+          f.incharge?.toLowerCase().includes(term);
         if (!matchesSearch) return false;
       }
 
@@ -316,10 +315,10 @@ const Regions = () => {
     csv += `ROYAL'S MARINE FOOD - FARMERS DIRECTORY REPORT\n`;
     csv += `Region Filter: ${selectedRegion} | Locality Filter: ${selectedLocality} | Area Filter: ${selectedArea}\n`;
     csv += `Total Records: ${filteredAndSortedFarmers.length} | Generated On: ${new Date().toLocaleDateString()}\n\n`;
-    csv += "FARMER ID,FARMER NAME,PHONE,REGION,LOCALITY,VILLAGE/AREA,WATER SOURCE,ACRES,AGENT,INCHARGE,TANKS,STATUS\n";
+    csv += "FARMER ID,FARMER NAME,PHONE,REGION,LOCALITY,VILLAGE/AREA,ACRES,AGENT,INCHARGE,TANKS,STATUS\n";
 
     filteredAndSortedFarmers.forEach(f => {
-      csv += `${f.id},"${f.name}",${f.phone},"${f.region}","${f.locality}","${f.assignedArea || f.village}","${f.waterSource || 'Creek'}","${f.acres}","${f.agent}","${f.incharge}",${f.tanks},"${f.status || 'Active'}"\n`;
+      csv += `${f.id},"${f.name}",${f.phone},"${f.region}","${f.locality}","${f.assignedArea || f.village}","${f.acres}","${f.agent}","${f.incharge}",${f.tanks},"${f.status || 'Active'}"\n`;
     });
 
     const encodedUri = encodeURI(csv);
@@ -354,14 +353,14 @@ const Regions = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
+          <button
             style={styles.exportBtn}
             onClick={handleExportFilteredExcel}
           >
             <FileSpreadsheet size={15} />
             <span>Export Directory ({filteredAndSortedFarmers.length})</span>
           </button>
-          <button 
+          <button
             style={styles.addLocalityBtn}
             onClick={() => setShowAddModal(true)}
           >
@@ -373,22 +372,11 @@ const Regions = () => {
 
       {/* 2. Cascading Geographic Selector Card (Region -> Locality -> Area) */}
       <div style={styles.filterCard}>
-        <div style={styles.filterCardHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Compass size={18} color="#2563eb" />
-            <span style={styles.filterCardTitle}>GEOGRAPHIC AREA EXPLORER</span>
-          </div>
-          <span style={styles.sortBadge}>
-            <SortAsc size={14} color="#16a34a" />
-            <span>Alphabetical Order (A - Z)</span>
-          </span>
-        </div>
-
         <div style={styles.filterGrid}>
           {/* Step 1: Select Region */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>1. SELECT REGION</label>
-            <select 
+            <select
               style={styles.filterSelect}
               value={selectedRegion}
               onChange={(e) => handleRegionChange(e.target.value)}
@@ -403,7 +391,7 @@ const Regions = () => {
           {/* Step 2: Select Locality */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>2. SELECT LOCALITY / CITY</label>
-            <select 
+            <select
               style={styles.filterSelect}
               value={selectedLocality}
               onChange={(e) => handleLocalityChange(e.target.value)}
@@ -418,7 +406,7 @@ const Regions = () => {
           {/* Step 3: Select Area / Zone */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>3. SELECT OPERATIONAL AREA / ZONE</label>
-            <select 
+            <select
               style={styles.filterSelect}
               value={selectedArea}
               onChange={(e) => setSelectedArea(e.target.value)}
@@ -435,7 +423,7 @@ const Regions = () => {
             <label style={styles.filterLabel}>SEARCH FARMERS</label>
             <div style={styles.searchBox}>
               <Search size={15} color="#94a3b8" />
-              <input 
+              <input
                 type="text"
                 placeholder="Search name, phone, tank..."
                 value={searchTerm}
@@ -448,43 +436,6 @@ const Regions = () => {
             </div>
           </div>
         </div>
-
-        {/* Active Filter Chips Bar */}
-        <div style={styles.activeFilterChipsRow}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>ACTIVE SELECTION:</span>
-            
-            <span style={styles.chipPill}>
-              <strong>Region:</strong> {selectedRegion === 'ALL' ? 'All Andhra Pradesh' : selectedRegion}
-            </span>
-
-            <span style={styles.chipPill}>
-              <strong>Locality:</strong> {selectedLocality === 'ALL' ? 'All Localities' : selectedLocality}
-            </span>
-
-            <span style={styles.chipPill}>
-              <strong>Area:</strong> {selectedArea === 'ALL' ? 'All Operational Zones' : selectedArea}
-            </span>
-
-            {(selectedRegion !== 'ALL' || selectedLocality !== 'ALL' || selectedArea !== 'ALL' || searchTerm) && (
-              <button 
-                onClick={() => {
-                  setSelectedRegion('ALL');
-                  setSelectedLocality('ALL');
-                  setSelectedArea('ALL');
-                  setSearchTerm('');
-                }}
-                style={styles.resetFilterBtn}
-              >
-                Reset All Filters
-              </button>
-            )}
-          </div>
-
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#2563eb' }}>
-            Showing {filteredAndSortedFarmers.length} Farmer{filteredAndSortedFarmers.length === 1 ? '' : 's'} (A-Z)
-          </div>
-        </div>
       </div>
 
       {/* 3. Alphabetical Farmers Directory Table */}
@@ -492,11 +443,8 @@ const Regions = () => {
         <div style={styles.tableHeaderRow}>
           <div>
             <h2 style={styles.tableTitle}>
-              Farmers Roster in Selected Area (Alphabetical Order A-Z)
+              Farmers List
             </h2>
-            <p style={styles.tableSubtitle}>
-              Click on any farmer name to view their complete profile, tank specifications, and growth trajectory
-            </p>
           </div>
         </div>
 
@@ -509,7 +457,6 @@ const Regions = () => {
                 <th style={styles.th}>REGION &amp; LOCALITY</th>
                 <th style={styles.th}>ASSIGNED AREA / VILLAGE</th>
                 <th style={styles.th}>LOCALITY INCHARGE &amp; AGENT</th>
-                <th style={styles.th}>WATER SOURCE</th>
                 <th style={styles.th}>TOTAL LAND &amp; TANKS</th>
                 <th style={styles.th}>STATUS</th>
                 <th style={{ ...styles.th, textAlign: 'center' }}>ACTIONS</th>
@@ -521,7 +468,7 @@ const Regions = () => {
                   <tr key={farmer.id} style={styles.tr}>
                     {/* Farmer Name & ID (Clickable to View All Details) */}
                     <td style={styles.td}>
-                      <div 
+                      <div
                         style={styles.farmerNameBlock}
                         onClick={() => setSelectedFarmerDetails(farmer)}
                         title="Click to view all farmer details and tank telemetry"
@@ -557,7 +504,7 @@ const Regions = () => {
                     {/* Incharge & Field Agent (Clickable to view details) */}
                     <td style={styles.td}>
                       <div style={styles.agentBlock}>
-                        <div 
+                        <div
                           style={styles.inchargeTextRowClickable}
                           onClick={() => {
                             const incObj = getInchargeDetails(farmer.incharge, farmer.locality, farmer.region);
@@ -568,7 +515,7 @@ const Regions = () => {
                           <Building size={12} color="#2563eb" />
                           <span style={styles.inchargeLinkText}>{farmer.incharge}</span>
                         </div>
-                        <div 
+                        <div
                           style={styles.agentTextRowClickable}
                           onClick={() => {
                             const agObj = getAgentDetails(farmer.agent, farmer.agentId, farmer.locality);
@@ -582,13 +529,7 @@ const Regions = () => {
                       </div>
                     </td>
 
-                    {/* Source of Water */}
-                    <td style={styles.td}>
-                      <span style={styles.waterSourceTag}>
-                        <Droplets size={12} color="#0284c7" />
-                        <span>{farmer.waterSource || 'Creek / Estuary'}</span>
-                      </span>
-                    </td>
+
 
                     {/* Total Land & Tanks */}
                     <td style={styles.td}>
@@ -614,7 +555,7 @@ const Regions = () => {
                     {/* Actions: View Details / Drilldown */}
                     <td style={styles.td}>
                       <div style={styles.actionBtnGroup}>
-                        <button 
+                        <button
                           style={styles.viewDetailsBtn}
                           onClick={() => setSelectedFarmerDetails(farmer)}
                           title="Quick View Farmer Profile"
@@ -622,7 +563,7 @@ const Regions = () => {
                           <Eye size={13} />
                           <span>Quick View</span>
                         </button>
-                        <button 
+                        <button
                           style={styles.drilldownBtn}
                           onClick={() => navigate(`/admin/farmers/${farmer.id}`)}
                           title="Open Full Growth Trajectory & Water Quality Telemetry"
@@ -663,7 +604,7 @@ const Regions = () => {
 
           {/* Metric Selector Tabs */}
           <div style={styles.metricToggleGroup}>
-            <button 
+            <button
               style={{
                 ...styles.metricToggleBtn,
                 backgroundColor: barMetric === 'ACRES' ? '#2563eb' : '#f8fafc',
@@ -674,7 +615,7 @@ const Regions = () => {
             >
               Total Land (Acres)
             </button>
-            <button 
+            <button
               style={{
                 ...styles.metricToggleBtn,
                 backgroundColor: barMetric === 'TANKS' ? '#16a34a' : '#f8fafc',
@@ -685,7 +626,7 @@ const Regions = () => {
             >
               Active Tanks Count
             </button>
-            <button 
+            <button
               style={{
                 ...styles.metricToggleBtn,
                 backgroundColor: barMetric === 'FCR' ? '#0284c7' : '#f8fafc',
@@ -704,8 +645,8 @@ const Regions = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barChartData} margin={{ top: 15, right: 30, left: 0, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis 
-                  dataKey="shortName" 
+                <XAxis
+                  dataKey="shortName"
                   axisLine={{ stroke: '#cbd5e1' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#334155', fontWeight: 600 }}
@@ -713,13 +654,13 @@ const Regions = () => {
                   angle={-15}
                   textAnchor="end"
                 />
-                <YAxis 
+                <YAxis
                   domain={barMetric === 'FCR' ? [1.0, 1.8] : [0, 'auto']}
                   axisLine={{ stroke: '#cbd5e1' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#334155', fontWeight: 500 }}
                 />
-                <RechartsTooltip 
+                <RechartsTooltip
                   formatter={(value) => [
                     barMetric === 'ACRES' ? `${value} Acres` : barMetric === 'TANKS' ? `${value} Tanks` : `${value} FCR`,
                     barMetric === 'ACRES' ? 'Cultivated Land' : barMetric === 'TANKS' ? 'Active Tanks' : 'Feed Conversion Ratio'
@@ -730,22 +671,22 @@ const Regions = () => {
                   }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                 />
-                <Bar 
-                  dataKey={barMetric === 'ACRES' ? 'acres' : barMetric === 'TANKS' ? 'tanks' : 'fcr'} 
+                <Bar
+                  dataKey={barMetric === 'ACRES' ? 'acres' : barMetric === 'TANKS' ? 'tanks' : 'fcr'}
                   fill={barMetric === 'ACRES' ? '#2563eb' : barMetric === 'TANKS' ? '#16a34a' : '#0284c7'}
                   radius={[6, 6, 0, 0]}
                   maxBarSize={48}
                 >
                   {barChartData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
+                    <Cell
+                      key={`cell-${index}`}
                       fill={
-                        barMetric === 'ACRES' 
+                        barMetric === 'ACRES'
                           ? (index % 2 === 0 ? '#2563eb' : '#3b82f6')
                           : barMetric === 'TANKS'
-                          ? (index % 2 === 0 ? '#16a34a' : '#22c55e')
-                          : '#0284c7'
-                      } 
+                            ? (index % 2 === 0 ? '#16a34a' : '#22c55e')
+                            : '#0284c7'
+                      }
                     />
                   ))}
                 </Bar>
@@ -804,12 +745,7 @@ const Regions = () => {
                   </span>
                 </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>WATER SOURCE</span>
-                  <span style={styles.modalInfoValue}>
-                    {selectedFarmerDetails.waterSource || 'Creek / Estuary'}
-                  </span>
-                </div>
+
 
                 <div style={styles.modalInfoBlock}>
                   <span style={styles.modalInfoLabel}>DEDICATED INCHARGE</span>
@@ -865,7 +801,6 @@ const Regions = () => {
                         <span style={styles.tankAcresBadge}>{selectedFarmerDetails.acres}</span>
                       </div>
                       <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
-                        <div>Source: <strong>{selectedFarmerDetails.waterSource || 'Creek'}</strong></div>
                         <div>Status: <strong>Active Cultivation</strong></div>
                       </div>
                     </div>
@@ -875,15 +810,15 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setSelectedFarmerDetails(null)}
                 style={styles.cancelBtn}
               >
                 Close
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   const id = selectedFarmerDetails.id;
                   setSelectedFarmerDetails(null);
@@ -976,15 +911,15 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setSelectedInchargeDetails(null)}
                 style={styles.cancelBtn}
               >
                 Close
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   setSelectedInchargeDetails(null);
                   navigate('/admin/incharges');
@@ -1088,15 +1023,15 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setSelectedAgentDetails(null)}
                 style={styles.cancelBtn}
               >
                 Close
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   const id = selectedAgentDetails.id;
                   setSelectedAgentDetails(null);
@@ -1130,7 +1065,7 @@ const Regions = () => {
               <div style={styles.modalBody}>
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Region *</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={targetRegionId}
                     onChange={(e) => setTargetRegionId(e.target.value)}
@@ -1143,7 +1078,7 @@ const Regions = () => {
 
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Locality / Town Name *</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. Sullurpeta, Avanigadda"
                     value={newLocalityName}
@@ -1155,15 +1090,15 @@ const Regions = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Create Locality
@@ -1189,7 +1124,7 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: '24px',
     maxWidth: '1380px',
     margin: '0 auto'
   },
@@ -1202,7 +1137,7 @@ const styles = {
   },
   mainTitle: {
     fontSize: '22px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: '0 0 4px 0',
     letterSpacing: '-0.3px'
@@ -1245,20 +1180,20 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '18px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   filterCardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '14px',
-    paddingBottom: '10px',
+    marginBottom: '20px',
+    paddingBottom: '16px',
     borderBottom: '1px solid #f1f5f9'
   },
   filterCardTitle: {
     fontSize: '13px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#1e293b',
     letterSpacing: '0.5px'
   },
@@ -1277,7 +1212,7 @@ const styles = {
   filterGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '14px'
+    gap: '20px'
   },
   filterField: {
     display: 'flex',
@@ -1292,12 +1227,12 @@ const styles = {
   },
   filterSelect: {
     width: '100%',
-    padding: '9px 12px',
+    padding: '10px 16px',
     borderRadius: '8px',
     border: '1.5px solid #cbd5e1',
     backgroundColor: '#f8fafc',
     fontSize: '13px',
-    fontWeight: 600,
+    fontWeight: 500,
     color: '#0f172a',
     outline: 'none',
     cursor: 'pointer',
@@ -1310,7 +1245,7 @@ const styles = {
     backgroundColor: '#f8fafc',
     border: '1.5px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '7px 12px',
+    padding: '9px 14px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   searchInput: {
@@ -1361,14 +1296,14 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '18px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   chartCard: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '20px 22px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   chartHeaderRow: {
@@ -1382,7 +1317,7 @@ const styles = {
   },
   chartTitle: {
     fontSize: '16px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1415,7 +1350,7 @@ const styles = {
   },
   tableTitle: {
     fontSize: '16px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1434,9 +1369,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1449,7 +1384,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'
@@ -1576,18 +1511,7 @@ const styles = {
     padding: '10px 12px',
     textAlign: 'center'
   },
-  waterSourceTag: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    backgroundColor: '#f8fafc',
-    color: '#334155',
-    border: '1px solid #e2e8f0',
-    borderRadius: '4px',
-    padding: '3px 7px',
-    fontSize: '11.5px',
-    fontWeight: 600
-  },
+
   landBlock: {
     display: 'flex',
     flexDirection: 'column',

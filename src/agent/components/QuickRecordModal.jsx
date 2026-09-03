@@ -11,7 +11,7 @@ import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-// 7 Routine Field Modules (Harvest has its own dedicated button)
+// Routine Field Modules
 const RECORD_TYPES = [
   { key: 'WATER_QUALITY', label: 'Water Analysis', icon: Droplets },
   { key: 'FEED_ENTRY', label: 'Feed Test', icon: Wheat },
@@ -248,13 +248,6 @@ const QuickRecordModal = ({
   const selectedTank = tanks.find(p => p.id === selectedTankId);
   const currentStoreKey = `${selectedFarmerId}_${selectedTankId}`;
   const currentTankStore = (JSON.parse(localStorage.getItem('agent_harvest_store') || '{}'))[currentStoreKey];
-  const existingHarvestsList = currentTankStore?.harvests || [];
-  const existingPartialHarvestsCount = existingHarvestsList.filter(h => {
-    const t = (h.harvestType || h.displayTitle || '').toUpperCase();
-    return !h.isFinal && t !== 'FINAL HARVEST' && !t.includes('FINAL');
-  }).length;
-  const nextPartialHarvestName = `Partial Harvest - ${existingPartialHarvestsCount + 1}`;
-
   const isSelectedTankClosed = selectedTank?.status === 'Harvested' || 
     selectedTank?.status === 'Completed' || 
     selectedTank?.finalHarvestCompleted ||
@@ -290,26 +283,9 @@ const QuickRecordModal = ({
 
     if (activeTab === 'HARVEST_ENTRY') {
       const isFinal = harvestForm.harvestType === 'Final Harvest';
-      const storeKey = `${selectedFarmerId}_${selectedTankId}`;
-      const existingStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
-      const tankStore = existingStore[storeKey] || {
-        tankSize: tank?.acres || '2.5',
-        seedNumber: tank?.seedStocked || '200000',
-        stockingDate: tank?.stockingDate || '2026-06-01',
-        harvests: [],
-        totalFeed: '16000'
-      };
-
-      const existingPartials = (tankStore.harvests || []).filter(h => {
-        const t = (h.harvestType || h.displayTitle || '').toUpperCase();
-        return !h.isFinal && t !== 'FINAL HARVEST' && !t.includes('FINAL');
-      });
-      const partialIndex = existingPartials.length + 1;
-      const resolvedHarvestName = isFinal ? 'Final Harvest' : `Partial Harvest - ${partialIndex}`;
-
-      testTypeName = resolvedHarvestName;
+      testTypeName = 'Harvest';
       formData = {
-        harvestType: resolvedHarvestName,
+        harvestType: harvestForm.harvestType,
         isFinal,
         date: harvestForm.date,
         doc: harvestForm.doc,
@@ -321,10 +297,19 @@ const QuickRecordModal = ({
 
       // Also persist to local agent harvest store for immediate offline report synchronization
       try {
+        const storeKey = `${selectedFarmerId}_${selectedTankId}`;
+        const existingStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+        const tankStore = existingStore[storeKey] || {
+          pondSize: tank?.acres || '2.5',
+          seedNumber: tank?.seedStocked || '200000',
+          stockingDate: tank?.stockingDate || '2026-06-01',
+          harvests: [],
+          totalFeed: '16000'
+        };
+
         const newHarvestEntry = {
           id: `h_${Date.now()}`,
-          harvestType: resolvedHarvestName,
-          displayTitle: resolvedHarvestName,
+          harvestType: harvestForm.harvestType,
           isFinal,
           date: harvestForm.date,
           doc: harvestForm.doc,
@@ -389,7 +374,7 @@ const QuickRecordModal = ({
     const submissionPayload = {
       id: recordId,
       agentId: isIncharge ? null : (session?.agentId || 'agent001'),
-      agentName: isIncharge ? (inchargeSession?.name || 'Direct Incharge') : (session?.name || 'Agent A'),
+      agentName: isIncharge ? (inchargeSession?.name || 'Direct Incharge') : (session?.name || 'Ramesh'),
       inchargeId: currentInchargeId,
       submittedBy: isIncharge ? 'Incharge' : 'Agent',
       farmerId: selectedFarmerId,
@@ -609,8 +594,8 @@ const QuickRecordModal = ({
           </button>
         </div>
 
-        {/* ----------------- MODULE NAVIGATION (Routine Field Entry Tabs) ----------------- */}
-        {activeTab !== 'HARVEST_ENTRY' && !isSelectedTankClosed && (
+        {/* ----------------- MODULE NAVIGATION (Field Entry Tabs) ----------------- */}
+        {activeTab !== 'HARVEST_ENTRY' && (
           <div style={styles.moduleNavGrid}>
             {RECORD_TYPES.map((t) => {
               const Icon = t.icon;
@@ -688,64 +673,31 @@ const QuickRecordModal = ({
           </div>
 
           {/* Locked Notice if selected tank has completed final harvest */}
-          {isSelectedTankClosed ? (
+          {isSelectedTankClosed && (
             <div style={{
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              textAlign: 'center',
-              gap: '12px',
+              gap: '10px',
               backgroundColor: '#FEF2F2',
               border: '1.5px solid #FCA5A5',
-              padding: '26px 18px',
-              borderRadius: '12px',
-              marginTop: '12px',
-              marginBottom: '6px'
+              color: '#991B1B',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: '600',
+              marginTop: '4px',
+              marginBottom: '4px'
             }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                backgroundColor: '#FEE2E2',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Lock size={22} color="#DC2626" />
-              </div>
+              <Lock size={18} color="#DC2626" style={{ flexShrink: 0 }} />
               <div>
-                <div style={{ fontSize: '15px', fontWeight: '800', color: '#991B1B', marginBottom: '6px' }}>
-                  Final Harvest Completed
-                </div>
-                <div style={{ fontSize: '13.5px', color: '#7F1D1D', lineHeight: 1.5, maxWidth: '420px' }}>
-                  <strong>Final Harvest Completed:</strong> This pond has completed its final harvest. No further records or modifications can be entered for this crop cycle.
-                </div>
+                <strong>Final Harvest Completed:</strong> This pond has completed its final harvest. No further records or modifications can be entered for this crop cycle.
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-                style={{
-                  marginTop: '6px',
-                  backgroundColor: '#DC2626',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  padding: '9px 24px',
-                  borderRadius: '8px',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
-                  cursor: 'pointer'
-                }}
-              >
-                Close
-              </button>
             </div>
-          ) : (
-            <>
-              {/* ----------------- GPS VERIFICATION CARD ----------------- */}
-              <div style={styles.gpsCard}>
-                <div style={styles.gpsLeft}>
+          )}
+
+          {/* ----------------- GPS VERIFICATION CARD ----------------- */}
+          <div style={styles.gpsCard}>
+            <div style={styles.gpsLeft}>
               <MapPin size={16} color="#16A34A" style={{ flexShrink: 0 }} />
               <div style={styles.gpsTextCol}>
                 <span style={styles.gpsLocationText}>
@@ -801,7 +753,7 @@ const QuickRecordModal = ({
                       color: harvestForm.harvestType === 'Partial Harvest' ? '#1A2FB8' : '#334155',
                       fontSize: '14px'
                     }}>
-                      {nextPartialHarvestName}
+                      Partial Harvest
                     </span>
                   </button>
 
@@ -1664,16 +1616,22 @@ const QuickRecordModal = ({
             </div>
           )}
 
-              {/* ----------------- SUBMIT BUTTON ----------------- */}
-              <button 
-                type="submit" 
-                className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
-                style={styles.primaryButton}
-              >
-                {activeTab === 'HARVEST_ENTRY' ? 'Save Harvest Record' : `Save ${currentTabObj.label} Record`}
-              </button>
-            </>
-          )}
+          {/* ----------------- SUBMIT BUTTON ----------------- */}
+          <button 
+            type="submit" 
+            disabled={isSelectedTankClosed}
+            className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
+            style={{
+              ...styles.primaryButton,
+              backgroundColor: isSelectedTankClosed ? '#94A3B8' : '#1A2FB8',
+              cursor: isSelectedTankClosed ? 'not-allowed' : 'pointer',
+              opacity: isSelectedTankClosed ? 0.7 : 1,
+            }}
+          >
+            {isSelectedTankClosed 
+              ? 'Tank Closed (Final Harvest Done)' 
+              : (activeTab === 'HARVEST_ENTRY' ? 'Save Harvest Record' : `Save ${currentTabObj.label} Record`)}
+          </button>
         </form>
       </div>
     </div>,

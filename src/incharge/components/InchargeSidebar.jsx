@@ -5,6 +5,7 @@ import {
   Users, 
   UserSquare, 
   UserCheck,
+  User,
   Droplets, 
   Network, 
   TestTube, 
@@ -32,16 +33,13 @@ const navGroups = [
       { path: '/incharge/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { path: '/incharge/agents', label: 'My Agents', icon: Users },
       { path: '/incharge/my-farmers', label: 'My Farmers', icon: UserCheck },
-      { path: '/incharge/my-tanks', label: 'My Tanks', icon: Droplets },
       { path: '/incharge/farmers', label: 'Farmers', icon: UserSquare },
-      { path: '/incharge/tanks', label: 'Tanks', icon: Layers },
     ]
   },
   {
     title: 'OPERATIONS',
     items: [
       { path: '/incharge/weekly-tests', label: 'Weekly Tests', icon: Calendar },
-      { path: '/incharge/tests', label: 'Test History', icon: History },
     ]
   },
   {
@@ -49,7 +47,6 @@ const navGroups = [
     items: [
       { path: '/incharge/reports', label: 'Reports', icon: BarChart },
       { path: '/incharge/export-data', label: 'Export Data', icon: Download },
-      { path: '/incharge/activity-log', label: 'Activity Log', icon: Activity },
       { path: '/incharge/settings', label: 'Settings', icon: Settings },
     ]
   }
@@ -165,7 +162,7 @@ const InchargeSidebar = ({ isMobile = false, isOpen = false, onClose = () => {} 
       <div style={styles.footerSection}>
         <div style={styles.userCard}>
           <div style={styles.avatarWrap}>
-            <span style={styles.avatarInitial}>{session?.name ? session.name[0] : 'A'}</span>
+            <User size={16} color="#1A2FB8" />
           </div>
           <div style={styles.userInfo}>
             <span style={styles.userName}>{session?.name || 'ASM Officer'}</span>

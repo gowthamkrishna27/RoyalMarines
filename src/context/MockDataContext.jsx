@@ -9,13 +9,13 @@ const initialRegions = [
 ];
 
 const initialIncharges = [
-  { id: 'INC001', name: 'Admin User', regionId: 'REG001', email: 'incharge@example.com' }
+  { id: 'INC001', name: 'Ravi Kumar', regionId: 'REG001', email: 'incharge@example.com' }
 ];
 
 const initialAgents = [
-  { id: 'agent001', name: 'Agent A', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
-  { id: 'agent002', name: 'Agent B', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
-  { id: 'agent003', name: 'Agent C', phone: '9000000003', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Akuruvu' }
+  { id: 'agent001', name: 'Ramesh', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
+  { id: 'agent002', name: 'Suresh', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
+  { id: 'agent003', name: 'Mahesh', phone: '9000000003', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Akuruvu' }
 ];
 
 const initialFarmers = [
@@ -45,15 +45,15 @@ const initialFarmers = [
 
 const initialTanks = [
   // Incharge Personal Tanks (Under Incharge's direct supervision)
-  { id: 'T101', name: 'Pond A1', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '24.5g', biomass: '3200kg', fcr: '1.16', lastTest: '22 Aug 2026', nextTest: '29 Aug 2026', size: '15 Acres', doc: 72 },
-  { id: 'T102', name: 'Pond A2', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '19.2g', biomass: '2550kg', fcr: '1.14', lastTest: '18 Aug 2026', nextTest: '25 Aug 2026', size: '15 Acres', doc: 58 },
-  { id: 'T103', name: 'Pond B1', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.8g', biomass: '2800kg', fcr: '1.18', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '11 Acres', doc: 65 },
-  { id: 'T104', name: 'Pond B2', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '16.0g', biomass: '2100kg', fcr: '1.12', lastTest: '23 Aug 2026', nextTest: '30 Aug 2026', size: '11 Acres', doc: 48 },
-  { id: 'T105', name: 'Pond C1', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Overdue', abw: '27.5g', biomass: '3600kg', fcr: '1.20', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '14 Acres', doc: 80 },
-  { id: 'T106', name: 'Pond C2', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '20.0g', biomass: '2650kg', fcr: '1.15', lastTest: '17 Aug 2026', nextTest: '24 Aug 2026', size: '14 Acres', doc: 60 },
-  { id: 'T107', name: 'Pond D1', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '17.5g', biomass: '2300kg', fcr: '1.14', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '18 Acres', doc: 52 },
-  { id: 'T108', name: 'Pond D2', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'Harvested', testStatus: 'Completed', abw: '33.5g', biomass: '5200kg', fcr: '1.18', lastTest: '24 Aug 2026', nextTest: 'Cycle Closed', size: '17 Acres', doc: 115 },
-  { id: 'T109', name: 'Pond E1', farmerId: 'F105', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.2g', biomass: '2750kg', fcr: '1.17', lastTest: '20 Aug 2026', nextTest: '27 Aug 2026', size: '25 Acres', doc: 64 },
+  { id: 'T101', name: 'Tank 1', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '24.5g', biomass: '3200kg', fcr: '1.16', lastTest: '22 Aug 2026', nextTest: '29 Aug 2026', size: '15 Acres', doc: 72 },
+  { id: 'T102', name: 'Tank 2', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '19.2g', biomass: '2550kg', fcr: '1.14', lastTest: '18 Aug 2026', nextTest: '25 Aug 2026', size: '15 Acres', doc: 58 },
+  { id: 'T103', name: 'Tank 1', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.8g', biomass: '2800kg', fcr: '1.18', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '11 Acres', doc: 65 },
+  { id: 'T104', name: 'Tank 2', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '16.0g', biomass: '2100kg', fcr: '1.12', lastTest: '23 Aug 2026', nextTest: '30 Aug 2026', size: '11 Acres', doc: 48 },
+  { id: 'T105', name: 'Tank 1', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Overdue', abw: '27.5g', biomass: '3600kg', fcr: '1.20', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '14 Acres', doc: 80 },
+  { id: 'T106', name: 'Tank 2', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '20.0g', biomass: '2650kg', fcr: '1.15', lastTest: '17 Aug 2026', nextTest: '24 Aug 2026', size: '14 Acres', doc: 60 },
+  { id: 'T107', name: 'Tank 1', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '17.5g', biomass: '2300kg', fcr: '1.14', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '18 Acres', doc: 52 },
+  { id: 'T108', name: 'Tank 2', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'Harvested', testStatus: 'Completed', abw: '33.5g', biomass: '5200kg', fcr: '1.18', lastTest: '24 Aug 2026', nextTest: 'Cycle Closed', size: '17 Acres', doc: 115 },
+  { id: 'T109', name: 'Tank 1', farmerId: 'F105', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.2g', biomass: '2750kg', fcr: '1.17', lastTest: '20 Aug 2026', nextTest: '27 Aug 2026', size: '25 Acres', doc: 64 },
 
   // Agent Assigned Tanks (Under assigned Field Technicians)
   { id: 'T001', name: 'Tank 1', farmerId: 'F001', agentId: 'agent002', inchargeId: 'INC001', status: 'ACTIVE', testStatus: 'Overdue', abw: '12g', biomass: '800kg', fcr: '1.2', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '12.5 Acres', doc: 45 },
@@ -255,7 +255,7 @@ const initialSubmissions = [
     status: 'PENDING_VERIFICATION',
     submittedAgo: '10 mins ago',
     data: {
-      doc: '45', seed: '2 Lakh', abw: '12g', dayFeed: '50 Kg', 
+      doc: '45', seed: '2 Lakh', abw: '12g', dayFeed: '50 Kg',
       cumulativeFeed: '1500 Kg', totalBiomass: '1200kg', fcr: '1.25',
       checkTrayFeed: '10 grams', checkTrayTime: '1.5 hours',
       remarks: 'Normal feeding'
@@ -271,7 +271,7 @@ const initialSubmissions = [
     status: 'COMPLETED',
     submittedAgo: '2 hrs ago',
     data: {
-      type: 'Preventive', category: 'Probiotics', product: 'AquaPro', 
+      type: 'Preventive', category: 'Probiotics', product: 'AquaPro',
       dosage: '500 ml / Acre', date: '2026-08-22', remarks: 'Routine maintenance'
     }
   },
@@ -285,7 +285,7 @@ const initialSubmissions = [
     status: 'COMPLETED',
     submittedAgo: '1 day ago',
     data: {
-      observations: ['White muscle', 'Soft shell'], 
+      observations: ['White muscle', 'Soft shell'],
       remarks: 'Mild symptoms observed in check tray'
     }
   },
@@ -325,113 +325,136 @@ const initialSubmissions = [
 
 const MockDataContext = createContext(null);
 
-// --- Monday-Sunday Weekly Test Cycle Helpers ---
-
-export const parseFlexibleDate = (dateVal) => {
-  if (!dateVal) return null;
-  if (dateVal instanceof Date) return isNaN(dateVal.getTime()) ? null : dateVal;
-  
-  const d = new Date(dateVal);
-  if (!isNaN(d.getTime())) return d;
-
-  const parts = String(dateVal).trim().split(/[\s-]+/);
-  if (parts.length >= 2) {
-    const months = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+// Auto-normalize all tanks so every farmer's tanks are named Tank 1, Tank 2, ...
+const normalizeTanks = (tanks) => {
+  if (!Array.isArray(tanks)) return [];
+  const countMap = {};
+  return tanks.map(tank => {
+    const fId = tank.farmerId || 'UNKNOWN';
+    countMap[fId] = (countMap[fId] || 0) + 1;
+    return {
+      ...tank,
+      name: `Tank ${countMap[fId]}`
     };
-    const day = parseInt(parts[0], 10);
-    const mStr = parts[1].substring(0, 3).toLowerCase();
-    const month = months[mStr];
-    const year = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
-    if (!isNaN(day) && month !== undefined) {
-      return new Date(year, month, day);
+  });
+};
+
+const getInitialDb = () => {
+  const fallbackDb = {
+    regions: initialRegions,
+    incharges: initialIncharges,
+    agents: initialAgents,
+    farmers: initialFarmers,
+    tanks: normalizeTanks(initialTanks),
+    submissions: initialSubmissions,
+    cultureCycles: [],
+    drafts: [],
+    notifications: [],
+    activities: [
+      { id: 1, time: '26 Aug 10:00 AM', action: 'Completed Water Test', detail: 'Completed water test for Tank 1 (Ravi)' },
+      { id: 2, time: '25 Aug 04:30 PM', action: 'Feed Test Submitted', detail: 'Feed test submitted for Tank 1 (Siva)' }
+    ]
+  };
+
+  if (typeof window === 'undefined') return fallbackDb;
+
+  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10'].forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) {}
+  });
+
+  try {
+    const savedData = localStorage.getItem('aqua_feed_mock_database_v11');
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      if (parsed && Array.isArray(parsed.tanks) && parsed.tanks.length > 0) {
+        parsed.tanks = normalizeTanks(parsed.tanks);
+        return parsed;
+      }
     }
+  } catch (e) {
+    console.error('Error parsing storage:', e);
   }
-  return null;
+
+  try {
+    localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(fallbackDb));
+  } catch (e) {}
+  return fallbackDb;
 };
 
-export const getMondaySundayRange = (refDate = new Date()) => {
-  const d = new Date(refDate);
-  const day = d.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  monday.setHours(0, 0, 0, 0);
 
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+// Helper to check if date falls in current Monday-Sunday calendar week
+export const isDateInCurrentMondaySundayWeek = (dateInput) => {
+  if (!dateInput) return false;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return false;
 
-  return { monday, sunday };
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = (currentDay + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    return d >= monday && d <= sunday;
+  } catch (e) {
+    return false;
+  }
 };
 
-export const isDateInCurrentMondaySundayWeek = (dateVal, refDate = new Date()) => {
-  const parsed = parseFlexibleDate(dateVal);
-  if (!parsed) return false;
-  const { monday, sunday } = getMondaySundayRange(refDate);
-  return parsed >= monday && parsed <= sunday;
+// Helper to check if date falls in previous Monday-Sunday calendar week
+export const isDateInLastMondaySundayWeek = (dateInput) => {
+  if (!dateInput) return false;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return false;
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = (currentDay + 6) % 7;
+    const thisMonday = new Date(now);
+    thisMonday.setDate(now.getDate() - distanceToMonday);
+    thisMonday.setHours(0, 0, 0, 0);
+
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    lastMonday.setHours(0, 0, 0, 0);
+
+    const lastSunday = new Date(thisMonday);
+    lastSunday.setMilliseconds(-1);
+
+    return d >= lastMonday && d <= lastSunday;
+  } catch (e) {
+    return false;
+  }
 };
 
-export const getLastMondaySundayRange = (refDate = new Date()) => {
-  const { monday: currentMonday } = getMondaySundayRange(refDate);
-  const lastMonday = new Date(currentMonday);
-  lastMonday.setDate(currentMonday.getDate() - 7);
-  lastMonday.setHours(0, 0, 0, 0);
-
-  const lastSunday = new Date(currentMonday);
-  lastSunday.setMilliseconds(-1);
-
-  return { monday: lastMonday, sunday: lastSunday };
-};
-
-export const isDateInLastMondaySundayWeek = (dateVal, refDate = new Date()) => {
-  const parsed = parseFlexibleDate(dateVal);
-  if (!parsed) return false;
-  const { monday, sunday } = getLastMondaySundayRange(refDate);
-  return parsed >= monday && parsed <= sunday;
-};
+export const ROUTINE_TEST_TYPES = [
+  { key: 'WATER_QUALITY', label: 'Water Analysis', matchKeys: ['WATER'], icon: 'Droplets' },
+  { key: 'FEED_ENTRY', label: 'Feed Test', matchKeys: ['FEED'], icon: 'Wheat' },
+  { key: 'DISEASE', label: 'Disease Observation', matchKeys: ['DISEASE'], icon: 'Activity' },
+  { key: 'MEDICATION', label: 'Medication', matchKeys: ['MEDICAT', 'MEDICINE'], icon: 'Pill' },
+  { key: 'MORTALITY_LOG', label: 'Mortality Check', matchKeys: ['MORTALITY'], icon: 'Skull' },
+  { key: 'FARM_ACTIVITY', label: 'Farm Activity', matchKeys: ['ACTIVITY', 'FARM'], icon: 'ClipboardList' },
+  { key: 'PHOTO_OBSERVATION', label: 'Photo Observation', matchKeys: ['PHOTO'], icon: 'Camera' },
+];
 
 export const getTankOverdueBreakdown = (tank, submissions = []) => {
   if (!tank) {
-    return {
-      overdueTests: [],
-      completedLastWeek: [],
-      overdueCount: 0,
-      isOverdue: false,
-      summaryText: 'No overdue works',
-    };
+    return { overdueTests: ROUTINE_TEST_TYPES, completedLastWeek: [], overdueCount: ROUTINE_TEST_TYPES.length, isOverdue: true, summaryText: 'Overdue tests from last week' };
   }
 
   const harvestStore = (typeof window !== 'undefined') ? JSON.parse(localStorage.getItem('agent_harvest_store') || '{}') : {};
   const storeKey = `${tank.farmerId}_${tank.id}`;
   const tankHarvests = harvestStore[storeKey]?.harvests || [];
-  const isFinalDone = tank.status === 'Harvested' || 
-    tank.status === 'Completed' || 
-    tank.finalHarvestCompleted ||
-    tankHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest');
+  const isFinalDone = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || tankHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest');
 
-  if (isFinalDone || tank.testStatus === 'Completed') {
-    return {
-      overdueTests: [],
-      completedLastWeek: [],
-      overdueCount: 0,
-      isOverdue: false,
-      summaryText: 'All routine tests up to date',
-    };
-  }
-
-  // A tank is only overdue if explicitly marked Overdue or isOverdue flag is true
-  const isExplicitOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue === true);
-  if (!isExplicitOverdue) {
-    return {
-      overdueTests: [],
-      completedLastWeek: [],
-      overdueCount: 0,
-      isOverdue: false,
-      summaryText: 'No overdue tests',
-    };
+  if (isFinalDone) {
+    return { overdueTests: [], completedLastWeek: [], overdueCount: 0, isOverdue: false, summaryText: 'Harvest Completed' };
   }
 
   const tankSubs = (submissions || []).filter(s => 
@@ -474,16 +497,6 @@ export const getTankOverdueBreakdown = (tank, submissions = []) => {
   };
 };
 
-export const ROUTINE_TEST_TYPES = [
-  { key: 'WATER_QUALITY', label: 'Water Analysis', matchKeys: ['WATER'], icon: 'Droplets' },
-  { key: 'FEED_ENTRY', label: 'Feed Test', matchKeys: ['FEED'], icon: 'Wheat' },
-  { key: 'DISEASE', label: 'Disease Observation', matchKeys: ['DISEASE'], icon: 'Activity' },
-  { key: 'MEDICATION', label: 'Medication', matchKeys: ['MEDICAT', 'MEDICINE'], icon: 'Pill' },
-  { key: 'MORTALITY_LOG', label: 'Mortality Check', matchKeys: ['MORTALITY'], icon: 'Skull' },
-  { key: 'FARM_ACTIVITY', label: 'Farm Activity', matchKeys: ['ACTIVITY', 'FARM'], icon: 'ClipboardList' },
-  { key: 'PHOTO_OBSERVATION', label: 'Photo Observation', matchKeys: ['PHOTO'], icon: 'Camera' },
-];
-
 export const getTankWeeklyTestBreakdown = (tank, submissions = []) => {
   if (!tank) {
     return {
@@ -516,7 +529,7 @@ export const getTankWeeklyTestBreakdown = (tank, submissions = []) => {
       totalTestsCount: ROUTINE_TEST_TYPES.length,
       completedCount: ROUTINE_TEST_TYPES.length,
       dueCount: 0,
-      summaryText: 'Harvest Completed • Cycle Closed',
+      summaryText: 'Harvest Completed - Cycle Closed',
     };
   }
 
@@ -605,90 +618,17 @@ export const getTankWeeklyComputedStatus = (tank, submissions = []) => {
     };
   }
 
-  const overdueBreakdown = getTankOverdueBreakdown(tank, submissions);
-  if (overdueBreakdown.isOverdue || tank.testStatus === 'Overdue') {
-    return {
-      testStatus: 'Overdue',
-      isDue: true,
-      isOverdue: true,
-      overdueCount: overdueBreakdown.overdueCount || ROUTINE_TEST_TYPES.length,
-      status: tank.status || 'ACTIVE',
-      lastTest: latestTestDate,
-      nextTest: 'Overdue from Last Week',
-      dueThisWeek: true,
-      dueCount: breakdown.dueCount,
-      completedCount: breakdown.completedCount,
-      allUpToDate: false,
-    };
-  }
-
   return {
     testStatus: 'Due',
     isDue: true,
     status: tank.status || 'ACTIVE',
     lastTest: latestTestDate,
-    nextTest: `${breakdown.dueCount} Tests Due This Week (Mon-Sun)`,
+    nextTest: 'Due This Week',
     dueThisWeek: true,
     dueCount: breakdown.dueCount,
     completedCount: breakdown.completedCount,
     allUpToDate: false,
   };
-};
-
-// Auto-normalize all tanks so every farmer's tanks are named Tank 1, Tank 2, ...
-const normalizeTanks = (tanks) => {
-  if (!Array.isArray(tanks)) return [];
-  const countMap = {};
-  return tanks.map(tank => {
-    const fId = tank.farmerId || 'UNKNOWN';
-    countMap[fId] = (countMap[fId] || 0) + 1;
-    return {
-      ...tank,
-      name: `Tank ${countMap[fId]}`
-    };
-  });
-};
-
-const getInitialDb = () => {
-  const fallbackDb = {
-    regions: initialRegions,
-    incharges: initialIncharges,
-    agents: initialAgents,
-    farmers: initialFarmers,
-    tanks: normalizeTanks(initialTanks),
-    submissions: initialSubmissions,
-    cultureCycles: [],
-    drafts: [],
-    notifications: [],
-    activities: [
-      { id: 1, time: '26 Aug 10:00 AM', action: 'Completed Water Test', detail: 'Completed water test for Tank 1 (Ravi)' },
-      { id: 2, time: '25 Aug 04:30 PM', action: 'Feed Test Submitted', detail: 'Feed test submitted for Tank 1 (Siva)' }
-    ]
-  };
-
-  if (typeof window === 'undefined') return fallbackDb;
-
-  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9'].forEach(k => {
-    try { localStorage.removeItem(k); } catch (e) {}
-  });
-
-  try {
-    const savedData = localStorage.getItem('aqua_feed_mock_database_v10');
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      if (parsed && Array.isArray(parsed.tanks) && parsed.tanks.length > 0) {
-        parsed.tanks = normalizeTanks(parsed.tanks);
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Error parsing storage:', e);
-  }
-
-  try {
-    localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(fallbackDb));
-  } catch (e) {}
-  return fallbackDb;
 };
 
 export const MockDataProvider = ({ children }) => {
@@ -699,7 +639,7 @@ export const MockDataProvider = ({ children }) => {
   useEffect(() => {
     if (db) {
       try {
-        localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(db));
+        localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(db));
       } catch (e) {}
     }
   }, [db]);
@@ -753,60 +693,49 @@ export const MockDataProvider = ({ children }) => {
   // --- Selectors ---
 
   const getAgentById = (id) => (db?.agents || []).find(a => a.id === id);
-  
+
   const getFarmersByAgentId = (agentId) => {
     if (!db || !db.farmers) return [];
     const session = getSession();
-    const activeAgentId = agentId || session?.agentId || 'agent001';
-    const agent = (db.agents || []).find(a => a.id === activeAgentId);
-    
+    const agent = (db.agents || []).find(a => a.id === agentId);
+
     // Agent area/locality from active session profile OR agent record
-    const agentArea = (session && session.agentId === activeAgentId && session.locality)
+    const agentArea = (session && session.agentId === agentId && session.locality)
       ? session.locality
       : (agent && agent.locality ? agent.locality : '');
 
     return db.farmers.filter(f => {
-      // 1. Always include if assigned to this agent ID
-      if (f.agentId === activeAgentId) return true;
-
-      // 2. Also include if farmer belongs to the agent's locality and has no other agent assigned
-      if (!f.agentId && agentArea && (f.location || f.village || '').toLowerCase().includes(agentArea.toLowerCase())) {
-        return true;
+      // If agent has an assigned area (e.g., 'Chinnamiram'), show ONLY farmers in that area
+      if (agentArea) {
+        return f.location.toLowerCase() === agentArea.toLowerCase();
       }
-
-      return false;
+      return f.agentId === agentId;
     });
   };
-  
+
   const getFarmerById = (id) => db.farmers.find(f => f.id === id);
-  
+
   const getTanksByFarmerId = (farmerId) => {
     if (!db || !db.tanks) return [];
     const fTanks = db.tanks.filter(t => t.farmerId === farmerId);
-    return fTanks.map((t, idx) => {
-      const weekly = getTankWeeklyComputedStatus(t, db.submissions);
-      return {
-        ...t,
-        ...weekly,
-        name: `Tank ${idx + 1}`
-      };
-    });
+    return fTanks.map((t, idx) => ({
+      ...t,
+      name: `Tank ${idx + 1}`
+    }));
   };
-  
+
   const getTankById = (id) => {
     if (!db || !db.tanks) return null;
     const tank = db.tanks.find(t => t.id === id);
     if (!tank) return null;
     const farmerTanks = db.tanks.filter(t => t.farmerId === tank.farmerId);
     const tankIndex = farmerTanks.findIndex(t => t.id === id);
-    const weekly = getTankWeeklyComputedStatus(tank, db.submissions);
     return {
       ...tank,
-      ...weekly,
       name: `Tank ${tankIndex >= 0 ? tankIndex + 1 : 1}`
     };
   };
-  
+
   const getSubmissionsByAgentId = (agentId) => db.submissions.filter(s => s.agentId === agentId);
 
   const getAgentNotifications = (agentId) => (db.notifications || []).filter(n => n.agentId === agentId);
@@ -824,25 +753,15 @@ export const MockDataProvider = ({ children }) => {
       const farmerTanks = getTanksByFarmerId(farmer.id);
       totalTanks += farmerTanks.length;
       farmerTanks.forEach(tank => {
-        const breakdown = getTankWeeklyTestBreakdown(tank, db?.submissions);
-        testsCompleted += breakdown.completedCount;
-        testsDue += breakdown.dueCount;
-
-        const overdueBreakdown = getTankOverdueBreakdown(tank, db?.submissions);
-        overdue += overdueBreakdown.overdueCount;
-
-        breakdown.dueTests.forEach(dueTest => {
-          todaysWork.push({ 
-            id: `${tank.id}_${dueTest.key}`, 
-            farmerName: farmer.name, 
-            tankName: tank.name, 
-            type: dueTest.label, 
-            date: 'This Week (Mon-Sun)', 
-            status: 'Due', 
-            tankId: tank.id,
-            testKey: dueTest.key
-          });
-        });
+        if (tank.testStatus === 'Completed') testsCompleted++;
+        if (tank.testStatus === 'Due') {
+          testsDue++;
+          todaysWork.push({ id: tank.id, farmerName: farmer.name, tankName: tank.name, type: 'Water Analysis', date: tank.nextTest, status: 'Due', tankId: tank.id });
+        }
+        if (tank.testStatus === 'Overdue') {
+          overdue++;
+          todaysWork.push({ id: tank.id, farmerName: farmer.name, tankName: tank.name, type: 'Weekly Test', date: tank.nextTest, status: 'Overdue', tankId: tank.id });
+        }
       });
     });
 
@@ -875,8 +794,8 @@ export const MockDataProvider = ({ children }) => {
       .filter(a => a.inchargeId === inchargeId)
       .map(a => a.id);
     return db.farmers
-      .filter(f => 
-        f.inchargeId === inchargeId || 
+      .filter(f =>
+        f.inchargeId === inchargeId ||
         (f.agentId && inchargeAgentIds.includes(f.agentId)) ||
         !f.inchargeId
       )
@@ -954,11 +873,11 @@ export const MockDataProvider = ({ children }) => {
     const agents = getAgentsByInchargeId(inchargeId);
     const farmers = getFarmersByInchargeId(inchargeId);
     const tanks = getTanksByInchargeId(inchargeId);
-    
+
     let testsCompleted = 0;
     let testsDue = 0;
     let overdueTests = 0;
-    
+
     tanks.forEach(t => {
       if (t.testStatus === 'Completed') testsCompleted++;
       if (t.testStatus === 'Due') testsDue++;
@@ -966,7 +885,7 @@ export const MockDataProvider = ({ children }) => {
     });
 
     const tankIds = tanks.map(t => t.id);
-    const pendingVerification = (db.submissions || []).filter(s => 
+    const pendingVerification = (db.submissions || []).filter(s =>
       tankIds.includes(s.tankId) && s.status === 'PENDING_VERIFICATION'
     ).length;
 
@@ -1010,7 +929,7 @@ export const MockDataProvider = ({ children }) => {
       date: new Date().toISOString().split('T')[0],
       ...submissionData
     };
-    
+
     setDb(prev => {
       const newTanks = prev.tanks.map(t => {
         if (t.id === submissionData.tankId) {
@@ -1038,7 +957,7 @@ export const MockDataProvider = ({ children }) => {
   const updateSubmissionStatus = (submissionId, newStatus) => {
     setDb(prev => ({
       ...prev,
-      submissions: prev.submissions.map(s => 
+      submissions: prev.submissions.map(s =>
         s.id === submissionId ? { ...s, status: newStatus } : s
       )
     }));
@@ -1047,7 +966,7 @@ export const MockDataProvider = ({ children }) => {
 
   const assignFarmerToAgent = (farmerId, newAgentId) => {
     setDb(prev => {
-      const newFarmers = prev.farmers.map(f => 
+      const newFarmers = prev.farmers.map(f =>
         f.id === farmerId ? { ...f, agentId: newAgentId } : f
       );
       const newTanks = prev.tanks.map(t =>
@@ -1069,77 +988,65 @@ export const MockDataProvider = ({ children }) => {
     showToast(`Agent ${agentData.name} added!`);
   };
 
-  const createFarmerWithTanks = (agentId, farmerData, tanksData = []) => {
-    const session = getSession();
-    const activeAgentId = agentId || session?.agentId || 'agent001';
-    let createdFarmerId = null;
-
+  const createFarmerWithTanks = (agentId, farmerData, tanksData) => {
     setDb(prev => {
-      const nextFarmerNum = prev.farmers.length > 0 
-        ? Math.max(...prev.farmers.map(f => parseInt(String(f.id).replace(/\D/g, '')) || 0)) + 1 
+      const nextFarmerNum = prev.farmers.length > 0
+        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1
         : 1;
       const newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
-      createdFarmerId = newFarmerId;
 
-      let startTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(String(t.id).replace(/\D/g, '')) || 0)) + 1 
+      let startTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
 
-      const newTanks = (tanksData || []).map((tankData, index) => {
+      const newTanks = tanksData.map((tankData, index) => {
         const tankNum = startTankNum + index;
         return {
           id: `T${tankNum.toString().padStart(3, '0')}`,
-          name: tankData.name || `Tank ${index + 1}`,
+          name: `Tank ${index + 1}`,
           farmerId: newFarmerId,
-          agentId: activeAgentId,
-          inchargeId: farmerData.inchargeId || (prev.agents.find(a => a.id === activeAgentId)?.inchargeId || 'INC001'),
+          agentId: agentId || farmerData.agentId || null,
+          inchargeId: farmerData.inchargeId || (agentId ? (prev.agents.find(a => a.id === agentId)?.inchargeId || 'INC001') : 'INC001'),
           status: 'ACTIVE',
           testStatus: 'Due',
-          abw: tankData.abw || '12g',
-          biomass: tankData.biomass || '800kg',
-          fcr: tankData.fcr || '1.2',
-          size: tankData.area ? `${tankData.area} Acres` : (tankData.size ? (String(tankData.size).includes('Acre') ? tankData.size : `${tankData.size} Acres`) : '2.5 Acres'),
+          abw: '12g',
+          biomass: '800kg',
+          fcr: '1.2',
           ...tankData,
           lastTest: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-          nextTest: 'Due This Week'
+          nextTest: 'TBD'
         };
       });
-
-      const farmerLocation = farmerData.village || farmerData.location || (farmerData.area ? `${farmerData.village || ''}, ${farmerData.area}` : 'Bhimavaram');
 
       const newFarmer = {
         id: newFarmerId,
         name: farmerData.name,
         status: 'ACTIVE',
-        agentId: activeAgentId,
-        inchargeId: farmerData.inchargeId || (prev.agents.find(a => a.id === activeAgentId)?.inchargeId || 'INC001'),
-        assignedBy: 'Agent',
+        agentId: agentId || farmerData.agentId || null,
+        inchargeId: farmerData.inchargeId || (agentId ? (prev.agents.find(a => a.id === agentId)?.inchargeId || 'INC001') : 'INC001'),
+        assignedBy: farmerData.assignedBy || (agentId ? 'Agent' : 'Incharge'),
         phone: farmerData.phone,
-        village: farmerData.village || farmerLocation,
-        location: farmerLocation,
-        acres: farmerData.acres || (newTanks.length * 2.5),
-        extent: farmerData.extent || farmerData.acres || (newTanks.length * 2.5),
-        numberOfTanks: newTanks.length.toString(),
-        waterSource: farmerData.waterSource || 'Canal',
+        location: farmerData.location || `${farmerData.village}, ${farmerData.area}`,
+        acres: farmerData.acres,
+        extent: farmerData.extent || farmerData.acres,
+        waterSource: farmerData.waterSource,
         gps: farmerData.gps
       };
 
       showToast(`Added Farmer ${farmerData.name} with ${newTanks.length} tanks!`);
-      
+
       return {
         ...prev,
-        farmers: [newFarmer, ...prev.farmers],
+        farmers: [...prev.farmers, newFarmer],
         tanks: [...prev.tanks, ...newTanks]
       };
     });
-
-    return createdFarmerId;
   };
 
   const addTank = (tankData) => {
     setDb(prev => {
-      const nextTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1 
+      const nextTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
       const newTankId = `T${nextTankNum.toString().padStart(3, '0')}`;
       const farmer = prev.farmers.find(f => f.id === tankData.farmerId);
@@ -1201,8 +1108,8 @@ export const MockDataProvider = ({ children }) => {
         return prev;
       }
 
-      const nextFarmerNum = prev.farmers.length > 0 
-        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1 
+      const nextFarmerNum = prev.farmers.length > 0
+        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1
         : 1;
       const newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
 
@@ -1287,7 +1194,7 @@ export const MockDataProvider = ({ children }) => {
     const assignedFarmers = getFarmersByAgentId(agentId);
     const assignedFarmerIds = new Set(assignedFarmers.map(f => f.id));
     const assignedTanks = db.tanks.filter(t => assignedFarmerIds.has(t.farmerId) || t.agentId === agentId);
-    
+
     let completedCount = 0;
     let dueCount = 0;
     let overdueCount = 0;
@@ -1414,7 +1321,7 @@ export const MockDataProvider = ({ children }) => {
     if (!db) return [];
     const assignedFarmers = getFarmersByAgentId(agentId);
     const assignedFarmerIds = new Set(assignedFarmers.map(f => f.id));
-    
+
     // Combine submissions + explicit activities
     const timeline = [];
 
@@ -1483,14 +1390,14 @@ export const MockDataProvider = ({ children }) => {
       tankId,
       recordType,
       testType: recordType === 'WATER_QUALITY' ? 'Water Analysis' :
-                recordType === 'FEED_ENTRY' ? 'Feed Test' :
-                (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION') ? 'Disease' :
-                recordType === 'BIOMASS_SAMPLING' ? 'Biomass' :
-                recordType === 'MORTALITY_LOG' ? 'Mortality' :
+        recordType === 'FEED_ENTRY' ? 'Feed Test' :
+          (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION') ? 'Disease' :
+            recordType === 'BIOMASS_SAMPLING' ? 'Biomass' :
+              recordType === 'MORTALITY_LOG' ? 'Mortality' :
                 recordType === 'MEDICATION' ? 'Medication' :
-                recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
-                (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
-                recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
+                  recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
+                    (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
+                      recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
       date: formattedDate,
       submittedAgo: 'Just now',
       status: 'PENDING_VERIFICATION',
@@ -1557,8 +1464,8 @@ export const MockDataProvider = ({ children }) => {
 
   const addPondToFarmer = (farmerId, pondData) => {
     setDb(prev => {
-      const nextTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1 
+      const nextTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
       const newTankId = `T${nextTankNum.toString().padStart(3, '0')}`;
       const farmer = prev.farmers.find(f => f.id === farmerId);
@@ -1620,6 +1527,7 @@ export const MockDataProvider = ({ children }) => {
       getWeeklyCompliance,
       getTankWeeklyTestBreakdown,
       getTankOverdueBreakdown,
+      getTankWeeklyComputedStatus,
       ROUTINE_TEST_TYPES,
       getTechnicianAlerts,
       getTechnicianActivityTimeline,

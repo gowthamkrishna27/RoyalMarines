@@ -24,7 +24,7 @@ const Settings = () => {
           <div style={styles.cardHeader}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={styles.avatarCircle}>
-                {session?.name ? session.name[0] : 'M'}
+                <User size={20} color="#1A2FB8" />
               </div>
               <div>
                 <h3 style={styles.cardTitle}>{session?.name || 'M. Srinivas'}</h3>

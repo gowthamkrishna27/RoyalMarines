@@ -7,12 +7,15 @@ import {
 } from 'lucide-react';
 import TankModal from '../../components/TankModal';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
+import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
+import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 
 const MyTanks = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedTank, setSelectedTank] = useState(null);
   const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
+  const [selectedRoutineTank, setSelectedRoutineTank] = useState(null);
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [editingTank, setEditingTank] = useState(null);
   const { db, getFarmerById, getAgentById, getMyTanksByInchargeId } = useMockData();
@@ -285,7 +288,30 @@ const MyTanks = () => {
                       </td>
 
                       <td style={styles.td}>
-                        <span style={{ fontSize: '12.5px', color: '#1A2FB8', fontWeight: '700' }}>{tank.nextDue}</span>
+                        {(() => {
+                          const weeklySchedule = getTankWeeklySchedule(rawTank || tank, db?.submissions || []);
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '12.5px', color: '#1A2FB8', fontWeight: '700' }}>{tank.nextDue}</span>
+                              {!isHarvested && !weeklySchedule.isAllDone && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  color: '#B45309',
+                                  backgroundColor: '#FEF3C7',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #FDE68A',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  width: 'fit-content'
+                                }}>
+                                  <Clock size={10} /> {weeklySchedule.dueCount} Tests Due
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       <td style={styles.td}>
@@ -312,6 +338,25 @@ const MyTanks = () => {
 
                       <td style={{ ...styles.td, textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          {!isHarvested && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRoutineTank({
+                                tank: rawTank || tank,
+                                farmer: getFarmerById((rawTank || tank).farmerId) || { name: tank.farmer, location: tank.locality }
+                              })}
+                              style={{
+                                ...styles.actionBtn,
+                                color: '#1A2FB8',
+                                backgroundColor: '#EFF6FF',
+                                borderColor: '#BFDBFE'
+                              }}
+                              title="View Weekly Routine Test Schedule & Record"
+                            >
+                              <Clock size={14} />
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => {
@@ -325,14 +370,6 @@ const MyTanks = () => {
                             title={isHarvested ? "View Full Harvest & FCR Details" : "Quick Inspect"}
                           >
                             <Eye size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleEditTank(tank)}
-                            style={{ ...styles.actionBtn, color: '#475569' }}
-                            title="Edit Parameters"
-                          >
-                            <Edit3 size={15} />
                           </button>
                         </div>
                       </td>
@@ -405,15 +442,32 @@ const MyTanks = () => {
               </div>
             </div>
 
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
               <button
                 type="button"
-                onClick={() => { const t = selectedTank; setSelectedTank(null); handleEditTank(t); }}
-                style={styles.editFullBtn}
+                onClick={() => {
+                  const t = selectedTank.rawTank || selectedTank;
+                  const f = getFarmerById(t.farmerId) || { name: selectedTank.farmer, location: selectedTank.locality };
+                  setSelectedTank(null);
+                  setSelectedRoutineTank({ tank: t, farmer: f });
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#1A2FB8',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
               >
-                <Edit3 size={14} />
-                <span>Edit Full Parameters</span>
+                <Clock size={13} /> View Routine Schedule
               </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedTank(null)}
@@ -424,6 +478,16 @@ const MyTanks = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Weekly Routine Schedule Modal */}
+      {selectedRoutineTank && (
+        <WeeklyRoutineScheduleModal
+          isOpen={Boolean(selectedRoutineTank)}
+          onClose={() => setSelectedRoutineTank(null)}
+          tank={selectedRoutineTank.tank}
+          farmer={selectedRoutineTank.farmer}
+        />
       )}
 
       {/* Harvest Completed Comprehensive Modal */}

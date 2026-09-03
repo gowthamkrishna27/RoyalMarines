@@ -8,7 +8,7 @@ const InchargeDetail = () => {
   const { inchargeId } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('agents');
-  
+
   const incharge = getInchargeById(inchargeId);
   const agents = getAgentsByIncharge(inchargeId);
   const farmers = getFarmersByIncharge(inchargeId);
@@ -27,17 +27,17 @@ const InchargeDetail = () => {
 
   return (
     <>
-      <PageHeader 
-        title={`Incharge: ${incharge.name}`} 
+      <PageHeader
+        title={`Incharge: ${incharge.name}`}
         breadcrumbs={[
           { label: 'Organization' },
-          { label: 'Regions' }, 
+          { label: 'Regions' },
           { label: incharge.region },
           { label: incharge.name, active: true }
-        ]} 
+        ]}
       />
       <div className="content-inner">
-        
+
         {/* Incharge KPIs */}
         <div className="grid md:grid-cols-4" style={{ gap: '16px', marginBottom: '24px' }}>
           {kpis.map((kpi, idx) => (

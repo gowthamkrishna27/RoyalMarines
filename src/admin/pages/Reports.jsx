@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { FileText, Calendar, Map, Filter, Download, FileSpreadsheet } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
-import { 
-  downloadAquaEnterpriseWorkbook, 
-  downloadSamplingExcel, 
-  downloadHarvestMasterExcel 
+import {
+  downloadAquaEnterpriseWorkbook,
+  downloadSamplingExcel,
+  downloadHarvestMasterExcel
 } from '../../utils/excelReportGenerator';
 
 const Reports = () => {
@@ -48,8 +48,8 @@ const Reports = () => {
       <PageHeader title="Consolidated Reports" breadcrumbs={[{ label: 'Reports' }, { label: 'Generate Reports', active: true }]} />
       <div className="content-inner">
 
-        <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div className="card" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <div style={{
               width: '64px', height: '64px', backgroundColor: '#f1f5f9', borderRadius: '16px',
               display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 16px', color: 'var(--color-primary)'
@@ -88,7 +88,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2" style={{ gap: '20px', marginBottom: '24px' }}>
+          <div className="grid md:grid-cols-2" style={{ gap: '24px', marginBottom: '28px' }}>
             {consolidationMode === 'MONTH' ? (
               <div className="input-group">
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Select Month (Month-wise)</label>
@@ -130,20 +130,23 @@ const Reports = () => {
 
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
             <button className="btn-secondary" onClick={() => { setSelectedArea('ALL'); setSelectedFarmer('ALL'); setConsolidationMode('DATE'); }} style={{ width: 'auto', padding: '10px 18px' }}>Reset Filters</button>
-            <button 
+            <button
               onClick={() => downloadSamplingExcel(db, null, selectedFarmer)}
               style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', backgroundColor: '#EFF6FF', color: '#1A2FB8', border: '1px solid #BFDBFE', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
             >
               <Download size={15} /> Sampling Sheet (.xlsx)
             </button>
-            <button 
+            <button
               onClick={() => downloadHarvestMasterExcel(db, null)}
               style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
             >
               <Download size={15} /> Harvest Master (.xlsx)
             </button>
-            <button 
-              className="btn-primary" 
+            <button className="btn-primary" onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px' }}>
+              <Download size={15} /> Export CSV
+            </button>
+            <button
+              className="btn-primary"
               onClick={() => downloadAquaEnterpriseWorkbook(db, null, selectedFarmer, 'Admin_Consolidated_Master')}
               style={{ width: 'auto', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1A2FB8' }}
             >
@@ -151,7 +154,6 @@ const Reports = () => {
             </button>
           </div>
         </div>
-
       </div>
     </>
   );

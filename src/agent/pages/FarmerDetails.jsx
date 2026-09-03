@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, ChevronRight, Scale 
+  ArrowLeft, Plus, ChevronRight, Scale, Clock, CheckCircle2 
 } from 'lucide-react';
-import { useMockData, getTankWeeklyTestBreakdown, getTankOverdueBreakdown } from '../../context/MockDataContext';
+import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import QuickRecordModal from '../components/QuickRecordModal';
-import TankModal from '../../components/TankModal';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 const FarmerDetails = () => {
   const { farmerId } = useParams();
@@ -15,7 +15,6 @@ const FarmerDetails = () => {
   const { getFarmerById, getTanksByFarmerId, db } = useMockData();
 
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
-  const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [selectedTankId, setSelectedTankId] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
 
@@ -35,9 +34,9 @@ const FarmerDetails = () => {
     );
   }
 
-  const handleOpenRecord = (tankId = null, testKey = 'WATER_QUALITY') => {
+  const handleOpenRecord = (tankId = null) => {
     setSelectedTankId(tankId || (tanks[0]?.id || ''));
-    setModalInitialType(testKey);
+    setModalInitialType('WATER_QUALITY');
     setIsRecordModalOpen(true);
   };
 
@@ -63,12 +62,13 @@ const FarmerDetails = () => {
           >
             <Scale size={14} strokeWidth={2.4} /> Harvest
           </button>
+
           <button 
             style={styles.newRecordBtn}
-            onClick={() => setIsTankModalOpen(true)}
-            title="Add New Tank"
+            onClick={() => handleOpenRecord()}
+            title="Record Field Test"
           >
-            <Plus size={14} strokeWidth={2.5} /> New Tank
+            <Plus size={14} strokeWidth={2.5} /> New Record
           </button>
         </div>
       </div>
@@ -96,9 +96,7 @@ const FarmerDetails = () => {
           </div>
           <div style={styles.infoCol}>
             <span style={styles.infoLabel}>Assigned Technician</span>
-            <span style={styles.infoValue}>
-              {session?.agentName || farmer.agentName || farmer.agentId || 'agent001'}
-            </span>
+            <span style={styles.infoValue}>{session?.name || 'Ramesh'}</span>
           </div>
         </div>
       </div>
@@ -117,13 +115,12 @@ const FarmerDetails = () => {
           ) : (
             tanks.map((tank, idx) => {
               const stockingDate = tank.stockingDate || '2026-06-12';
-              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 76;
+              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 82;
               const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
               const tKey = `${farmer.id}_${tank.id}`;
               const tStore = harvestStore[tKey];
               const isDone = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || (tStore?.harvests || []).some(h => h.harvestType === 'Final Harvest' || h.isFinal);
-              const breakdown = getTankWeeklyTestBreakdown(tank, db?.submissions);
-              const overdueBreakdown = getTankOverdueBreakdown(tank, db?.submissions);
+              const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
               return (
                 <div
@@ -138,7 +135,7 @@ const FarmerDetails = () => {
                     </div>
 
                     <div style={styles.pondSpecsRow}>
-                      <span>{String(tank.size || tank.area || '2.5').replace(/\s*acres?/gi, '')} Acres</span>
+                      <span>{tank.size || tank.area || '22 Acres'} acres</span>
                       <span>•</span>
                       <span>{days} Days</span>
                       <span>•</span>
@@ -150,51 +147,24 @@ const FarmerDetails = () => {
                         }}>
                           Harvest Completed
                         </span>
-                      ) : overdueBreakdown.isOverdue ? (
-                        <span style={{
-                          ...styles.activeTag,
-                          backgroundColor: '#FEE2E2',
-                          color: '#DC2626',
-                          border: '1px solid #FECACA',
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: '700'
-                        }}>
-                          {overdueBreakdown.overdueCount} Overdue
-                        </span>
-                      ) : !breakdown.allUpToDate ? (
-                        <span style={{
-                          ...styles.activeTag,
-                          backgroundColor: '#FEF3C7',
-                          color: '#D97706',
-                          border: '1px solid #FDE68A',
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: '700'
-                        }}>
-                          {breakdown.dueCount} Tests Due
+                      ) : !weeklySchedule.isAllDone ? (
+                        <span style={styles.dueTagBadge}>
+                          {weeklySchedule.dueCount} Tests Due
                         </span>
                       ) : (
-                        <span style={styles.activeTag}>✓ Up to date</span>
+                        <span style={styles.activeTag}>All Tests Done</span>
                       )}
                     </div>
 
-                    {!isDone && overdueBreakdown.isOverdue && overdueBreakdown.overdueTests.length > 0 && (
-                      <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#DC2626', fontWeight: '600' }}>
-                        Overdue from last week: {overdueBreakdown.overdueTests.map(t => t.label).join(', ')}
-                      </div>
-                    )}
-                    {!isDone && !overdueBreakdown.isOverdue && !breakdown.allUpToDate && breakdown.dueTests.length > 0 && (
-                      <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#B45309', fontWeight: '600' }}>
-                        Due this week: {breakdown.dueTests.map(t => t.label).join(', ')}
+                    {!isDone && !weeklySchedule.isAllDone && (
+                      <div style={styles.dueSummaryLine}>
+                        Due this week: {weeklySchedule.dueSummaryText}
                       </div>
                     )}
                   </div>
 
                   <div style={styles.pondRight}>
-                    <ChevronRight size={18} color="#94A3B8" />
+                    <ChevronRight size={15} color="#94A3B8" />
                   </div>
                 </div>
               );
@@ -210,14 +180,6 @@ const FarmerDetails = () => {
         initialType={modalInitialType}
         preselectedFarmerId={farmer.id}
         preselectedTankId={selectedTankId}
-      />
-
-      {/* Tank Creation Modal */}
-      <TankModal
-        isOpen={isTankModalOpen}
-        onClose={() => setIsTankModalOpen(false)}
-        farmerId={farmer.id}
-        defaultAgentId={session?.agentId || farmer.agentId || 'agent001'}
       />
     </div>
   );
@@ -397,6 +359,22 @@ const styles = {
   activeTag: {
     color: '#16A34A',
     fontWeight: '600',
+  },
+  dueTagBadge: {
+    backgroundColor: '#FEF3C7',
+    color: '#B45309',
+    fontWeight: '700',
+    fontSize: '11px',
+    padding: '2px 8px',
+    borderRadius: '6px',
+    border: '1px solid #FDE68A',
+  },
+  dueSummaryLine: {
+    fontSize: '11.5px',
+    color: '#92400E',
+    fontWeight: '500',
+    marginTop: '4px',
+    lineHeight: '1.4',
   },
   pondRight: {
     display: 'flex',

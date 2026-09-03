@@ -7,7 +7,7 @@ import BackButton from '../../components/BackButton';
 
 const AgentLogin = () => {
   const navigate = useNavigate();
-  
+
   // Login State
   const [agentId, setAgentId] = useState('agent001');
   const [password, setPassword] = useState('agent123');
@@ -192,8 +192,8 @@ const AgentLogin = () => {
         ) : (
           /* Forgot Password Minimal Flow */
           <div style={styles.form}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               style={styles.backToLoginBtn}
               onClick={() => setMode('login')}
             >
@@ -339,9 +339,11 @@ const styles = {
     marginBottom: '20px',
   },
   logo: {
-    width: '90px',
+    width: '120px',
     height: 'auto',
-    marginBottom: '10px',
+    margin: '0 auto 16px auto',
+    display: 'block',
+    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))',
   },
   title: {
     fontSize: '18px',

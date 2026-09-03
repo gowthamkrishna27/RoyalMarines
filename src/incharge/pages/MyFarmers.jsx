@@ -4,10 +4,12 @@ import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
+import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
+import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 import { 
   Search, Filter, Eye, X, Phone, MapPin, 
   Users, Droplets, CheckCircle2, Calendar, ShieldCheck, User,
-  TrendingUp, Activity, Scale, Fish, Layers, Sparkles, UserCheck, Shield, UserPlus, FileText, Award
+  TrendingUp, Activity, Scale, Fish, Layers, Sparkles, UserCheck, Shield, UserPlus, FileText, Award, Clock
 } from 'lucide-react';
 
 const MyFarmers = () => {
@@ -16,6 +18,7 @@ const MyFarmers = () => {
   const { db, createFarmerWithTanks, getTanksByFarmerId, getAgentById, getMyFarmersByInchargeId } = useMockData();
   const [selectedFarmer, setSelectedFarmer] = useState(null);
   const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
+  const [selectedRoutineTank, setSelectedRoutineTank] = useState(null);
 
   // Form State for Adding New Farmer & Quick Recording
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,62 +136,6 @@ const MyFarmers = () => {
       />
 
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
-        
-        {/* Admin Allocation Notice Banner with New Farmer Button */}
-        <div style={styles.adminBanner} className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
-            <div style={styles.adminBannerIcon}>
-              <Shield size={18} color="#1A2FB8" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
-                  Admin Allocated Farmers
-                </span>
-                <span style={styles.adminAllocPill}>
-                  <UserCheck size={11} /> {myFarmers.length} Assigned Farmers
-                </span>
-              </div>
-              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px', lineHeight: 1.35 }}>
-                These aquaculture farmers and ponds are assigned to your supervision by the central administrator.
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons: 3 equal columns on mobile, flex row on tablet/desktop */}
-          <div className="grid grid-cols-3 gap-2 w-full md:w-auto md:flex md:items-center">
-            <button
-              type="button"
-              onClick={() => { setRecordModalType('WATER_QUALITY'); setIsRecordModalOpen(true); }}
-              style={styles.recordBannerBtn}
-              className="transition-all duration-150 active:scale-95 cursor-pointer"
-              title="Record Water Analysis, Feed, or Disease"
-            >
-              <Droplets size={14} />
-              <span>New Record</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setRecordModalType('HARVEST_ENTRY'); setIsRecordModalOpen(true); }}
-              style={styles.harvestBannerBtn}
-              className="transition-all duration-150 active:scale-95 cursor-pointer"
-              title="Record Crop Harvest"
-            >
-              <Scale size={14} />
-              <span>Harvest</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              style={styles.newFarmerBannerBtn}
-              className="transition-all duration-150 active:scale-95 cursor-pointer"
-            >
-              <UserPlus size={14} />
-              <span>New Farmer</span>
-            </button>
-          </div>
-        </div>
-
         {/* 1. Summary Quick Bar */}
         <div style={styles.summaryBar}>
           <div style={styles.summaryItem}>
@@ -202,7 +149,7 @@ const MyFarmers = () => {
           </div>
           <div style={styles.summaryDivider} />
           <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Active Ponds / Tanks</span>
+            <span style={styles.summaryLabel}>Active Tanks</span>
             <span style={{ ...styles.summaryValue, color: '#0284C7' }}>{totalTanks} Tanks</span>
           </div>
           <div style={styles.summaryDivider} />
@@ -259,7 +206,7 @@ const MyFarmers = () => {
                 style={styles.harvestBtn}
                 onClick={() => { setRecordModalType('HARVEST_ENTRY'); setIsRecordModalOpen(true); }}
                 className="transition-all duration-150 active:scale-95 cursor-pointer"
-                title="Record Pond Harvest"
+                title="Record Tank Harvest"
               >
                 <Scale size={14} />
                 <span>Harvest</span>
@@ -286,11 +233,10 @@ const MyFarmers = () => {
                   <th style={styles.th}>Contact</th>
                   <th style={styles.th}>Village / Area</th>
                   <th style={styles.th}>Land Size</th>
-                  <th style={styles.th}>Ponds</th>
+                  <th style={styles.th}>Tanks</th>
                   <th style={styles.th}>Assigned Technician</th>
                   <th style={styles.th}>Last Audit</th>
                   <th style={styles.th}>Next Audit</th>
-                  <th style={styles.th}>Status</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -299,20 +245,12 @@ const MyFarmers = () => {
                   <tr key={farmer.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div 
-                        style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
                         onClick={() => setSelectedFarmer(farmer)}
-                        title="Click to view farmer tanks & growth details"
+                        title="Click to view farmer tanks & details"
                       >
-                        <div style={styles.farmerAvatar}>
-                          {farmer.name ? farmer.name[0] : 'F'}
-                        </div>
-                        <div>
-                          <div style={{ ...styles.farmerNameText, color: '#1A2FB8', fontWeight: '800' }}>
-                            {farmer.name}
-                          </div>
-                          <span style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <TrendingUp size={11} color="#16A34A" /> View Tank Growth
-                          </span>
+                        <div style={styles.farmerNameText}>
+                          {farmer.name}
                         </div>
                       </div>
                     </td>
@@ -358,12 +296,6 @@ const MyFarmers = () => {
                       <span style={{ fontSize: '12.5px', color: '#1A2FB8', fontWeight: '600' }}>{farmer.nextTest}</span>
                     </td>
 
-                    <td style={styles.td}>
-                      <span style={styles.statusPill}>
-                        <CheckCircle2 size={12} /> {farmer.status}
-                      </span>
-                    </td>
-
                     <td style={{ ...styles.td, textAlign: 'right' }}>
                       <button 
                         type="button"
@@ -379,7 +311,7 @@ const MyFarmers = () => {
 
                 {filteredFarmers.length === 0 && (
                   <tr>
-                    <td colSpan="10" style={styles.emptyTd}>
+                    <td colSpan="9" style={styles.emptyTd}>
                       No assigned farmers found matching your criteria.
                     </td>
                   </tr>
@@ -646,21 +578,16 @@ const MyFarmers = () => {
               
               {/* Header */}
               <div style={styles.modalHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={styles.farmerDetailAvatar}>
-                    {selectedFarmer.name ? selectedFarmer.name[0] : 'F'}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>{selectedFarmer.name}</h3>
+                    <span style={styles.activePondBadge}>
+                      <CheckCircle2 size={12} /> Active Farmer
+                    </span>
                   </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <h3 style={styles.modalTitle}>{selectedFarmer.name}</h3>
-                      <span style={styles.activePondBadge}>
-                        <CheckCircle2 size={12} /> Active Farmer
-                      </span>
-                    </div>
-                    <p style={styles.modalSub}>
-                      📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality} • 👤 Tech: {selectedFarmer.agent}
-                    </p>
-                  </div>
+                  <p style={styles.modalSub}>
+                    📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality} • 👤 Tech: {selectedFarmer.agent}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -717,6 +644,8 @@ const MyFarmers = () => {
                     const progressPercent = Math.min(100, Math.round((parseFloat(abwVal) / 30) * 100));
                     const tankAcres = String(tank.size || tank.acres || '2.5').replace(/\s*acres?/i, '');
 
+                    const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
+
                     return (
                       <div key={tank.id || idx} style={styles.tankGrowthCard}>
                         {/* Tank Header */}
@@ -733,7 +662,38 @@ const MyFarmers = () => {
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {/* Weekly Routine Test Schedule Button */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRoutineTank({ tank, farmer: selectedFarmer })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: weeklySchedule.isAllDone ? '#DCFCE7' : '#FEF3C7',
+                                color: weeklySchedule.isAllDone ? '#15803D' : '#92400E',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                border: `1px solid ${weeklySchedule.isAllDone ? '#86EFAC' : '#FDE68A'}`,
+                                cursor: 'pointer'
+                              }}
+                              className="transition-transform active:scale-95"
+                              title="View Weekly Routine Test Schedule & Record Entries"
+                            >
+                              {weeklySchedule.isAllDone ? (
+                                <>
+                                  <CheckCircle2 size={11} /> 7/7 Tests Done
+                                </>
+                              ) : (
+                                <>
+                                  <Clock size={11} /> {weeklySchedule.dueCount} Tests Due
+                                </>
+                              )}
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => setSelectedHarvestTank({
@@ -747,13 +707,13 @@ const MyFarmers = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                backgroundColor: '#FEF3C7',
-                                color: '#92400E',
+                                backgroundColor: '#EFF6FF',
+                                color: '#1A2FB8',
                                 fontSize: '11px',
                                 fontWeight: '700',
                                 padding: '3px 9px',
                                 borderRadius: '6px',
-                                border: '1px solid #FDE68A',
+                                border: '1px solid #BFDBFE',
                                 cursor: 'pointer'
                               }}
                               className="transition-transform active:scale-95"
@@ -761,11 +721,47 @@ const MyFarmers = () => {
                             >
                               <Scale size={11} /> Harvest Report
                             </button>
+
                             <span style={tank.status === 'Harvested' ? styles.harvestedPondBadge || styles.activePondBadge : styles.activePondBadge}>
                               <CheckCircle2 size={12} /> {tank.status === 'Harvested' ? 'Harvested' : 'Active Culture'}
                             </span>
                           </div>
                         </div>
+
+                        {/* Due Tests Alert Banner if tests pending */}
+                        {!weeklySchedule.isAllDone && tank.status !== 'Harvested' && (
+                          <div style={{
+                            fontSize: '11.5px',
+                            color: '#92400E',
+                            backgroundColor: '#FEFCE8',
+                            border: '1px solid #FEF08A',
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            marginTop: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px',
+                            flexWrap: 'wrap'
+                          }}>
+                            <span><strong>Due this week:</strong> {weeklySchedule.dueSummaryText}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRoutineTank({ tank, farmer: selectedFarmer })}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#1A2FB8',
+                                fontWeight: '700',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              Open Schedule →
+                            </button>
+                          </div>
+                        )}
 
                         {/* 4 Core Growth Metrics Grid */}
                         <div style={styles.growthGrid}>
@@ -851,6 +847,16 @@ const MyFarmers = () => {
           onClose={() => setSelectedHarvestTank(null)}
           tank={selectedHarvestTank}
           farmer={selectedFarmer || { name: selectedHarvestTank?.farmer, location: selectedHarvestTank?.locality }}
+        />
+      )}
+
+      {/* Weekly Routine Test Schedule Modal */}
+      {selectedRoutineTank && (
+        <WeeklyRoutineScheduleModal
+          isOpen={Boolean(selectedRoutineTank)}
+          onClose={() => setSelectedRoutineTank(null)}
+          tank={selectedRoutineTank.tank}
+          farmer={selectedRoutineTank.farmer}
         />
       )}
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAgents, getIncharges, getRegions } from '../utils/adminMockData';
-import { 
-  Plus, Search, ArrowLeftRight, UserX, Check, X, 
+import {
+  Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Shield,
-  Users, Building, Compass, Eye, Edit 
+  Users, Building, Compass, Eye, Edit
 } from 'lucide-react';
 
 const AgentsList = () => {
@@ -56,7 +56,7 @@ const AgentsList = () => {
   // Helper: Find the SINGLE Incharge for a specific Locality (1 Locality = 1 Incharge)
   const getInchargeForLocality = (localityName, regionId) => {
     if (!localityName) return incharges[0];
-    const found = incharges.find(inc => 
+    const found = incharges.find(inc =>
       inc.locality?.toLowerCase().trim() === localityName.toLowerCase().trim()
     );
     if (found) return found;
@@ -137,7 +137,7 @@ const AgentsList = () => {
     const nextNumber = agents.length + 1;
     const newId = `EMP-AGT-${String(nextNumber).padStart(2, '0')}`;
     const selectedRegionObj = regions.find(r => r.id === newAgent.regionId) || defaultRegion;
-    
+
     // Strict 1-to-1 Rule: 1 Locality has only 1 Incharge
     const dedicatedIncharge = getInchargeForLocality(newAgent.locality, selectedRegionObj.id);
 
@@ -167,7 +167,7 @@ const AgentsList = () => {
     setAgents(prev => [createdAgent, ...prev]);
     showToast(`Field Agent ${createdAgent.name} assigned under ${dedicatedIncharge.name} for ${createdAgent.assignedArea}!`);
     setShowAddModal(false);
-    
+
     setNewAgent({
       name: '',
       roleSuffix: 'Field Agent - Mypadu',
@@ -183,7 +183,7 @@ const AgentsList = () => {
   const openEditModal = (ag) => {
     setSelectedAgent(ag);
     const regObj = regions.find(r => r.id === ag.regionId || r.name === ag.region) || defaultRegion;
-    
+
     setEditAgentForm({
       id: ag.id,
       name: ag.shortName || ag.name.split('(')[0].trim(),
@@ -243,7 +243,7 @@ const AgentsList = () => {
           return f;
         });
         localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedFarmers));
-      } catch (err) {}
+      } catch (err) { }
     }
 
     showToast(`Agent ${updatedAgent.name} updated successfully!`);
@@ -334,7 +334,7 @@ const AgentsList = () => {
           {/* Search Box */}
           <div style={styles.searchBox}>
             <Search size={16} color="#94a3b8" />
-            <input 
+            <input
               type="text"
               placeholder="Search agent, locality, area, incharge..."
               value={searchTerm}
@@ -349,7 +349,7 @@ const AgentsList = () => {
           </div>
 
           {/* + ADD AGENT Button */}
-          <button 
+          <button
             style={styles.addBtn}
             onClick={() => setShowAddModal(true)}
           >
@@ -370,8 +370,8 @@ const AgentsList = () => {
                 <th style={styles.th}>LOCALITY &amp; INCHARGE (HEAD)</th>
                 <th style={styles.th}>ASSIGNED PARTICULAR AREA</th>
                 <th style={styles.th}>ASSIGNED FARMERS</th>
-                <th style={styles.th}>SITE VISITS</th>
-                <th style={styles.th}>STATUS</th>
+                <th style={styles.th}>TESTS COMPLETED</th>
+                <th style={styles.th}>DUE TESTS</th>
                 <th style={{ ...styles.th, textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
@@ -384,7 +384,7 @@ const AgentsList = () => {
                     <tr key={ag.id} style={styles.tr}>
                       {/* Agent Name / ID (Clickable) */}
                       <td style={styles.td}>
-                        <div 
+                        <div
                           style={styles.nameColumnClickable}
                           onClick={() => navigate(`/admin/agents/${ag.id}`)}
                           title="Click to view full Agent Profile & Performance"
@@ -428,21 +428,29 @@ const AgentsList = () => {
                         </span>
                       </td>
 
-                      {/* Site Visits */}
+                      {/* Tests Completed */}
                       <td style={styles.td}>
-                        <span style={styles.siteVisitsText}>
-                          {ag.siteVisits || 0} Visits
+                        <span
+                          style={{ ...styles.siteVisitsText, cursor: 'pointer', color: '#2563eb', textDecoration: 'underline' }}
+                          onClick={() => navigate('/admin/field-data', { state: { searchTerm: ag.id } })}
+                          title={`View tests for ${ag.shortName || ag.name}`}
+                        >
+                          {ag.tests || 0} Tests
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* Due Tests */}
                       <td style={styles.td}>
                         <span style={{
-                          ...styles.statusBadge,
-                          backgroundColor: ag.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
-                          color: ag.status === 'ACTIVE' ? '#16a34a' : '#dc2626'
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          backgroundColor: '#fffbeb',
+                          color: '#d97706',
+                          border: '1px solid #fde68a'
                         }}>
-                          {ag.status}
+                          {ag.dueTests !== undefined ? ag.dueTests : (ag.tanks ? Math.ceil(ag.tanks / 2) : 2)} Due
                         </span>
                       </td>
 
@@ -450,7 +458,7 @@ const AgentsList = () => {
                       <td style={styles.td}>
                         <div style={styles.actionsGroup}>
                           {/* 1. View Details */}
-                          <button 
+                          <button
                             style={styles.viewBtn}
                             onClick={() => navigate(`/admin/agents/${ag.id}`)}
                             title="View full agent details and allocated farmers"
@@ -460,7 +468,7 @@ const AgentsList = () => {
                           </button>
 
                           {/* 2. Edit Agent */}
-                          <button 
+                          <button
                             style={styles.editBtn}
                             onClick={() => openEditModal(ag)}
                             title="Edit Agent Details & Area"
@@ -470,7 +478,7 @@ const AgentsList = () => {
                           </button>
 
                           {/* 3. Transfer */}
-                          <button 
+                          <button
                             style={styles.transferBtn}
                             onClick={() => openTransferModal(ag)}
                             title="Transfer agent to another Locality or Particular Area"
@@ -480,7 +488,7 @@ const AgentsList = () => {
                           </button>
 
                           {/* 4. Deactivate */}
-                          <button 
+                          <button
                             style={{
                               ...styles.deactivateBtn,
                               color: ag.status === 'ACTIVE' ? '#dc2626' : '#16a34a',
@@ -539,7 +547,7 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Agent Full Name *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.name}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, name: e.target.value })}
@@ -549,7 +557,7 @@ const AgentsList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Role Designation</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.roleSuffix}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, roleSuffix: e.target.value })}
@@ -562,7 +570,7 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Phone Number *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.phone}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, phone: e.target.value })}
@@ -572,7 +580,7 @@ const AgentsList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Corporate Email</label>
-                    <input 
+                    <input
                       type="email"
                       value={editAgentForm.email}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, email: e.target.value })}
@@ -585,7 +593,7 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Operating Region *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.regionId}
                       onChange={(e) => {
@@ -606,7 +614,7 @@ const AgentsList = () => {
 
                   <div>
                     <label style={styles.modalLabel}>Assigned Locality *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.locality}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, locality: e.target.value })}
@@ -640,7 +648,7 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Assigned Particular Area / Zone *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.assignedArea}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, assignedArea: e.target.value })}
@@ -651,7 +659,7 @@ const AgentsList = () => {
 
                   <div>
                     <label style={styles.modalLabel}>Status</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.status}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, status: e.target.value })}
@@ -664,15 +672,15 @@ const AgentsList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowEditModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Save Agent Details
@@ -706,7 +714,7 @@ const AgentsList = () => {
                 {/* Agent Name */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Agent Full Name *</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. K. Mahesh"
                     value={newAgent.name}
@@ -719,7 +727,7 @@ const AgentsList = () => {
                 {/* Role Designation */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Role / Designation Suffix *</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. Field Agent - Mypadu"
                     value={newAgent.roleSuffix}
@@ -733,7 +741,7 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Phone Number *</label>
-                    <input 
+                    <input
                       type="text"
                       placeholder="+91 9876543216"
                       value={newAgent.phone}
@@ -744,7 +752,7 @@ const AgentsList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Corporate Email</label>
-                    <input 
+                    <input
                       type="email"
                       placeholder="mahesh.agt@royalsmarine.com"
                       value={newAgent.email}
@@ -758,16 +766,16 @@ const AgentsList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Operating Region *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={newAgent.regionId}
                       onChange={(e) => {
                         const regId = e.target.value;
                         const locs = getLocalitiesForRegion(regId);
                         const firstLoc = locs[0]?.name || '';
-                        setNewAgent({ 
-                          ...newAgent, 
-                          regionId: regId, 
+                        setNewAgent({
+                          ...newAgent,
+                          regionId: regId,
                           locality: firstLoc
                         });
                       }}
@@ -780,7 +788,7 @@ const AgentsList = () => {
 
                   <div>
                     <label style={styles.modalLabel}>Assigned Locality *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={newAgent.locality}
                       onChange={(e) => setNewAgent({ ...newAgent, locality: e.target.value })}
@@ -813,7 +821,7 @@ const AgentsList = () => {
                 {/* Particular Area Assignment */}
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>Assigned Particular Area / Zone *</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. Mypadu Coastal Area, Allur Shrimp Belt, Indukurpet Zone"
                     value={newAgent.assignedArea}
@@ -828,15 +836,15 @@ const AgentsList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Create Field Agent
@@ -871,7 +879,7 @@ const AgentsList = () => {
                 {/* Destination Region */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>New Destination Region *</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={transferData.regionId}
                     onChange={(e) => {
@@ -893,7 +901,7 @@ const AgentsList = () => {
                 {/* Destination Locality */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>New Destination Locality *</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={transferData.locality}
                     onChange={(e) => setTransferData({ ...transferData, locality: e.target.value })}
@@ -923,7 +931,7 @@ const AgentsList = () => {
                 {/* New Assigned Particular Area */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>New Assigned Particular Area / Zone *</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. Mypadu Coastal Area, Allur Delta"
                     value={transferData.assignedArea}
@@ -935,15 +943,15 @@ const AgentsList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowTransferModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Confirm Transfer
@@ -979,15 +987,15 @@ const AgentsList = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowDeactivateModal(false)}
                 style={styles.cancelBtn}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleToggleStatus}
                 style={{
                   ...styles.submitBtn,
@@ -1051,7 +1059,7 @@ const styles = {
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '8px 12px',
+    padding: '9px 14px',
     width: '280px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
@@ -1076,9 +1084,9 @@ const styles = {
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',
-    padding: '9px 18px',
+    padding: '10px 20px',
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '0.4px',
     cursor: 'pointer',
     display: 'flex',
@@ -1091,7 +1099,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '16px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   table: {
@@ -1104,9 +1112,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1119,7 +1127,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'
@@ -1132,7 +1140,7 @@ const styles = {
   },
   agentNameClickable: {
     fontSize: '14px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#0f172a',
     transition: 'color 0.15s',
     '&:hover': {

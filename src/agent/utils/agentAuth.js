@@ -3,8 +3,8 @@ const PASSWORDS_KEY = 'agent_passwords_store';
 const PROFILES_KEY = 'agent_profiles_store';
 
 const initialUsers = [
-  { agentId: 'agent001', password: 'agent123', name: 'Agent A', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' },
-  { agentId: 'agent002', password: 'agent123', name: 'Agent B', region: 'Narasapuram', locality: 'West Godavari', asm: 'Rajesh' },
+  { agentId: 'agent001', password: 'agent123', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' },
+  { agentId: 'agent002', password: 'agent123', name: 'Suresh', region: 'Narasapuram', locality: 'West Godavari', asm: 'Rajesh' },
   { agentId: 'admin', password: 'admin', name: 'System Admin', region: 'Head Office', locality: 'Main Branch', asm: 'Rajesh' }
 ];
 
@@ -103,7 +103,7 @@ export const getSession = () => {
 };
 
 export const updateAgentProfile = (profileData) => {
-  const currentSession = getSession() || { agentId: 'agent001', name: 'Agent A', region: 'Bhimavaram', locality: 'Chinnamiram' };
+  const currentSession = getSession() || { agentId: 'agent001', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' };
   const id = currentSession.agentId || 'agent001';
 
   const updatedSession = {

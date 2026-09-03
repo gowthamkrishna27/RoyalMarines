@@ -170,7 +170,6 @@ const AddFarmer = () => {
       alternatePhone: farmerForm.alternatePhone.trim(),
       village: farmerForm.village.trim(),
       area: farmerForm.mandal.trim() || farmerForm.village.trim(),
-      location: farmerForm.village.trim() || 'Bhimavaram',
       district: farmerForm.district,
       address: farmerForm.address,
       waterSource: farmerForm.waterSource,
@@ -181,8 +180,8 @@ const AddFarmer = () => {
       gps: gpsData,
     };
 
-    createFarmerWithTanks(agentId, farmerPayload, tanksData);
-    navigate('/farmers');
+    const createdFarmerId = createFarmerWithTanks(agentId, farmerPayload, tanksData);
+    navigate(`/farmers/${createdFarmerId || ''}`);
   };
 
   return (

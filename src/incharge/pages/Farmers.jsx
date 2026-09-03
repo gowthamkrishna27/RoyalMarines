@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
+import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import { 
   Search, Filter, Eye, X, UserPlus, Phone, MapPin, 
   Users, Droplets, CheckCircle2, Calendar, ShieldCheck, User,
@@ -16,6 +17,7 @@ const Farmers = () => {
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [tanksData, setTanksData] = useState([]);
   const [selectedFarmer, setSelectedFarmer] = useState(null);
+  const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
 
   // Form State
   const [farmerName, setFarmerName] = useState('');
@@ -136,7 +138,7 @@ const Farmers = () => {
           </div>
           <div style={styles.summaryDivider} />
           <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Active Ponds / Tanks</span>
+            <span style={styles.summaryLabel}>Active Tanks</span>
             <span style={styles.summaryValue}>{totalTanks} Tanks</span>
           </div>
           <div style={styles.summaryDivider} />
@@ -195,7 +197,7 @@ const Farmers = () => {
                   <th style={styles.th}>Contact</th>
                   <th style={styles.th}>Village / Area</th>
                   <th style={styles.th}>Land Size</th>
-                  <th style={styles.th}>Ponds</th>
+                  <th style={styles.th}>Tanks</th>
                   <th style={styles.th}>Assigned Technician</th>
                   <th style={styles.th}>Last Audit</th>
                   <th style={styles.th}>Next Audit</th>
@@ -208,20 +210,12 @@ const Farmers = () => {
                   <tr key={farmer.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div 
-                        style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
                         onClick={() => setSelectedFarmer(farmer)}
-                        title="Click to view farmer tanks & growth details"
+                        title="Click to view farmer tanks & details"
                       >
-                        <div style={styles.farmerAvatar}>
-                          {farmer.name ? farmer.name[0] : 'F'}
-                        </div>
-                        <div>
-                          <div style={{ ...styles.farmerNameText, color: '#1A2FB8', fontWeight: '800' }}>
-                            {farmer.name}
-                          </div>
-                          <span style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <TrendingUp size={11} color="#16A34A" /> View Tank Growth
-                          </span>
+                        <div style={styles.farmerNameText}>
+                          {farmer.name}
                         </div>
                       </div>
                     </td>
@@ -538,21 +532,16 @@ const Farmers = () => {
               
               {/* Header */}
               <div style={styles.modalHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={styles.farmerDetailAvatar}>
-                    {selectedFarmer.name ? selectedFarmer.name[0] : 'F'}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>{selectedFarmer.name}</h3>
+                    <span style={styles.activePondBadge}>
+                      <CheckCircle2 size={12} /> Active Farmer
+                    </span>
                   </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <h3 style={styles.modalTitle}>{selectedFarmer.name}</h3>
-                      <span style={styles.activePondBadge}>
-                        <CheckCircle2 size={12} /> Active Farmer
-                      </span>
-                    </div>
-                    <p style={styles.modalSub}>
-                      📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality || selectedFarmer.village} • 👤 Tech: {selectedFarmer.agent}
-                    </p>
-                  </div>
+                  <p style={styles.modalSub}>
+                    📞 {selectedFarmer.phone} • 📍 {selectedFarmer.locality || selectedFarmer.village} • 👤 Tech: {selectedFarmer.agent}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -631,6 +620,33 @@ const Farmers = () => {
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHarvestTank({
+                                ...tank,
+                                farmer: selectedFarmer?.name,
+                                farmerId: selectedFarmer?.id,
+                                locality: selectedFarmer?.locality || selectedFarmer?.village,
+                                size: sizeDisplay
+                              })}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: '#FEF3C7',
+                                color: '#92400E',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                border: '1px solid #FDE68A',
+                                cursor: 'pointer'
+                              }}
+                              className="transition-transform active:scale-95 hover:brightness-95 cursor-pointer"
+                              title="View Full Harvest Records, Partial Cuts & Standing Crop"
+                            >
+                              <Scale size={11} /> Harvest Report
+                            </button>
                             <span style={styles.activePondBadge}>
                               <CheckCircle2 size={12} /> Active Culture
                             </span>
@@ -713,6 +729,16 @@ const Farmers = () => {
           document.body
         );
       })()}
+
+      {/* Harvest Completed Comprehensive Modal */}
+      {selectedHarvestTank && (
+        <HarvestCompletedModal
+          isOpen={Boolean(selectedHarvestTank)}
+          onClose={() => setSelectedHarvestTank(null)}
+          tank={selectedHarvestTank}
+          farmer={selectedFarmer || { name: selectedHarvestTank?.farmer, location: selectedHarvestTank?.locality }}
+        />
+      )}
     </>
   );
 };

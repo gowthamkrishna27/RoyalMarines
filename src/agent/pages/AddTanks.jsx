@@ -50,9 +50,10 @@ const AddTanks = () => {
   };
 
   const handleSave = () => {
-    const agentId = session?.agentId || 'agent001';
-    createFarmerWithTanks(agentId, farmerData, tanksData);
-    navigate('/farmers');
+    // Validate if necessary, then save
+    const newFarmerId = createFarmerWithTanks(session.agentId, farmerData, tanksData);
+    alert('Farmer and tanks saved successfully!');
+    navigate('/dashboard');
   };
 
   return (

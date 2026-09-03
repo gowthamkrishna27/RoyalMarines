@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIncharges, getRegions, getAgents, getFarmers } from '../utils/adminMockData';
-import { 
-  Plus, Search, ArrowLeftRight, UserX, Check, X, 
+import {
+  Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Edit,
-  Users, UserPlus, UserMinus, Shield, CheckCircle2, Tractor, Briefcase, Eye 
+  Users, UserPlus, UserMinus, Shield, CheckCircle2, Tractor, Briefcase, Eye
 } from 'lucide-react';
 
 const InchargesList = () => {
@@ -340,7 +340,7 @@ const InchargesList = () => {
           {/* Search Bar */}
           <div style={styles.searchBox}>
             <Search size={16} color="#94a3b8" />
-            <input 
+            <input
               type="text"
               placeholder="Search ASM, ID, region.."
               value={searchTerm}
@@ -355,7 +355,7 @@ const InchargesList = () => {
           </div>
 
           {/* + ADD INCHARGE button */}
-          <button 
+          <button
             style={styles.addBtn}
             onClick={() => setShowAddModal(true)}
           >
@@ -413,7 +413,7 @@ const InchargesList = () => {
 
                       {/* Agents Managed (Clickable to open Team modal) */}
                       <td style={styles.td}>
-                        <button 
+                        <button
                           style={styles.agentsManagedBtn}
                           onClick={() => openTeamModal(inc)}
                           title="Click to view & assign Field Agents"
@@ -445,7 +445,7 @@ const InchargesList = () => {
                       <td style={styles.td}>
                         <div style={styles.actionsGroup}>
                           {/* 1. Edit Incharge Details */}
-                          <button 
+                          <button
                             style={styles.editBtn}
                             onClick={() => openEditModal(inc)}
                             title="Edit Incharge Details & Contact"
@@ -455,7 +455,7 @@ const InchargesList = () => {
                           </button>
 
                           {/* 2. Assign / Manage Team */}
-                          <button 
+                          <button
                             style={styles.teamBtn}
                             onClick={() => openTeamModal(inc)}
                             title="View & Assign Field Agents under this Incharge"
@@ -465,7 +465,7 @@ const InchargesList = () => {
                           </button>
 
                           {/* 3. Transfer Region */}
-                          <button 
+                          <button
                             style={styles.transferBtn}
                             onClick={() => openTransferModal(inc)}
                             title="Transfer to another Region or Locality"
@@ -475,7 +475,7 @@ const InchargesList = () => {
                           </button>
 
                           {/* 4. Deactivate */}
-                          <button 
+                          <button
                             style={{
                               ...styles.deactivateBtn,
                               color: inc.status === 'ACTIVE' ? '#dc2626' : '#16a34a',
@@ -534,8 +534,8 @@ const InchargesList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={styles.modalLabel}>Full Name &amp; Title *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={editForm.name}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                       style={styles.modalInput}
@@ -544,8 +544,8 @@ const InchargesList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Role / Jurisdiction Label</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={editForm.role}
                       onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                       style={styles.modalInput}
@@ -557,8 +557,8 @@ const InchargesList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={styles.modalLabel}>Contact Phone *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={editForm.phone}
                       onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                       style={styles.modalInput}
@@ -567,8 +567,8 @@ const InchargesList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Corporate Email *</label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       value={editForm.email}
                       onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       style={styles.modalInput}
@@ -581,7 +581,7 @@ const InchargesList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={styles.modalLabel}>Operating Region</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editForm.regionId}
                       onChange={(e) => {
@@ -601,7 +601,7 @@ const InchargesList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Locality Headquarters</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editForm.locality}
                       onChange={(e) => setEditForm({ ...editForm, locality: e.target.value })}
@@ -616,7 +616,7 @@ const InchargesList = () => {
                 {/* Status Toggle */}
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>Account &amp; Operations Status</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
@@ -628,15 +628,15 @@ const InchargesList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowEditModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Save Incharge Details
@@ -677,10 +677,10 @@ const InchargesList = () => {
                   <UserPlus size={16} />
                   <span>Assign Field Agent to {selectedIncharge.shortName || selectedIncharge.name.split(' ')[0]}</span>
                 </div>
-                
+
                 {getAvailableAgentsForAssignment(selectedIncharge).length > 0 ? (
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <select 
+                    <select
                       style={{ ...styles.modalSelect, backgroundColor: '#ffffff' }}
                       value={selectedAgentToAssign}
                       onChange={(e) => setSelectedAgentToAssign(e.target.value)}
@@ -691,7 +691,7 @@ const InchargesList = () => {
                         </option>
                       ))}
                     </select>
-                    <button 
+                    <button
                       type="button"
                       style={{ ...styles.submitBtn, whiteSpace: 'nowrap', padding: '8px 16px' }}
                       onClick={() => handleAssignAgentToIncharge(selectedAgentToAssign || getAvailableAgentsForAssignment(selectedIncharge)[0]?.id)}
@@ -736,7 +736,7 @@ const InchargesList = () => {
                           </div>
                         </div>
 
-                        <button 
+                        <button
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -768,8 +768,8 @@ const InchargesList = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowTeamModal(false)}
                 style={styles.submitBtn}
               >
@@ -797,9 +797,9 @@ const InchargesList = () => {
               <div style={styles.modalBody}>
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>Incharge Full Name *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. M. Srinivas" 
+                  <input
+                    type="text"
+                    placeholder="e.g. M. Srinivas"
                     value={newIncharge.name}
                     onChange={(e) => setNewIncharge({ ...newIncharge, name: e.target.value })}
                     style={styles.modalInput}
@@ -809,9 +809,9 @@ const InchargesList = () => {
 
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>Role Designation *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Incharge - Kakinada" 
+                  <input
+                    type="text"
+                    placeholder="e.g. Incharge - Kakinada"
                     value={newIncharge.roleSuffix}
                     onChange={(e) => setNewIncharge({ ...newIncharge, roleSuffix: e.target.value })}
                     style={styles.modalInput}
@@ -822,9 +822,9 @@ const InchargesList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={styles.modalLabel}>Phone Number *</label>
-                    <input 
-                      type="text" 
-                      placeholder="+91 9876543212" 
+                    <input
+                      type="text"
+                      placeholder="+91 9876543212"
                       value={newIncharge.phone}
                       onChange={(e) => setNewIncharge({ ...newIncharge, phone: e.target.value })}
                       style={styles.modalInput}
@@ -833,9 +833,9 @@ const InchargesList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Email Address</label>
-                    <input 
-                      type="email" 
-                      placeholder="srinivas.inc@royalsmarine.com" 
+                    <input
+                      type="email"
+                      placeholder="srinivas.inc@royalsmarine.com"
                       value={newIncharge.email}
                       onChange={(e) => setNewIncharge({ ...newIncharge, email: e.target.value })}
                       style={styles.modalInput}
@@ -846,7 +846,7 @@ const InchargesList = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={styles.modalLabel}>Assigned Region *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={newIncharge.regionId}
                       onChange={(e) => {
@@ -866,7 +866,7 @@ const InchargesList = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Headquarters Locality *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={newIncharge.locality}
                       onChange={(e) => setNewIncharge({ ...newIncharge, locality: e.target.value })}
@@ -880,15 +880,15 @@ const InchargesList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Create Incharge Record
@@ -924,7 +924,7 @@ const InchargesList = () => {
 
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>New Destination Region *</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={transferData.regionId}
                     onChange={(e) => {
@@ -945,7 +945,7 @@ const InchargesList = () => {
 
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.modalLabel}>New Headquarters Locality *</label>
-                  <select 
+                  <select
                     style={styles.modalSelect}
                     value={transferData.locality}
                     onChange={(e) => setTransferData({ ...transferData, locality: e.target.value })}
@@ -958,15 +958,15 @@ const InchargesList = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowTransferModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Confirm Transfer
@@ -1002,15 +1002,15 @@ const InchargesList = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowDeactivateModal(false)}
                 style={styles.cancelBtn}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleConfirmDeactivate}
                 style={{
                   ...styles.submitBtn,
@@ -1052,7 +1052,7 @@ const styles = {
   },
   pageTitle: {
     fontSize: '22px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: '0 0 4px 0',
     letterSpacing: '-0.3px'
@@ -1074,7 +1074,7 @@ const styles = {
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '8px 12px',
+    padding: '9px 14px',
     width: '280px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
@@ -1099,9 +1099,9 @@ const styles = {
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',
-    padding: '9px 18px',
+    padding: '10px 20px',
     fontSize: '13px',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: '0.4px',
     cursor: 'pointer',
     display: 'flex',
@@ -1114,7 +1114,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '16px 20px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   table: {
@@ -1127,9 +1127,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1142,7 +1142,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'

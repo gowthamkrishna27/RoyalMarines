@@ -3,18 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import {
   MapPin, CheckCircle, AlertTriangle, Clock, Plus,
   Droplets, Fish, Wheat, Skull, ClipboardList, Camera, RefreshCw, ChevronRight, Check,
-  Layers, Navigation, Eye
+  Layers, Navigation, Eye, X
 } from 'lucide-react';
-import { useMockData, getTankWeeklyTestBreakdown, getTankOverdueBreakdown } from '../../context/MockDataContext';
+import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
 import QuickRecordModal from '../components/QuickRecordModal';
 import FarmLeafletMap from '../components/FarmLeafletMap';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
   const session = getSession();
-  const { db, getFarmersByAgentId, getTanksByFarmerId, getTankById } = useMockData();
+  const { db, getFarmersByAgentId } = useMockData();
 
   const [gps, setGps] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -22,6 +23,7 @@ const AgentDashboard = () => {
   const [modalInitialTank, setModalInitialTank] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedMapTank, setSelectedMapTank] = useState(null);
+  const [showDueTestsModal, setShowDueTestsModal] = useState(false);
 
   const agentId = session?.agentId || 'agent001';
 
@@ -30,11 +32,19 @@ const AgentDashboard = () => {
   const allTanks = db?.tanks || [];
   const assignedTanks = allTanks.filter(t => assignedFarmers.some(f => f.id === t.farmerId));
 
-  // Count of farmers with tests due in current Monday-Sunday weekly cycle
-  const dueFarmersCount = assignedFarmers.filter(farmer => {
-    const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
-    return tanks.some(p => p.isDue || p.testStatus === 'Due' || (p.dueCount > 0));
-  }).length;
+  // Compute weekly routine due status for all assigned tanks
+  const tanksWithDueInfo = assignedTanks.map(tank => {
+    const farmer = (assignedFarmers || []).find(f => f.id === tank.farmerId) || { name: 'Ravi', location: 'Chinnamiram', phone: '+91 9876543211' };
+    const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+    return {
+      tank,
+      farmer,
+      schedule,
+      isDue: !schedule.isAllDone && tank.status !== 'Harvested',
+    };
+  });
+
+  const dueTanksList = tanksWithDueInfo.filter(t => t.isDue);
 
   // Submissions made by this technician (excluding Harvest records as Harvest has its dedicated portal)
   const technicianSubmissions = (db?.submissions || [])
@@ -42,18 +52,6 @@ const AgentDashboard = () => {
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   const recentRecords = technicianSubmissions.slice(0, 3);
-
-  // Total tests due across all assigned tanks (increments when any routine test is uncompleted this week)
-  const totalTestsDue = assignedTanks.reduce((acc, tank) => {
-    const breakdown = getTankWeeklyTestBreakdown(tank, db?.submissions);
-    return acc + breakdown.dueCount;
-  }, 0);
-
-  // Total overdue tests / last week's uncompleted works across all assigned tanks
-  const totalOverdueWorks = assignedTanks.reduce((acc, tank) => {
-    const breakdown = getTankOverdueBreakdown(tank, db?.submissions);
-    return acc + breakdown.overdueCount;
-  }, 0);
 
   // Nearby Tank Map Coordinates (Relative to current GPS locality)
   const mapTanks = [
@@ -175,134 +173,90 @@ const AgentDashboard = () => {
         />
 
         {/* Selected Tank Quick-Action Drawer */}
-        {selectedMapTank && (() => {
-          const tankBreakdown = getTankWeeklyTestBreakdown(selectedMapTank, db?.submissions);
-          return (
-            <div style={styles.pondDetailDrawer}>
-              <div style={styles.drawerLeft}>
-                <div style={styles.drawerTitleRow}>
-                  <span style={styles.drawerPondName}>{selectedMapTank.name}</span>
-                  <span style={tankBreakdown.allUpToDate ? styles.tagOptimal : styles.tagDue}>
-                    {tankBreakdown.allUpToDate ? '✓ All Tests Done' : `${tankBreakdown.dueCount} Tests Due`}
-                  </span>
-                </div>
-                <div style={styles.drawerSub}>
-                  {selectedMapTank.farmer} • {selectedMapTank.distance} away
-                </div>
-
-                {/* Due Tests Badges */}
-                {!tankBreakdown.allUpToDate && tankBreakdown.dueTests.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97706', alignSelf: 'center', marginRight: '2px' }}>
-                      Due This Week:
-                    </span>
-                    {tankBreakdown.dueTests.map(t => (
-                      <button
-                        key={t.key}
-                        type="button"
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: '700',
-                          color: '#B45309',
-                          backgroundColor: '#FEF3C7',
-                          border: '1px solid #FDE68A',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => handleOpenRecordForTank(selectedMapTank, t.key)}
-                        title={`Record ${t.label}`}
-                      >
-                        + {t.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {tankBreakdown.allUpToDate && (
-                  <div style={{ fontSize: '11.5px', color: '#15803D', fontWeight: '600', marginTop: '4px' }}>
-                    ✓ All routine weekly tests are completed for this tank
-                  </div>
-                )}
+        {selectedMapTank && (
+          <div style={styles.pondDetailDrawer}>
+            <div style={styles.drawerLeft}>
+              <div style={styles.drawerTitleRow}>
+                <span style={styles.drawerPondName}>{selectedMapTank.name}</span>
+                <span style={selectedMapTank.due ? styles.tagDue : styles.tagOptimal}>
+                  {selectedMapTank.status}
+                </span>
               </div>
-
-              <div style={styles.drawerActions}>
-                <button
-                  type="button"
-                  className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
-                  style={styles.viewPondBtn}
-                  onClick={() => navigate(`/tanks/${selectedMapTank.id}`)}
-                >
-                  <Eye size={12} /> View
-                </button>
-
-                <button
-                  type="button"
-                  className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-                  style={styles.recordPondBtn}
-                  onClick={() => handleOpenRecordForTank(selectedMapTank, tankBreakdown.dueTests[0]?.key || 'WATER_QUALITY')}
-                >
-                  <Plus size={12} strokeWidth={2.5} /> Record
-                </button>
+              <div style={styles.drawerSub}>
+                {selectedMapTank.farmer} • {selectedMapTank.distance} away
               </div>
             </div>
-          );
-        })()}
+
+            <div style={styles.drawerActions}>
+              <button
+                type="button"
+                className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                style={styles.viewPondBtn}
+                onClick={() => navigate(`/tanks/${selectedMapTank.id}`)}
+              >
+                <Eye size={12} /> View
+              </button>
+
+              <button
+                type="button"
+                className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                style={styles.recordPondBtn}
+                onClick={() => handleOpenRecordForTank(selectedMapTank)}
+              >
+                <Plus size={12} strokeWidth={2.5} /> Record
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. Today's Work Summary */}
       <div style={styles.card}>
         <div style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</div>
         <div style={styles.metricsGrid}>
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="View all farmers"
-            className="transition-all duration-150 active:scale-95 cursor-pointer"
-            style={styles.metricCol}
-            onClick={() => navigate('/farmers', { state: { filterMode: 'ALL' } })}
-            onKeyDown={(e) => e.key === 'Enter' && navigate('/farmers', { state: { filterMode: 'ALL' } })}
+          <div 
+            style={{ ...styles.metricCol, cursor: 'pointer' }}
+            onClick={() => navigate('/farmers')}
+            className="transition-all hover:bg-slate-50 cursor-pointer"
+            title="View All Farmers"
           >
             <span style={styles.metricVal}>{assignedFarmers.length || 6}</span>
             <span style={styles.metricLabel}>Farmers</span>
           </div>
+
           <div style={styles.metricDivider} />
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="View all tanks"
-            className="transition-all duration-150 active:scale-95 cursor-pointer"
-            style={styles.metricCol}
-            onClick={() => navigate('/farmers', { state: { filterMode: 'ALL' } })}
-            onKeyDown={(e) => e.key === 'Enter' && navigate('/farmers', { state: { filterMode: 'ALL' } })}
+
+          <div 
+            style={{ ...styles.metricCol, cursor: 'pointer' }}
+            onClick={() => navigate('/farmers')}
+            className="transition-all hover:bg-slate-50 cursor-pointer"
+            title="View All Tanks"
           >
             <span style={styles.metricVal}>{assignedTanks.length || 6}</span>
             <span style={styles.metricLabel}>Tanks</span>
           </div>
+
           <div style={styles.metricDivider} />
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="View tests due"
-            className="transition-all duration-150 active:scale-95 cursor-pointer"
-            style={styles.metricCol}
-            onClick={() => navigate('/farmers', { state: { filterMode: 'DUE' } })}
-            onKeyDown={(e) => e.key === 'Enter' && navigate('/farmers', { state: { filterMode: 'DUE' } })}
+
+          <div 
+            style={{ 
+              ...styles.metricCol, 
+              cursor: 'pointer',
+              backgroundColor: '#FEF3C7',
+              borderRadius: '10px',
+              padding: '6px 4px',
+              border: '1px solid #FDE68A',
+            }}
+            onClick={() => setShowDueTestsModal(true)}
+            className="transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            title="Click to view all Due Tests details"
           >
-            <span style={{ ...styles.metricVal, color: '#D97706' }}>{totalTestsDue}</span>
-            <span style={{ ...styles.metricLabel, color: '#64748B' }}>Tests Due</span>
-          </div>
-          <div style={styles.metricDivider} />
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="View overdue works from last week"
-            className="transition-all duration-150 active:scale-95 cursor-pointer"
-            style={styles.metricCol}
-            onClick={() => navigate('/farmers', { state: { filterMode: 'OVERDUE' } })}
-            onKeyDown={(e) => e.key === 'Enter' && navigate('/farmers', { state: { filterMode: 'OVERDUE' } })}
-          >
-            <span style={{ ...styles.metricVal, color: '#DC2626' }}>{totalOverdueWorks}</span>
-            <span style={{ ...styles.metricLabel, color: '#DC2626', fontWeight: '700' }}>Overdue</span>
+            <span style={{ ...styles.metricVal, color: '#D97706' }}>
+              {dueTanksList.length}
+            </span>
+            <span style={{ ...styles.metricLabel, color: '#B45309', fontWeight: '700' }}>
+              Tests Due
+            </span>
           </div>
         </div>
       </div>
@@ -356,12 +310,114 @@ const AgentDashboard = () => {
         </div>
       </div>
 
+      {/* ========================================================= */}
+      {/* 5. DUE TESTS DETAIL MODAL (Opens when clicking Tests Due) */}
+      {/* ========================================================= */}
+      {showDueTestsModal && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowDueTestsModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={styles.dueModalCard}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={styles.dueModalHeader}>
+              <div>
+                <div style={styles.dueModalTag}>WEEKLY TEST SCHEDULE (MON - SUN)</div>
+                <h3 style={styles.dueModalTitle}>
+                  Weekly Due Tests ({dueTanksList.length} Ponds)
+                </h3>
+              </div>
+
+              <button 
+                type="button" 
+                style={styles.dueCloseBtn}
+                onClick={() => setShowDueTestsModal(false)}
+                aria-label="Close"
+              >
+                <X size={20} color="#64748B" />
+              </button>
+            </div>
+
+            <div style={styles.dueModalBody}>
+              {dueTanksList.length === 0 ? (
+                <div style={styles.allDoneBox}>
+                  <CheckCircle size={36} color="#16A34A" />
+                  <p style={{ margin: '8px 0 0 0', fontWeight: '700', color: '#0F172A' }}>
+                    All weekly tests are up to date!
+                  </p>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>
+                    Great job! All assigned ponds have completed routine tests for this week.
+                  </span>
+                </div>
+              ) : (
+                dueTanksList.map((item, idx) => (
+                  <div key={item?.tank?.id || idx} style={styles.dueTankCard}>
+                    <div style={styles.dueTankTop}>
+                      <div>
+                        <div style={styles.dueFarmerName}>
+                          {item?.farmer?.name || 'Farmer'} <span style={styles.dueLocationText}>• {item?.farmer?.location || 'Chinnamiram'}</span>
+                        </div>
+                        <div style={styles.dueTankSubRow}>
+                          <strong style={{ color: '#0F172A' }}>{item?.tank?.name || `Tank ${idx + 1}`}</strong>
+                          <span>•</span>
+                          <span>{item?.tank?.acres || item?.tank?.size || '2.5'} Acres</span>
+                          <span>•</span>
+                          <span style={{ color: '#1A2FB8', fontWeight: '600' }}>{item?.tank?.doc || 77} Days</span>
+                        </div>
+                      </div>
+
+                      <span style={styles.dueCountBadge}>
+                        <Clock size={12} /> {item?.schedule?.dueCount || 0} Tests Due
+                      </span>
+                    </div>
+
+                    <div style={styles.dueActionsRow}>
+                      <button
+                        type="button"
+                        className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                        style={styles.dueViewScheduleBtn}
+                        onClick={() => {
+                          setShowDueTestsModal(false);
+                          if (item?.tank?.id) {
+                            navigate(`/tanks/${item.tank.id}`);
+                          }
+                        }}
+                      >
+                        <Eye size={13} /> View Schedule
+                      </button>
+
+                      <button
+                        type="button"
+                        className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                        style={styles.dueRecordBtn}
+                        onClick={() => {
+                          setShowDueTestsModal(false);
+                          if (item?.tank) {
+                            handleOpenRecordForTank(item.tank, item?.schedule?.dueTests?.[0]?.key || 'WATER_QUALITY');
+                          }
+                        }}
+                      >
+                        <Plus size={13} strokeWidth={2.6} /> Record Test
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Record Modal */}
       <QuickRecordModal
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
-        preselectedTankId={modalInitialTank}
         initialType={modalInitialType}
+        preselectedTankId={modalInitialTank}
       />
     </div>
   );
@@ -642,13 +698,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: '3px',
-    flex: '1 1 0',
-    padding: '8px 6px',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    userSelect: 'none',
+    gap: '2px',
   },
   metricVal: {
     fontSize: 'clamp(20px, 4vw, 24px)',
@@ -760,9 +810,173 @@ const styles = {
     textAlign: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: '12px',
-    border: '1px dashed #cbd5e1ff',
+    border: '1px dashed #CBD5E1',
     color: '#64748B',
     fontSize: '12px',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+    padding: '16px',
+    boxSizing: 'border-box',
+    backdropFilter: 'blur(3px)',
+  },
+  dueModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '520px',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+    border: '1px solid #E2E8F0',
+    overflow: 'hidden',
+  },
+  dueModalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 20px',
+    borderBottom: '1px solid #F1F5F9',
+    backgroundColor: '#FAFCFF',
+  },
+  dueModalTag: {
+    fontSize: '10.5px',
+    fontWeight: '700',
+    color: '#1A2FB8',
+    letterSpacing: '0.4px',
+    marginBottom: '2px',
+  },
+  dueModalTitle: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#0F172A',
+    margin: 0,
+  },
+  dueCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#64748B',
+    cursor: 'pointer',
+    padding: '6px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dueModalBody: {
+    padding: '16px 20px',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    maxHeight: 'calc(90vh - 80px)',
+  },
+  dueTankCard: {
+    backgroundColor: '#FEFCE8',
+    border: '1.5px solid #FEF08A',
+    borderRadius: '12px',
+    padding: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  dueTankTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '10px',
+  },
+  dueFarmerName: {
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  dueLocationText: {
+    fontSize: '12px',
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  dueTankSubRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    color: '#64748B',
+    marginTop: '2px',
+  },
+  dueCountBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#B45309',
+    fontSize: '11px',
+    fontWeight: '700',
+    flexShrink: 0,
+  },
+  dueTestsListText: {
+    fontSize: '12px',
+    color: '#92400E',
+    lineHeight: '1.4',
+    backgroundColor: '#FFFBEB',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    border: '1px solid #FDE68A',
+  },
+  dueActionsRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '8px',
+    marginTop: '4px',
+  },
+  dueViewScheduleBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#FFFFFF',
+    color: '#334155',
+    border: '1px solid #CBD5E1',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  dueRecordBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    padding: '6px 14px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
+  },
+  allDoneBox: {
+    textAlign: 'center',
+    padding: '30px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '6px',
   },
 };
 
