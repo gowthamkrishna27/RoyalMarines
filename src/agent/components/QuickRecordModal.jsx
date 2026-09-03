@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Droplets, Fish, Wheat, Skull, ClipboardList, Camera, 
-  MapPin, Check, RefreshCw, Pill, Scale, Info, CheckCircle, Activity 
+  MapPin, Check, RefreshCw, Pill, Scale, Info, CheckCircle, Activity, Lock 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -11,7 +11,7 @@ import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-// 7 Routine Field Modules (Harvest has its own dedicated button)
+// Routine Field Modules
 const RECORD_TYPES = [
   { key: 'WATER_QUALITY', label: 'Water Analysis', icon: Droplets },
   { key: 'FEED_ENTRY', label: 'Feed Test', icon: Wheat },
@@ -374,7 +374,7 @@ const QuickRecordModal = ({
     const submissionPayload = {
       id: recordId,
       agentId: isIncharge ? null : (session?.agentId || 'agent001'),
-      agentName: isIncharge ? (inchargeSession?.name || 'Direct Incharge') : (session?.name || 'Agent A'),
+      agentName: isIncharge ? (inchargeSession?.name || 'Direct Incharge') : (session?.name || 'Ramesh'),
       inchargeId: currentInchargeId,
       submittedBy: isIncharge ? 'Incharge' : 'Agent',
       farmerId: selectedFarmerId,
@@ -594,7 +594,7 @@ const QuickRecordModal = ({
           </button>
         </div>
 
-        {/* ----------------- MODULE NAVIGATION (Routine Field Entry Tabs) ----------------- */}
+        {/* ----------------- MODULE NAVIGATION (Field Entry Tabs) ----------------- */}
         {activeTab !== 'HARVEST_ENTRY' && (
           <div style={styles.moduleNavGrid}>
             {RECORD_TYPES.map((t) => {

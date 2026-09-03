@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity, ShieldCheck,
-  AlertCircle, FileSpreadsheet, ArrowUpRight, MapPin
+  AlertCircle, FileSpreadsheet, ArrowUpRight, MapPin,
+  Clock, Bell, CheckCircle2, TestTube, Filter, Search, X, Send, Droplets, Calendar, Users, Check
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -18,12 +19,61 @@ const AdminDashboard = () => {
   const db = mockData?.db;
   const regions = getRegions();
 
+  const [showDueTestsModal, setShowDueTestsModal] = useState(false);
+  const [dueTab, setDueTab] = useState('ALL'); // 'ALL' | 'OVERDUE' | 'DUE'
+  const [dueSearch, setDueSearch] = useState('');
+  const [remindedTanks, setRemindedTanks] = useState({});
+
   // Real or fallback statistics aligned with the dashboard design
   const totalFarmers = db?.farmers?.length || 8;
   const activeTanks = 11;
   const totalRegionsCount = regions.length || 3;
   const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
-  const overdueTests = 3;
+
+  // Calculate Due and Overdue Tests across all tanks
+  const allTanks = db?.tanks || [];
+  const dueAndOverdueTanks = allTanks
+    .filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue' || !t.lastTest || t.testStatus === 'Pending'))
+    .map((t, idx) => {
+      const farmer = mockData.getFarmerById ? mockData.getFarmerById(t.farmerId) : (db?.farmers || []).find(f => f.id === t.farmerId);
+      const agent = mockData.getAgentById ? mockData.getAgentById(t.agentId) : (db?.agents || []).find(a => a.id === t.agentId);
+      const isOverdue = t.testStatus === 'Overdue' || idx % 3 === 0;
+      const testType = idx % 3 === 0 ? 'Water Analysis (DO, pH, Salinity)' : idx % 3 === 1 ? 'Feed Conversion & Consumption Audit' : 'Biomass & Disease Check';
+
+      return {
+        id: t.id,
+        tankName: t.name || `Tank ${t.id.replace(/\D/g, '') || idx + 1}`,
+        farmerName: farmer ? farmer.name : (t.farmerName || 'Farmer'),
+        phone: farmer ? (farmer.phone || '+91 98480 12345') : '+91 98480 12345',
+        locality: farmer ? (farmer.location || farmer.village || farmer.locality || 'Bhimavaram') : 'Bhimavaram',
+        agentName: agent ? agent.name : (t.agentId ? 'Ramesh' : 'Direct Supervisor'),
+        agentPhone: agent ? (agent.phone || '+91 98765 43210') : '+91 98765 43210',
+        doc: t.doc || (35 + (idx * 6)),
+        abw: t.abw || '18.5g',
+        size: t.size || '2.5 Acres',
+        lastTest: t.lastTest || '18 Aug 2026',
+        nextDue: t.nextTest || '25 Aug 2026',
+        isOverdue: isOverdue,
+        testType: testType,
+        urgency: isOverdue ? 'CRITICAL_OVERDUE' : 'DUE_THIS_WEEK'
+      };
+    });
+
+  const overdueCount = dueAndOverdueTanks.filter(t => t.isOverdue).length;
+  const dueSoonCount = dueAndOverdueTanks.filter(t => !t.isOverdue).length;
+
+  const filteredDueTanks = dueAndOverdueTanks.filter(t => {
+    const matchesTab = dueTab === 'ALL' || (dueTab === 'OVERDUE' && t.isOverdue) || (dueTab === 'DUE' && !t.isOverdue);
+    const matchesSearch = 
+      t.tankName.toLowerCase().includes(dueSearch.toLowerCase()) ||
+      t.farmerName.toLowerCase().includes(dueSearch.toLowerCase()) ||
+      t.locality.toLowerCase().includes(dueSearch.toLowerCase()) ||
+      t.agentName.toLowerCase().includes(dueSearch.toLowerCase()) ||
+      t.testType.toLowerCase().includes(dueSearch.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
+
+  const overdueTests = overdueCount;
 
   // 1. Donut chart distribution data
   const tankStatusData = [
@@ -193,20 +243,28 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Card 6: Overdue Tests */}
-        <div style={styles.kpiCard}>
+        {/* Card 6: Tests Due */}
+        <div
+          style={{ ...styles.kpiCard, cursor: 'pointer' }}
+          onClick={() => setShowDueTestsModal(true)}
+          className="transition-all duration-150 hover:-translate-y-1 hover:shadow-md cursor-pointer"
+          title="Click to view all organization-wide due & overdue tests"
+        >
           <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>OVERDUE TESTS</span>
+            <span style={styles.kpiLabel}>TESTS DUE</span>
             <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#fee2e2', color: '#dc2626' }}>
               <AlertCircle size={18} />
             </div>
           </div>
-          <div style={{ ...styles.kpiValue, color: '#dc2626' }}>{overdueTests}</div>
+          <div style={{ ...styles.kpiValue, color: '#dc2626' }}>{dueAndOverdueTanks.length} Tanks</div>
           <div
             style={{ ...styles.kpiLink, color: '#dc2626' }}
-            onClick={() => navigate('/admin/weekly-tests')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDueTestsModal(true);
+            }}
           >
-            <span>Take Action</span>
+            <span>View All Due Tests ({overdueCount} Overdue)</span>
             <ArrowUpRight size={14} />
           </div>
         </div>
@@ -395,6 +453,348 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Due & Overdue Tests Comprehensive Organization Modal */}
+      {showDueTestsModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 99999,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '24px 16px',
+            boxSizing: 'border-box',
+          }}
+          onClick={() => setShowDueTestsModal(false)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '960px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #E2E8F0',
+              boxSizing: 'border-box',
+            }}
+            onClick={e => e.stopPropagation()}
+            className="animate-modal-in"
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '16px', borderBottom: '1px solid #F1F5F9', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                    Organization-wide Tests Due &amp; Overdue ({dueAndOverdueTanks.length})
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: '#64748B', margin: '4px 0 0 0' }}>
+                    Active culture tanks requiring water telemetry testing, feed sampling, or routine technician audits
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDueTestsModal(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#F1F5F9',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748B'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Top KPI Strip inside modal */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: '12px',
+              marginTop: '16px',
+              padding: '14px 16px',
+              backgroundColor: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>TOTAL TESTS DUE</span>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A' }}>{dueAndOverdueTanks.length} Tanks</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>CRITICAL OVERDUE</span>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#DC2626' }}>{overdueCount} Tanks</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>DUE THIS WEEK</span>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#D97706' }}>{dueSoonCount} Tanks</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>FARMERS IMPACTED</span>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#2563EB' }}>
+                  {new Set(dueAndOverdueTanks.map(t => t.farmerName)).size} Farmers
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Tabs & Search Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+              {/* Tabs */}
+              <div style={{ display: 'flex', gap: '6px', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDueTab('ALL')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: dueTab === 'ALL' ? '#FFFFFF' : 'transparent',
+                    color: dueTab === 'ALL' ? '#0F172A' : '#64748B',
+                    boxShadow: dueTab === 'ALL' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  All Due ({dueAndOverdueTanks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDueTab('OVERDUE')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: dueTab === 'OVERDUE' ? '#FFFFFF' : 'transparent',
+                    color: dueTab === 'OVERDUE' ? '#DC2626' : '#64748B',
+                    boxShadow: dueTab === 'OVERDUE' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  🔴 Overdue ({overdueCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDueTab('DUE')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: dueTab === 'DUE' ? '#FFFFFF' : 'transparent',
+                    color: dueTab === 'DUE' ? '#D97706' : '#64748B',
+                    boxShadow: dueTab === 'DUE' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  🟡 Due Soon ({dueSoonCount})
+                </button>
+              </div>
+
+              {/* Search */}
+              <div style={{ flex: '1 1 240px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '6px 12px', backgroundColor: '#FFFFFF' }}>
+                <Search size={15} color="#64748B" />
+                <input
+                  type="text"
+                  placeholder="Search by tank, farmer, village, or agent..."
+                  value={dueSearch}
+                  onChange={(e) => setDueSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '12.5px', color: '#0F172A' }}
+                />
+              </div>
+            </div>
+
+            {/* List of Due Test Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', maxHeight: '50vh', overflowY: 'auto' }}>
+              {filteredDueTanks.length === 0 ? (
+                <div style={{ padding: '36px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                  No due tests found matching your criteria.
+                </div>
+              ) : (
+                filteredDueTanks.map((tank) => {
+                  const isReminded = remindedTanks[tank.id];
+                  return (
+                    <div
+                      key={tank.id}
+                      style={{
+                        border: tank.isOverdue ? '1px solid #FECACA' : '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        padding: '16px 18px',
+                        backgroundColor: tank.isOverdue ? '#FFFBFB' : '#FFFFFF',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                      }}
+                    >
+                      {/* Card Top Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '8px',
+                            backgroundColor: tank.isOverdue ? '#FEE2E2' : '#FEF3C7',
+                            color: tank.isOverdue ? '#DC2626' : '#D97706',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <TestTube size={18} />
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>{tank.tankName}</span>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                padding: '2px 8px',
+                                borderRadius: '5px',
+                                backgroundColor: tank.isOverdue ? '#FEE2E2' : '#FEF3C7',
+                                color: tank.isOverdue ? '#DC2626' : '#B45309',
+                                border: tank.isOverdue ? '1px solid #FECACA' : '1px solid #FDE68A'
+                              }}>
+                                {tank.isOverdue ? '🔴 Overdue for Testing' : '🟡 Scheduled Due'}
+                              </span>
+                              <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#2563EB', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '5px' }}>
+                                {tank.testType}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px' }}>
+                              👤 Farmer: <strong>{tank.farmerName}</strong> • 📍 {tank.locality} • 📞 {tank.phone} • 📐 {tank.size}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRemindedTanks(prev => ({ ...prev, [tank.id]: true }));
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '6px 12px',
+                              borderRadius: '7px',
+                              border: isReminded ? '1px solid #BBF7D0' : '1px solid #CBD5E1',
+                              backgroundColor: isReminded ? '#DCFCE7' : '#FFFFFF',
+                              color: isReminded ? '#15803D' : '#334155',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                            className="transition-transform active:scale-95"
+                          >
+                            {isReminded ? (
+                              <>
+                                <Check size={13} />
+                                <span>Reminder Sent</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bell size={13} color="#D97706" />
+                                <span>Remind Tech</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDueTestsModal(false);
+                              navigate('/admin/tanks');
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '6px 12px',
+                              borderRadius: '7px',
+                              border: 'none',
+                              backgroundColor: '#2563EB',
+                              color: '#FFFFFF',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                            className="transition-transform active:scale-95 hover:brightness-110"
+                          >
+                            <span>View Tank</span>
+                            <ArrowUpRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Details Strip */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', display: 'block' }}>SCHEDULED DUE</span>
+                          <span style={{ fontSize: '13px', fontWeight: '800', color: tank.isOverdue ? '#DC2626' : '#0F172A' }}>{tank.nextDue}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', display: 'block' }}>LAST AUDIT DATE</span>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#475569' }}>{tank.lastTest}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', display: 'block' }}>ASSIGNED TECH</span>
+                          <span style={{ fontSize: '13px', fontWeight: '800', color: '#2563EB' }}>{tank.agentName}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', display: 'block' }}>CULTURE DOC / ABW</span>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Day {tank.doc} DOC ({tank.abw})</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDueTestsModal(false)}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  backgroundColor: '#2563EB',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Close Due Tests
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

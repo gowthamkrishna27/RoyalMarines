@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, ChevronRight, Scale 
+  ArrowLeft, Plus, ChevronRight, Scale, Clock, CheckCircle2 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import QuickRecordModal from '../components/QuickRecordModal';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 const FarmerDetails = () => {
   const { farmerId } = useParams();
@@ -95,7 +96,7 @@ const FarmerDetails = () => {
           </div>
           <div style={styles.infoCol}>
             <span style={styles.infoLabel}>Assigned Technician</span>
-            <span style={styles.infoValue}>{session?.name || 'Agent A'}</span>
+            <span style={styles.infoValue}>{session?.name || 'Ramesh'}</span>
           </div>
         </div>
       </div>
@@ -114,11 +115,12 @@ const FarmerDetails = () => {
           ) : (
             tanks.map((tank, idx) => {
               const stockingDate = tank.stockingDate || '2026-06-12';
-              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 76;
+              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 82;
               const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
               const tKey = `${farmer.id}_${tank.id}`;
               const tStore = harvestStore[tKey];
               const isDone = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || (tStore?.harvests || []).some(h => h.harvestType === 'Final Harvest' || h.isFinal);
+              const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
               return (
                 <div
@@ -133,7 +135,7 @@ const FarmerDetails = () => {
                     </div>
 
                     <div style={styles.pondSpecsRow}>
-                      <span>{tank.size || tank.area || '2.5'} acres</span>
+                      <span>{tank.size || tank.area || '22 Acres'} acres</span>
                       <span>•</span>
                       <span>{days} Days</span>
                       <span>•</span>
@@ -145,10 +147,20 @@ const FarmerDetails = () => {
                         }}>
                           Harvest Completed
                         </span>
+                      ) : !weeklySchedule.isAllDone ? (
+                        <span style={styles.dueTagBadge}>
+                          {weeklySchedule.dueCount} Tests Due
+                        </span>
                       ) : (
-                        <span style={styles.activeTag}>Active</span>
+                        <span style={styles.activeTag}>All Tests Done</span>
                       )}
                     </div>
+
+                    {!isDone && !weeklySchedule.isAllDone && (
+                      <div style={styles.dueSummaryLine}>
+                        Due this week: {weeklySchedule.dueSummaryText}
+                      </div>
+                    )}
                   </div>
 
                   <div style={styles.pondRight}>
@@ -347,6 +359,22 @@ const styles = {
   activeTag: {
     color: '#16A34A',
     fontWeight: '600',
+  },
+  dueTagBadge: {
+    backgroundColor: '#FEF3C7',
+    color: '#B45309',
+    fontWeight: '700',
+    fontSize: '11px',
+    padding: '2px 8px',
+    borderRadius: '6px',
+    border: '1px solid #FDE68A',
+  },
+  dueSummaryLine: {
+    fontSize: '11.5px',
+    color: '#92400E',
+    fontWeight: '500',
+    marginTop: '4px',
+    lineHeight: '1.4',
   },
   pondRight: {
     display: 'flex',

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 // Standard baseline harvest records for demo (no final harvest by default)
 const defaultTankHarvests = [
@@ -65,7 +66,7 @@ const TankDetails = () => {
     name: 'Ravi',
     phone: '+91 9876543211',
     location: 'Chinnamiram',
-    assignedAgent: 'Agent A',
+    assignedAgent: 'Ramesh',
     tanks: ['Tank 1']
   };
 
@@ -183,6 +184,7 @@ const TankDetails = () => {
     : '1.14';
 
   const cultureDays = 77; // As requested in example
+  const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
   return (
     <div style={styles.pageContainer}>
@@ -283,7 +285,7 @@ const TankDetails = () => {
 
           <div style={styles.technicianBadge}>
             <User size={14} color="#1A2FB8" />
-            <span>Assigned: <strong>{farmer?.assignedAgent || 'Agent A'}</strong></span>
+            <span>Assigned: <strong>{farmer?.assignedAgent || 'Ramesh'}</strong></span>
           </div>
         </div>
 
@@ -318,7 +320,7 @@ const TankDetails = () => {
             <span style={styles.infoLabel}>Assigned Technician</span>
             <div style={styles.infoValueRow}>
               <ShieldCheck size={15} color="#0284C7" />
-              <span style={styles.infoValueText}>{farmer?.assignedAgent || 'Agent A'}</span>
+              <span style={styles.infoValueText}>{farmer?.assignedAgent || 'Ramesh'}</span>
             </div>
           </div>
         </div>
@@ -330,7 +332,7 @@ const TankDetails = () => {
       <div style={styles.tankCard}>
         <div style={styles.tankTopRow}>
           <div style={styles.tankTitleGroup}>
-            <h1 style={styles.tankMainTitle}>{tank.name || 'Tank 3'}</h1>
+            <h1 style={styles.tankMainTitle}>{tank.name || 'Tank 1'}</h1>
             <span style={styles.speciesPillBadge}>{tank.species || 'Vannamei'}</span>
           </div>
 
@@ -338,6 +340,11 @@ const TankDetails = () => {
             <span style={{ ...styles.activeStatusPill, backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', color: '#1D4ED8' }}>
               <CheckCircle2 size={13} strokeWidth={2.4} color="#1D4ED8" />
               <span>Harvest Completed</span>
+            </span>
+          ) : !weeklySchedule.isAllDone ? (
+            <span style={styles.weeklyTestDueBadge}>
+              <Clock size={13} strokeWidth={2.4} color="#B45309" />
+              <span>Weekly Test Due</span>
             </span>
           ) : (
             <span style={styles.activeStatusPill}>
@@ -363,11 +370,106 @@ const TankDetails = () => {
           <div style={styles.specSeparator} />
 
           <div style={styles.tankSpecItem}>
-            <span style={styles.tankSpecLabel}>Current Status</span>
-            <span style={{ ...styles.tankSpecValue, color: hasFinalHarvest ? '#1D4ED8' : '#16A34A' }}>
-              {hasFinalHarvest ? 'Harvest Completed' : 'Active'}
+            <span style={styles.tankSpecLabel}>Weekly Status</span>
+            <span style={{ 
+              ...styles.tankSpecValue, 
+              color: hasFinalHarvest ? '#1D4ED8' : (weeklySchedule.isAllDone ? '#16A34A' : '#D97706') 
+            }}>
+              {hasFinalHarvest 
+                ? 'Harvest Completed' 
+                : (weeklySchedule.isAllDone ? 'Completed (7/7 Done)' : 'Test Due (Mon-Sun)')}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 3B. WEEKLY ROUTINE TESTS SCHEDULE (MATCHING IMAGE 2) */}
+      {/* ========================================================= */}
+      <div style={styles.weeklyScheduleCard}>
+        <div style={styles.scheduleHeaderRow}>
+          <div>
+            <div style={styles.scheduleMiniTag}>WEEKLY TEST SCHEDULE • MON - SUN</div>
+            <h2 style={styles.scheduleTitle}>
+              Weekly Routine Tests ({weeklySchedule.doneCount}/7 Done)
+            </h2>
+          </div>
+
+          <span style={weeklySchedule.isAllDone ? styles.allTestsDoneBadge : styles.testsDueBadge}>
+            {weeklySchedule.isAllDone ? (
+              <>
+                <CheckCircle2 size={13} color="#15803D" /> All Tests Completed
+              </>
+            ) : (
+              <>
+                <Clock size={13} color="#B45309" /> {weeklySchedule.dueCount} Tests Due This Week
+              </>
+            )}
+          </span>
+        </div>
+
+        <div style={styles.scheduleList}>
+          {weeklySchedule.testList.map((test) => {
+            const isDone = test.isDone;
+
+            return (
+              <div 
+                key={test.key}
+                style={{
+                  ...styles.testRowCard,
+                  backgroundColor: isDone ? '#F0FDF4' : '#FEFCE8',
+                  borderColor: isDone ? '#BBF7D0' : '#FEF08A',
+                }}
+              >
+                <div style={styles.testRowLeft}>
+                  <div style={{
+                    ...styles.testIconBadge,
+                    backgroundColor: isDone ? '#DCFCE7' : '#FEF3C7',
+                    color: isDone ? '#16A34A' : '#D97706',
+                  }}>
+                    {isDone ? (
+                      <CheckCircle2 size={18} strokeWidth={2.4} color="#16A34A" />
+                    ) : (
+                      <Clock size={18} strokeWidth={2.4} color="#D97706" />
+                    )}
+                  </div>
+
+                  <div>
+                    <div style={styles.testRowTitle}>{test.label}</div>
+                    <div style={{
+                      ...styles.testRowSub,
+                      color: isDone ? '#15803D' : '#92400E',
+                    }}>
+                      {isDone 
+                        ? `Completed (${test.completedDate || '2026-09-01'})` 
+                        : 'Due this week • Click to record'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={styles.testRowRight}>
+                  {isDone ? (
+                    <span style={styles.doneBadgePill}>
+                      ✓ Done
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                      style={styles.recordTestBtn}
+                      onClick={() => {
+                        setModalInitialType(test.key);
+                        setIsRecordModalOpen(true);
+                      }}
+                      title={`Record ${test.label}`}
+                    >
+                      <Plus size={13} strokeWidth={2.8} /> Record
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1533,6 +1635,142 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  weeklyTestDueBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '4px 10px',
+    borderRadius: '8px',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#B45309',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  weeklyScheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    padding: 'clamp(16px, 3.5vw, 24px)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(15, 23, 42, 0.03)',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  scheduleHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  scheduleMiniTag: {
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: '0.4px',
+    marginBottom: '2px',
+  },
+  scheduleTitle: {
+    fontSize: 'clamp(15px, 3vw, 17px)',
+    fontWeight: '700',
+    color: '#0F172A',
+    margin: 0,
+  },
+  testsDueBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 12px',
+    borderRadius: '8px',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#B45309',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  allTestsDoneBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 12px',
+    borderRadius: '8px',
+    backgroundColor: '#DCFCE7',
+    border: '1px solid #86EFAC',
+    color: '#15803D',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  scheduleList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  testRowCard: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 14px',
+    borderRadius: '12px',
+    border: '1px solid',
+    gap: '12px',
+    transition: 'all 0.15s ease',
+  },
+  testRowLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    minWidth: 0,
+    flex: 1,
+  },
+  testIconBadge: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  testRowTitle: {
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  testRowSub: {
+    fontSize: '12px',
+    fontWeight: '500',
+    marginTop: '2px',
+  },
+  testRowRight: {
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+  },
+  doneBadgePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
+    fontWeight: '700',
+    fontSize: '12px',
+  },
+  recordTestBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    padding: '6px 14px',
+    borderRadius: '8px',
+    fontSize: '12.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
   }
 };
 

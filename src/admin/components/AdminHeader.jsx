@@ -252,7 +252,9 @@ const AdminHeader = ({ onToggleSidebar }) => {
               setShowProfileMenu(!showProfileMenu)
             }
           >
-            <div style={styles.avatar}>R</div>
+            <div style={styles.avatar}>
+              <User size={15} color="#FFFFFF" />
+            </div>
 
             <span style={styles.profileName}>
               {session?.name

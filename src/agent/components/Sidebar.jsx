@@ -24,6 +24,7 @@ const Sidebar = () => {
   const navItems = [
     { name: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician'] },
     { name: 'My Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
+    { name: 'Harvest', path: '/harvest', icon: Scale, match: ['/harvest'] },
     { name: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history'] },
     { name: 'Reports', path: '/reports', icon: FileText, match: ['/reports'] },
   ];

@@ -2,28 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, UserSquare, Droplets, TestTube, CheckCircle, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, ChevronRight, Clock, ShieldCheck,
+  ArrowUpRight, ArrowDownRight, ChevronRight, Clock, ShieldCheck, Shield, Phone,
   TrendingUp, Activity, FileText, CheckCircle2, AlertCircle, MapPin, RefreshCw, Check, Eye,
-  Search, Scale, Fish, Layers, Sparkles, X
+  Search, Scale, Fish, Layers, Sparkles, X, Plus
 } from 'lucide-react';
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
 import FarmLeafletMap from '../../agent/components/FarmLeafletMap';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
+import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
+import QuickRecordModal from '../../agent/components/QuickRecordModal';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../../agent/utils/gpsService';
+import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 
 const COMPLIANCE_COLORS = ['#16A34A', '#D97706', '#DC2626', '#64748B'];
-
-const mockTrendData = [
-  { name: '20', fullDate: '20 Aug', tests: 600 },
-  { name: '21', fullDate: '21 Aug', tests: 650 },
-  { name: '22', fullDate: '22 Aug', tests: 680 },
-  { name: '23', fullDate: '23 Aug', tests: 700 },
-  { name: '24', fullDate: '24 Aug', tests: 740 },
-  { name: '25', fullDate: '25 Aug', tests: 760 },
-  { name: '26', fullDate: '26 Aug', tests: 810 },
-];
 
 const mockComplianceData = [
   { name: 'Completed', value: 78, count: '1,025 Tests' },
@@ -106,19 +98,106 @@ const KPICard = ({ title, value, subtext, isPositive, icon: Icon, color, bgColor
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById, getFarmersByInchargeId, getTanksByInchargeId } = useMockData();
+  const { 
+    getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById, 
+    getFarmersByInchargeId, getTanksByInchargeId, getMyFarmersByInchargeId, getMyTanksByInchargeId 
+  } = useMockData();
 
   const [gps, setGps] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [selectedMapTank, setSelectedMapTank] = useState(null);
   const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
   const [selectedModalTank, setSelectedModalTank] = useState(null);
+  const [showHarvestedModal, setShowHarvestedModal] = useState(false);
+  const [harvestedSearch, setHarvestedSearch] = useState('');
+  const [showActiveTanksModal, setShowActiveTanksModal] = useState(false);
+  const [activeTanksSearch, setActiveTanksSearch] = useState('');
+  const [activeTanksFilter, setActiveTanksFilter] = useState('ALL'); // 'ALL' | 'DUE' | 'OPTIMAL'
   const [tankTab, setTankTab] = useState('ACTIVE'); // 'ACTIVE' | 'HARVESTED'
   const [tankSearch, setTankSearch] = useState('');
 
+  // Weekly Due Tests Breakdown & Routine Schedule Modals
+  const [showDueTestsModal, setShowDueTestsModal] = useState(false);
+  const [showMyTanksModal, setShowMyTanksModal] = useState(false);
+  const [myTanksSearch, setMyTanksSearch] = useState('');
+  const [myTanksFilter, setMyTanksFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'DUE' | 'COMPLETED' | 'HARVESTED'
+  const [selectedRoutineTank, setSelectedRoutineTank] = useState(null);
+  const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
+  const [modalInitialTank, setModalInitialTank] = useState(null);
+  const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
+
   const metrics = getInchargeDashboardMetrics('INC001');
-  const inchargeFarmers = getFarmersByInchargeId ? getFarmersByInchargeId('INC001') : (db?.farmers || []);
-  const inchargeTanks = getTanksByInchargeId ? getTanksByInchargeId('INC001') : (db?.tanks || []);
+  
+  // Personal farmers and tanks directly under Incharge (INC001)
+  const personalFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
+  const personalTanks = getMyTanksByInchargeId ? getMyTanksByInchargeId('INC001') : [];
+
+  // Compute weekly routine due status ONLY for Incharge's personal farmers & tanks
+  const tanksWithDueInfo = personalTanks.map(tank => {
+    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || (db?.farmers || []).find(f => f.id === tank.farmerId) || { name: 'Personal Farmer', location: 'Chinnamiram', phone: '+91 9876543211' };
+    const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+    return {
+      tank,
+      farmer,
+      agent: { name: 'Direct Incharge' },
+      schedule,
+      isDue: !schedule.isAllDone && tank.status !== 'Harvested',
+    };
+  });
+
+  const dueTanksList = tanksWithDueInfo.filter(t => t.isDue);
+
+  // Full detailed personal tanks assigned by Admin to Incharge
+  const personalTanksDetails = personalTanks.map((tank, idx) => {
+    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || 
+                   (db?.farmers || []).find(f => f.id === tank.farmerId) || 
+                   { name: 'Bhaskar Rao', location: 'Bhimavaram Central', phone: '+91 9876543230' };
+    const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+    const isHarvested = tank.status === 'Harvested';
+    const isDue = !schedule.isAllDone && !isHarvested;
+    const isOverdue = tank.testStatus === 'Overdue' && !isHarvested;
+    const isCompleted = (schedule.isAllDone || tank.testStatus === 'Completed') && !isHarvested;
+    
+    const doc = tank.doc || (isHarvested ? 115 : (45 + ((idx * 8) % 40)));
+    const abw = tank.abw || (doc >= 80 ? '28.5g' : doc >= 60 ? '21.0g' : '17.5g');
+    const biomass = tank.biomass || `${Math.round(parseFloat(abw) * 140)} kg`;
+    const fcr = tank.fcr || (isHarvested ? '1.18' : '1.15');
+    const size = String(tank.size || tank.acres || '15 Acres').replace(/\s*Acres/gi, '') + ' Acres';
+    const species = tank.species || 'SPF Vannamei';
+
+    return {
+      tank,
+      farmer,
+      doc,
+      abw,
+      biomass,
+      fcr,
+      size,
+      species,
+      schedule,
+      isHarvested,
+      isDue,
+      isOverdue,
+      isCompleted,
+      status: isHarvested ? 'Harvested' : (isOverdue ? 'Overdue' : (isDue ? 'Due' : 'Completed')),
+      lastTest: tank.lastTest || '22 Aug 2026',
+      nextTest: tank.nextTest || (isHarvested ? 'Cycle Closed' : '29 Aug 2026'),
+    };
+  });
+
+  const filteredPersonalTanks = personalTanksDetails.filter(item => {
+    const q = myTanksSearch.toLowerCase();
+    const matchesSearch = 
+      (item.tank.name || '').toLowerCase().includes(q) ||
+      (item.farmer.name || '').toLowerCase().includes(q) ||
+      (item.farmer.location || '').toLowerCase().includes(q);
+
+    if (myTanksFilter === 'ACTIVE') return matchesSearch && !item.isHarvested;
+    if (myTanksFilter === 'DUE') return matchesSearch && (item.isDue || item.isOverdue);
+    if (myTanksFilter === 'COMPLETED') return matchesSearch && item.isCompleted;
+    if (myTanksFilter === 'HARVESTED') return matchesSearch && item.isHarvested;
+    return matchesSearch;
+  });
 
   // Mapped live tanks with full aquaculture telemetry for active & harvested breakdown
   const allDashboardTanks = (db?.tanks || []).map((t, idx) => {
@@ -159,6 +238,26 @@ const Dashboard = () => {
   const activeTanksList = allDashboardTanks.filter(t => !t.isHarvested);
   const harvestedTanksList = allDashboardTanks.filter(t => t.isHarvested);
 
+  const filteredActiveTanks = activeTanksList.filter(t => {
+    const q = activeTanksSearch.toLowerCase();
+    const matchesSearch = 
+      t.name.toLowerCase().includes(q) ||
+      t.farmer.toLowerCase().includes(q) ||
+      t.locality.toLowerCase().includes(q) ||
+      t.agent.toLowerCase().includes(q);
+
+    if (activeTanksFilter === 'DUE') return matchesSearch && (t.status === 'Test Due' || t.status === 'Due');
+    if (activeTanksFilter === 'OPTIMAL') return matchesSearch && (t.status === 'Active' || t.status === 'Optimal' || t.status === 'Completed');
+    return matchesSearch;
+  });
+
+  const filteredHarvestedTanks = harvestedTanksList.filter(t =>
+    t.name.toLowerCase().includes(harvestedSearch.toLowerCase()) ||
+    t.farmer.toLowerCase().includes(harvestedSearch.toLowerCase()) ||
+    t.locality.toLowerCase().includes(harvestedSearch.toLowerCase()) ||
+    t.agent.toLowerCase().includes(harvestedSearch.toLowerCase())
+  );
+
   const displayedTanks = (tankTab === 'ACTIVE' ? activeTanksList : harvestedTanksList).filter(t =>
     t.name.toLowerCase().includes(tankSearch.toLowerCase()) ||
     t.farmer.toLowerCase().includes(tankSearch.toLowerCase()) ||
@@ -195,35 +294,6 @@ const Dashboard = () => {
       setGpsLoading(false);
     }
   };
-
-  const pendingVerifications = (db?.submissions || [])
-    .filter(s => s.status === 'PENDING_VERIFICATION')
-    .slice(0, 4)
-    .map(s => {
-      const farmer = getFarmerById(s.farmerId);
-      const tank = getTankById(s.tankId);
-      const agent = getAgentById(s.agentId);
-      const farmerName = farmer ? farmer.name : (s.farmerName || 'Ravi');
-      const tankName = tank ? tank.name : (s.tankName ? s.tankName : (s.tankId ? `Tank ${s.tankId.replace(/\D/g, '') || '1'}` : 'Tank 1'));
-      const agentName = agent ? agent.name : 'Agent A';
-      return {
-        id: s.id,
-        farmer: farmerName,
-        tank: tankName,
-        testType: s.testType || 'Water Analysis',
-        date: s.date || 'Today',
-        agent: agentName,
-        submitted: s.submittedAgo || '10 mins ago',
-        status: s.status
-      };
-    });
-
-  const recentActivities = [
-    { id: 1, action: 'Water Quality Logged', detail: 'Agent A • Ravi (Tank 3)', time: '10 mins ago', type: 'WATER' },
-    { id: 2, action: 'Feed Consumption Recorded', detail: 'Agent A • Siva (Tank 8)', time: '25 mins ago', type: 'FEED' },
-    { id: 3, action: 'Weekly Audit Completed', detail: 'Agent B • Nagesh (Tank 1)', time: '1 hour ago', type: 'TEST' },
-    { id: 4, action: 'Biomass Sampling Verified', detail: 'Incharge M. Srinivas • Ravi (Tank 1)', time: '2 hours ago', type: 'VERIFY' },
-  ];
 
   return (
     <>
@@ -300,9 +370,40 @@ const Dashboard = () => {
                     type="button"
                     className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
                     style={styles.viewPondBtn}
-                    onClick={() => navigate('/incharge/tanks')}
+                    onClick={() => {
+                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      const fMatch = inchargeFarmers.find(f => f.name === selectedMapTank.farmer) || { name: selectedMapTank.farmer };
+                      setSelectedRoutineTank({ tank: tMatch, farmer: fMatch });
+                    }}
                   >
-                    <Eye size={12} /> View Tanks
+                    <Eye size={12} /> Schedule
+                  </button>
+
+                  <button
+                    type="button"
+                    className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      backgroundColor: '#1A2FB8',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      height: '32px',
+                      padding: '0 10px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      setModalInitialTank(tMatch.id);
+                      setModalInitialType('WATER_QUALITY');
+                      setIsQuickRecordOpen(true);
+                    }}
+                  >
+                    <Plus size={12} strokeWidth={2.6} /> Record
                   </button>
                 </div>
               </div>
@@ -313,19 +414,52 @@ const Dashboard = () => {
           <div style={styles.weekWorkCard}>
             <div style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</div>
             <div style={styles.metricsGrid}>
-              <div style={styles.metricCol}>
-                <span style={styles.metricVal}>{inchargeFarmers.length || 6}</span>
-                <span style={styles.metricLabel}>Farmers</span>
+              <div 
+                style={{ ...styles.metricCol, cursor: 'pointer' }}
+                onClick={() => navigate('/incharge/my-farmers')}
+                className="transition-all hover:bg-slate-50 cursor-pointer"
+                title="View My Personal Farmers"
+              >
+                <span style={styles.metricVal}>{personalFarmers.length}</span>
+                <span style={styles.metricLabel}>My Farmers</span>
               </div>
+
               <div style={styles.metricDivider} />
-              <div style={styles.metricCol}>
-                <span style={styles.metricVal}>{inchargeTanks.length || 6}</span>
-                <span style={styles.metricLabel}>Tanks</span>
+
+              <div 
+                style={{ 
+                  ...styles.metricCol, 
+                  cursor: 'pointer',
+                  backgroundColor: '#EFF6FF',
+                  borderRadius: '10px',
+                  padding: '6px 4px',
+                  border: '1px solid #DBEAFE',
+                }}
+                onClick={() => setShowMyTanksModal(true)}
+                className="transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Click to view all details of personal tanks assigned by Admin"
+              >
+                <span style={{ ...styles.metricVal, color: '#1A2FB8' }}>{personalTanks.length}</span>
+                <span style={{ ...styles.metricLabel, color: '#1E40AF', fontWeight: '700' }}>My Tanks</span>
               </div>
+
               <div style={styles.metricDivider} />
-              <div style={styles.metricCol}>
-                <span style={{ ...styles.metricVal, color: '#D97706' }}>{metrics.overdueTests || 2}</span>
-                <span style={styles.metricLabel}>Tests Due</span>
+
+              <div 
+                style={{ 
+                  ...styles.metricCol, 
+                  cursor: 'pointer',
+                  backgroundColor: '#FEF3C7',
+                  borderRadius: '10px',
+                  padding: '6px 4px',
+                  border: '1px solid #FDE68A',
+                }}
+                onClick={() => setShowDueTestsModal(true)}
+                className="transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Click to view weekly due tests for your personal farmers"
+              >
+                <span style={{ ...styles.metricVal, color: '#D97706' }}>{dueTanksList.length}</span>
+                <span style={{ ...styles.metricLabel, color: '#B45309', fontWeight: '700' }}>Tests Due</span>
               </div>
             </div>
           </div>
@@ -340,17 +474,17 @@ const Dashboard = () => {
             icon={Droplets} 
             color="#16A34A" 
             bgColor="#DCFCE7"
-            onClick={() => navigate('/incharge/tanks')}
+            onClick={() => setShowActiveTanksModal(true)}
           />
           <KPICard
             title="Harvested Tanks" 
             value={harvestedTanksList.length}
-            subtext="Completed crop cycles"
+            subtext="Final harvest completed"
             isPositive={true} 
             icon={CheckCircle2} 
-            color="#334155" 
-            bgColor="#F1F5F9"
-            onClick={() => navigate('/incharge/tanks')}
+            color="#15803D" 
+            bgColor="#DCFCE7"
+            onClick={() => setShowHarvestedModal(true)}
           />
           <KPICard
             title="Total Farmers" 
@@ -395,14 +529,9 @@ const Dashboard = () => {
         </div>
 
         {/* ========================================================= */}
-        {/* 2. CHARTS SECTION */}
+        {/* 2. WEEKLY TEST PROGRESS SECTION */}
         {/* ========================================================= */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: '20px', 
-          marginBottom: '24px' 
-        }}>
+        <div style={{ marginBottom: '24px' }}>
           {/* Weekly Test Compliance */}
           <div style={styles.chartCard}>
             <div style={styles.cardHeaderRow}>
@@ -416,10 +545,10 @@ const Dashboard = () => {
             </div>
 
             {/* Progress Bars Breakdown List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '16px' }}>
               
               {/* 1. Completed - 78% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
@@ -428,13 +557,13 @@ const Dashboard = () => {
                   </div>
                   <span style={{ fontWeight: '800', color: '#16A34A', fontSize: '13.5px' }}>78%</span>
                 </div>
-                <div style={{ width: '100%', height: '9px', backgroundColor: '#F1F5F9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '78%', height: '100%', backgroundColor: '#16A34A', borderRadius: '5px', transition: 'width 0.5s ease' }} />
+                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: '78%', height: '100%', backgroundColor: '#16A34A', borderRadius: '4px', transition: 'width 0.5s ease' }} />
                 </div>
               </div>
 
               {/* 2. Due - 14% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0284C7' }} />
@@ -443,13 +572,13 @@ const Dashboard = () => {
                   </div>
                   <span style={{ fontWeight: '800', color: '#0284C7', fontSize: '13.5px' }}>14%</span>
                 </div>
-                <div style={{ width: '100%', height: '9px', backgroundColor: '#F1F5F9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '14%', height: '100%', backgroundColor: '#0284C7', borderRadius: '5px', transition: 'width 0.5s ease' }} />
+                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: '14%', height: '100%', backgroundColor: '#0284C7', borderRadius: '4px', transition: 'width 0.5s ease' }} />
                 </div>
               </div>
 
               {/* 3. Overdue - 5% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#DC2626' }} />
@@ -458,13 +587,13 @@ const Dashboard = () => {
                   </div>
                   <span style={{ fontWeight: '800', color: '#DC2626', fontSize: '13.5px' }}>5%</span>
                 </div>
-                <div style={{ width: '100%', height: '9px', backgroundColor: '#F1F5F9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '5%', height: '100%', backgroundColor: '#DC2626', borderRadius: '5px', transition: 'width 0.5s ease' }} />
+                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: '5%', height: '100%', backgroundColor: '#DC2626', borderRadius: '4px', transition: 'width 0.5s ease' }} />
                 </div>
               </div>
 
               {/* 4. Scheduled - 3% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
@@ -473,8 +602,8 @@ const Dashboard = () => {
                   </div>
                   <span style={{ fontWeight: '800', color: '#8B5CF6', fontSize: '13.5px' }}>3%</span>
                 </div>
-                <div style={{ width: '100%', height: '9px', backgroundColor: '#F1F5F9', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: '3%', height: '100%', backgroundColor: '#8B5CF6', borderRadius: '5px', transition: 'width 0.5s ease' }} />
+                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: '3%', height: '100%', backgroundColor: '#8B5CF6', borderRadius: '4px', transition: 'width 0.5s ease' }} />
                 </div>
               </div>
 
@@ -504,181 +633,6 @@ const Dashboard = () => {
                 <span>View Full Breakdown</span>
                 <ChevronRight size={13} />
               </button>
-            </div>
-          </div>
-
-          {/* Tests Trend (Last 7 Days) */}
-          <div style={styles.chartCard}>
-            <div style={styles.cardHeaderRow}>
-              <div>
-                <h3 style={styles.cardTitle}>Tests Trend (Last 7 Days)</h3>
-                <span style={styles.cardSub}>Daily submissions recorded by field technicians</span>
-              </div>
-              <span style={{ ...styles.pillTag, backgroundColor: '#EFF6FF', color: '#1A2FB8' }}>
-                Active Cycle
-              </span>
-            </div>
-
-            <div style={{ height: '260px', width: '100%', marginTop: '12px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockTrendData} margin={{ top: 15, right: 20, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="testsTrendGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1A2FB8" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#1A2FB8" stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={{ stroke: '#E2E8F0' }} 
-                    tickLine={false} 
-                    tick={{ fill: '#64748B', fontSize: 12, fontWeight: 600 }} 
-                    dy={6} 
-                  />
-                  <YAxis 
-                    domain={[550, 850]}
-                    ticks={[600, 650, 700, 750, 800]}
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#64748B', fontSize: 12, fontWeight: 500 }} 
-                  />
-                  <RechartsTooltip 
-                    formatter={(val) => [`${val} Tests Logged`, 'Tests']}
-                    labelFormatter={(label, payload) => payload && payload[0] ? `Date: ${payload[0].payload.fullDate}` : `Day ${label}`}
-                    contentStyle={{ borderRadius: '10px', border: '1px solid #E2E8F0', boxShadow: '0 8px 20px rgba(0,0,0,0.06)', fontWeight: 600 }} 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="tests" 
-                    stroke="#1A2FB8" 
-                    strokeWidth={3} 
-                    fillOpacity={1} 
-                    fill="url(#testsTrendGradient)" 
-                    dot={{ r: 5, fill: '#FFFFFF', stroke: '#1A2FB8', strokeWidth: 2.5 }}
-                    activeDot={{ r: 7, fill: '#1A2FB8', stroke: '#FFFFFF', strokeWidth: 2.5 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 3. RECENT AGENT SUBMISSIONS & RECENT ACTIVITY SECTION */}
-        {/* ========================================================= */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: '20px' 
-        }}>
-          {/* Recent Agent Submissions */}
-          <div style={styles.chartCard}>
-            <div style={styles.cardHeaderRow}>
-              <div>
-                <h3 style={styles.cardTitle}>Recent Agent Submissions</h3>
-                <span style={styles.cardSub}>Field tests & culture logs submitted by technicians</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/incharge/tests')}
-                style={styles.viewAllBtn}
-              >
-                <span>View Full History</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
-              {pendingVerifications.length === 0 ? (
-                <div style={styles.emptyCard}>
-                  <CheckCircle2 size={24} color="#16A34A" />
-                  <span>No recent agent field submissions.</span>
-                </div>
-              ) : (
-                pendingVerifications.map(item => (
-                  <div 
-                    key={item.id} 
-                    style={styles.verificationRow}
-                    onClick={() => navigate('/incharge/tests')}
-                    className="transition-all duration-150 hover:bg-slate-50 cursor-pointer"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={styles.testIconBadge}>
-                        <TestTube size={16} color="#1A2FB8" />
-                      </div>
-                      <div>
-                        <div style={styles.rowTitle}>{item.farmer} • {item.tank}</div>
-                        <div style={styles.rowMeta}>
-                          {item.testType} • Logged by <strong>{item.agent}</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={styles.timePendingTag}>
-                        <Clock size={11} /> {item.submitted}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('/incharge/tests');
-                        }}
-                        style={styles.reviewActionBtn}
-                      >
-                        View
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div style={styles.chartCard}>
-            <div style={styles.cardHeaderRow}>
-              <div>
-                <h3 style={styles.cardTitle}>Recent Activity</h3>
-                <span style={styles.cardSub}>Live operations timeline across cluster</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/incharge/activity-log')}
-                style={styles.viewAllBtn}
-              >
-                <span>Full Audit Log</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px' }}>
-              {recentActivities.map((act) => (
-                <div key={act.id} style={styles.activityRow}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    backgroundColor: act.type === 'WATER' ? '#EFF6FF' : act.type === 'FEED' ? '#FEF3C7' : '#F0FDF4',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {act.type === 'WATER' ? <Droplets size={16} color="#1A2FB8" /> :
-                     act.type === 'FEED' ? <Activity size={16} color="#D97706" /> :
-                     <CheckCircle size={16} color="#16A34A" />}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={styles.activityAction}>{act.action}</div>
-                    <div style={styles.activityDetail}>{act.detail}</div>
-                  </div>
-
-                  <span style={styles.activityTime}>{act.time}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -735,7 +689,7 @@ const Dashboard = () => {
                 <span style={{ ...styles.infoValue, color: '#1A2FB8', fontWeight: '800' }}>{selectedModalTank.fcr} FCR</span>
               </div>
               <div style={styles.infoTile}>
-                <span style={styles.infoLabel}>Pond Size</span>
+                <span style={styles.infoLabel}>Tank Size</span>
                 <span style={styles.infoValue}>{selectedModalTank.size}</span>
               </div>
               <div style={styles.infoTile}>
@@ -756,6 +710,1082 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Harvested Tanks Completed List Modal */}
+      {showHarvestedModal && (
+        <div style={styles.modalBackdrop} onClick={() => setShowHarvestedModal(false)}>
+          <div 
+            style={{ ...styles.modalCard, maxWidth: '960px' }} 
+            onClick={e => e.stopPropagation()}
+            className="animate-modal-in"
+          >
+            {/* Modal Header */}
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ ...styles.modalIconBox, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <h3 style={styles.modalTitle}>
+                    Harvested Tanks — Completed Final Harvest ({harvestedTanksList.length})
+                  </h3>
+                  <p style={styles.modalSub}>
+                    Tanks with final crop drainage, settlement weighment logs, and closed culture cycles
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHarvestedModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick Aggregate Stats Strip */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: '10px',
+              marginTop: '16px',
+              padding: '12px 16px',
+              backgroundColor: '#F8FAFC',
+              borderRadius: '10px',
+              border: '1px solid #E2E8F0'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>TOTAL CLOSED TANKS</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>{harvestedTanksList.length} Tanks</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>TOTAL REALIZED BIOMASS</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1A2FB8' }}>
+                  {harvestedTanksList.reduce((sum, t) => sum + (parseFloat(String(t.biomass).replace(/[^0-9.]/g, '')) || 5000), 0).toLocaleString()} kg
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>AVG FINAL WEIGHT</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#16A34A' }}>32.2g (~31 count)</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>AVG CYCLE FCR</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#D97706' }}>1.17</div>
+              </div>
+            </div>
+
+            {/* Search Filter */}
+            <div style={{ marginTop: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 12px', backgroundColor: '#FFFFFF' }}>
+                <Search size={16} color="#64748B" />
+                <input
+                  type="text"
+                  placeholder="Search harvested tanks by name, farmer, village, or technician..."
+                  value={harvestedSearch}
+                  onChange={(e) => setHarvestedSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#0F172A' }}
+                />
+              </div>
+            </div>
+
+            {/* Harvested Tanks Cards List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px', maxHeight: '52vh', overflowY: 'auto' }}>
+              {filteredHarvestedTanks.length === 0 ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                  No harvested tanks found matching your search.
+                </div>
+              ) : (
+                filteredHarvestedTanks.map((tank, idx) => (
+                  <div 
+                    key={tank.id || idx}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#F0FDF4', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Scale size={20} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>{tank.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '5px', border: '1px solid #BBF7D0' }}>
+                            ✓ Final Harvest Completed
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
+                          👤 Farmer: <strong>{tank.farmer}</strong> • 📍 {tank.locality} • 📐 {tank.size}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHarvestTank({
+                        ...tank,
+                        farmer: tank.farmer,
+                        farmerId: tank.farmerId,
+                        locality: tank.locality,
+                        size: tank.size
+                      })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backgroundColor: '#1A2FB8',
+                        color: '#FFFFFF',
+                        fontSize: '12.5px',
+                        fontWeight: '700',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                      className="transition-transform active:scale-95 hover:brightness-110 cursor-pointer"
+                    >
+                      <Scale size={14} />
+                      <span>View Harvest Report</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowHarvestedModal(false)}
+                style={styles.saveBtn}
+              >
+                Close List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 4.5. ACTIVE TANKS DETAIL MODAL (Opens when clicking Active Tanks) */}
+      {/* ========================================================= */}
+      {showActiveTanksModal && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalBackdrop} 
+          onClick={() => setShowActiveTanksModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '640px',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              backgroundColor: '#FFFFFF',
+              gap: '10px',
+            }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: '800', color: '#16A34A', letterSpacing: '0.4px', marginBottom: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  <Droplets size={11} color="#16A34A" style={{ flexShrink: 0 }} /> Live Culture Portfolio
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                    Active Cultivation Tanks
+                  </h3>
+                  <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#DCFCE7', color: '#15803D', padding: '1px 8px', borderRadius: '10px', border: '1px solid #BBF7D0' }}>
+                    {activeTanksList.length} Active Tanks
+                  </span>
+                </div>
+                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0', lineHeight: 1.3 }}>
+                  Ponds currently in cultivation with live standing biomass & daily growth monitoring
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowActiveTanksModal(false)}
+                style={styles.modalCloseBtn}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick KPI Strip */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '8px',
+              padding: '10px 16px',
+              backgroundColor: '#F8FAFC',
+              borderBottom: '1px solid #F1F5F9'
+            }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <span style={{ fontSize: '9px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>TOTAL BIOMASS</span>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: '#1A2FB8' }}>
+                  {activeTanksList.reduce((sum, t) => sum + (parseFloat(String(t.biomass).replace(/[^0-9.]/g, '')) || 2400), 0).toLocaleString()} kg
+                </span>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <span style={{ fontSize: '9px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>AVG WEIGHT (ABW)</span>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
+                  {(activeTanksList.reduce((sum, t) => sum + (parseFloat(String(t.abw).replace(/[^0-9.]/g, '')) || 18.5), 0) / (activeTanksList.length || 1)).toFixed(1)}g
+                </span>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <span style={{ fontSize: '9px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>AVG FEED (FCR)</span>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: '#16A34A' }}>
+                  {(activeTanksList.reduce((sum, t) => sum + (parseFloat(String(t.fcr).replace(/[^0-9.]/g, '')) || 1.15), 0) / (activeTanksList.length || 1)).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Search Filter & Category Tabs */}
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#F8FAFC', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <Search size={14} color="#64748B" style={{ flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder="Search active tanks by name, farmer, village, or technician..."
+                  value={activeTanksSearch}
+                  onChange={(e) => setActiveTanksSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '12px', color: '#0F172A', backgroundColor: 'transparent' }}
+                />
+                {activeTanksSearch && (
+                  <button type="button" onClick={() => setActiveTanksSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <X size={13} color="#94A3B8" />
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+                {[
+                  { key: 'ALL', label: `All Active (${activeTanksList.length})` },
+                  { key: 'DUE', label: `Tests Due (${activeTanksList.filter(t => t.status === 'Test Due' || t.status === 'Due').length})` },
+                  { key: 'OPTIMAL', label: `Optimal / Up to Date (${activeTanksList.filter(t => t.status !== 'Test Due' && t.status !== 'Due').length})` },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTanksFilter(tab.key)}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: activeTanksFilter === tab.key ? '700' : '600',
+                      backgroundColor: activeTanksFilter === tab.key ? '#16A34A' : '#FFFFFF',
+                      color: activeTanksFilter === tab.key ? '#FFFFFF' : '#475569',
+                      border: activeTanksFilter === tab.key ? '1px solid #16A34A' : '1px solid #CBD5E1',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                    className="transition-all"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tanks List */}
+            <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, backgroundColor: '#F8FAFC' }}>
+              {filteredActiveTanks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <Droplets size={28} color="#94A3B8" style={{ margin: '0 auto 6px' }} />
+                  <p style={{ fontWeight: '700', color: '#0F172A', margin: '0 0 2px', fontSize: '13px' }}>No active tanks found</p>
+                  <span style={{ fontSize: '12px' }}>No active ponds match your search or filter.</span>
+                </div>
+              ) : (
+                filteredActiveTanks.map((item, idx) => {
+                  const isDue = item.status === 'Test Due' || item.status === 'Due';
+                  return (
+                    <div
+                      key={item.id || idx}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderLeft: `4px solid ${isDue ? '#F59E0B' : '#10B981'}`,
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      {/* Row 1: Farmer & Status */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
+                              {item.farmer}
+                            </span>
+                            <span style={{ fontSize: '10.5px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }}>
+                              Active Crop
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748B', marginTop: '2px', flexWrap: 'wrap' }}>
+                            <span>📍 {item.locality}</span>
+                            <span>•</span>
+                            <span>👤 Tech: <strong>{item.agent}</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Status Pill */}
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: isDue ? '#FEF3C7' : '#DCFCE7',
+                          color: isDue ? '#B45309' : '#15803D',
+                          border: `1px solid ${isDue ? '#FDE68A' : '#BBF7D0'}`,
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}>
+                          {isDue ? <Clock size={11} /> : <CheckCircle2 size={11} />}
+                          {isDue ? 'Test Due' : 'All Tests Up to Date'}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Pond Specifications & Telemetry */}
+                      <div style={{
+                        backgroundColor: '#F8FAFC',
+                        borderRadius: '8px',
+                        border: '1px solid #E2E8F0',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '4px', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Droplets size={13} color="#16A34A" style={{ flexShrink: 0 }} />
+                            <strong style={{ fontSize: '13px', color: '#0F172A' }}>{item.name}</strong>
+                            <span style={{ fontSize: '11.5px', color: '#64748B' }}>({item.size} • SPF Vannamei)</span>
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#16A34A', backgroundColor: '#F0FDF4', padding: '1px 7px', borderRadius: '4px', border: '1px solid #BBF7D0' }}>
+                            Day {item.doc} DOC
+                          </span>
+                        </div>
+
+                        {/* 3-column telemetry */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Weight (ABW)</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.abw}</div>
+                          </div>
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Biomass</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.biomass}</div>
+                          </div>
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Feed (FCR)</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#16A34A' }}>{item.fcr}</div>
+                          </div>
+                        </div>
+
+                        {/* Last Sample Info */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#64748B' }}>
+                          <span>Last Test: <strong style={{ color: '#334155' }}>{item.lastTest}</strong></span>
+                          <span>Next Due: <strong style={{ color: isDue ? '#B45309' : '#15803D' }}>{item.nextDue}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Action buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowActiveTanksModal(false);
+                            const tObj = (db?.tanks || []).find(t => t.id === item.id) || { id: item.id, name: item.name };
+                            const fObj = (db?.farmers || []).find(f => f.id === item.farmerId || f.name === item.farmer) || { name: item.farmer, locality: item.locality };
+                            setSelectedRoutineTank({ tank: tObj, farmer: fObj });
+                          }}
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            backgroundColor: '#FFFFFF',
+                            color: '#334155',
+                            border: '1px solid #CBD5E1',
+                            padding: '7px 8px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                          className="transition-all hover:bg-slate-100 active:scale-95"
+                        >
+                          <Eye size={13} /> View Schedule
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowActiveTanksModal(false);
+                            setModalInitialTank(item.id);
+                            setModalInitialType('WATER_QUALITY');
+                            setIsQuickRecordOpen(true);
+                          }}
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            backgroundColor: '#16A34A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            padding: '7px 8px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          className="transition-all hover:brightness-110 active:scale-95"
+                        >
+                          <Plus size={13} strokeWidth={2.6} /> Record Test
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                Showing <strong>{filteredActiveTanks.length}</strong> of {activeTanksList.length} active tanks
+              </span>
+              <button
+                type="button"
+                style={styles.closeBtnAction} 
+                onClick={() => setShowActiveTanksModal(false)}
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5. DUE TESTS DETAIL MODAL (Opens when clicking Tests Due) */}
+      {/* ========================================================= */}
+      {showDueTestsModal && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalBackdrop}
+          onClick={() => setShowDueTestsModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalCard, maxWidth: '540px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={styles.modalHeader}>
+              <div>
+                <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#1A2FB8', letterSpacing: '0.4px', marginBottom: '2px' }}>
+                  MY PERSONAL FARMERS • WEEKLY TEST SCHEDULE (MON - SUN)
+                </div>
+                <h3 style={styles.modalTitle}>
+                  My Farmers Due Tests ({dueTanksList.length} Tanks)
+                </h3>
+              </div>
+
+              <button 
+                type="button" 
+                style={styles.modalCloseBtn}
+                onClick={() => setShowDueTestsModal(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(85vh - 80px)' }}>
+              {dueTanksList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle size={36} color="#16A34A" />
+                  <p style={{ margin: '8px 0 0 0', fontWeight: '700', color: '#0F172A' }}>
+                    All weekly tests are up to date!
+                  </p>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>
+                    Great job! All personal farmer tanks under your direct supervision have completed routine tests for this week.
+                  </span>
+                </div>
+              ) : (
+                dueTanksList.map((item, idx) => (
+                  <div key={item?.tank?.id || idx} style={{
+                    backgroundColor: '#FEFCE8',
+                    border: '1.5px solid #FEF08A',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
+                          {item?.farmer?.name || 'Farmer'} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>• {item?.farmer?.location || 'Chinnamiram'} • 👤 Direct Incharge</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                          <strong style={{ color: '#0F172A' }}>{item?.tank?.name || `Tank ${idx + 1}`}</strong>
+                          <span>•</span>
+                          <span>{String(item?.tank?.acres || item?.tank?.size || '2.5').replace(/\s*Acres/gi, '')} Acres</span>
+                          <span>•</span>
+                          <span style={{ color: '#1A2FB8', fontWeight: '600' }}>{item?.tank?.doc || 77} Days</span>
+                        </div>
+                      </div>
+
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#FEF3C7',
+                        border: '1px solid #FDE68A',
+                        color: '#B45309',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        flexShrink: 0,
+                      }}>
+                        <Clock size={12} /> {item?.schedule?.dueCount || 0} Tests Due
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          backgroundColor: '#FFFFFF',
+                          color: '#334155',
+                          border: '1px solid #CBD5E1',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setShowDueTestsModal(false);
+                          if (item?.tank) {
+                            setSelectedRoutineTank({ tank: item.tank, farmer: item.farmer });
+                          }
+                        }}
+                      >
+                        <Eye size={13} /> View Schedule
+                      </button>
+
+                      <button
+                        type="button"
+                        className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          backgroundColor: '#1A2FB8',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
+                        }}
+                        onClick={() => {
+                          setShowDueTestsModal(false);
+                          if (item?.tank) {
+                            setModalInitialTank(item.tank.id);
+                            setModalInitialType(item?.schedule?.dueTests?.[0]?.key || 'WATER_QUALITY');
+                            setIsQuickRecordOpen(true);
+                          }
+                        }}
+                      >
+                        <Plus size={13} strokeWidth={2.6} /> Record Test
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5.5 MY ASSIGNED TANKS DETAIL MODAL (Opens from This Week's Work -> My Tanks) */}
+      {/* ========================================================= */}
+      {showMyTanksModal && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalBackdrop}
+          onClick={() => setShowMyTanksModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              backgroundColor: '#FFFFFF',
+              gap: '10px',
+            }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: '800', color: '#1A2FB8', letterSpacing: '0.4px', marginBottom: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  <Shield size={11} style={{ flexShrink: 0 }} /> Direct Incharge Portfolio
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', margin: 0, whiteSpace: 'nowrap' }}>
+                    My Assigned Tanks
+                  </h3>
+                  <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#EFF6FF', color: '#1A2FB8', padding: '1px 7px', borderRadius: '10px', border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>
+                    {personalTanks.length} Tanks Total
+                  </span>
+                </div>
+                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0', lineHeight: 1.3 }}>
+                  Cultivation tanks assigned directly to you for weekly routine testing
+                </p>
+              </div>
+
+              <button 
+                type="button" 
+                style={styles.modalCloseBtn}
+                onClick={() => setShowMyTanksModal(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <Search size={14} color="#64748B" style={{ flexShrink: 0 }} />
+                <input 
+                  type="text"
+                  placeholder="Search farmer, village, or tank name..."
+                  value={myTanksSearch}
+                  onChange={(e) => setMyTanksSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '12px', color: '#0F172A', backgroundColor: 'transparent' }}
+                />
+                {myTanksSearch && (
+                  <button type="button" onClick={() => setMyTanksSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <X size={13} color="#94A3B8" />
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                {[
+                  { key: 'ALL', label: `All (${personalTanksDetails.length})` },
+                  { key: 'DUE', label: `Due (${personalTanksDetails.filter(t => t.isDue || t.isOverdue).length})` },
+                  { key: 'COMPLETED', label: `Up to Date (${personalTanksDetails.filter(t => t.isCompleted).length})` },
+                  { key: 'HARVESTED', label: `Harvested (${personalTanksDetails.filter(t => t.isHarvested).length})` },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setMyTanksFilter(tab.key)}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: myTanksFilter === tab.key ? '700' : '600',
+                      backgroundColor: myTanksFilter === tab.key ? '#1A2FB8' : '#FFFFFF',
+                      color: myTanksFilter === tab.key ? '#FFFFFF' : '#475569',
+                      border: myTanksFilter === tab.key ? '1px solid #1A2FB8' : '1px solid #CBD5E1',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                    className="transition-all"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tanks List Container */}
+            <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, backgroundColor: '#F8FAFC' }}>
+              {filteredPersonalTanks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 16px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                  <Droplets size={28} color="#94A3B8" style={{ margin: '0 auto 6px' }} />
+                  <p style={{ fontWeight: '700', color: '#0F172A', margin: '0 0 2px', fontSize: '13px' }}>No tanks found</p>
+                  <span style={{ fontSize: '12px' }}>No assigned tanks match your search or filter.</span>
+                </div>
+              ) : (
+                filteredPersonalTanks.map((item, idx) => {
+                  const isHarvest = item.isHarvested;
+                  const isDue = item.isDue || item.isOverdue;
+                  const borderLeftColor = isHarvest ? '#94A3B8' : (isDue ? '#F59E0B' : '#10B981');
+
+                  return (
+                    <div 
+                      key={item.tank.id || idx}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderLeft: `4px solid ${borderLeftColor}`,
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                      }}
+                    >
+                      {/* Top Row: Farmer Identity & Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
+                              {item.farmer.name}
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1A2FB8', border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>
+                              🛡️ Admin Assigned
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748B', marginTop: '2px', flexWrap: 'wrap' }}>
+                            <span>📍 {item.farmer.location || 'Bhimavaram'}</span>
+                            <span>•</span>
+                            <span>📞 {item.farmer.phone}</span>
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        {isHarvest ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#F1F5F9',
+                            border: '1px solid #CBD5E1',
+                            color: '#475569',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            <CheckCircle size={11} color="#16A34A" /> Harvested
+                          </span>
+                        ) : item.isOverdue ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            color: '#DC2626',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            <AlertTriangle size={11} /> Overdue
+                          </span>
+                        ) : item.isDue ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#FEF3C7',
+                            border: '1px solid #FDE68A',
+                            color: '#B45309',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            <Clock size={11} /> {item.schedule.dueCount || 7} Tests Due
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#DCFCE7',
+                            border: '1px solid #BBF7D0',
+                            color: '#15803D',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            <CheckCircle2 size={11} /> Up to Date
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Middle Strip: Tank Identity & Telemetry Box */}
+                      <div style={{
+                        backgroundColor: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '8px',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}>
+                        {/* Tank Header Line */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '5px', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flexWrap: 'wrap' }}>
+                            <Droplets size={13} color="#1A2FB8" style={{ flexShrink: 0 }} />
+                            <strong style={{ fontSize: '13px', color: '#0F172A', whiteSpace: 'nowrap' }}>{item.tank.name}</strong>
+                            <span style={{ fontSize: '11.5px', color: '#64748B', whiteSpace: 'nowrap' }}>({item.size} • {item.species})</span>
+                          </div>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            color: '#1A2FB8',
+                            backgroundColor: '#EFF6FF',
+                            padding: '1px 7px',
+                            borderRadius: '4px',
+                            border: '1px solid #DBEAFE',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            Day {item.doc} DOC
+                          </span>
+                        </div>
+
+                        {/* Telemetry Metrics Row (3-box Grid) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap' }}>Weight (ABW)</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A', marginTop: '1px' }}>{item.abw}</div>
+                          </div>
+
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap' }}>Biomass</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A', marginTop: '1px' }}>{item.biomass}</div>
+                          </div>
+
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '5px 4px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap' }}>Feed (FCR)</div>
+                            <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#16A34A', marginTop: '1px' }}>{item.fcr}</div>
+                          </div>
+                        </div>
+
+                        {/* Last Sample Info */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#64748B' }}>
+                          <span>Last Test: <strong style={{ color: '#334155' }}>{item.lastTest}</strong></span>
+                          <span>Next Due: <strong style={{ color: isDue ? '#B45309' : '#15803D' }}>{item.nextTest}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '2px' }}>
+                        <button
+                          type="button"
+                          className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            backgroundColor: '#FFFFFF',
+                            color: '#334155',
+                            border: '1px solid #CBD5E1',
+                            padding: '7px 8px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
+                            setShowMyTanksModal(false);
+                            setSelectedRoutineTank({ tank: item.tank, farmer: item.farmer });
+                          }}
+                        >
+                          <Eye size={13} /> View Schedule
+                        </button>
+
+                        {isHarvest ? (
+                          <button
+                            type="button"
+                            className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                            style={{
+                              flex: 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              backgroundColor: '#FFFFFF',
+                              color: '#1A2FB8',
+                              border: '1px solid #BFDBFE',
+                              padding: '7px 8px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => {
+                              setShowMyTanksModal(false);
+                              setSelectedHarvestTank(item.tank);
+                              setShowHarvestedModal(true);
+                            }}
+                          >
+                            <Scale size={13} /> Harvest Report
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                            style={{
+                              flex: 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              backgroundColor: '#1A2FB8',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              padding: '7px 8px',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
+                            }}
+                            onClick={() => {
+                              setShowMyTanksModal(false);
+                              setModalInitialTank(item.tank.id);
+                              setModalInitialType(item.schedule?.dueTests?.[0]?.key || 'WATER_QUALITY');
+                              setIsQuickRecordOpen(true);
+                            }}
+                          >
+                            <Plus size={13} strokeWidth={2.6} /> Record Test
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Bottom Footer */}
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11.5px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                Showing <strong>{filteredPersonalTanks.length}</strong> of {personalTanks.length} tanks
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMyTanksModal(false);
+                  navigate('/incharge/my-tanks');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: 'transparent',
+                  color: '#1A2FB8',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                className="hover:underline"
+              >
+                Go to Full My Tanks Page →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 6. WEEKLY ROUTINE TEST SCHEDULE MODAL (MATCHING IMAGE 2) */}
+      {/* ========================================================= */}
+      {selectedRoutineTank && (
+        <WeeklyRoutineScheduleModal
+          isOpen={Boolean(selectedRoutineTank)}
+          onClose={() => setSelectedRoutineTank(null)}
+          tank={selectedRoutineTank.tank}
+          farmer={selectedRoutineTank.farmer}
+        />
+      )}
+
+      {/* Quick Record Modal */}
+      <QuickRecordModal
+        isOpen={isQuickRecordOpen}
+        onClose={() => setIsQuickRecordOpen(false)}
+        initialType={modalInitialType}
+        preselectedTankId={modalInitialTank}
+        userRole="INCHARGE"
+      />
     </>
   );
 };

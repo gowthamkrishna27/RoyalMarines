@@ -9,13 +9,13 @@ const initialRegions = [
 ];
 
 const initialIncharges = [
-  { id: 'INC001', name: 'Admin User', regionId: 'REG001', email: 'incharge@example.com' }
+  { id: 'INC001', name: 'Ravi Kumar', regionId: 'REG001', email: 'incharge@example.com' }
 ];
 
 const initialAgents = [
-  { id: 'agent001', name: 'Agent A', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
-  { id: 'agent002', name: 'Agent B', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
-  { id: 'agent003', name: 'Agent C', phone: '9000000003', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Akuruvu' }
+  { id: 'agent001', name: 'Ramesh', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
+  { id: 'agent002', name: 'Suresh', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
+  { id: 'agent003', name: 'Mahesh', phone: '9000000003', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Akuruvu' }
 ];
 
 const initialFarmers = [
@@ -45,15 +45,15 @@ const initialFarmers = [
 
 const initialTanks = [
   // Incharge Personal Tanks (Under Incharge's direct supervision)
-  { id: 'T101', name: 'Pond A1', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '24.5g', biomass: '3200kg', fcr: '1.16', lastTest: '22 Aug 2026', nextTest: '29 Aug 2026', size: '15 Acres', doc: 72 },
-  { id: 'T102', name: 'Pond A2', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '19.2g', biomass: '2550kg', fcr: '1.14', lastTest: '18 Aug 2026', nextTest: '25 Aug 2026', size: '15 Acres', doc: 58 },
-  { id: 'T103', name: 'Pond B1', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.8g', biomass: '2800kg', fcr: '1.18', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '11 Acres', doc: 65 },
-  { id: 'T104', name: 'Pond B2', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '16.0g', biomass: '2100kg', fcr: '1.12', lastTest: '23 Aug 2026', nextTest: '30 Aug 2026', size: '11 Acres', doc: 48 },
-  { id: 'T105', name: 'Pond C1', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Overdue', abw: '27.5g', biomass: '3600kg', fcr: '1.20', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '14 Acres', doc: 80 },
-  { id: 'T106', name: 'Pond C2', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '20.0g', biomass: '2650kg', fcr: '1.15', lastTest: '17 Aug 2026', nextTest: '24 Aug 2026', size: '14 Acres', doc: 60 },
-  { id: 'T107', name: 'Pond D1', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '17.5g', biomass: '2300kg', fcr: '1.14', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '18 Acres', doc: 52 },
-  { id: 'T108', name: 'Pond D2', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'Harvested', testStatus: 'Completed', abw: '33.5g', biomass: '5200kg', fcr: '1.18', lastTest: '24 Aug 2026', nextTest: 'Cycle Closed', size: '17 Acres', doc: 115 },
-  { id: 'T109', name: 'Pond E1', farmerId: 'F105', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.2g', biomass: '2750kg', fcr: '1.17', lastTest: '20 Aug 2026', nextTest: '27 Aug 2026', size: '25 Acres', doc: 64 },
+  { id: 'T101', name: 'Tank 1', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '24.5g', biomass: '3200kg', fcr: '1.16', lastTest: '22 Aug 2026', nextTest: '29 Aug 2026', size: '15 Acres', doc: 72 },
+  { id: 'T102', name: 'Tank 2', farmerId: 'F101', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '19.2g', biomass: '2550kg', fcr: '1.14', lastTest: '18 Aug 2026', nextTest: '25 Aug 2026', size: '15 Acres', doc: 58 },
+  { id: 'T103', name: 'Tank 1', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.8g', biomass: '2800kg', fcr: '1.18', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '11 Acres', doc: 65 },
+  { id: 'T104', name: 'Tank 2', farmerId: 'F102', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Completed', abw: '16.0g', biomass: '2100kg', fcr: '1.12', lastTest: '23 Aug 2026', nextTest: '30 Aug 2026', size: '11 Acres', doc: 48 },
+  { id: 'T105', name: 'Tank 1', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Overdue', abw: '27.5g', biomass: '3600kg', fcr: '1.20', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '14 Acres', doc: 80 },
+  { id: 'T106', name: 'Tank 2', farmerId: 'F103', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '20.0g', biomass: '2650kg', fcr: '1.15', lastTest: '17 Aug 2026', nextTest: '24 Aug 2026', size: '14 Acres', doc: 60 },
+  { id: 'T107', name: 'Tank 1', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '17.5g', biomass: '2300kg', fcr: '1.14', lastTest: '19 Aug 2026', nextTest: '26 Aug 2026', size: '18 Acres', doc: 52 },
+  { id: 'T108', name: 'Tank 2', farmerId: 'F104', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'Harvested', testStatus: 'Completed', abw: '33.5g', biomass: '5200kg', fcr: '1.18', lastTest: '24 Aug 2026', nextTest: 'Cycle Closed', size: '17 Acres', doc: 115 },
+  { id: 'T109', name: 'Tank 1', farmerId: 'F105', agentId: null, inchargeId: 'INC001', assignedTo: 'Incharge', status: 'ACTIVE', testStatus: 'Due', abw: '21.2g', biomass: '2750kg', fcr: '1.17', lastTest: '20 Aug 2026', nextTest: '27 Aug 2026', size: '25 Acres', doc: 64 },
 
   // Agent Assigned Tanks (Under assigned Field Technicians)
   { id: 'T001', name: 'Tank 1', farmerId: 'F001', agentId: 'agent002', inchargeId: 'INC001', status: 'ACTIVE', testStatus: 'Overdue', abw: '12g', biomass: '800kg', fcr: '1.2', lastTest: '10 Aug 2026', nextTest: '17 Aug 2026', size: '12.5 Acres', doc: 45 },
@@ -358,12 +358,12 @@ const getInitialDb = () => {
 
   if (typeof window === 'undefined') return fallbackDb;
 
-  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9'].forEach(k => {
+  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10'].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) {}
   });
 
   try {
-    const savedData = localStorage.getItem('aqua_feed_mock_database_v10');
+    const savedData = localStorage.getItem('aqua_feed_mock_database_v11');
     if (savedData) {
       const parsed = JSON.parse(savedData);
       if (parsed && Array.isArray(parsed.tanks) && parsed.tanks.length > 0) {
@@ -376,7 +376,7 @@ const getInitialDb = () => {
   }
 
   try {
-    localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(fallbackDb));
+    localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(fallbackDb));
   } catch (e) {}
   return fallbackDb;
 };
@@ -389,7 +389,7 @@ export const MockDataProvider = ({ children }) => {
   useEffect(() => {
     if (db) {
       try {
-        localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(db));
+        localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(db));
       } catch (e) {}
     }
   }, [db]);
