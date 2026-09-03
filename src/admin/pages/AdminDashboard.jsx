@@ -9,6 +9,7 @@ import {
 import { useMockData } from '../../context/MockDataContext';
 import { getRegions } from '../utils/adminMockData';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
+import GPSRouteTracking from './GPSRouteTracking';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -337,6 +338,10 @@ const AdminDashboard = () => {
         </div>
 
 
+      </div>
+
+      <div style={{ marginTop: '24px', borderTop: '2px solid #e2e8f0', paddingTop: '24px' }}>
+        <GPSRouteTracking />
       </div>
 
       {/* Modals */}

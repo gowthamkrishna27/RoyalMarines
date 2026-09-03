@@ -323,46 +323,46 @@ const Analytics = () => {
           </div>
 
           {/* Conditional Chart 2 */}
-            <div className="card" style={{ padding: '24px 32px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'flex-start' }}>
-                <div>
-                  <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>WATER QUALITY PARAMETERS</h3>
-                  <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>Weekly Dissolved Oxygen (DO) & pH Trends</p>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', fontSize: '12px', fontWeight: 600 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#1d4ed8' }}></div> DO (mg/L)
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#059669' }}></div> pH
-                  </div>
-                </div>
+          <div className="card" style={{ padding: '24px 32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>WATER QUALITY PARAMETERS</h3>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>Weekly Dissolved Oxygen (DO) & pH Trends</p>
               </div>
-              
-              <div style={{ height: '260px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={filters.farmer && filters.tank ? waterQualityData : []} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorDo" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorPh" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#059669" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" axisLine={{ stroke: '#cbd5e1' }} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                    <YAxis domain={[4, 9]} ticks={[4, 6, 8, 9]} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dx={-10} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    
-                    <Area type="monotone" dataKey="ph" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#colorPh)" activeDot={{ r: 6, fill: '#059669', stroke: '#fff', strokeWidth: 2 }} />
-                    <Area type="monotone" dataKey="do" stroke="#1d4ed8" strokeWidth={2} fillOpacity={1} fill="url(#colorDo)" activeDot={{ r: 6, fill: '#1d4ed8', stroke: '#fff', strokeWidth: 2 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '12px', fontWeight: 600 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#1d4ed8' }}></div> DO (mg/L)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#059669' }}></div> pH
+                </div>
               </div>
             </div>
+
+            <div style={{ height: '260px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={filters.farmer && filters.tank ? waterQualityData : []} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorDo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorPh" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="day" axisLine={{ stroke: '#cbd5e1' }} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                  <YAxis domain={[4, 9]} ticks={[4, 6, 8, 9]} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dx={-10} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+
+                  <Area type="monotone" dataKey="ph" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#colorPh)" activeDot={{ r: 6, fill: '#059669', stroke: '#fff', strokeWidth: 2 }} />
+                  <Area type="monotone" dataKey="do" stroke="#1d4ed8" strokeWidth={2} fillOpacity={1} fill="url(#colorDo)" activeDot={{ r: 6, fill: '#1d4ed8', stroke: '#fff', strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
         </div>
 

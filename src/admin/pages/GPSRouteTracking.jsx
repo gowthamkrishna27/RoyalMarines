@@ -8,6 +8,7 @@ import {
   AlertTriangle, Info, CheckCircle2, XCircle, Droplet, UserCircle, Map
 } from 'lucide-react';
 import { getMockRouteData } from '../utils/mockRouteData';
+import * as XLSX from 'xlsx';
 
 // Custom Map Icons
 const createCustomIcon = (color) => {
@@ -105,6 +106,57 @@ const GPSRouteTracking = () => {
     return trackingData.route;
   };
 
+  const handleExportExcel = () => {
+    if (!trackingData) return alert("No tracking data available to export.");
+    const wb = XLSX.utils.book_new();
+
+    // 1. Summary Sheet
+    const summaryData = [
+      ['GPS Route Tracking Report'],
+      [],
+      ['Employee Name', trackingData.employeeInfo.name],
+      ['Employee ID', trackingData.employeeInfo.id],
+      ['Role', trackingData.employeeInfo.role],
+      ['Date', date],
+      ['Area', trackingData.employeeInfo.area],
+      ['Total Distance', trackingData.employeeInfo.totalDistance],
+      ['Working Hours', trackingData.employeeInfo.workingHours],
+      ['Travel Time', trackingData.stats.travelTime],
+      ['Idle Time', trackingData.stats.idleTime],
+      ['Average Speed', trackingData.stats.avgSpeed],
+      ['Tank Visits', trackingData.stats.tankVisits],
+      ['Productivity Score', trackingData.employeeInfo.productivityScore]
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    // 2. Timeline Sheet
+    const timelineData = trackingData.route.map(r => ({
+      'Time': r.time,
+      'Type': r.type,
+      'Location': r.locationName,
+      'Purpose': r.purpose,
+      'Duration': r.duration,
+      'Latitude': r.lat,
+      'Longitude': r.lng
+    }));
+    const wsTimeline = XLSX.utils.json_to_sheet(timelineData);
+    XLSX.utils.book_append_sheet(wb, wsTimeline, 'Route Timeline');
+
+    // 3. Tank Visits Sheet
+    const tanksData = trackingData.assignedTanks.map(t => ({
+      'Tank Name': t.name,
+      'Farmer': t.farmer,
+      'Arrival Time': t.arrival,
+      'Verified Status': t.verified ? 'Completed' : 'Missed'
+    }));
+    const wsTanks = XLSX.utils.json_to_sheet(tanksData);
+    XLSX.utils.book_append_sheet(wb, wsTanks, 'Tank Visits');
+
+    // Save
+    XLSX.writeFile(wb, `GPS_Tracking_${trackingData.employeeInfo.id}_${date}.xlsx`);
+  };
+
   const visibleRoute = getVisibleRoute();
   const polylinePositions = visibleRoute.map(p => [p.lat, p.lng]);
 
@@ -118,8 +170,7 @@ const GPSRouteTracking = () => {
             <p style={styles.pageSubtitle}>Track and replay complete movement history during working hours.</p>
           </div>
           <div style={styles.actionButtons}>
-            <button style={styles.exportBtn}><Download size={16} /> Export PDF</button>
-            <button style={styles.exportBtn}><Download size={16} /> Export Excel</button>
+            <button style={styles.exportBtn} onClick={handleExportExcel}><Download size={16} /> Export Excel</button>
           </div>
         </div>
 
@@ -342,9 +393,6 @@ const GPSRouteTracking = () => {
 
 const styles = {
   container: {
-    padding: '24px',
-    maxWidth: '1600px',
-    margin: '0 auto',
     fontFamily: 'Inter, system-ui, sans-serif'
   },
   stickyHeader: {

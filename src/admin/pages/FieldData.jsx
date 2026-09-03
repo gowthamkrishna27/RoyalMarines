@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMockData } from '../../context/MockDataContext';
-import { 
-  getTankById, calculateBiomass, calculateFCR, getAgentById, 
-  getIncharges, getAgents, getFarmers, getTanks 
+import {
+  getTankById, calculateBiomass, calculateFCR, getAgentById,
+  getIncharges, getAgents, getFarmers, getTanks
 } from '../utils/adminMockData';
 import { Search, Filter, Calendar, FileText, CheckCircle2, Clock, User, Users, UserCircle, Droplet } from 'lucide-react';
 
@@ -72,14 +72,14 @@ const FieldData = () => {
   let filteredSubmissions = submissions.filter(sub => {
     const tank = getTankById(sub.tankId) || {};
     const farmer = allFarmers.find(f => f.id === sub.farmerId || f.name === sub.farmerId) || {};
-    
+
     if (filters.incharge && (farmer.incharge !== filters.incharge && tank.incharge !== filters.incharge)) return false;
     if (filters.agent && (farmer.agent && !farmer.agent.includes(filters.agent))) return false;
     if (filters.farmer && sub.farmerId !== filters.farmer && farmer.name !== filters.farmer) return false;
     if (filters.tank && sub.tankId !== filters.tank && tank.name !== filters.tank) return false;
     if (filters.dateFrom && sub.date < filters.dateFrom) return false;
     if (filters.dateTo && sub.date > filters.dateTo) return false;
-    
+
     return true;
   });
 
@@ -88,13 +88,13 @@ const FieldData = () => {
   if (selectedAgentObj && selectedAgentObj.tests) {
     const expectedTests = selectedAgentObj.tests;
     const currentCompleted = filteredSubmissions.filter(s => s.status === 'COMPLETED').length;
-    
+
     if (currentCompleted < expectedTests) {
       const needed = expectedTests - currentCompleted;
       const testTypes = ['Water Analysis', 'Feed Test', 'Medication', 'Disease Observation'];
       const farmerNames = ['Ashok', 'Ravi', 'Kumar', 'Siva', 'Ganesh'];
       const formattedAgentId = `agent${selectedAgentObj.id.split('-').pop().padStart(3, '0')}`;
-      
+
       for (let i = 0; i < needed; i++) {
         const dummySub = {
           id: `SUB-GEN-${selectedAgentObj.id.split('-').pop()}-${i}`,
@@ -112,12 +112,12 @@ const FieldData = () => {
             fcr: (1.1 + (i % 10) * 0.05).toFixed(2)
           }
         };
-        
+
         filteredSubmissions.push(dummySub);
       }
     }
   }
-  
+
   filteredSubmissions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
@@ -131,17 +131,17 @@ const FieldData = () => {
 
       <div style={styles.card}>
         <div style={styles.filterBar}>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px', width: '100%' }}>
             {/* Date From Filter */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Date From</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
                 <Calendar size={15} color="#94a3b8" />
-                <input 
+                <input
                   type="date"
-                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} 
-                  value={filters.dateFrom} 
+                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }}
+                  value={filters.dateFrom}
                   onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
                 />
               </div>
@@ -152,10 +152,10 @@ const FieldData = () => {
               <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Date To</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
                 <Calendar size={15} color="#94a3b8" />
-                <input 
+                <input
                   type="date"
-                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} 
-                  value={filters.dateTo} 
+                  style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }}
+                  value={filters.dateTo}
                   onChange={(e) => handleFilterChange('dateTo', e.target.value)}
                 />
               </div>

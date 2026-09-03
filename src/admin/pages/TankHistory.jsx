@@ -26,17 +26,17 @@ const TankHistory = () => {
 
   return (
     <>
-      <PageHeader 
-        title={`Tank History: ${tank.name} (${tank.farmer})`} 
+      <PageHeader
+        title={`Tank History: ${tank.name} (${tank.farmer})`}
         breadcrumbs={[
           { label: 'Organization' },
-          { label: tank.agent }, 
+          { label: tank.agent },
           { label: tank.farmer },
           { label: tank.name, active: true }
-        ]} 
+        ]}
       />
       <div className="content-inner">
-        
+
         {/* Culture Cycle Selector */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', backgroundColor: 'white', padding: '16px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -109,13 +109,13 @@ const TankHistory = () => {
                     {['22 Aug 2026', '15 Aug 2026', '08 Aug 2026'].map((date, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                         <td style={{ padding: '12px', fontSize: '14px' }}>{date}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{68 - (i*7)}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{68 - (i * 7)}</td>
                         <td style={{ padding: '12px', fontSize: '14px' }}>15</td>
                         <td style={{ padding: '12px', fontSize: '14px', color: i === 0 ? 'var(--status-red)' : 'inherit', fontWeight: i === 0 ? 600 : 'normal' }}>{i === 0 ? '8.9' : '7.8'}</td>
                         <td style={{ padding: '12px', fontSize: '14px' }}>0.1</td>
                         <td style={{ padding: '12px', fontSize: '14px' }}>4.5</td>
                         <td style={{ padding: '12px' }}>
-                          <span style={{ 
+                          <span style={{
                             padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600,
                             backgroundColor: i === 0 ? '#fef2f2' : '#dcfce7',
                             color: i === 0 ? 'var(--status-red)' : 'var(--status-green)',
