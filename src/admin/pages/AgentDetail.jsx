@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAgentById, getAgents, getFarmers, getRegions, getIncharges } from '../utils/adminMockData';
 import PageHeader from '../components/PageHeader';
-import { 
-  ArrowLeft, Edit, Phone, Mail, MapPin, Building, 
-  Compass, Sprout, Database, CheckSquare, Eye, X, 
-  Check, UserCheck, Shield, Layers, Tractor, Droplets 
+import {
+  ArrowLeft, Edit, Phone, Mail, MapPin, Building,
+  Compass, Sprout, Database, CheckSquare, Eye, X,
+  Check, UserCheck, Shield, Layers, Tractor, Droplets
 } from 'lucide-react';
 
 const AgentDetail = () => {
@@ -22,7 +22,7 @@ const AgentDetail = () => {
         const parsed = JSON.parse(savedAgents);
         const found = parsed.find(a => a.id === agentId);
         if (found) return found;
-      } catch (e) {}
+      } catch (e) { }
     }
     return getAgentById(agentId) || getAgents()[0];
   });
@@ -33,7 +33,7 @@ const AgentDetail = () => {
     if (savedFarmers) {
       try {
         return JSON.parse(savedFarmers);
-      } catch (e) {}
+      } catch (e) { }
     }
     return getFarmers();
   });
@@ -75,7 +75,7 @@ const AgentDetail = () => {
   // Helper: Get Incharge for Locality
   const getInchargeForLocality = (localityName, regionId) => {
     if (!localityName) return allIncharges[0];
-    const found = allIncharges.find(inc => 
+    const found = allIncharges.find(inc =>
       inc.locality?.toLowerCase().trim() === localityName.toLowerCase().trim()
     );
     if (found) return found;
@@ -90,8 +90,8 @@ const AgentDetail = () => {
   };
 
   // Filter and sort farmers reporting to this agent
-  const allocatedFarmers = farmersList.filter(f => 
-    f.agentId === agent.id || 
+  const allocatedFarmers = farmersList.filter(f =>
+    f.agentId === agent.id ||
     f.agent?.toLowerCase().includes(agent.name.toLowerCase().split(' ')[0]) ||
     f.agent?.toLowerCase().includes(agent.shortName?.toLowerCase() || '')
   ).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -146,7 +146,7 @@ const AgentDetail = () => {
         const parsed = JSON.parse(savedAgents);
         const updatedAll = parsed.map(a => a.id === agent.id ? updatedAgent : a);
         localStorage.setItem('royal_admin_agents_data', JSON.stringify(updatedAll));
-      } catch (err) {}
+      } catch (err) { }
     }
 
     showToast(`Agent details for ${updatedAgent.name} updated successfully!`);
@@ -206,13 +206,13 @@ const AgentDetail = () => {
         </button>
       </div>
 
-      <PageHeader 
-        title={`Field Agent Profile: ${agent.name}`} 
+      <PageHeader
+        title={`Field Agent Profile: ${agent.name}`}
         breadcrumbs={[
           { label: 'Organization' },
-          { label: 'Agents', path: '/admin/agents' }, 
+          { label: 'Agents', path: '/admin/agents' },
           { label: agent.name, active: true }
-        ]} 
+        ]}
       />
 
       {/* 1. Master Agent Profile Card */}
@@ -236,7 +236,7 @@ const AgentDetail = () => {
             </p>
           </div>
 
-          <button 
+          <button
             style={styles.editAgentBtn}
             onClick={openEditAgentModal}
           >
@@ -348,7 +348,7 @@ const AgentDetail = () => {
                   <tr key={farmer.id} style={styles.tr}>
                     {/* Name & ID */}
                     <td style={styles.td}>
-                      <div 
+                      <div
                         style={styles.nameColumnClickable}
                         onClick={() => navigate(`/admin/farmers/${farmer.id}`)}
                         title="Click to view full Farmer & Tank Growth Analytics"
@@ -392,7 +392,7 @@ const AgentDetail = () => {
                     <td style={styles.td}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                         {/* 1. View Growth Analytics */}
-                        <button 
+                        <button
                           style={styles.viewGrowthBtn}
                           onClick={() => navigate(`/admin/farmers/${farmer.id}`)}
                           title="View Growth Trajectory & Water Quality Telemetry"
@@ -402,7 +402,7 @@ const AgentDetail = () => {
                         </button>
 
                         {/* 2. Edit Farmer Details */}
-                        <button 
+                        <button
                           style={styles.editFarmerBtn}
                           onClick={() => openEditFarmerModal(farmer)}
                           title="Edit farmer details, village, and water source"
@@ -455,7 +455,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Agent Full Name *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.name}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, name: e.target.value })}
@@ -465,7 +465,7 @@ const AgentDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Role Designation</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.roleSuffix}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, roleSuffix: e.target.value })}
@@ -478,7 +478,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Phone Number *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.phone}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, phone: e.target.value })}
@@ -488,7 +488,7 @@ const AgentDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Corporate Email</label>
-                    <input 
+                    <input
                       type="email"
                       value={editAgentForm.email}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, email: e.target.value })}
@@ -501,7 +501,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Operating Region *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.regionId}
                       onChange={(e) => {
@@ -522,7 +522,7 @@ const AgentDetail = () => {
 
                   <div>
                     <label style={styles.modalLabel}>Assigned Locality *</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.locality}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, locality: e.target.value })}
@@ -556,7 +556,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Assigned Particular Area / Zone *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editAgentForm.assignedArea}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, assignedArea: e.target.value })}
@@ -567,7 +567,7 @@ const AgentDetail = () => {
 
                   <div>
                     <label style={styles.modalLabel}>Status</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editAgentForm.status}
                       onChange={(e) => setEditAgentForm({ ...editAgentForm, status: e.target.value })}
@@ -580,15 +580,15 @@ const AgentDetail = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowEditAgentModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Save Agent Details
@@ -628,7 +628,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Farmer Full Name *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editFarmerForm.name}
                       onChange={(e) => setEditFarmerForm({ ...editFarmerForm, name: e.target.value })}
@@ -638,7 +638,7 @@ const AgentDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Phone Number *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editFarmerForm.phone}
                       onChange={(e) => setEditFarmerForm({ ...editFarmerForm, phone: e.target.value })}
@@ -652,7 +652,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Village Name *</label>
-                    <input 
+                    <input
                       type="text"
                       value={editFarmerForm.village}
                       onChange={(e) => setEditFarmerForm({ ...editFarmerForm, village: e.target.value })}
@@ -662,7 +662,7 @@ const AgentDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Source of Water</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editFarmerForm.waterSource}
                       onChange={(e) => setEditFarmerForm({ ...editFarmerForm, waterSource: e.target.value })}
@@ -681,7 +681,7 @@ const AgentDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Total Land (Acres) *</label>
-                    <input 
+                    <input
                       type="number"
                       step="0.1"
                       min="0.1"
@@ -693,7 +693,7 @@ const AgentDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Account Status</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editFarmerForm.status}
                       onChange={(e) => setEditFarmerForm({ ...editFarmerForm, status: e.target.value })}
@@ -706,15 +706,15 @@ const AgentDetail = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowEditFarmerModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Save Farmer Details

@@ -2,8 +2,8 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutGrid, Globe, Users, UserCheck, Tractor, 
-  ClipboardList, ShieldCheck, FileCheck, BarChart3, Download, 
-  History, Settings 
+  ClipboardList, ShieldCheck, BarChart3, Download, 
+  History, Settings, MapPin
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
@@ -14,8 +14,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
     { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
     { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
     { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> },
-    { name: 'Verification Queue', path: '/admin/verifications', icon: <ShieldCheck size={18} /> },
-    { name: 'Weekly Tests', path: '/admin/weekly-tests', icon: <FileCheck size={18} /> },
+
     { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={18} /> },
     { name: 'Export Center', path: '/admin/export-center', icon: <Download size={18} /> },
     { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },

@@ -15,7 +15,7 @@ const AdminLogin = () => {
   const handleLogin = (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!identifier || !password) {
       setError('Please enter both Admin ID/Mobile and Password');
       return;
@@ -53,9 +53,9 @@ const AdminLogin = () => {
             <label style={styles.label}>Admin ID or Mobile</label>
             <div style={styles.inputBox}>
               <User size={16} color="#64748B" />
-              <input 
-                type="text" 
-                placeholder="ADM001" 
+              <input
+                type="text"
+                placeholder="ADM001"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 style={styles.inputField}
@@ -68,9 +68,9 @@ const AdminLogin = () => {
             <label style={styles.label}>Password</label>
             <div style={styles.inputBox}>
               <Lock size={16} color="#64748B" />
-              <input 
-                type="password" 
-                placeholder="••••••••" 
+              <input
+                type="password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={styles.inputField}
@@ -79,8 +79,8 @@ const AdminLogin = () => {
             </div>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             style={{
               ...styles.submitBtn,
               opacity: loading ? 0.7 : 1,
@@ -133,9 +133,11 @@ const styles = {
     marginBottom: '20px',
   },
   logo: {
-    width: '90px',
+    width: '120px',
     height: 'auto',
-    marginBottom: '10px',
+    margin: '0 auto 16px auto',
+    display: 'block',
+    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))',
   },
   title: {
     fontSize: '18px',

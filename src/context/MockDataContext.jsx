@@ -255,7 +255,7 @@ const initialSubmissions = [
     status: 'PENDING_VERIFICATION',
     submittedAgo: '10 mins ago',
     data: {
-      doc: '45', seed: '2 Lakh', abw: '12g', dayFeed: '50 Kg', 
+      doc: '45', seed: '2 Lakh', abw: '12g', dayFeed: '50 Kg',
       cumulativeFeed: '1500 Kg', totalBiomass: '1200kg', fcr: '1.25',
       checkTrayFeed: '10 grams', checkTrayTime: '1.5 hours',
       remarks: 'Normal feeding'
@@ -271,7 +271,7 @@ const initialSubmissions = [
     status: 'COMPLETED',
     submittedAgo: '2 hrs ago',
     data: {
-      type: 'Preventive', category: 'Probiotics', product: 'AquaPro', 
+      type: 'Preventive', category: 'Probiotics', product: 'AquaPro',
       dosage: '500 ml / Acre', date: '2026-08-22', remarks: 'Routine maintenance'
     }
   },
@@ -285,7 +285,7 @@ const initialSubmissions = [
     status: 'COMPLETED',
     submittedAgo: '1 day ago',
     data: {
-      observations: ['White muscle', 'Soft shell'], 
+      observations: ['White muscle', 'Soft shell'],
       remarks: 'Mild symptoms observed in check tray'
     }
   },
@@ -358,8 +358,13 @@ const getInitialDb = () => {
 
   if (typeof window === 'undefined') return fallbackDb;
 
+<<<<<<< HEAD
   ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10'].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) {}
+=======
+  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9'].forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) { }
+>>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
   });
 
   try {
@@ -376,8 +381,13 @@ const getInitialDb = () => {
   }
 
   try {
+<<<<<<< HEAD
     localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(fallbackDb));
   } catch (e) {}
+=======
+    localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(fallbackDb));
+  } catch (e) { }
+>>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
   return fallbackDb;
 };
 
@@ -389,8 +399,13 @@ export const MockDataProvider = ({ children }) => {
   useEffect(() => {
     if (db) {
       try {
+<<<<<<< HEAD
         localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(db));
       } catch (e) {}
+=======
+        localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(db));
+      } catch (e) { }
+>>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
     }
   }, [db]);
 
@@ -443,12 +458,12 @@ export const MockDataProvider = ({ children }) => {
   // --- Selectors ---
 
   const getAgentById = (id) => (db?.agents || []).find(a => a.id === id);
-  
+
   const getFarmersByAgentId = (agentId) => {
     if (!db || !db.farmers) return [];
     const session = getSession();
     const agent = (db.agents || []).find(a => a.id === agentId);
-    
+
     // Agent area/locality from active session profile OR agent record
     const agentArea = (session && session.agentId === agentId && session.locality)
       ? session.locality
@@ -462,9 +477,9 @@ export const MockDataProvider = ({ children }) => {
       return f.agentId === agentId;
     });
   };
-  
+
   const getFarmerById = (id) => db.farmers.find(f => f.id === id);
-  
+
   const getTanksByFarmerId = (farmerId) => {
     if (!db || !db.tanks) return [];
     const fTanks = db.tanks.filter(t => t.farmerId === farmerId);
@@ -473,7 +488,7 @@ export const MockDataProvider = ({ children }) => {
       name: `Tank ${idx + 1}`
     }));
   };
-  
+
   const getTankById = (id) => {
     if (!db || !db.tanks) return null;
     const tank = db.tanks.find(t => t.id === id);
@@ -485,7 +500,7 @@ export const MockDataProvider = ({ children }) => {
       name: `Tank ${tankIndex >= 0 ? tankIndex + 1 : 1}`
     };
   };
-  
+
   const getSubmissionsByAgentId = (agentId) => db.submissions.filter(s => s.agentId === agentId);
 
   const getAgentNotifications = (agentId) => (db.notifications || []).filter(n => n.agentId === agentId);
@@ -544,8 +559,8 @@ export const MockDataProvider = ({ children }) => {
       .filter(a => a.inchargeId === inchargeId)
       .map(a => a.id);
     return db.farmers
-      .filter(f => 
-        f.inchargeId === inchargeId || 
+      .filter(f =>
+        f.inchargeId === inchargeId ||
         (f.agentId && inchargeAgentIds.includes(f.agentId)) ||
         !f.inchargeId
       )
@@ -623,11 +638,11 @@ export const MockDataProvider = ({ children }) => {
     const agents = getAgentsByInchargeId(inchargeId);
     const farmers = getFarmersByInchargeId(inchargeId);
     const tanks = getTanksByInchargeId(inchargeId);
-    
+
     let testsCompleted = 0;
     let testsDue = 0;
     let overdueTests = 0;
-    
+
     tanks.forEach(t => {
       if (t.testStatus === 'Completed') testsCompleted++;
       if (t.testStatus === 'Due') testsDue++;
@@ -635,7 +650,7 @@ export const MockDataProvider = ({ children }) => {
     });
 
     const tankIds = tanks.map(t => t.id);
-    const pendingVerification = (db.submissions || []).filter(s => 
+    const pendingVerification = (db.submissions || []).filter(s =>
       tankIds.includes(s.tankId) && s.status === 'PENDING_VERIFICATION'
     ).length;
 
@@ -679,7 +694,7 @@ export const MockDataProvider = ({ children }) => {
       date: new Date().toISOString().split('T')[0],
       ...submissionData
     };
-    
+
     setDb(prev => {
       const newTanks = prev.tanks.map(t => {
         if (t.id === submissionData.tankId) {
@@ -707,7 +722,7 @@ export const MockDataProvider = ({ children }) => {
   const updateSubmissionStatus = (submissionId, newStatus) => {
     setDb(prev => ({
       ...prev,
-      submissions: prev.submissions.map(s => 
+      submissions: prev.submissions.map(s =>
         s.id === submissionId ? { ...s, status: newStatus } : s
       )
     }));
@@ -716,7 +731,7 @@ export const MockDataProvider = ({ children }) => {
 
   const assignFarmerToAgent = (farmerId, newAgentId) => {
     setDb(prev => {
-      const newFarmers = prev.farmers.map(f => 
+      const newFarmers = prev.farmers.map(f =>
         f.id === farmerId ? { ...f, agentId: newAgentId } : f
       );
       const newTanks = prev.tanks.map(t =>
@@ -740,13 +755,13 @@ export const MockDataProvider = ({ children }) => {
 
   const createFarmerWithTanks = (agentId, farmerData, tanksData) => {
     setDb(prev => {
-      const nextFarmerNum = prev.farmers.length > 0 
-        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1 
+      const nextFarmerNum = prev.farmers.length > 0
+        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1
         : 1;
       const newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
 
-      let startTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1 
+      let startTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
 
       const newTanks = tanksData.map((tankData, index) => {
@@ -784,7 +799,7 @@ export const MockDataProvider = ({ children }) => {
       };
 
       showToast(`Added Farmer ${farmerData.name} with ${newTanks.length} tanks!`);
-      
+
       return {
         ...prev,
         farmers: [...prev.farmers, newFarmer],
@@ -795,8 +810,8 @@ export const MockDataProvider = ({ children }) => {
 
   const addTank = (tankData) => {
     setDb(prev => {
-      const nextTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1 
+      const nextTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
       const newTankId = `T${nextTankNum.toString().padStart(3, '0')}`;
       const farmer = prev.farmers.find(f => f.id === tankData.farmerId);
@@ -858,8 +873,8 @@ export const MockDataProvider = ({ children }) => {
         return prev;
       }
 
-      const nextFarmerNum = prev.farmers.length > 0 
-        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1 
+      const nextFarmerNum = prev.farmers.length > 0
+        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1
         : 1;
       const newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
 
@@ -944,7 +959,7 @@ export const MockDataProvider = ({ children }) => {
     const assignedFarmers = getFarmersByAgentId(agentId);
     const assignedFarmerIds = new Set(assignedFarmers.map(f => f.id));
     const assignedTanks = db.tanks.filter(t => assignedFarmerIds.has(t.farmerId) || t.agentId === agentId);
-    
+
     let completedCount = 0;
     let dueCount = 0;
     let overdueCount = 0;
@@ -1071,7 +1086,7 @@ export const MockDataProvider = ({ children }) => {
     if (!db) return [];
     const assignedFarmers = getFarmersByAgentId(agentId);
     const assignedFarmerIds = new Set(assignedFarmers.map(f => f.id));
-    
+
     // Combine submissions + explicit activities
     const timeline = [];
 
@@ -1140,14 +1155,14 @@ export const MockDataProvider = ({ children }) => {
       tankId,
       recordType,
       testType: recordType === 'WATER_QUALITY' ? 'Water Analysis' :
-                recordType === 'FEED_ENTRY' ? 'Feed Test' :
-                (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION') ? 'Disease' :
-                recordType === 'BIOMASS_SAMPLING' ? 'Biomass' :
-                recordType === 'MORTALITY_LOG' ? 'Mortality' :
+        recordType === 'FEED_ENTRY' ? 'Feed Test' :
+          (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION') ? 'Disease' :
+            recordType === 'BIOMASS_SAMPLING' ? 'Biomass' :
+              recordType === 'MORTALITY_LOG' ? 'Mortality' :
                 recordType === 'MEDICATION' ? 'Medication' :
-                recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
-                (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
-                recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
+                  recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
+                    (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
+                      recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
       date: formattedDate,
       submittedAgo: 'Just now',
       status: 'PENDING_VERIFICATION',
@@ -1214,8 +1229,8 @@ export const MockDataProvider = ({ children }) => {
 
   const addPondToFarmer = (farmerId, pondData) => {
     setDb(prev => {
-      const nextTankNum = prev.tanks.length > 0 
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1 
+      const nextTankNum = prev.tanks.length > 0
+        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
         : 1;
       const newTankId = `T${nextTankNum.toString().padStart(3, '0')}`;
       const farmer = prev.farmers.find(f => f.id === farmerId);

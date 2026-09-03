@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFarmerById, getFarmers, getTanksByFarmer } from '../utils/adminMockData';
+import { getFarmerById, getFarmers, getTanksByFarmer, calculateBiomass, calculateFCR } from '../utils/adminMockData';
 import PageHeader from '../components/PageHeader';
-import { 
-  Database, Download, TrendingUp, Activity, 
-  ArrowLeft, Droplets, Edit, X, Check, Fish, UserCheck, 
-  ShieldCheck, AlertCircle, FileSpreadsheet 
+import {
+  Database, Download, TrendingUp, Activity,
+  ArrowLeft, Droplets, Edit, X, Check, Fish, UserCheck,
+  ShieldCheck, AlertCircle, FileSpreadsheet
 } from 'lucide-react';
-import { 
-  LineChart, Line, AreaChart, Area, XAxis, YAxis, 
-  CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer 
+import {
+  LineChart, Line, AreaChart, Area, XAxis, YAxis,
+  CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
 
 const FarmerDetail = () => {
   const { farmerId } = useParams();
   const navigate = useNavigate();
-  
+
   // Load farmer from localStorage or fallback mock data
   const [farmer, setFarmer] = useState(() => {
     const savedFarmers = localStorage.getItem('royal_admin_farmers_data');
@@ -24,7 +24,7 @@ const FarmerDetail = () => {
         const parsed = JSON.parse(savedFarmers);
         const found = parsed.find(f => f.id === farmerId);
         if (found) return found;
-      } catch (e) {}
+      } catch (e) { }
     }
     return getFarmerById(farmerId) || getFarmers()[0];
   });
@@ -33,42 +33,53 @@ const FarmerDetail = () => {
   const [tanksList, setTanksList] = useState(() => {
     const rawTanks = farmer?.tankBreakdown || getTanksByFarmer(farmer?.id) || [];
     const sourceTanks = rawTanks.length > 0 ? rawTanks : [
-      { 
-        id: `T-${farmer?.id || '349'}-1`, 
-        name: 'Tank 1', 
+      {
+        id: `T-${farmer?.id || '349'}-1`,
+        name: 'Tank 1',
         acres: farmer?.totalAcres || parseFloat(farmer?.acres) || 4.5,
         doc: 65,
-        abw: 24.5, 
-        biomass: 3800, 
+        abw: 24.5,
+        biomass: 3800,
         fcr: 1.30
       }
     ];
 
-    return sourceTanks.map((t, idx) => ({
-      id: t.id || `T-${farmer?.id || '349'}-${idx + 1}`,
-      name: t.name || `Tank ${idx + 1}`,
-      acres: parseFloat(t.acres) || 4.0,
-      doc: t.doc || (50 + idx * 5),
-      abw: t.abw || (20.0 + idx * 3.5),
-      biomass: t.biomass || Math.round((parseFloat(t.acres) || 4.0) * 850),
-      fcr: t.fcr || (1.28 + idx * 0.04),
-      currentCycle: t.currentCycle || `Cycle 1 (2026)`,
-      compliance: t.compliance || 100,
-      waterSource: t.waterSource || farmer?.waterSource || (idx % 2 === 0 ? 'Creek / Estuary' : 'Sea / Coastal Canal'),
-      salinity: t.salinity || (14 + (idx * 2)),
-      soilType: t.soilType || (idx % 3 === 0 ? 'Clay Loam' : idx % 3 === 1 ? 'Loam' : 'Clay'),
-      hatcheryName: t.hatcheryName || (idx % 2 === 0 ? 'Apex Marine Hatcheries (Nellore)' : 'BMR Marine SPF Hatchery'),
-      brooder: t.brooder || (idx % 2 === 0 ? 'Kona Bay (USA)' : 'Syaqua (Thailand)'),
-      seedDate: t.seedDate || `2026-05-${10 + idx * 5}`,
-      seedStockingLak: t.seedStockingLak || parseFloat(((parseFloat(t.acres) || 4.0) * 0.8).toFixed(1)),
-      feedType: t.feedType || (idx % 2 === 0 ? 'Premium Pellets (Royal Pro)' : 'Functional Feed (Aqua Boost)')
-    }));
+    return sourceTanks.map((t, idx) => {
+      const acres = parseFloat(t.acres) || 4.0;
+      const abw = t.abw || (20.0 + idx * 3.5);
+      const seedStockingLak = t.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+      const biomass = calculateBiomass(seedStockingLak, abw);
+      const feed = t.feed || (biomass * (t.fcr || 1.30)); // fallback feed if not present in mock
+      const fcr = calculateFCR(feed, biomass);
+
+      return {
+        id: t.id || `T-${farmer?.id || '349'}-${idx + 1}`,
+        name: t.name || `Tank ${idx + 1}`,
+        acres,
+        doc: t.doc || (50 + idx * 5),
+        abw,
+        biomass,
+        fcr,
+        feed,
+        currentCycle: t.currentCycle || `Cycle 1 (2026)`,
+        compliance: t.compliance || 100,
+        waterSource: t.waterSource || farmer?.waterSource || (idx % 2 === 0 ? 'Creek / Estuary' : 'Sea / Coastal Canal'),
+        salinity: t.salinity || (14 + (idx * 2)),
+        soilType: t.soilType || (idx % 3 === 0 ? 'Clay Loam' : idx % 3 === 1 ? 'Loam' : 'Clay'),
+        hatcheryName: t.hatcheryName || (idx % 2 === 0 ? 'Apex Marine Hatcheries (Nellore)' : 'BMR Marine SPF Hatchery'),
+        brooder: t.brooder || (idx % 2 === 0 ? 'Kona Bay (USA)' : 'Syaqua (Thailand)'),
+        seedDate: t.seedDate || `2026-05-${10 + idx * 5}`,
+        seedStockingLak,
+        feedType: t.feedType || (idx % 2 === 0 ? 'Premium Pellets (Royal Pro)' : 'Functional Feed (Aqua Boost)')
+      };
+    });
   });
 
   const [activeTankIndex, setActiveTankIndex] = useState(0);
   const [growthMetric, setGrowthMetric] = useState('ABW'); // 'ABW', 'BIOMASS', 'FCR', 'FEED'
   const [toastMessage, setToastMessage] = useState('');
   const [showEditTankModal, setShowEditTankModal] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
 
   const activeTank = tanksList[activeTankIndex] || tanksList[0];
 
@@ -120,7 +131,13 @@ const FarmerDetail = () => {
 
     const updatedAcres = parseFloat(editTankForm.acres) || activeTank.acres;
     const updatedABW = parseFloat(editTankForm.abw) || activeTank.abw;
-    const updatedBiomass = Math.round(updatedABW * updatedAcres * 115);
+    const updatedSeedStockingLak = parseFloat(editTankForm.seedStockingLak) || activeTank.seedStockingLak;
+    const updatedBiomass = calculateBiomass(updatedSeedStockingLak, updatedABW);
+    // Since FCR is derived from feed and biomass, we preserve feed and recalculate FCR,
+    // but the edit modal's FCR is considered "Target FCR". We'll just store the target FCR as targetFcr
+    // and keep the actual fcr calculated dynamically.
+    const updatedTargetFcr = parseFloat(editTankForm.fcr) || 1.30;
+    const updatedFCR = calculateFCR(activeTank.feed, updatedBiomass);
 
     const updatedTank = {
       ...activeTank,
@@ -132,12 +149,13 @@ const FarmerDetail = () => {
       hatcheryName: editTankForm.hatcheryName.trim(),
       brooder: editTankForm.brooder,
       seedDate: editTankForm.seedDate,
-      seedStockingLak: parseFloat(editTankForm.seedStockingLak) || 3.5,
+      seedStockingLak: updatedSeedStockingLak,
       feedType: editTankForm.feedType,
       currentCycle: editTankForm.currentCycle.trim(),
       abw: updatedABW,
       biomass: updatedBiomass,
-      fcr: parseFloat(editTankForm.fcr) || 1.30
+      fcr: updatedFCR,
+      targetFcr: updatedTargetFcr
     };
 
     const updatedTanksList = tanksList.map((t, idx) => idx === activeTankIndex ? updatedTank : t);
@@ -162,7 +180,7 @@ const FarmerDetail = () => {
         const parsed = JSON.parse(savedFarmers);
         const updatedAll = parsed.map(f => f.id === farmer.id ? updatedFarmer : f);
         localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedAll));
-      } catch (err) {}
+      } catch (err) { }
     }
 
     showToast(`Details for ${updatedTank.name} updated successfully!`);
@@ -272,11 +290,12 @@ const FarmerDetail = () => {
     const entry = { doc: `DOC ${doc}`, docNum: doc };
     const tankAcres = activeTank.acres || 4.0;
     const baseABW = (doc / 70) * (activeTank.abw || 24.0);
-    
+
     const abwVal = parseFloat(baseABW.toFixed(2));
-    const biomassVal = Math.round(abwVal * tankAcres * 115);
-    const fcrVal = parseFloat((0.88 + (doc / 70) * 0.44).toFixed(2));
-    const feedVal = Math.round(biomassVal * fcrVal);
+    const biomassVal = calculateBiomass(activeTank.seedStockingLak, abwVal);
+    const hypotheticalFcr = 0.88 + (doc / 70) * 0.44;
+    const feedVal = Math.round(biomassVal * hypotheticalFcr);
+    const fcrVal = parseFloat(calculateFCR(feedVal, biomassVal));
 
     entry.abw = abwVal;
     entry.biomass = biomassVal;
@@ -580,13 +599,13 @@ const FarmerDetail = () => {
         </button>
       </div>
 
-      <PageHeader 
-        title={`Farmer & Tank Analytics: ${farmer.name}`} 
+      <PageHeader
+        title={`Farmer & Tank Analytics: ${farmer.name}`}
         breadcrumbs={[
           { label: 'Organization' },
-          { label: 'Farmers', path: '/admin/farmers' }, 
+          { label: 'Farmers', path: '/admin/farmers' },
           { label: farmer.name, active: true }
-        ]} 
+        ]}
       />
 
       {/* 1. Farmer Master Profile Card */}
@@ -604,7 +623,7 @@ const FarmerDetail = () => {
           </div>
 
           {/* Export Action: Master Formatted Excel */}
-          <button 
+          <button
             style={styles.exportExcelBtn}
             onClick={handleDownloadFormattedExcel}
             title="Download structured, styled Excel spreadsheet with embedded visual charts"
@@ -657,13 +676,22 @@ const FarmerDetail = () => {
             ))}
           </div>
 
-          <button 
-            style={styles.editTankQuickBtn}
-            onClick={openEditTankModal}
-          >
-            <Edit size={13} />
-            <span>Edit {activeTank.name} Details</span>
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              style={{ ...styles.editTankQuickBtn, color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+              onClick={() => setShowCompareModal(true)}
+            >
+              <FileSpreadsheet size={13} />
+              <span>Compare All Tanks</span>
+            </button>
+            <button
+              style={styles.editTankQuickBtn}
+              onClick={openEditTankModal}
+            >
+              <Edit size={13} />
+              <span>Edit {activeTank.name} Details</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -679,7 +707,7 @@ const FarmerDetail = () => {
             </p>
           </div>
 
-          <button 
+          <button
             style={styles.editTankSpecsPrimaryBtn}
             onClick={openEditTankModal}
           >
@@ -762,7 +790,7 @@ const FarmerDetail = () => {
 
           {/* Metric Selector Tabs */}
           <div style={styles.metricToggleGroup}>
-            <button 
+            <button
               style={{
                 ...styles.metricTab,
                 ...(growthMetric === 'ABW' ? styles.metricTabActive : {})
@@ -771,7 +799,7 @@ const FarmerDetail = () => {
             >
               Average Weight (ABW)
             </button>
-            <button 
+            <button
               style={{
                 ...styles.metricTab,
                 ...(growthMetric === 'BIOMASS' ? styles.metricTabActive : {})
@@ -780,7 +808,7 @@ const FarmerDetail = () => {
             >
               Biomass (kg)
             </button>
-            <button 
+            <button
               style={{
                 ...styles.metricTab,
                 ...(growthMetric === 'FCR' ? styles.metricTabActive : {})
@@ -789,7 +817,7 @@ const FarmerDetail = () => {
             >
               FCR
             </button>
-            <button 
+            <button
               style={{
                 ...styles.metricTab,
                 ...(growthMetric === 'FEED' ? styles.metricTabActive : {})
@@ -813,31 +841,31 @@ const FarmerDetail = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="doc" 
+                <XAxis
+                  dataKey="doc"
                   axisLine={{ stroke: '#e2e8f0' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                 />
-                <YAxis 
+                <YAxis
                   axisLine={{ stroke: '#e2e8f0' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                   unit=" kg"
                 />
-                <RechartsTooltip 
-                  contentStyle={{ 
-                    borderRadius: '8px', 
-                    border: '1px solid #e2e8f0', 
+                <RechartsTooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
                     backgroundColor: '#ffffff'
-                  }} 
+                  }}
                 />
-                <Area 
-                  type="monotone" 
+                <Area
+                  type="monotone"
                   dataKey={growthMetric.toLowerCase()}
                   name={growthMetric === 'BIOMASS' ? 'Estimated Biomass' : 'Feed Intake'}
-                  stroke="#2563eb" 
+                  stroke="#2563eb"
                   strokeWidth={2.5}
                   fillOpacity={1}
                   fill="url(#areaGradientSimple)"
@@ -846,32 +874,32 @@ const FarmerDetail = () => {
             ) : (
               <LineChart data={growthData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="doc" 
+                <XAxis
+                  dataKey="doc"
                   axisLine={{ stroke: '#e2e8f0' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                 />
-                <YAxis 
+                <YAxis
                   domain={growthMetric === 'FCR' ? [0.8, 2.0] : [0, 'auto']}
                   axisLine={{ stroke: '#e2e8f0' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                   unit={growthMetric === 'ABW' ? 'g' : ''}
                 />
-                <RechartsTooltip 
-                  contentStyle={{ 
-                    borderRadius: '8px', 
-                    border: '1px solid #e2e8f0', 
+                <RechartsTooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
                     backgroundColor: '#ffffff'
-                  }} 
+                  }}
                 />
-                <Line 
-                  type="monotone" 
+                <Line
+                  type="monotone"
                   dataKey={growthMetric.toLowerCase()}
                   name={growthMetric === 'ABW' ? 'Body Weight (ABW)' : 'FCR Ratio'}
-                  stroke="#2563eb" 
+                  stroke="#2563eb"
                   strokeWidth={2.5}
                   dot={{ r: 4, strokeWidth: 2, fill: '#ffffff', stroke: '#2563eb' }}
                   activeDot={{ r: 6 }}
@@ -1021,8 +1049,8 @@ const FarmerDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Tank Name *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={editTankForm.name}
                       onChange={(e) => setEditTankForm({ ...editTankForm, name: e.target.value })}
                       style={styles.modalInput}
@@ -1031,9 +1059,9 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Size (Acres) *</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
+                    <input
+                      type="number"
+                      step="0.1"
                       min="0.1"
                       value={editTankForm.acres}
                       onChange={(e) => setEditTankForm({ ...editTankForm, acres: e.target.value })}
@@ -1043,7 +1071,7 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Source of Water</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editTankForm.waterSource}
                       onChange={(e) => setEditTankForm({ ...editTankForm, waterSource: e.target.value })}
@@ -1062,8 +1090,8 @@ const FarmerDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Salinity (ppt)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.5"
                       value={editTankForm.salinity}
                       onChange={(e) => setEditTankForm({ ...editTankForm, salinity: e.target.value })}
@@ -1072,7 +1100,7 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Soil Type</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editTankForm.soilType}
                       onChange={(e) => setEditTankForm({ ...editTankForm, soilType: e.target.value })}
@@ -1090,8 +1118,8 @@ const FarmerDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Hatchery Name</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="e.g. Apex Marine Hatcheries"
                       value={editTankForm.hatcheryName}
                       onChange={(e) => setEditTankForm({ ...editTankForm, hatcheryName: e.target.value })}
@@ -1100,7 +1128,7 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Brooder Lineage</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editTankForm.brooder}
                       onChange={(e) => setEditTankForm({ ...editTankForm, brooder: e.target.value })}
@@ -1117,8 +1145,8 @@ const FarmerDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Seed Date</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={editTankForm.seedDate}
                       onChange={(e) => setEditTankForm({ ...editTankForm, seedDate: e.target.value })}
                       style={styles.modalInput}
@@ -1126,9 +1154,9 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Stocking Count (Lakhs)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
+                    <input
+                      type="number"
+                      step="0.1"
                       value={editTankForm.seedStockingLak}
                       onChange={(e) => setEditTankForm({ ...editTankForm, seedStockingLak: e.target.value })}
                       style={styles.modalInput}
@@ -1140,7 +1168,7 @@ const FarmerDetail = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={styles.modalLabel}>Feed Type</label>
-                    <select 
+                    <select
                       style={styles.modalSelect}
                       value={editTankForm.feedType}
                       onChange={(e) => setEditTankForm({ ...editTankForm, feedType: e.target.value })}
@@ -1154,8 +1182,8 @@ const FarmerDetail = () => {
                   </div>
                   <div>
                     <label style={styles.modalLabel}>Target FCR</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.05"
                       value={editTankForm.fcr}
                       onChange={(e) => setEditTankForm({ ...editTankForm, fcr: e.target.value })}
@@ -1166,21 +1194,116 @@ const FarmerDetail = () => {
               </div>
 
               <div style={styles.modalFooter}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowEditTankModal(false)}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   style={styles.submitBtn}
                 >
                   Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Compare All Tanks */}
+      {showCompareModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalBox, width: '900px', maxWidth: '95vw' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                  Compare All Tanks
+                </h3>
+                <div style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                  Farmer: {farmer.name} ({farmer.id}) • Total Tanks: {tanksList.length}
+                </div>
+              </div>
+              <button onClick={() => setShowCompareModal(false)} style={styles.modalCloseBtn}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ ...styles.modalBody, padding: '10px 0' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '12px', color: '#475569', fontWeight: 700, width: '20%' }}>Metric / Parameter</th>
+                      {tanksList.map((t, i) => (
+                        <th key={i} style={{ padding: '12px', color: '#0f172a', fontWeight: 700, borderLeft: '1px solid #e2e8f0' }}>
+                          {t.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Setup Specifications */}
+                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                      <td colSpan={tanksList.length + 1} style={{ padding: '8px 12px', fontWeight: 700, color: '#334155', fontSize: '11px', textTransform: 'uppercase' }}>Setup Specifications</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Tank Size (Acres)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 600 }}>{t.acres} Ac</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Water Source</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.waterSource}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Salinity</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.salinity} ppt</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Soil Type</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.soilType}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Seed Date</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.seedDate}</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Stocking Count</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9' }}>{t.seedStockingLak} Lakhs</td>)}
+                    </tr>
+
+                    {/* Performance & Test Details */}
+                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                      <td colSpan={tanksList.length + 1} style={{ padding: '8px 12px', fontWeight: 700, color: '#334155', fontSize: '11px', textTransform: 'uppercase', marginTop: '10px' }}>Performance & Test Details</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Current ABW (g)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a' }}>{t.abw?.toFixed(1) || t.abw} g</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Est. Biomass (kg)</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#2563eb' }}>{t.biomass?.toLocaleString() || t.biomass} kg</td>)}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 12px', color: '#64748b', fontWeight: 600 }}>Current FCR</td>
+                      {tanksList.map((t, i) => <td key={i} style={{ padding: '10px 12px', borderLeft: '1px solid #f1f5f9', fontWeight: 700, color: '#16a34a' }}>{t.fcr}</td>)}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ ...styles.modalFooter, marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setShowCompareModal(false)}
+                style={{ ...styles.cancelBtn, width: '100%', padding: '10px', fontSize: '14px' }}
+              >
+                Close Comparison
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1226,7 +1349,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '12px',
     border: '1px solid #e2e8f0',
-    padding: '20px 22px',
+    padding: '24px 32px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   profileHeader: {
@@ -1239,7 +1362,7 @@ const styles = {
   },
   farmerTitle: {
     fontSize: '20px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1297,10 +1420,10 @@ const styles = {
   profileGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '12px',
+    gap: '16px',
     backgroundColor: '#f8fafc',
     borderRadius: '8px',
-    padding: '14px 16px',
+    padding: '16px 20px',
     border: '1px solid #e2e8f0'
   },
   profileBlock: {
@@ -1323,7 +1446,7 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '10px',
     border: '1px solid #e2e8f0',
-    padding: '10px 16px',
+    padding: '16px 24px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   selectTankLabel: {
@@ -1369,14 +1492,14 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: '10px',
-    marginBottom: '14px',
-    paddingBottom: '10px',
+    gap: '12px',
+    marginBottom: '20px',
+    paddingBottom: '16px',
     borderBottom: '1px solid #f1f5f9'
   },
   sectionCardTitle: {
     fontSize: '15px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a',
     margin: 0
   },
@@ -1413,16 +1536,16 @@ const styles = {
   specsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '10px'
+    gap: '16px'
   },
   specItemCard: {
     backgroundColor: '#f8fafc',
     border: '1px solid #e2e8f0',
     borderRadius: '8px',
-    padding: '10px 12px',
+    padding: '14px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px'
+    gap: '4px'
   },
   specLabel: {
     fontSize: '10px',
@@ -1487,9 +1610,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   qualityTh: {
-    padding: '8px 10px',
+    padding: '12px 16px',
     fontSize: '10.5px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#475569',
     textTransform: 'uppercase',
     letterSpacing: '0.3px',
@@ -1499,7 +1622,7 @@ const styles = {
     borderBottom: '1px solid #f1f5f9'
   },
   qualityTd: {
-    padding: '10px 10px',
+    padding: '14px 16px',
     verticalAlign: 'middle',
     color: '#334155',
     fontSize: '12.5px',

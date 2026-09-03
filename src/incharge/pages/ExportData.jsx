@@ -3,11 +3,12 @@ import InchargeHeader from '../components/InchargeHeader';
 import { Download, FileSpreadsheet, CheckCircle2, User, Droplets } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { downloadAquaEnterpriseWorkbook } from '../../utils/excelReportGenerator';
+import { calculateBiomass, calculateFCR } from '../../admin/utils/adminMockData';
 
 const ExportData = () => {
   const { db, getFarmersByAgentId, getTanksByFarmerId, getFarmerById } = useMockData();
   const [exportSuccess, setExportSuccess] = useState(false);
-  
+
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedFarmer, setSelectedFarmer] = useState('');
   const [selectedTank, setSelectedTank] = useState('ALL');
@@ -21,8 +22,51 @@ const ExportData = () => {
       alert("Please select a farmer to export data.");
       return;
     }
-    
+
     downloadAquaEnterpriseWorkbook(db, selectedAgent, selectedFarmer, 'Farmer_Aqua_Export');
+    const farmer = getFarmerById(selectedFarmer);
+    let selectedTanks = tanks;
+    if (selectedTank !== 'ALL') {
+      selectedTanks = tanks.filter(t => t.id === selectedTank);
+    }
+
+    const tests = db.submissions.filter(s => s.farmerId === farmer.id && (selectedTank === 'ALL' || s.tankId === selectedTank));
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "FARMER DETAILS\n";
+    csvContent += "Name,Phone,Location,Acres,Water Source\n";
+    csvContent += `"${farmer.name}","${farmer.phone}","${farmer.location}","${farmer.acres}","${farmer.waterSource}"\n\n`;
+
+    csvContent += "TANKS\n";
+    csvContent += "Tank Name,Status,Test Status,ABW,Biomass,FCR,Last Test,Next Test\n";
+    selectedTanks.forEach(t => {
+      const acres = parseFloat(t.acres) || 4.0;
+      const abw = parseFloat(t.abw) || 20.0;
+      const seedStockingLak = t.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+      const biomass = calculateBiomass(seedStockingLak, abw) || t.biomass;
+      const feed = t.feed || (biomass * (t.fcr || 1.30));
+      const fcr = calculateFCR(feed, biomass);
+
+      csvContent += `"${t.name}","${t.status}","${t.testStatus}","${t.abw}","${biomass}","${fcr}","${t.lastTest}","${t.nextTest}"\n`;
+    });
+
+    csvContent += "\nTEST DETAILS\n";
+    csvContent += "Test ID,Tank Name,Test Type,Date,Status,Salinity,pH,DO,Water Color\n";
+    tests.forEach(test => {
+      const waterData = test.data?.waterQuality || {};
+      const tankObj = selectedTanks.find(t => t.id === test.tankId);
+      const tName = tankObj ? tankObj.name : test.tankId;
+      csvContent += `"${test.id}","${tName}","${test.testType}","${test.date}","${test.status}","${waterData.salinity || 'N/A'}","${waterData.ph || 'N/A'}","${waterData.do || 'N/A'}","${waterData.waterColor || 'N/A'}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${farmer.name.replace(/\s+/g, '_')}_Export.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     setExportSuccess(true);
     setTimeout(() => setExportSuccess(false), 3000);
   };
@@ -40,11 +84,11 @@ const ExportData = () => {
             </div>
             <span style={styles.badge}>XLSX / CSV Ready</span>
           </div>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
             <div>
               <label style={styles.formLabel}>Field Technician</label>
-              <select 
+              <select
                 style={styles.formInput}
                 value={selectedAgent}
                 onChange={e => {
@@ -60,7 +104,7 @@ const ExportData = () => {
 
             <div>
               <label style={styles.formLabel}>Aquaculture Farmer</label>
-              <select 
+              <select
                 style={{ ...styles.formInput, opacity: !selectedAgent ? 0.6 : 1 }}
                 value={selectedFarmer}
                 onChange={e => {
@@ -76,7 +120,7 @@ const ExportData = () => {
 
             <div>
               <label style={styles.formLabel}>Target Tank / Pond</label>
-              <select 
+              <select
                 style={{ ...styles.formInput, opacity: !selectedFarmer ? 0.6 : 1 }}
                 value={selectedTank}
                 onChange={e => setSelectedTank(e.target.value)}
@@ -89,7 +133,7 @@ const ExportData = () => {
           </div>
 
           <div style={{ marginTop: '28px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button 
+            <button
               type="button"
               className="transition-all duration-150 active:scale-98 cursor-pointer"
               onClick={handleExport}

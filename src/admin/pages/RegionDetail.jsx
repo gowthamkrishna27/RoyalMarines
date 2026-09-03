@@ -7,7 +7,7 @@ import { Users, HardHat, Sprout, Database, Eye } from 'lucide-react';
 const RegionDetail = () => {
   const { regionId } = useParams();
   const navigate = useNavigate();
-  
+
   const region = getRegionById(regionId);
   const incharges = getInchargesByRegion(regionId);
 
@@ -24,16 +24,16 @@ const RegionDetail = () => {
 
   return (
     <>
-      <PageHeader 
-        title={`${region.name} Region Details`} 
+      <PageHeader
+        title={`${region.name} Region Details`}
         breadcrumbs={[
-          { label: 'Organization' }, 
+          { label: 'Organization' },
           { label: 'Regions', path: '/admin/regions' },
           { label: region.name, active: true }
-        ]} 
+        ]}
       />
       <div className="content-inner">
-        
+
         {/* Region KPIs */}
         <div className="grid md:grid-cols-4" style={{ gap: '16px', marginBottom: '24px' }}>
           {kpis.map((kpi, idx) => (

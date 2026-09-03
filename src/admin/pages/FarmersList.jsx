@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFarmers, getRegions, getAgents, getIncharges } from '../utils/adminMockData';
+import { getFarmers, getRegions, getAgents, getIncharges, calculateBiomass, calculateFCR } from '../utils/adminMockData';
 import PageHeader from '../components/PageHeader';
 import {
   Search, Filter, Eye, Plus, Trash2, Check, X,
-  MapPin, Phone, User, ShieldAlert, Tractor, Layers, Edit, SortAsc
+  MapPin, Phone, User, ShieldAlert, Tractor, Layers, Edit
 } from 'lucide-react';
 
 const FarmersList = () => {
@@ -34,6 +34,7 @@ const FarmersList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
   const [tankFilter, setTankFilter] = useState('ALL');
+
   const [toastMessage, setToastMessage] = useState('');
 
   // Modals state
@@ -246,6 +247,16 @@ const FarmersList = () => {
     setSelectedFarmer(null);
   };
 
+  // Helper to calculate FCR for a tank
+  const getDynamicFCR = (tank) => {
+    const acres = parseFloat(tank.acres) || 4.0;
+    const abw = parseFloat(tank.abw) || 20.0;
+    const seedStockingLak = tank.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
+    const biomass = calculateBiomass(seedStockingLak, abw) || tank.biomass;
+    const feed = tank.feed || (biomass * (tank.fcr || 1.30));
+    return parseFloat(calculateFCR(feed, biomass));
+  };
+
   // Filter and sort farmers alphabetically
   const filtered = farmers.filter(f => {
     const term = searchTerm.toLowerCase();
@@ -311,27 +322,11 @@ const FarmersList = () => {
       <div style={styles.card}>
         {/* Search & Filter Bar */}
         <div style={styles.filterBar}>
-          <div style={styles.searchBox}>
-            <Search size={16} color="#94a3b8" />
-            <input
-              type="text"
-              placeholder="Search by farmer name, ID, village, agent, incharge..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')} style={styles.clearSearchBtn}>
-                ×
-              </button>
-            )}
-          </div>
+
 
           <div style={styles.filterGroup}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '7px 12px', fontSize: '12px', fontWeight: 700 }}>
-              <SortAsc size={14} color="#16a34a" />
-              <span>Alphabetical (A-Z)</span>
-            </div>
+
+
 
             <select
               value={regionFilter}
@@ -361,7 +356,7 @@ const FarmersList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadRow}>
-                <th style={styles.th}>FARMER NAME / ID</th>
+                <th style={styles.th}>FARMER NAME</th>
                 <th style={styles.th}>VILLAGE &amp; LOCALITY</th>
                 <th style={styles.th}>AGENT &amp; INCHARGE</th>
                 <th style={styles.th}>REGION</th>
@@ -378,7 +373,7 @@ const FarmersList = () => {
 
                   return (
                     <tr key={item.id} style={styles.tr}>
-                      {/* Farmer Name & ID */}
+                      {/* Farmer Name */}
                       <td style={styles.td}>
                         <div
                           style={{ display: 'flex', flexDirection: 'column', gap: '3px', cursor: 'pointer' }}
@@ -386,7 +381,6 @@ const FarmersList = () => {
                           title="Click to view Tank Growth Graphs"
                         >
                           <span style={styles.farmerName}>{item.name}</span>
-                          <span style={styles.farmerId}>{item.id}</span>
                         </div>
                       </td>
 
@@ -461,7 +455,7 @@ const FarmersList = () => {
                             {item.tankBreakdown && item.tankBreakdown.length > 0 ? (
                               item.tankBreakdown.map((t, idx) => (
                                 <span key={t.id || idx} style={styles.tankSpreadChip}>
-                                  <strong style={{ color: '#1e293b' }}>{t.name}:</strong> {t.acres} Ac
+                                  <strong style={{ color: '#1e293b' }}>{t.name}:</strong> {t.acres} Ac <span style={{ color: '#2563eb', marginLeft: '4px', fontWeight: 600 }}>(FCR: {getDynamicFCR(t).toFixed(2)})</span>
                                 </span>
                               ))
                             ) : (
@@ -971,17 +965,17 @@ const styles = {
   },
   summaryBar: {
     display: 'flex',
-    gap: '14px',
+    gap: '20px',
     flexWrap: 'wrap'
   },
   summaryChip: {
     backgroundColor: '#ffffff',
     border: '1px solid #e2e8f0',
     borderRadius: '12px',
-    padding: '10px 18px',
+    padding: '12px 24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '4px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
   },
   chipLabel: {
@@ -992,14 +986,14 @@ const styles = {
   },
   chipValue: {
     fontSize: '16px',
-    fontWeight: 800,
+    fontWeight: 700,
     color: '#0f172a'
   },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
-    padding: '20px 24px',
+    padding: '24px 32px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
   },
   filterBar: {
@@ -1007,8 +1001,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: '12px',
-    marginBottom: '20px'
+    gap: '16px',
+    marginBottom: '24px'
   },
   searchBox: {
     display: 'flex',
@@ -1017,7 +1011,7 @@ const styles = {
     backgroundColor: '#f8fafc',
     border: '1px solid #d1d5db',
     borderRadius: '8px',
-    padding: '8px 12px',
+    padding: '10px 16px',
     width: '380px'
   },
   searchInput: {
@@ -1039,13 +1033,13 @@ const styles = {
   filterGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
+    gap: '14px'
   },
   selectFilter: {
     backgroundColor: '#f8fafc',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    padding: '7px 12px',
+    padding: '9px 16px',
     fontSize: '13px',
     color: '#334155',
     outline: 'none',
@@ -1061,9 +1055,9 @@ const styles = {
     backgroundColor: '#f8fafc'
   },
   th: {
-    padding: '12px 14px',
+    padding: '16px 20px',
     fontSize: '11px',
-    fontWeight: 700,
+    fontWeight: 600,
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: '0.4px'
@@ -1076,7 +1070,7 @@ const styles = {
     }
   },
   td: {
-    padding: '14px',
+    padding: '18px 20px',
     verticalAlign: 'middle',
     fontSize: '13px',
     color: '#334155'

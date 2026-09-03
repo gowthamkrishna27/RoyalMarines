@@ -9,8 +9,8 @@ const TanksList = () => {
   const tanks = getTanks();
   const navigate = useNavigate();
 
-  const filtered = tanks.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filtered = tanks.filter(t =>
+    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.farmer.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.region.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -24,9 +24,9 @@ const TanksList = () => {
             <div style={{ display: 'flex', gap: '16px', flex: 1, maxWidth: '500px' }}>
               <div className="input-field" style={{ flex: 1, margin: 0, padding: '8px 12px' }}>
                 <Search size={18} color="var(--color-text-muted)" />
-                <input 
-                  type="text" 
-                  placeholder="Search by tank, farmer, or region..." 
+                <input
+                  type="text"
+                  placeholder="Search by tank, farmer, or region..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />

@@ -133,9 +133,11 @@ const styles = {
     marginBottom: '28px',
   },
   logo: {
-    width: '110px',
+    width: '130px',
     height: 'auto',
-    marginBottom: '14px',
+    margin: '0 auto 16px auto',
+    display: 'block',
+    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))',
   },
   brandTitle: {
     fontSize: '22px',
