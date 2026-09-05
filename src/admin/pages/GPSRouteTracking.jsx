@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { 
+import {
   Search, Calendar, Download, Play, Pause, Square, MapPin,
   Clock, Battery, Wifi, Activity, User, Briefcase, Navigation,
   AlertTriangle, Info, CheckCircle2, XCircle, Droplet, UserCircle, Map
@@ -46,7 +46,7 @@ const GPSRouteTracking = () => {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [trackingData, setTrackingData] = useState(null);
-  
+
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayIndex, setReplayIndex] = useState(0);
   const replayInterval = useRef(null);
@@ -70,7 +70,7 @@ const GPSRouteTracking = () => {
   // Replay Logic
   const handlePlayPause = () => {
     if (!trackingData || !trackingData.route) return;
-    
+
     if (isReplaying) {
       setIsReplaying(false);
       clearInterval(replayInterval.current);
@@ -183,9 +183,9 @@ const GPSRouteTracking = () => {
 
           <div style={styles.searchBox}>
             <Search size={16} color="#94a3b8" />
-            <select 
-              style={styles.searchInput} 
-              value={selectedEmployee} 
+            <select
+              style={styles.searchInput}
+              value={selectedEmployee}
               onChange={e => setSelectedEmployee(e.target.value)}
             >
               <option value="">▼ Select Employee</option>
@@ -258,7 +258,7 @@ const GPSRouteTracking = () => {
                 <h4 style={styles.cardTitle}>Smart Alerts</h4>
                 <div style={styles.alertsList}>
                   {trackingData.alerts.map(alert => (
-                    <div key={alert.id} style={{...styles.alertItem, borderLeftColor: alert.type === 'WARNING' ? '#ef4444' : '#f59e0b'}}>
+                    <div key={alert.id} style={{ ...styles.alertItem, borderLeftColor: alert.type === 'WARNING' ? '#ef4444' : '#f59e0b' }}>
                       <div style={styles.alertIcon}>
                         {alert.type === 'WARNING' ? <AlertTriangle size={16} color="#ef4444" /> : <Info size={16} color="#f59e0b" />}
                       </div>
@@ -276,26 +276,26 @@ const GPSRouteTracking = () => {
           {/* MAIN COLUMN - Map & Replay */}
           <div style={styles.mapColumn}>
             <div style={styles.mapWrapper}>
-              <MapContainer 
-                center={[visibleRoute[0]?.lat || 16.5449, visibleRoute[0]?.lng || 81.5212]} 
-                zoom={12} 
+              <MapContainer
+                center={[visibleRoute[0]?.lat || 16.5449, visibleRoute[0]?.lng || 81.5212]}
+                zoom={12}
                 style={{ height: '100%', width: '100%', borderRadius: '12px' }}
               >
                 <TileLayer
                   url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                   attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                 />
-                
+
                 <RouteBounds route={trackingData.route} />
-                
+
                 {polylinePositions.length > 1 && (
                   <Polyline positions={polylinePositions} color="#3b82f6" weight={4} opacity={0.8} />
                 )}
 
                 {visibleRoute.map(point => (
-                  <Marker 
-                    key={point.id} 
-                    position={[point.lat, point.lng]} 
+                  <Marker
+                    key={point.id}
+                    position={[point.lat, point.lng]}
                     icon={icons[point.type] || icons.MOVING}
                   >
                     <Popup>
@@ -320,8 +320,8 @@ const GPSRouteTracking = () => {
                 </button>
                 <div style={styles.replayProgress}>
                   <div style={{
-                    height: '100%', 
-                    backgroundColor: '#1d4ed8', 
+                    height: '100%',
+                    backgroundColor: '#1d4ed8',
                     width: `${((replayIndex + 1) / trackingData.route.length) * 100}%`
                   }} />
                 </div>
@@ -330,17 +330,17 @@ const GPSRouteTracking = () => {
                 </span>
               </div>
             </div>
-            
+
             {/* BOTTOM SECTION - Timeline & Tanks */}
             <div style={styles.bottomSection}>
-              <div style={{...styles.card, flex: 1}}>
+              <div style={{ ...styles.card, flex: 1 }}>
                 <h4 style={styles.cardTitle}>Route Timeline</h4>
                 <div style={styles.timeline}>
                   {trackingData.route.map((item, idx) => (
                     <div key={item.id} style={styles.timelineItem}>
                       <div style={styles.timelineTime}>{item.time}</div>
                       <div style={styles.timelineDotLine}>
-                        <div style={{...styles.timelineDot, backgroundColor: item.type === 'LOGIN' ? '#22c55e' : item.type === 'LOGOUT' ? '#ef4444' : '#3b82f6'}} />
+                        <div style={{ ...styles.timelineDot, backgroundColor: item.type === 'LOGIN' ? '#22c55e' : item.type === 'LOGOUT' ? '#ef4444' : '#3b82f6' }} />
                         {idx !== trackingData.route.length - 1 && <div style={styles.timelineLine} />}
                       </div>
                       <div style={styles.timelineContent}>
@@ -352,7 +352,7 @@ const GPSRouteTracking = () => {
                 </div>
               </div>
 
-              <div style={{...styles.card, flex: 1}}>
+              <div style={{ ...styles.card, flex: 1 }}>
                 <h4 style={styles.cardTitle}>Tank Visit Verification</h4>
                 <table style={styles.table}>
                   <thead>

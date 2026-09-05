@@ -24,7 +24,7 @@ const Splash = () => {
       <div style={styles.content}>
         <img src={topnavlogo} alt="Royals Marine" style={styles.logoImage} />
         <MarineLoader message="INITIALIZING MARINE NETWORK..." />
-        
+
         <button
           onClick={() => {
             if (isAuthenticated()) {
