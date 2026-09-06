@@ -3,9 +3,9 @@ const PASSWORDS_KEY = 'agent_passwords_store';
 const PROFILES_KEY = 'agent_profiles_store';
 
 const initialUsers = [
-  { agentId: 'agent001', password: 'agent123', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram' },
-  { agentId: 'agent002', password: 'agent123', name: 'Suresh', region: 'Narasapuram', locality: 'West Godavari' },
-  { agentId: 'admin', password: 'admin', name: 'System Admin', region: 'Head Office', locality: 'Main Branch' }
+  { agentId: 'agent001', password: 'agent123', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' },
+  { agentId: 'agent002', password: 'agent123', name: 'Suresh', region: 'Narasapuram', locality: 'West Godavari', asm: 'Rajesh' },
+  { agentId: 'admin', password: 'admin', name: 'System Admin', region: 'Head Office', locality: 'Main Branch', asm: 'Rajesh' }
 ];
 
 // Helper to get stored password overrides or fallback to initial user password
@@ -62,6 +62,7 @@ export const login = (agentId, password) => {
       name: (overrides && overrides.name) ? overrides.name : user.name,
       region: (overrides && overrides.region) ? overrides.region : user.region,
       locality: (overrides && overrides.locality) ? overrides.locality : user.locality,
+      asm: (overrides && overrides.asm) ? overrides.asm : (user.asm || 'Rajesh'),
       phone: (overrides && overrides.phone) ? overrides.phone : '9876543210',
       photo: (overrides && overrides.photo) ? overrides.photo : null,
       loginTime: new Date().toISOString(),
@@ -102,7 +103,7 @@ export const getSession = () => {
 };
 
 export const updateAgentProfile = (profileData) => {
-  const currentSession = getSession() || { agentId: 'agent001', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram' };
+  const currentSession = getSession() || { agentId: 'agent001', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' };
   const id = currentSession.agentId || 'agent001';
 
   const updatedSession = {

@@ -381,6 +381,256 @@ const getInitialDb = () => {
   return fallbackDb;
 };
 
+
+// Helper to check if date falls in current Monday-Sunday calendar week
+export const isDateInCurrentMondaySundayWeek = (dateInput) => {
+  if (!dateInput) return false;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return false;
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = (currentDay + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    return d >= monday && d <= sunday;
+  } catch (e) {
+    return false;
+  }
+};
+
+// Helper to check if date falls in previous Monday-Sunday calendar week
+export const isDateInLastMondaySundayWeek = (dateInput) => {
+  if (!dateInput) return false;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return false;
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = (currentDay + 6) % 7;
+    const thisMonday = new Date(now);
+    thisMonday.setDate(now.getDate() - distanceToMonday);
+    thisMonday.setHours(0, 0, 0, 0);
+
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    lastMonday.setHours(0, 0, 0, 0);
+
+    const lastSunday = new Date(thisMonday);
+    lastSunday.setMilliseconds(-1);
+
+    return d >= lastMonday && d <= lastSunday;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const ROUTINE_TEST_TYPES = [
+  { key: 'WATER_QUALITY', label: 'Water Analysis', matchKeys: ['WATER'], icon: 'Droplets' },
+  { key: 'FEED_ENTRY', label: 'Feed Test', matchKeys: ['FEED'], icon: 'Wheat' },
+  { key: 'DISEASE', label: 'Disease Observation', matchKeys: ['DISEASE'], icon: 'Activity' },
+  { key: 'MEDICATION', label: 'Medication', matchKeys: ['MEDICAT', 'MEDICINE'], icon: 'Pill' },
+  { key: 'MORTALITY_LOG', label: 'Mortality Check', matchKeys: ['MORTALITY'], icon: 'Skull' },
+  { key: 'FARM_ACTIVITY', label: 'Farm Activity', matchKeys: ['ACTIVITY', 'FARM'], icon: 'ClipboardList' },
+  { key: 'PHOTO_OBSERVATION', label: 'Photo Observation', matchKeys: ['PHOTO'], icon: 'Camera' },
+];
+
+export const getTankOverdueBreakdown = (tank, submissions = []) => {
+  if (!tank) {
+    return { overdueTests: ROUTINE_TEST_TYPES, completedLastWeek: [], overdueCount: ROUTINE_TEST_TYPES.length, isOverdue: true, summaryText: 'Overdue tests from last week' };
+  }
+
+  const harvestStore = (typeof window !== 'undefined') ? JSON.parse(localStorage.getItem('agent_harvest_store') || '{}') : {};
+  const storeKey = `${tank.farmerId}_${tank.id}`;
+  const tankHarvests = harvestStore[storeKey]?.harvests || [];
+  const isFinalDone = tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || tankHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest');
+
+  if (isFinalDone) {
+    return { overdueTests: [], completedLastWeek: [], overdueCount: 0, isOverdue: false, summaryText: 'Harvest Completed' };
+  }
+
+  const tankSubs = (submissions || []).filter(s => 
+    (s.tankId === tank.id || s.tankName === tank.name) &&
+    !((s.testType || s.recordType || '').toUpperCase().includes('HARVEST'))
+  );
+
+  const completedLastWeek = [];
+  const uncompletedLastWeek = [];
+
+  ROUTINE_TEST_TYPES.forEach(test => {
+    const foundLastWeek = tankSubs.find(s => {
+      const typeUpper = (s.testType || s.recordType || '').toUpperCase();
+      const matches = test.matchKeys.some(k => typeUpper.includes(k));
+      if (!matches) return false;
+      const d = s.date || s.createdAt;
+      return isDateInLastMondaySundayWeek(d);
+    });
+
+    if (foundLastWeek) {
+      completedLastWeek.push({
+        ...test,
+        completedAt: foundLastWeek.date || 'Last Week',
+        recordId: foundLastWeek.id,
+      });
+    } else {
+      uncompletedLastWeek.push(test);
+    }
+  });
+
+  const overdueTests = uncompletedLastWeek;
+  const overdueCount = overdueTests.length > 0 ? overdueTests.length : ROUTINE_TEST_TYPES.length;
+
+  return {
+    overdueTests,
+    completedLastWeek,
+    overdueCount,
+    isOverdue: true,
+    summaryText: `${overdueCount} overdue test${overdueCount > 1 ? 's' : ''} from last week`,
+  };
+};
+
+export const getTankWeeklyTestBreakdown = (tank, submissions = []) => {
+  if (!tank) {
+    return {
+      dueTests: ROUTINE_TEST_TYPES,
+      completedTests: [],
+      allUpToDate: false,
+      hasCompletedAny: false,
+      totalTestsCount: ROUTINE_TEST_TYPES.length,
+      completedCount: 0,
+      dueCount: ROUTINE_TEST_TYPES.length,
+      summaryText: 'All 7 tests due this week',
+    };
+  }
+
+  const harvestStore = (typeof window !== 'undefined') ? JSON.parse(localStorage.getItem('agent_harvest_store') || '{}') : {};
+  const storeKey = `${tank.farmerId}_${tank.id}`;
+  const tankHarvests = harvestStore[storeKey]?.harvests || [];
+  const isFinalDone = tank.status === 'Harvested' || 
+    tank.status === 'Completed' || 
+    tank.finalHarvestCompleted ||
+    tankHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest');
+
+  if (isFinalDone) {
+    return {
+      dueTests: [],
+      completedTests: [],
+      allUpToDate: true,
+      isHarvested: true,
+      hasCompletedAny: true,
+      totalTestsCount: ROUTINE_TEST_TYPES.length,
+      completedCount: ROUTINE_TEST_TYPES.length,
+      dueCount: 0,
+      summaryText: 'Harvest Completed - Cycle Closed',
+    };
+  }
+
+  const tankSubs = (submissions || []).filter(s => 
+    (s.tankId === tank.id || s.tankName === tank.name) &&
+    !((s.testType || s.recordType || '').toUpperCase().includes('HARVEST'))
+  );
+
+  const completedTests = [];
+  const dueTests = [];
+
+  ROUTINE_TEST_TYPES.forEach(test => {
+    const foundThisWeek = tankSubs.find(s => {
+      const typeUpper = (s.testType || s.recordType || '').toUpperCase();
+      const matches = test.matchKeys.some(k => typeUpper.includes(k));
+      if (!matches) return false;
+      const d = s.date || s.createdAt;
+      return isDateInCurrentMondaySundayWeek(d);
+    });
+
+    if (foundThisWeek) {
+      completedTests.push({
+        ...test,
+        completedAt: foundThisWeek.date || 'This Week',
+        recordId: foundThisWeek.id,
+      });
+    } else {
+      dueTests.push(test);
+    }
+  });
+
+  const dueCount = dueTests.length;
+  const completedCount = completedTests.length;
+  const summaryText = dueCount === 0
+    ? 'All routine tests up to date for this week'
+    : `${dueCount} test${dueCount > 1 ? 's' : ''} due this week (${dueTests.slice(0, 2).map(t => t.label).join(', ')}${dueCount > 2 ? '...' : ''})`;
+
+  return {
+    dueTests,
+    completedTests,
+    allUpToDate: dueCount === 0,
+    hasCompletedAny: completedCount > 0,
+    totalTestsCount: ROUTINE_TEST_TYPES.length,
+    completedCount,
+    dueCount,
+    summaryText,
+  };
+};
+
+export const getTankWeeklyComputedStatus = (tank, submissions = []) => {
+  if (!tank) return { testStatus: 'Due', isDue: true, lastTest: 'TBD', nextTest: 'Due This Week', dueCount: ROUTINE_TEST_TYPES.length, completedCount: 0, allUpToDate: false };
+
+  const breakdown = getTankWeeklyTestBreakdown(tank, submissions);
+  if (breakdown.isHarvested) {
+    return {
+      testStatus: 'Completed',
+      isDue: false,
+      status: 'Harvested',
+      lastTest: tank.lastTest || 'Harvest Done',
+      nextTest: 'Cycle Closed',
+      dueThisWeek: false,
+      dueCount: 0,
+      completedCount: breakdown.completedCount,
+      allUpToDate: true,
+    };
+  }
+
+  const tankSubs = (submissions || []).filter(s => 
+    (s.tankId === tank.id || s.tankName === tank.name) &&
+    !((s.testType || s.recordType || '').toUpperCase().includes('HARVEST'))
+  );
+  const latestSub = tankSubs.length > 0 ? tankSubs[0] : null;
+  const latestTestDate = latestSub?.date || tank.lastTest || 'TBD';
+
+  if (breakdown.allUpToDate) {
+    return {
+      testStatus: 'Completed',
+      isDue: false,
+      status: tank.status || 'ACTIVE',
+      lastTest: latestTestDate,
+      nextTest: 'Next Week (Mon-Sun)',
+      dueThisWeek: false,
+      dueCount: 0,
+      completedCount: breakdown.completedCount,
+      allUpToDate: true,
+    };
+  }
+
+  return {
+    testStatus: 'Due',
+    isDue: true,
+    status: tank.status || 'ACTIVE',
+    lastTest: latestTestDate,
+    nextTest: 'Due This Week',
+    dueThisWeek: true,
+    dueCount: breakdown.dueCount,
+    completedCount: breakdown.completedCount,
+    allUpToDate: false,
+  };
+};
+
 export const MockDataProvider = ({ children }) => {
   const [db, setDb] = useState(getInitialDb);
   const [toastMessage, setToastMessage] = useState('');
@@ -1275,6 +1525,10 @@ export const MockDataProvider = ({ children }) => {
       assignTankToIncharge,
       assignAgentToIncharge,
       getWeeklyCompliance,
+      getTankWeeklyTestBreakdown,
+      getTankOverdueBreakdown,
+      getTankWeeklyComputedStatus,
+      ROUTINE_TEST_TYPES,
       getTechnicianAlerts,
       getTechnicianActivityTimeline,
       recordFieldEntry,

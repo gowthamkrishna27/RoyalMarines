@@ -50,8 +50,13 @@ const Profile = () => {
 
         <div style={styles.infoList}>
           <div style={styles.infoRow}>
+            <span style={styles.infoLabel}>ASM</span>
+            <span style={styles.infoVal}>{session?.asm || 'Rajesh'}</span>
+          </div>
+
+          <div style={styles.infoRow}>
             <span style={styles.infoLabel}>Assigned Area</span>
-            <span style={styles.infoVal}>Bhimavaram</span>
+            <span style={styles.infoVal}>{session?.region || 'Bhimavaram'}</span>
           </div>
 
           <div style={styles.infoRow}>
