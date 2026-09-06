@@ -358,13 +358,8 @@ const getInitialDb = () => {
 
   if (typeof window === 'undefined') return fallbackDb;
 
-<<<<<<< HEAD
   ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10'].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) {}
-=======
-  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9'].forEach(k => {
-    try { localStorage.removeItem(k); } catch (e) { }
->>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
   });
 
   try {
@@ -381,13 +376,8 @@ const getInitialDb = () => {
   }
 
   try {
-<<<<<<< HEAD
     localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(fallbackDb));
   } catch (e) {}
-=======
-    localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(fallbackDb));
-  } catch (e) { }
->>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
   return fallbackDb;
 };
 
@@ -399,13 +389,8 @@ export const MockDataProvider = ({ children }) => {
   useEffect(() => {
     if (db) {
       try {
-<<<<<<< HEAD
         localStorage.setItem('aqua_feed_mock_database_v11', JSON.stringify(db));
       } catch (e) {}
-=======
-        localStorage.setItem('aqua_feed_mock_database_v10', JSON.stringify(db));
-      } catch (e) { }
->>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
     }
   }, [db]);
 

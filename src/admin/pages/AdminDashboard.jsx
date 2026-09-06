@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity, ShieldCheck,
-<<<<<<< HEAD
-  AlertCircle, FileSpreadsheet, ArrowUpRight, MapPin,
+  AlertCircle, FileSpreadsheet, ArrowUpRight, MapPin, Database, Archive,
   Clock, Bell, CheckCircle2, TestTube, Filter, Search, X, Send, Droplets, Calendar, Users, Check
-=======
-  AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X
->>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
 } from 'lucide-react';
 
 import { useMockData } from '../../context/MockDataContext';
@@ -69,7 +64,7 @@ const AdminDashboard = () => {
 
   const filteredDueTanks = dueAndOverdueTanks.filter(t => {
     const matchesTab = dueTab === 'ALL' || (dueTab === 'OVERDUE' && t.isOverdue) || (dueTab === 'DUE' && !t.isOverdue);
-    const matchesSearch = 
+    const matchesSearch =
       t.tankName.toLowerCase().includes(dueSearch.toLowerCase()) ||
       t.farmerName.toLowerCase().includes(dueSearch.toLowerCase()) ||
       t.locality.toLowerCase().includes(dueSearch.toLowerCase()) ||
@@ -397,10 +392,9 @@ const AdminDashboard = () => {
         <GPSRouteTracking />
       </div>
 
-<<<<<<< HEAD
       {/* Due & Overdue Tests Comprehensive Organization Modal */}
       {showDueTestsModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -418,7 +412,7 @@ const AdminDashboard = () => {
           }}
           onClick={() => setShowDueTestsModal(false)}
         >
-          <div 
+          <div
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '16px',
@@ -738,11 +732,11 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
-=======
+      )}
+
       {/* Modals */}
       {showHarvestedModal && (
         <HarvestedTanksModal onClose={() => setShowHarvestedModal(false)} />
->>>>>>> 11d13babc92a1b103328da13100aa51167d9738e
       )}
     </div>
   );
