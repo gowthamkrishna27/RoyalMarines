@@ -14,11 +14,10 @@ const BackButton = ({
 
   const handleBack = (e) => {
     e.preventDefault();
-    // Check if browser has history state to navigate back
-    if (window.history.length > 1 && window.history.state && window.history.state.idx > 0) {
-      navigate(-1);
-    } else if (fallback) {
+    if (fallback) {
       navigate(fallback);
+    } else if (window.history.length > 1 && window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
     } else {
       // Fallback based on current URL path
       const currentPath = location.pathname;

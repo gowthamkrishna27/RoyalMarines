@@ -46,19 +46,16 @@ const RecordReview = () => {
 
   if (!record) {
     return (
-      <>
-        <InchargeHeader title="Review Record" />
-        <div style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
-          Loading record details...
-        </div>
-      </>
+      <div style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+        Loading record details...
+      </div>
     );
   }
 
   const handleApprove = () => {
     updateSubmissionStatus(record.id, 'Approved');
     addNotification(record.agentId, `Record for ${record.tank} (${record.farmer}) was Approved by Cluster Incharge.`, 'success');
-    navigate('/incharge/verifications');
+    navigate('/incharge/tests');
   };
 
   const openModal = (action) => {
@@ -79,7 +76,7 @@ const RecordReview = () => {
     );
 
     setShowModal(false);
-    navigate('/incharge/verifications');
+    navigate('/incharge/tests');
   };
 
   const parameterItems = [
@@ -95,11 +92,6 @@ const RecordReview = () => {
 
   return (
     <>
-      <InchargeHeader 
-        title={`Test Record Details: ${record.farmer} • ${record.tank}`} 
-        showBack={true}
-      />
-
       <div style={{ padding: '24px 28px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Top Breadcrumb Navigation */}
         <button 

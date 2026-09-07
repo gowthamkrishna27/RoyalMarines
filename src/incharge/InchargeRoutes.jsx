@@ -17,6 +17,13 @@ import ExportData from './pages/ExportData';
 import ActivityLog from './pages/ActivityLog';
 import Settings from './pages/Settings';
 
+// Shared Pages for Farmer & Tank Operations
+import FarmerDetails from '../agent/pages/FarmerDetails';
+import TankDetails from '../agent/pages/TankDetails';
+import SiteVisit from '../agent/pages/SiteVisit';
+import AddFarmer from '../agent/pages/AddFarmer';
+import AddTanks from '../agent/pages/AddTanks';
+
 const InchargeRoutes = () => {
   return (
     <Routes>
@@ -25,7 +32,12 @@ const InchargeRoutes = () => {
       <Route path="my-farmers" element={<MyFarmers />} />
       <Route path="my-tanks" element={<MyTanks />} />
       <Route path="farmers" element={<Farmers />} />
+      <Route path="farmers/:farmerId" element={<FarmerDetails />} />
+      <Route path="add-farmer" element={<AddFarmer />} />
+      <Route path="add-tanks" element={<AddTanks />} />
       <Route path="tanks" element={<Tanks />} />
+      <Route path="tanks/:tankId" element={<TankDetails />} />
+      <Route path="visit/:tankId" element={<SiteVisit />} />
       <Route path="allocations" element={<Allocations />} />
       <Route path="tests" element={<Tests />} />
       <Route path="history" element={<Tests />} />

@@ -37,7 +37,7 @@ import AdminRoutes from './admin/AdminRoutes';
 import { isAdminAuthenticated } from './admin/utils/adminAuth';
 
 const ProtectedRoute = ({ children }) => {
-  if (!isAuthenticated()) {
+  if (!isAuthenticated() && !isInchargeAuthenticated() && !isAdminAuthenticated()) {
     // If user directly accesses a protected route without being logged in, redirect to login
     return <Navigate to="/login" replace />;
   }

@@ -319,7 +319,7 @@ const styles = {
   },
   backBtnWrapper: {
     position: 'absolute',
-    top: '20px',
+    top: '32px',
     left: '20px',
     zIndex: 10,
   },

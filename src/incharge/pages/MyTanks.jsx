@@ -79,10 +79,6 @@ const MyTanks = () => {
 
   return (
     <>
-      <InchargeHeader 
-        title="My Tanks" 
-      />
-
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
         
         {/* Admin Assigned Personal Portfolio Banner */}

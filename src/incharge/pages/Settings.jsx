@@ -15,8 +15,6 @@ const Settings = () => {
 
   return (
     <>
-      <InchargeHeader title="Incharge Settings & Profile" />
-
       <div style={{ padding: '24px 28px', maxWidth: '780px', margin: '0 auto' }}>
         
         {/* Profile Card */}

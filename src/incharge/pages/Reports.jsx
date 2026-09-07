@@ -180,8 +180,6 @@ const Reports = () => {
 
   return (
     <>
-      <InchargeHeader title="Reports & Export Center" />
-
       <div style={styles.pageContainer}>
         
         {/* Top Header Row with Export Files Dropdown */}

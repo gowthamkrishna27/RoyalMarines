@@ -113,8 +113,6 @@ const Allocations = () => {
 
   return (
     <>
-      <InchargeHeader title="Field Territory & Farm Allocation" />
-
       <div style={{ padding: '24px 28px', maxWidth: '1280px', margin: '0 auto' }}>
         
         {/* Navigation Tabs & Quick Stats */}

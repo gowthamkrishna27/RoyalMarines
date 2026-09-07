@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, Send, MapPin, AlertTriangle, Droplet, Fish, Pill, Bug, ChevronRight, Check, Edit3 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -23,6 +23,9 @@ const DISEASE_OPTIONS = [
 const SiteVisit = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isIncharge = location.pathname.startsWith('/incharge');
+  const targetTankUrl = isIncharge ? `/incharge/tanks/${tankId}` : `/tanks/${tankId}`;
   const [tank, setTank] = useState(null);
   const [session, setSession] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -86,7 +89,7 @@ const SiteVisit = () => {
         </p>
         <button 
           type="button"
-          onClick={() => navigate(`/tanks/${tankId}`)}
+          onClick={() => navigate(targetTankUrl)}
           style={{ backgroundColor: '#1A2FB8', color: '#FFFFFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '700', fontSize: '13.5px', cursor: 'pointer' }}
         >
           ← Return to Tank Details
@@ -112,7 +115,7 @@ const SiteVisit = () => {
 
   const handleBack = () => {
     if (currentStep === 'MENU') {
-      navigate(`/tanks/${tankId}`);
+      navigate(targetTankUrl);
     } else if (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 4) {
       if (returnToSubmit) {
         setCurrentStep(5);
@@ -123,7 +126,7 @@ const SiteVisit = () => {
     } else if (currentStep === 5) {
       setCurrentStep('MENU');
     } else {
-      navigate(`/tanks/${tankId}`);
+      navigate(targetTankUrl);
     }
   };
 

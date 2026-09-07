@@ -325,8 +325,6 @@ const Agents = () => {
 
   return (
     <>
-      <InchargeHeader title="My Agents" />
-
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
         {/* ========================================================= */}
         {/* 1. Summary Quick Bar */}

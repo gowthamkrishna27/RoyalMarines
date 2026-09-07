@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2, 
   Scale, Wheat, Fish, Activity, TrendingUp, Droplets, 
@@ -32,6 +32,8 @@ const TABS = [
 const TankDetails = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isIncharge = location.pathname.startsWith('/incharge');
   const { getTankById, getFarmerById, db } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -186,6 +188,24 @@ const TankDetails = () => {
   const cultureDays = 77; // As requested in example
   const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (isIncharge) {
+      if (farmer?.id) {
+        navigate(`/incharge/farmers/${farmer.id}`);
+      } else {
+        navigate('/incharge/my-tanks');
+      }
+    } else {
+      if (farmer?.id) {
+        navigate(`/farmers/${farmer.id}`);
+      } else {
+        navigate('/farmers');
+      }
+    }
+  };
+
   return (
     <div style={styles.pageContainer}>
       {/* ========================================================= */}
@@ -195,7 +215,7 @@ const TankDetails = () => {
         <button 
           type="button"
           style={styles.backButton}
-          onClick={() => farmer?.id ? navigate(`/farmers/${farmer.id}`) : navigate('/farmers')}
+          onClick={handleBack}
           aria-label="Back"
         >
           <ArrowLeft size={18} strokeWidth={2.4} />

@@ -21,8 +21,6 @@ const ActivityLog = () => {
 
   return (
     <>
-      <InchargeHeader title="ASM Activity & Audit Log" />
-
       <div style={{ padding: '24px 28px', maxWidth: '1100px', margin: '0 auto' }}>
         <div style={styles.card}>
           

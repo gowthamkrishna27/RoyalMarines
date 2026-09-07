@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Plus, ChevronRight, Scale, Clock, CheckCircle2 
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 const FarmerDetails = () => {
   const { farmerId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = getSession();
   const { getFarmerById, getTanksByFarmerId, db } = useMockData();
 
@@ -21,12 +22,22 @@ const FarmerDetails = () => {
   const farmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
   const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (db?.tanks || []).filter(t => t.farmerId === farmerId);
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (location.pathname.startsWith('/incharge')) {
+      navigate('/incharge/my-farmers');
+    } else {
+      navigate('/farmers');
+    }
+  };
+
   if (!farmer) {
     return (
       <div style={styles.errorContainer}>
         <div style={styles.errorCard}>
           <p>Farmer not found or not assigned to your account.</p>
-          <button style={styles.backBtn} onClick={() => navigate('/farmers')}>
+          <button style={styles.backBtn} onClick={handleBack}>
             ← Back to My Farmers
           </button>
         </div>
@@ -50,7 +61,7 @@ const FarmerDetails = () => {
     <div style={styles.container}>
       {/* Top Header */}
       <div style={styles.topBar}>
-        <button style={styles.backLink} onClick={() => navigate('/farmers')}>
+        <button style={styles.backLink} onClick={handleBack}>
           <ArrowLeft size={16} /> Back
         </button>
 
@@ -95,8 +106,14 @@ const FarmerDetails = () => {
             <span style={styles.infoValue}>{tanks.length} Tanks</span>
           </div>
           <div style={styles.infoCol}>
-            <span style={styles.infoLabel}>Assigned Technician</span>
-            <span style={styles.infoValue}>{session?.name || 'Ramesh'}</span>
+            <span style={styles.infoLabel}>
+              {farmer.assignedTo === 'Incharge' || !farmer.agentId ? 'Supervisor' : 'Assigned Technician'}
+            </span>
+            <span style={styles.infoValue}>
+              {farmer.assignedTo === 'Incharge' || !farmer.agentId 
+                ? 'Ravi Kumar (Incharge)' 
+                : session?.name || 'Ramesh'}
+            </span>
           </div>
         </div>
       </div>
@@ -126,7 +143,13 @@ const FarmerDetails = () => {
                 <div
                   key={tank.id}
                   style={styles.pondCard}
-                  onClick={() => navigate(`/tanks/${tank.id}`)}
+                  onClick={() => {
+                    if (location.pathname.startsWith('/incharge')) {
+                      navigate(`/incharge/tanks/${tank.id}`);
+                    } else {
+                      navigate(`/tanks/${tank.id}`);
+                    }
+                  }}
                 >
                   <div style={styles.pondLeft}>
                     <div style={styles.pondHeaderRow}>

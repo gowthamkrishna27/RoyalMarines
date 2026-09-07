@@ -212,8 +212,6 @@ const Tests = () => {
 
   return (
     <>
-      <InchargeHeader title="Test History" />
-
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
         
         {/* ========================================================= */}

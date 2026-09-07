@@ -310,8 +310,6 @@ const Dashboard = () => {
 
   return (
     <>
-      <InchargeHeader title="Dashboard" />
-
       <div className="p-3.5 sm:p-5 lg:p-6 max-w-[1440px] mx-auto">
         
         {/* ========================================================= */}

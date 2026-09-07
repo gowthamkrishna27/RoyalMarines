@@ -756,7 +756,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-around',
-    padding: '6px 0',
+    padding: '4px 0',
   },
   metricCol: {
     display: 'flex',
@@ -765,20 +765,21 @@ const styles = {
     gap: '2px',
   },
   metricVal: {
-    fontSize: 'clamp(20px, 4vw, 24px)',
+    fontSize: '28px',
     fontWeight: '800',
     color: '#1A2FB8',
-    lineHeight: 1.1,
+    lineHeight: 1,
   },
   metricLabel: {
-    fontSize: '11px',
+    fontSize: '13px',
     color: '#64748B',
-    fontWeight: '500',
+    fontWeight: '600',
+    marginTop: '4px',
   },
   metricDivider: {
     width: '1px',
-    height: '24px',
-    backgroundColor: '#F1F5F9',
+    height: '36px',
+    backgroundColor: '#E2E8F0',
   },
   recentSection: {
     display: 'flex',

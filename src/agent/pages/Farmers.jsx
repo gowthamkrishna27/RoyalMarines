@@ -24,11 +24,15 @@ const Farmers = () => {
 
     return {
       ...farmer,
-      tankCount: tanks.length || parseInt(farmer.numberOfTanks) || 0,
+      tankCount: tanks.length || parseInt(farmer.numberOfTanks) || 1,
+      villageName: farmer.village || farmer.location || 'Chinnamiram',
       testStatus: hasPendingTest ? 'Test Due' : 'Up to date',
       isDue: hasPendingTest,
     };
   });
+
+  const dueCount = farmerItems.filter(f => f.isDue).length;
+  const upToDateCount = farmerItems.filter(f => !f.isDue).length;
 
   const filteredFarmers = farmerItems.filter(f => {
     if (filterMode === 'DUE' && !f.isDue) return false;
@@ -38,7 +42,7 @@ const Farmers = () => {
       const q = searchQuery.toLowerCase();
       return (
         f.name.toLowerCase().includes(q) ||
-        (f.village || f.location || '').toLowerCase().includes(q) ||
+        (f.villageName || '').toLowerCase().includes(q) ||
         (f.phone || '').includes(q)
       );
     }
@@ -55,17 +59,19 @@ const Farmers = () => {
         </div>
 
         <button 
-          className="transition-all duration-200 hover:brightness-110 active:scale-95 cursor-pointer"
+          type="button"
+          className="transition-all duration-150 active:scale-95 cursor-pointer"
           style={styles.addFarmerBtn}
           onClick={() => navigate('/add-farmer')}
         >
-          <Plus size={15} strokeWidth={2.6} /> Add Farmer
+          <Plus size={16} strokeWidth={2.8} />
+          <span>Add Farmer</span>
         </button>
       </div>
 
-      {/* Search Input */}
+      {/* Search Bar */}
       <div style={styles.searchBox}>
-        <Search size={15} color="#64748B" />
+        <Search size={16} color="#94A3B8" />
         <input
           type="text"
           placeholder="Search farmers, tanks, or village..."
@@ -74,50 +80,64 @@ const Farmers = () => {
           style={styles.searchInput}
         />
         {searchQuery && (
-          <button style={styles.clearBtn} onClick={() => setSearchQuery('')}>
-            <X size={14} />
+          <button style={styles.clearBtn} onClick={() => setSearchQuery('')} type="button">
+            <X size={14} color="#94A3B8" />
           </button>
         )}
       </div>
 
-      {/* Filter Tabs */}
+      {/* Filter Chips */}
       <div style={styles.filterTabs}>
         <button
+          type="button"
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'ALL' ? '#0018AD' : '#FFFFFF',
-            color: filterMode === 'ALL' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'ALL' ? '#0018AD' : '#CBD5E1',
+            color: filterMode === 'ALL' ? '#FFFFFF' : '#334155',
+            borderColor: filterMode === 'ALL' ? '#0018AD' : '#E2E8F0',
+            fontWeight: filterMode === 'ALL' ? '700' : '600',
           }}
           onClick={() => setFilterMode('ALL')}
         >
           All ({farmerItems.length})
         </button>
+
         <button
+          type="button"
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'DUE' ? '#D97706' : '#FFFFFF',
-            color: filterMode === 'DUE' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'DUE' ? '#D97706' : '#CBD5E1',
+            color: filterMode === 'DUE' ? '#FFFFFF' : '#334155',
+            borderColor: filterMode === 'DUE' ? '#D97706' : '#E2E8F0',
+            fontWeight: filterMode === 'DUE' ? '700' : '600',
           }}
           onClick={() => setFilterMode('DUE')}
         >
-          ⚠ Test Due ({farmerItems.filter(f => f.isDue).length})
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <AlertTriangle size={13} color={filterMode === 'DUE' ? '#FFFFFF' : '#D97706'} />
+            Test Due ({dueCount})
+          </span>
         </button>
+
         <button
+          type="button"
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#FFFFFF',
-            color: filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#64748B',
-            borderColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#CBD5E1',
+            color: filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#334155',
+            borderColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#E2E8F0',
+            fontWeight: filterMode === 'UP_TO_DATE' ? '700' : '600',
           }}
           onClick={() => setFilterMode('UP_TO_DATE')}
         >
-          ✓ Up to date ({farmerItems.filter(f => !f.isDue).length})
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <Check size={13} strokeWidth={3} color={filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#16A34A'} />
+            Up to date ({upToDateCount})
+          </span>
         </button>
       </div>
 
-      {/* Farmers List */}
+      {/* Farmers List Cards */}
       <div style={styles.farmersList}>
         {filteredFarmers.length === 0 ? (
           <div style={styles.emptyState}>
@@ -129,27 +149,30 @@ const Farmers = () => {
               key={farmer.id}
               style={styles.farmerCard}
               onClick={() => navigate(`/farmers/${farmer.id}`)}
+              className="transition-all hover:border-slate-300 active:scale-[0.99] cursor-pointer"
             >
               <div style={styles.cardLeft}>
                 <span style={styles.farmerName}>{farmer.name}</span>
                 <div style={styles.farmerMeta}>
                   <span>{farmer.tankCount} Tanks</span>
                   <span>•</span>
-                  <span>{farmer.village || farmer.location || 'Bhimavaram'}</span>
+                  <span>{farmer.villageName}</span>
                 </div>
               </div>
 
               <div style={styles.cardRight}>
                 {farmer.isDue ? (
                   <span style={styles.statusDue}>
-                    <AlertTriangle size={11} /> Test Due
+                    <AlertTriangle size={12} color="#D97706" />
+                    <span>Test Due</span>
                   </span>
                 ) : (
                   <span style={styles.statusUpToDate}>
-                    <Check size={11} strokeWidth={3} /> Up to date
+                    <Check size={12} strokeWidth={3} color="#16A34A" />
+                    <span>Up to date</span>
                   </span>
                 )}
-                <ChevronRight size={15} color="#94A3B8" />
+                <ChevronRight size={16} color="#94A3B8" />
               </div>
             </div>
           ))
@@ -163,14 +186,14 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '16px',
     width: '100%',
   },
   headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: '4px',
+    paddingTop: '2px',
     flexWrap: 'wrap',
     gap: '10px',
   },
@@ -179,38 +202,39 @@ const styles = {
     fontWeight: '800',
     color: '#64748B',
     letterSpacing: '0.5px',
+    textTransform: 'uppercase',
   },
   headerTitle: {
-    fontSize: 'clamp(18px, 4vw, 22px)',
+    fontSize: '22px',
     fontWeight: '800',
     color: '#0F172A',
-    margin: '1px 0 0 0',
+    margin: '2px 0 0 0',
   },
   addFarmerBtn: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    backgroundColor: '#1A2FB8',
+    backgroundColor: '#0018AD',
     color: '#FFFFFF',
     border: 'none',
-    minHeight: '40px',
+    minHeight: '38px',
     padding: '0 16px',
     borderRadius: '10px',
     fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.22)',
+    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.25)',
   },
   searchBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '10px',
     backgroundColor: '#FFFFFF',
-    border: '1px solid #CBD5E1',
+    border: '1px solid #E2E8F0',
     borderRadius: '10px',
-    padding: '0 12px',
-    minHeight: '42px',
+    padding: '0 14px',
+    minHeight: '44px',
   },
   searchInput: {
     border: 'none',
@@ -223,37 +247,39 @@ const styles = {
   clearBtn: {
     background: 'none',
     border: 'none',
-    color: '#64748B',
+    color: '#94A3B8',
     cursor: 'pointer',
     padding: 0,
     display: 'flex',
   },
   filterTabs: {
     display: 'flex',
-    gap: '6px',
+    gap: '8px',
     overflowX: 'auto',
     WebkitOverflowScrolling: 'touch',
     scrollbarWidth: 'none',
     paddingBottom: '2px',
   },
   tabBtn: {
-    padding: '7px 14px',
-    borderRadius: '14px',
+    padding: '7px 16px',
+    borderRadius: '20px',
     border: '1px solid',
-    fontSize: '11.5px',
-    fontWeight: '600',
+    fontSize: '12px',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   farmersList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '10px',
   },
   farmerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: '12px',
-    padding: '12px 14px',
+    borderRadius: '14px',
+    padding: '14px 16px',
     border: '1px solid #E2E8F0',
     display: 'flex',
     justifyContent: 'space-between',
@@ -264,10 +290,10 @@ const styles = {
   cardLeft: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '3px',
   },
   farmerName: {
-    fontSize: '14px',
+    fontSize: '15px',
     fontWeight: '700',
     color: '#0F172A',
   },
@@ -275,41 +301,41 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    fontSize: '12px',
+    fontSize: '12.5px',
     color: '#64748B',
   },
   cardRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '10px',
   },
   statusUpToDate: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '3px',
-    fontSize: '11px',
+    gap: '4px',
+    fontSize: '11.5px',
     fontWeight: '700',
-    color: '#15803D',
+    color: '#16A34A',
     backgroundColor: '#DCFCE7',
-    padding: '2px 7px',
-    borderRadius: '6px',
+    padding: '4px 12px',
+    borderRadius: '20px',
   },
   statusDue: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '3px',
-    fontSize: '11px',
+    gap: '4px',
+    fontSize: '11.5px',
     fontWeight: '700',
-    color: '#B45309',
+    color: '#D97706',
     backgroundColor: '#FEF3C7',
-    padding: '2px 7px',
-    borderRadius: '6px',
+    padding: '4px 12px',
+    borderRadius: '20px',
   },
   emptyState: {
     padding: '30px',
     textAlign: 'center',
     color: '#94A3B8',
-    fontSize: '12px',
+    fontSize: '13px',
     backgroundColor: '#FFFFFF',
     borderRadius: '12px',
     border: '1px dashed #CBD5E1',

@@ -73,8 +73,6 @@ const ExportData = () => {
 
   return (
     <>
-      <InchargeHeader title="Direct Data & Workbook Export" />
-
       <div style={{ padding: '24px 28px', maxWidth: '780px', margin: '0 auto' }}>
         <div style={styles.card}>
           <div style={styles.cardHeader}>

@@ -41,11 +41,11 @@ const Layout = ({ children }) => {
 
   const formatDate = (date) => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
     const dayName = days[date.getDay()];
     const dayNum = date.getDate();
     const monthName = months[date.getMonth()];
-    return `${dayName}, ${dayNum} ${monthName}`;
+    return `${dayName} ${dayNum} ${monthName}`;
   };
 
   const formatTime = (date) => {
@@ -200,8 +200,9 @@ const Layout = ({ children }) => {
             </div>
 
             <div style={styles.mobileHeaderRight}>
-              {/* Date & Time Compact Badge */}
+              {/* Date & Time Compact Badge (Matching Photo 3) */}
               <div style={styles.mobileDateTimeBadge}>
+                <Clock size={13} color="#2563EB" style={{ flexShrink: 0 }} />
                 <span style={styles.mobileDateText}>{formatDate(currentTime)}</span>
                 <span style={styles.pipeDivider}>|</span>
                 <span style={styles.mobileTimeText}>{formatTime(currentTime)}</span>
@@ -209,12 +210,12 @@ const Layout = ({ children }) => {
 
               <button
                 type="button"
-                style={styles.profileRoundBtn}
+                style={{ ...styles.profileRoundBtn, width: '32px', height: '32px' }}
                 onClick={() => navigate('/profile')}
                 title="Profile & Settings"
                 aria-label="Profile"
               >
-                <User size={17} color="#1A2FB8" strokeWidth={2.4} />
+                <User size={15} color="#1A2FB8" strokeWidth={2.4} />
               </button>
             </div>
           </header>
@@ -223,7 +224,7 @@ const Layout = ({ children }) => {
           <header className="agent-desktop-header">
             <div style={styles.desktopHeaderRight}>
               <div style={styles.dateTimeRow}>
-                <Clock size={13} color="#1A2FB8" />
+                <Clock size={13} color="#2563EB" />
                 <span style={styles.dateText}>{formatDate(currentTime)}</span>
                 <span style={styles.pipeDivider}>|</span>
                 <span style={styles.timeText}>{formatTime(currentTime)}</span>
@@ -237,7 +238,7 @@ const Layout = ({ children }) => {
                 title="Profile & Settings"
                 aria-label="Profile"
               >
-                <User size={18} color="#1A2FB8" strokeWidth={2.4} />
+                <User size={17} color="#1A2FB8" strokeWidth={2.4} />
               </button>
             </div>
           </header>
@@ -269,6 +270,7 @@ const styles = {
   mobileHeaderLeft: {
     display: 'flex',
     alignItems: 'center',
+    flexShrink: 0,
   },
   mobileLogoContainer: {
     cursor: 'pointer',
@@ -276,34 +278,38 @@ const styles = {
     alignItems: 'center',
   },
   mobileLogoImg: {
-    height: '44px',
-    maxWidth: '200px',
+    height: '28px',
+    maxWidth: '100px',
     objectFit: 'contain',
     display: 'block',
   },
   mobileHeaderRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '5px',
+    flexShrink: 0,
   },
   mobileDateTimeBadge: {
-    display: 'flex',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     border: '1px solid #E2E8F0',
-    padding: '4px 8px',
-    borderRadius: '8px',
-    fontSize: '11px',
+    padding: '3px 8px',
+    borderRadius: '20px',
+    fontSize: '10.5px',
     whiteSpace: 'nowrap',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
   },
   mobileDateText: {
     color: '#64748B',
     fontWeight: '500',
+    fontSize: '10.5px',
   },
   mobileTimeText: {
     color: '#1A2FB8',
     fontWeight: '700',
+    fontSize: '11px',
   },
   desktopHeaderLeft: {
     display: 'flex',

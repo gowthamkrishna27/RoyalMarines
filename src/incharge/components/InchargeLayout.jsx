@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, createContext, useContext } from 'r
 import { useLocation } from 'react-router-dom';
 import InchargeSidebar from './InchargeSidebar';
 import InchargeBottomNavigation from './InchargeBottomNavigation';
+import InchargeHeader from './InchargeHeader';
 
 export const InchargeNavContext = createContext({
   isMobileSidebarOpen: false,
@@ -76,6 +77,9 @@ const InchargeLayout = ({ children }) => {
           width: isMobile ? '100vw' : 'calc(100vw - 260px)',
           transition: 'margin-left 0.25s ease'
         }}>
+          {/* Constant Uniform Header across entire ASM Portal */}
+          <InchargeHeader />
+
           <div 
             ref={scrollContainerRef}
             style={{ 
