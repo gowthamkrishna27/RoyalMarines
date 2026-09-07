@@ -19,7 +19,7 @@ import {
 const Reports = () => {
   const navigate = useNavigate();
   const session = getSession();
-  const { db } = useMockData();
+  const { db, getFarmersByAgentId } = useMockData();
 
   const [selectedFarmerId, setSelectedFarmerId] = useState('ALL');
   const [isExporting, setIsExporting] = useState(false);
@@ -46,19 +46,23 @@ const Reports = () => {
   if (!session || !db) return null;
 
   const agentId = session.agentId || 'agent001';
-  const farmers = db.farmers || [];
-  const submissions = db.submissions || [];
-  const allTanks = db.tanks || [];
+  const farmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db.farmers || []);
+  const allDbTanks = db.tanks || [];
+  const assignedTanks = allDbTanks.filter(t => farmers.some(f => f.id === t.farmerId));
 
   const relevantTanks = selectedFarmerId === 'ALL' 
-    ? allTanks 
-    : allTanks.filter(t => t.farmerId === selectedFarmerId);
-  const activeTanksCount = relevantTanks.filter(t => t.status !== 'INACTIVE').length || 14;
+    ? assignedTanks 
+    : assignedTanks.filter(t => t.farmerId === selectedFarmerId);
+  const activeTanksCount = relevantTanks.filter(t => t.status !== 'INACTIVE' && t.status !== 'Harvested').length || relevantTanks.length;
 
-  const relevantSubmissions = selectedFarmerId === 'ALL'
-    ? submissions
-    : submissions.filter(s => s.farmerId === selectedFarmerId);
-  const totalTestsCount = relevantSubmissions.length > 0 ? (relevantSubmissions.length + 38) : 52;
+  const submissions = db.submissions || [];
+  const relevantSubmissions = (submissions || []).filter(s => {
+    const isThisAgentFarmer = farmers.some(f => f.id === s.farmerId);
+    if (!isThisAgentFarmer && s.agentId && s.agentId !== agentId) return false;
+    if (selectedFarmerId !== 'ALL' && s.farmerId !== selectedFarmerId) return false;
+    return true;
+  });
+  const totalTestsCount = relevantSubmissions.length > 0 ? relevantSubmissions.length : (relevantTanks.length * 4);
 
   // Clean Water Parameter Chart Data
   const waterQualityChartData = [
@@ -142,28 +146,31 @@ const Reports = () => {
             </select>
           </div>
 
-          {/* Report Download Dropdown */}
-          <div ref={dropdownRef} style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-              style={styles.dropdownTriggerBtn}
-              onClick={() => setIsDropdownOpen(prev => !prev)}
-              disabled={isExporting}
-            >
-              <FileSpreadsheet size={16} strokeWidth={2.4} />
-              <span>{isExporting ? 'Generating Excel...' : 'Download Reports'}</span>
-              <ChevronDown 
-                size={16} 
-                style={{ 
-                  transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
-                  transition: 'transform 0.2s ease' 
-                }} 
-              />
-            </button>
+            {/* Report Download Dropdown */}
+            <div ref={dropdownRef} style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                style={styles.dropdownTriggerBtn}
+                onClick={() => setIsDropdownOpen(prev => !prev)}
+                disabled={isExporting}
+              >
+                <FileSpreadsheet size={16} strokeWidth={2.4} />
+                <span>{isExporting ? 'Generating Excel...' : 'Download Reports'}</span>
+                <ChevronDown 
+                  size={16} 
+                  style={{ 
+                    transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
+                    transition: 'transform 0.2s ease' 
+                  }} 
+                />
+              </button>
 
-            {isDropdownOpen && (
-              <div style={styles.dropdownMenu}>
+              {isDropdownOpen && (
+                <div 
+                  style={styles.dropdownMenu}
+                  className="left-0 sm:left-auto sm:right-0 animate-modal-in"
+                >
                 <div style={styles.dropdownHeader}>SELECT EXCEL REPORT TO DOWNLOAD</div>
                 
                 {/* 1. Export Complete Excel */}
@@ -406,7 +413,6 @@ const styles = {
   dropdownMenu: {
     position: 'absolute',
     top: 'calc(100% + 8px)',
-    right: 0,
     width: 'min(360px, calc(100vw - 32px))',
     maxWidth: 'calc(100vw - 32px)',
     backgroundColor: '#FFFFFF',

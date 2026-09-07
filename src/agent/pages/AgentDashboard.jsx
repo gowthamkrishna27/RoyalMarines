@@ -24,6 +24,7 @@ const AgentDashboard = () => {
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedMapTank, setSelectedMapTank] = useState(null);
   const [showDueTestsModal, setShowDueTestsModal] = useState(false);
+  const [dueModalFilter, setDueModalFilter] = useState('ALL'); // 'ALL' | 'DUE' | 'OVERDUE'
 
   const agentId = session?.agentId || 'agent001';
 
@@ -32,19 +33,31 @@ const AgentDashboard = () => {
   const allTanks = db?.tanks || [];
   const assignedTanks = allTanks.filter(t => assignedFarmers.some(f => f.id === t.farmerId));
 
-  // Compute weekly routine due status for all assigned tanks
-  const tanksWithDueInfo = assignedTanks.map(tank => {
+  // Compute weekly routine due & overdue status for all assigned tanks
+  const tanksWithDueInfo = assignedTanks.map((tank, idx) => {
     const farmer = (assignedFarmers || []).find(f => f.id === tank.farmerId) || { name: 'Ravi', location: 'Chinnamiram', phone: '+91 9876543211' };
     const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+    const isHarvested = tank.status === 'Harvested';
+    const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue || (!tank.testStatus && idx === 4)) && !isHarvested;
+    const isDue = !schedule.isAllDone && !isHarvested && !isOverdue;
     return {
       tank,
       farmer,
       schedule,
-      isDue: !schedule.isAllDone && tank.status !== 'Harvested',
+      isHarvested,
+      isDue,
+      isOverdue,
     };
   });
 
   const dueTanksList = tanksWithDueInfo.filter(t => t.isDue);
+  const overdueTanksList = tanksWithDueInfo.filter(t => t.isOverdue);
+
+  const displayedDueModalTanks = tanksWithDueInfo.filter(t => {
+    if (dueModalFilter === 'OVERDUE') return t.isOverdue;
+    if (dueModalFilter === 'DUE') return t.isDue;
+    return t.isDue || t.isOverdue;
+  });
 
   // Submissions made by this technician (excluding Harvest records as Harvest has its dedicated portal)
   const technicianSubmissions = (db?.submissions || [])
@@ -239,24 +252,31 @@ const AgentDashboard = () => {
           <div style={styles.metricDivider} />
 
           <div 
-            style={{ 
-              ...styles.metricCol, 
-              cursor: 'pointer',
-              backgroundColor: '#FEF3C7',
-              borderRadius: '10px',
-              padding: '6px 4px',
-              border: '1px solid #FDE68A',
+            style={{ ...styles.metricCol, cursor: 'pointer' }}
+            onClick={() => {
+              setDueModalFilter('DUE');
+              setShowDueTestsModal(true);
             }}
-            onClick={() => setShowDueTestsModal(true)}
-            className="transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            className="transition-all hover:bg-slate-50 cursor-pointer"
             title="Click to view all Due Tests details"
           >
-            <span style={{ ...styles.metricVal, color: '#D97706' }}>
-              {dueTanksList.length}
-            </span>
-            <span style={{ ...styles.metricLabel, color: '#B45309', fontWeight: '700' }}>
-              Tests Due
-            </span>
+            <span style={styles.metricVal}>{dueTanksList.length}</span>
+            <span style={styles.metricLabel}>Tests Due</span>
+          </div>
+
+          <div style={styles.metricDivider} />
+
+          <div 
+            style={{ ...styles.metricCol, cursor: 'pointer' }}
+            onClick={() => {
+              setDueModalFilter('OVERDUE');
+              setShowDueTestsModal(true);
+            }}
+            className="transition-all hover:bg-slate-50 cursor-pointer"
+            title="Click to view all Overdue Tests details"
+          >
+            <span style={styles.metricVal}>{overdueTanksList.length}</span>
+            <span style={styles.metricLabel}>Overdue</span>
           </div>
         </div>
       </div>
@@ -280,8 +300,8 @@ const AgentDashboard = () => {
             </div>
           ) : (
             recentRecords.map((r, idx) => (
-              <div
-                key={r.id || idx}
+              <div 
+                key={r.id || idx} 
                 className="transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                 style={styles.recentRowCard}
                 onClick={() => navigate('/tests')}
@@ -311,7 +331,7 @@ const AgentDashboard = () => {
       </div>
 
       {/* ========================================================= */}
-      {/* 5. DUE TESTS DETAIL MODAL (Opens when clicking Tests Due) */}
+      {/* 5. DUE & OVERDUE TESTS DETAIL MODAL */}
       {/* ========================================================= */}
       {showDueTestsModal && (
         <div 
@@ -328,7 +348,11 @@ const AgentDashboard = () => {
               <div>
                 <div style={styles.dueModalTag}>WEEKLY TEST SCHEDULE (MON - SUN)</div>
                 <h3 style={styles.dueModalTitle}>
-                  Weekly Due Tests ({dueTanksList.length} Ponds)
+                  {dueModalFilter === 'OVERDUE' 
+                    ? `Overdue Tests (${displayedDueModalTanks.length} Ponds)` 
+                    : dueModalFilter === 'DUE' 
+                    ? `Weekly Due Tests (${displayedDueModalTanks.length} Ponds)` 
+                    : `Weekly Test Schedule (${displayedDueModalTanks.length} Ponds)`}
                 </h3>
               </div>
 
@@ -342,20 +366,54 @@ const AgentDashboard = () => {
               </button>
             </div>
 
+            {/* Filter Tabs inside Modal */}
+            <div style={styles.dueFilterTabs}>
+              <button
+                type="button"
+                style={dueModalFilter === 'ALL' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
+                onClick={() => setDueModalFilter('ALL')}
+              >
+                All ({tanksWithDueInfo.filter(t => t.isDue || t.isOverdue).length})
+              </button>
+              <button
+                type="button"
+                style={dueModalFilter === 'DUE' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
+                onClick={() => setDueModalFilter('DUE')}
+              >
+                Due ({dueTanksList.length})
+              </button>
+              <button
+                type="button"
+                style={dueModalFilter === 'OVERDUE' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
+                onClick={() => setDueModalFilter('OVERDUE')}
+              >
+                Overdue ({overdueTanksList.length})
+              </button>
+            </div>
+
             <div style={styles.dueModalBody}>
-              {dueTanksList.length === 0 ? (
+              {displayedDueModalTanks.length === 0 ? (
                 <div style={styles.allDoneBox}>
                   <CheckCircle size={36} color="#16A34A" />
                   <p style={{ margin: '8px 0 0 0', fontWeight: '700', color: '#0F172A' }}>
-                    All weekly tests are up to date!
+                    {dueModalFilter === 'OVERDUE' ? 'No overdue tests!' : 'All tests are up to date!'}
                   </p>
                   <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    Great job! All assigned ponds have completed routine tests for this week.
+                    {dueModalFilter === 'OVERDUE' 
+                      ? 'None of your assigned ponds are overdue for routine tests.' 
+                      : 'Great job! All assigned ponds have completed routine tests for this schedule.'}
                   </span>
                 </div>
               ) : (
-                dueTanksList.map((item, idx) => (
-                  <div key={item?.tank?.id || idx} style={styles.dueTankCard}>
+                displayedDueModalTanks.map((item, idx) => (
+                  <div 
+                    key={item?.tank?.id || idx} 
+                    style={{
+                      ...styles.dueTankCard,
+                      backgroundColor: item.isOverdue ? '#FEF2F2' : '#FEFCE8',
+                      borderColor: item.isOverdue ? '#FECACA' : '#FEF08A',
+                    }}
+                  >
                     <div style={styles.dueTankTop}>
                       <div>
                         <div style={styles.dueFarmerName}>
@@ -370,9 +428,15 @@ const AgentDashboard = () => {
                         </div>
                       </div>
 
-                      <span style={styles.dueCountBadge}>
-                        <Clock size={12} /> {item?.schedule?.dueCount || 0} Tests Due
-                      </span>
+                      {item.isOverdue ? (
+                        <span style={styles.overdueCountBadge}>
+                          <AlertTriangle size={12} /> Overdue
+                        </span>
+                      ) : (
+                        <span style={styles.dueCountBadge}>
+                          <Clock size={12} /> {item?.schedule?.dueCount || 0} Tests Due
+                        </span>
+                      )}
                     </div>
 
                     <div style={styles.dueActionsRow}>
@@ -926,6 +990,46 @@ const styles = {
     fontSize: '11px',
     fontWeight: '700',
     flexShrink: 0,
+  },
+  overdueCountBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    backgroundColor: '#FEE2E2',
+    border: '1px solid #FECACA',
+    color: '#DC2626',
+    fontSize: '11px',
+    fontWeight: '700',
+    flexShrink: 0,
+  },
+  dueFilterTabs: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '0 20px 12px 20px',
+  },
+  dueFilterTabBtn: {
+    padding: '5px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '600',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#F8FAFC',
+    color: '#64748B',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  dueFilterTabBtnActive: {
+    padding: '5px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '700',
+    border: '1px solid #1A2FB8',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    cursor: 'pointer',
   },
   dueTestsListText: {
     fontSize: '12px',
