@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Search, Plus, Check, AlertTriangle, 
+  Search, Check, AlertTriangle, 
   ChevronRight, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
@@ -54,16 +54,6 @@ const Farmers = () => {
           <span style={styles.headerTag}>DIRECTORY</span>
           <h1 style={styles.headerTitle}>All Farmers</h1>
         </div>
-
-        <button 
-          type="button"
-          className="transition-all duration-150 active:scale-95 cursor-pointer"
-          style={styles.addFarmerBtn}
-          onClick={() => navigate('/incharge/farmers')}
-        >
-          <Plus size={16} strokeWidth={2.8} />
-          <span>Add Farmer</span>
-        </button>
       </div>
 
       {/* Search Bar */}
@@ -210,22 +200,6 @@ const styles = {
     fontWeight: '800',
     color: '#0F172A',
     margin: '2px 0 0 0',
-  },
-  addFarmerBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    backgroundColor: '#0018AD',
-    color: '#FFFFFF',
-    border: 'none',
-    minHeight: '38px',
-    padding: '0 16px',
-    borderRadius: '10px',
-    fontSize: '13px',
-    fontWeight: '700',
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 24, 173, 0.25)',
   },
   searchBox: {
     display: 'flex',

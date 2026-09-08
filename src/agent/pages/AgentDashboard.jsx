@@ -136,80 +136,8 @@ const AgentDashboard = () => {
     return 'Tank 1';
   };
 
-  const urgentReminders = (db?.notifications || []).filter(n => (!n.agentId || n.agentId === agentId) && n.type === 'warning' && !n.read);
-
   return (
     <div style={styles.container}>
-      {/* Urgent Incharge Reminder Banner */}
-      {urgentReminders.length > 0 && (
-        <div style={{
-          backgroundColor: '#FEF3C7',
-          border: '1px solid #FCD34D',
-          borderRadius: '12px',
-          padding: '14px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          boxShadow: '0 2px 8px rgba(217, 119, 6, 0.12)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
-                backgroundColor: '#FDE68A',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <AlertTriangle size={16} color="#B45309" />
-              </div>
-              <div>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                  INCHARGE URGENT REMINDER ({urgentReminders.length})
-                </span>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#92400E', marginTop: '2px', lineHeight: 1.4 }}>
-                  {urgentReminders[0].message}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              className="transition-all duration-150 active:scale-95 cursor-pointer"
-              style={{
-                backgroundColor: '#B45309',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                fontSize: '12px',
-                fontWeight: '700',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              onClick={() => {
-                if (urgentReminders[0].tankId) {
-                  setModalInitialTank(urgentReminders[0].tankId);
-                }
-                if (urgentReminders[0].testType) {
-                  setModalInitialType(urgentReminders[0].testType);
-                }
-                setIsQuickRecordOpen(true);
-              }}
-            >
-              <Plus size={14} strokeWidth={2.6} />
-              <span>Complete Overdue Test</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 1. Current Location Card */}
       <div style={styles.card}>
         <div style={styles.cardHeaderRow}>
