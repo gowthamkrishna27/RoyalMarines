@@ -228,14 +228,14 @@ body {
   display: flex !important;
   align-items: center;
   justify-content: space-between;
-  padding-top: max(38px, calc(env(safe-area-inset-top, 0px) + 34px));
+  padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 12px;
   padding-right: 12px;
   background-color: #FFFFFF;
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
-  min-height: 76px;
+  min-height: 52px;
   z-index: 40;
   box-sizing: border-box;
   width: 100%;

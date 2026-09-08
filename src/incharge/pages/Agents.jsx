@@ -329,31 +329,27 @@ const Agents = () => {
         {/* ========================================================= */}
         {/* 1. Summary Quick Bar */}
         {/* ========================================================= */}
-        <div style={styles.summaryBar}>
-          <div style={styles.summaryItem}>
+        <div style={styles.summaryBar} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-4 gap-x-4 sm:gap-6 items-center">
+          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
             <span style={styles.summaryLabel}>Total Technicians</span>
             <span style={styles.summaryValue}>{agents.length}</span>
           </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
+          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
             <span style={styles.summaryLabel}>Active in Field</span>
             <span style={{ ...styles.summaryValue, color: '#16A34A' }}>{agents.length}</span>
           </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
+          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
             <span style={styles.summaryLabel}>Assigned Farmers</span>
             <span style={styles.summaryValue}>{totalFarmersAssigned}</span>
           </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
+          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
             <span style={styles.summaryLabel}>Supervised Tanks</span>
             <span style={styles.summaryValue}>{totalTanksAssigned}</span>
           </div>
-          <div style={styles.summaryDivider} />
           <div 
             style={{ ...styles.summaryItem, cursor: 'pointer' }}
             onClick={() => setDueTestsAgent('ALL')}
-            className="transition-all duration-150 hover:-translate-y-0.5 cursor-pointer"
+            className="col-span-2 sm:col-span-1 lg:col-span-1 pt-2 sm:pt-0 border-t border-slate-100 sm:border-t-0 transition-all duration-150 hover:-translate-y-0.5 cursor-pointer"
             title="Click to view all due tests & farmer details across all field technicians"
           >
             <span style={styles.summaryLabel}>Test Dues Pending</span>
@@ -1922,17 +1918,12 @@ const Agents = () => {
 
 const styles = {
   summaryBar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     border: '1px solid #E2E8F0',
     borderRadius: '12px',
-    padding: '14px 24px',
+    padding: '16px 20px',
     marginBottom: '20px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-    flexWrap: 'wrap',
-    gap: '12px',
   },
   summaryItem: {
     display: 'flex',

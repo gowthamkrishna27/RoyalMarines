@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Lock, Droplets, Fish, Wheat, Skull, ClipboardList, 
-  Camera, MapPin, CheckCircle, Clock, Search, X 
+  Camera, MapPin, CheckCircle, Clock, Search, X, Bug 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -24,6 +24,7 @@ const History = () => {
     { id: 'WATER', label: 'Water' },
     { id: 'FEED', label: 'Feed' },
     { id: 'BIOMASS', label: 'Biomass' },
+    { id: 'DISEASE', label: 'Disease' },
     { id: 'MORTALITY', label: 'Mortality' },
     { id: 'ACTIVITY', label: 'Activity' },
     { id: 'PHOTO', label: 'Photo' },
@@ -69,9 +70,10 @@ const History = () => {
     if (activeFilter === 'WATER' && !type.includes('WATER')) return false;
     if (activeFilter === 'BIOMASS' && !type.includes('BIOMASS')) return false;
     if (activeFilter === 'FEED' && !type.includes('FEED')) return false;
+    if (activeFilter === 'DISEASE' && !type.includes('DISEASE') && !type.includes('PATHOLOGY') && !type.includes('HEALTH') && !item.disease && !(item.data && item.data.disease)) return false;
     if (activeFilter === 'MORTALITY' && !type.includes('MORTALITY')) return false;
     if (activeFilter === 'ACTIVITY' && !type.includes('ACTIVITY') && !type.includes('FARM')) return false;
-    if (activeFilter === 'PHOTO' && !type.includes('PHOTO') && !type.includes('OBSERVATION')) return false;
+    if (activeFilter === 'PHOTO' && !type.includes('PHOTO')) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -87,6 +89,7 @@ const History = () => {
     if (t.includes('WATER')) return <Droplets size={18} color="#0018AD" />;
     if (t.includes('BIOMASS')) return <Fish size={18} color="#2563D9" />;
     if (t.includes('FEED')) return <Wheat size={18} color="#D97706" />;
+    if (t.includes('DISEASE') || t.includes('PATHOLOGY') || t.includes('HEALTH')) return <Bug size={18} color="#EA580C" />;
     if (t.includes('MORTALITY')) return <Skull size={18} color="#DC2626" />;
     if (t.includes('PHOTO')) return <Camera size={18} color="#059669" />;
     return <ClipboardList size={18} color="#7C3AED" />;
@@ -252,14 +255,31 @@ const History = () => {
                 <div style={styles.dataBox}>
                   <div style={styles.dataBoxTitle}>Recorded Parameters</div>
                   <div style={styles.paramGrid}>
-                    {Object.entries(selectedRecord.data).map(([key, val]) => (
-                      typeof val === 'object' ? null : (
+                    {Object.entries(selectedRecord.data).map(([key, val]) => {
+                      if (val === null || val === undefined) return null;
+                      if (Array.isArray(val)) {
+                        return (
+                          <div key={key} style={styles.paramRow}>
+                            <span style={styles.paramKey}>{key.replace(/([A-Z])/g, ' $1')}:</span>
+                            <span style={styles.paramVal}>{val.join(', ') || 'None'}</span>
+                          </div>
+                        );
+                      }
+                      if (typeof val === 'object') {
+                        return Object.entries(val).map(([nestedKey, nestedVal]) => (
+                          <div key={`${key}-${nestedKey}`} style={styles.paramRow}>
+                            <span style={styles.paramKey}>{nestedKey.replace(/([A-Z])/g, ' $1')}:</span>
+                            <span style={styles.paramVal}>{Array.isArray(nestedVal) ? (nestedVal.join(', ') || 'None') : String(nestedVal)}</span>
+                          </div>
+                        ));
+                      }
+                      return (
                         <div key={key} style={styles.paramRow}>
                           <span style={styles.paramKey}>{key.replace(/([A-Z])/g, ' $1')}:</span>
                           <span style={styles.paramVal}>{String(val)}</span>
                         </div>
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
