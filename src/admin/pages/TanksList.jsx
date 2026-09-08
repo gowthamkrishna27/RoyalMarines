@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTanks } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import { Search, Filter, Eye } from 'lucide-react';
 
 const TanksList = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const tanks = getTanks();
+  const { db } = useMockData();
+  const [tanks, setTanks] = useState(() => getTanks());
   const navigate = useNavigate();
 
+  useEffect(() => {
+    setTanks(getTanks());
+  }, [db]);
+
   const filtered = tanks.filter(t =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.farmer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.region.toLowerCase().includes(searchTerm.toLowerCase())
+    (t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (t.farmer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (t.region || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

@@ -696,21 +696,7 @@ export const MockDataProvider = ({ children }) => {
 
   const getFarmersByAgentId = (agentId) => {
     if (!db || !db.farmers) return [];
-    const session = getSession();
-    const agent = (db.agents || []).find(a => a.id === agentId);
-
-    // Agent area/locality from active session profile OR agent record
-    const agentArea = (session && session.agentId === agentId && session.locality)
-      ? session.locality
-      : (agent && agent.locality ? agent.locality : '');
-
-    return db.farmers.filter(f => {
-      // If agent has an assigned area (e.g., 'Chinnamiram'), show ONLY farmers in that area
-      if (agentArea) {
-        return f.location.toLowerCase() === agentArea.toLowerCase();
-      }
-      return f.agentId === agentId;
-    });
+    return db.farmers.filter(f => f.agentId === agentId);
   };
 
   const getFarmerById = (id) => db.farmers.find(f => f.id === id);
@@ -931,12 +917,16 @@ export const MockDataProvider = ({ children }) => {
     };
 
     setDb(prev => {
+      const formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       const newTanks = prev.tanks.map(t => {
         if (t.id === submissionData.tankId) {
           const isFinal = submissionData.harvest && (submissionData.harvest.type === 'Final' || submissionData.harvest.harvestType === 'Final Harvest');
           return {
             ...t,
             testStatus: 'Completed',
+            isOverdue: false,
+            lastTest: formattedDate,
+            nextTest: 'Due Next Week',
             ...(isFinal ? { status: 'Harvested', finalHarvestCompleted: true } : {})
           };
         }
@@ -944,11 +934,18 @@ export const MockDataProvider = ({ children }) => {
       });
       const newDrafts = prev.drafts.filter(d => d.tankId !== submissionData.tankId);
 
+      const farmer = prev.farmers.find(f => f.id === submissionData.farmerId);
+      const tank = prev.tanks.find(t => t.id === submissionData.tankId);
+      const actionText = `${submissionData.testType || 'Test'} Submitted`;
+      const detailText = `${submissionData.testType || 'Test'} completed for ${farmer ? farmer.name : 'Farmer'} • ${tank ? tank.name : 'Tank'}`;
+      const timeStr = `${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
       return {
         ...prev,
         submissions: [...prev.submissions, newSubmission],
         tanks: newTanks,
-        drafts: newDrafts
+        drafts: newDrafts,
+        activities: [{ id: Date.now(), time: timeStr, action: actionText, detail: detailText }, ...(prev.activities || [])]
       };
     });
     showToast('Record submitted for verification!');
@@ -988,49 +985,65 @@ export const MockDataProvider = ({ children }) => {
     showToast(`Agent ${agentData.name} added!`);
   };
 
-  const createFarmerWithTanks = (agentId, farmerData, tanksData) => {
+  const createFarmerWithTanks = (agentId, farmerData, tanksData = []) => {
+    let newFarmerId = null;
     setDb(prev => {
       const nextFarmerNum = prev.farmers.length > 0
-        ? Math.max(...prev.farmers.map(f => parseInt(f.id.replace('F', '')) || 0)) + 1
+        ? Math.max(...prev.farmers.map(f => parseInt((f.id || '').replace(/\D/g, '')) || 0)) + 1
         : 1;
-      const newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
+      newFarmerId = `F${nextFarmerNum.toString().padStart(3, '0')}`;
 
       let startTankNum = prev.tanks.length > 0
-        ? Math.max(...prev.tanks.map(t => parseInt(t.id.replace('T', '')) || 0)) + 1
+        ? Math.max(...prev.tanks.map(t => parseInt((t.id || '').replace(/\D/g, '')) || 0)) + 1
         : 1;
 
-      const newTanks = tanksData.map((tankData, index) => {
+      const targetAgentId = agentId || farmerData.agentId || 'agent001';
+      const targetInchargeId = farmerData.inchargeId || (targetAgentId ? (prev.agents?.find(a => a.id === targetAgentId)?.inchargeId || 'INC001') : 'INC001');
+
+      const newTanks = (tanksData || []).map((tankData, index) => {
         const tankNum = startTankNum + index;
         return {
           id: `T${tankNum.toString().padStart(3, '0')}`,
-          name: `Tank ${index + 1}`,
+          name: tankData.name || `Tank ${index + 1}`,
           farmerId: newFarmerId,
-          agentId: agentId || farmerData.agentId || null,
-          inchargeId: farmerData.inchargeId || (agentId ? (prev.agents.find(a => a.id === agentId)?.inchargeId || 'INC001') : 'INC001'),
+          agentId: targetAgentId,
+          inchargeId: targetInchargeId,
           status: 'ACTIVE',
           testStatus: 'Due',
-          abw: '12g',
-          biomass: '800kg',
-          fcr: '1.2',
+          isOverdue: false,
+          abw: tankData.abw || '12g',
+          biomass: tankData.biomass || '800kg',
+          fcr: tankData.fcr || '1.2',
+          acres: tankData.area || tankData.acres || '2.5 Acres',
+          size: tankData.area ? `${tankData.area} Acres` : (tankData.size || '2.5 Acres'),
+          salinity: tankData.salinity ? `${tankData.salinity} ppt` : '16 ppt',
+          waterSource: tankData.waterSource || farmerData.waterSource || 'Canal',
+          species: tankData.species || 'Vannamei',
+          cultureType: tankData.cultureType || 'Semi-Intensive',
+          stockingDate: tankData.stockingDate || new Date().toISOString().split('T')[0],
           ...tankData,
           lastTest: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-          nextTest: 'TBD'
+          nextTest: 'Due This Week'
         };
       });
 
+      const totalAcres = farmerData.acres || farmerData.extent || (newTanks.length * 2.5);
       const newFarmer = {
         id: newFarmerId,
         name: farmerData.name,
-        status: 'ACTIVE',
-        agentId: agentId || farmerData.agentId || null,
-        inchargeId: farmerData.inchargeId || (agentId ? (prev.agents.find(a => a.id === agentId)?.inchargeId || 'INC001') : 'INC001'),
-        assignedBy: farmerData.assignedBy || (agentId ? 'Agent' : 'Incharge'),
+        status: farmerData.status || 'ACTIVE',
+        agentId: targetAgentId,
+        inchargeId: targetInchargeId,
+        assignedTo: targetAgentId ? 'Agent' : 'Incharge',
+        assignedBy: farmerData.assignedBy || (targetAgentId ? 'Agent' : 'Incharge'),
         phone: farmerData.phone,
-        location: farmerData.location || `${farmerData.village}, ${farmerData.area}`,
-        acres: farmerData.acres,
-        extent: farmerData.extent || farmerData.acres,
-        waterSource: farmerData.waterSource,
-        gps: farmerData.gps
+        location: farmerData.location || (farmerData.village ? `${farmerData.village}${farmerData.area ? `, ${farmerData.area}` : ''}` : 'Bhimavaram'),
+        village: farmerData.village || farmerData.location || 'Bhimavaram',
+        acres: totalAcres,
+        extent: totalAcres,
+        numberOfTanks: String(newTanks.length || 1),
+        waterSource: farmerData.waterSource || 'Canal',
+        gps: farmerData.gps || null
       };
 
       showToast(`Added Farmer ${farmerData.name} with ${newTanks.length} tanks!`);
@@ -1038,9 +1051,19 @@ export const MockDataProvider = ({ children }) => {
       return {
         ...prev,
         farmers: [...prev.farmers, newFarmer],
-        tanks: [...prev.tanks, ...newTanks]
+        tanks: [...prev.tanks, ...newTanks],
+        activities: [
+          {
+            id: Date.now(),
+            time: `${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            action: 'Farmer Registered',
+            detail: `Added Farmer ${newFarmer.name} (${newFarmer.id}) with ${newTanks.length} tanks`
+          },
+          ...(prev.activities || [])
+        ]
       };
     });
+    return newFarmerId;
   };
 
   const addTank = (tankData) => {
@@ -1160,10 +1183,26 @@ export const MockDataProvider = ({ children }) => {
 
   const getDraft = (tankId) => db.drafts.find(d => d.tankId === tankId) || null;
 
-  const addNotification = (agentId, message, type = 'info') => {
+  const addNotification = (agentId, message, type = 'info', meta = {}) => {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     setDb(prev => ({
       ...prev,
-      notifications: [{ id: Date.now(), agentId, message, type, read: false, time: new Date().toLocaleString() }, ...(prev.notifications || [])]
+      notifications: [
+        {
+          id: `NOTIF_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          agentId,
+          message,
+          type,
+          read: false,
+          time,
+          date,
+          createdAt: now.toISOString(),
+          ...meta
+        },
+        ...(prev.notifications || [])
+      ]
     }));
   };
 
@@ -1171,6 +1210,13 @@ export const MockDataProvider = ({ children }) => {
     setDb(prev => ({
       ...prev,
       notifications: (prev.notifications || []).map(n => n.id === notificationId ? { ...n, read: true } : n)
+    }));
+  };
+
+  const markAllNotificationsRead = (agentId) => {
+    setDb(prev => ({
+      ...prev,
+      notifications: (prev.notifications || []).map(n => (!agentId || n.agentId === agentId) ? { ...n, read: true } : n)
     }));
   };
 
@@ -1551,7 +1597,8 @@ export const MockDataProvider = ({ children }) => {
       addActivity,
       logActivity,
       addNotification,
-      markNotificationRead
+      markNotificationRead,
+      markAllNotificationsRead
     }}>
       {children}
       {toastMessage && (

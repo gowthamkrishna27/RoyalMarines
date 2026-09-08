@@ -6,17 +6,26 @@ import topnavlogo from '../../assets/topnavlogo.png';
 import { getSession, clearSession } from '../utils/agentAuth';
 import { 
   User, Menu, X, Home, Users, Clock, FileText, 
-  Scale, LogOut, Plus, ChevronRight, Shield 
+  Scale, LogOut, Plus, ChevronRight, Shield, Bell, AlertTriangle, CheckCheck 
 } from 'lucide-react';
+import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from './QuickRecordModal';
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { db, markNotificationRead, markAllNotificationsRead } = useMockData();
   const [session, setSession] = useState(getSession());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
+  const [selectedTankForQuickRecord, setSelectedTankForQuickRecord] = useState(null);
+  const [selectedTypeForQuickRecord, setSelectedTypeForQuickRecord] = useState('WATER_QUALITY');
+
+  const agentId = session?.agentId || 'agent001';
+  const agentNotifications = (db?.notifications || []).filter(n => !n.agentId || n.agentId === agentId);
+  const unreadCount = agentNotifications.filter(n => !n.read).length;
 
   useEffect(() => {
     setSession(getSession());
@@ -208,6 +217,22 @@ const Layout = ({ children }) => {
                 <span style={styles.mobileTimeText}>{formatTime(currentTime)}</span>
               </div>
 
+              {/* Notification Bell Button */}
+              <button
+                type="button"
+                style={{ ...styles.profileRoundBtn, width: '32px', height: '32px', position: 'relative' }}
+                onClick={() => setIsNotificationDrawerOpen(true)}
+                title="Notifications & Reminders"
+                aria-label="Notifications"
+              >
+                <Bell size={15} color="#1A2FB8" strokeWidth={2.2} />
+                {unreadCount > 0 && (
+                  <span style={styles.unreadBadge}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
               <button
                 type="button"
                 style={{ ...styles.profileRoundBtn, width: '32px', height: '32px' }}
@@ -229,6 +254,23 @@ const Layout = ({ children }) => {
                 <span style={styles.pipeDivider}>|</span>
                 <span style={styles.timeText}>{formatTime(currentTime)}</span>
               </div>
+
+              {/* Desktop Notification Bell Button */}
+              <button
+                type="button"
+                className="transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-md cursor-pointer"
+                style={{ ...styles.profileRoundBtn, position: 'relative' }}
+                onClick={() => setIsNotificationDrawerOpen(true)}
+                title="Notifications & Reminders"
+                aria-label="Notifications"
+              >
+                <Bell size={16} color="#1A2FB8" strokeWidth={2.2} />
+                {unreadCount > 0 && (
+                  <span style={styles.unreadBadge}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
 
               <button
                 type="button"
@@ -261,7 +303,116 @@ const Layout = ({ children }) => {
       <QuickRecordModal 
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
+        preselectedTankId={selectedTankForQuickRecord}
+        initialType={selectedTypeForQuickRecord}
       />
+
+      {/* Slide-out Notification Drawer */}
+      {isNotificationDrawerOpen && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.drawerBackdrop}
+          onClick={() => setIsNotificationDrawerOpen(false)}
+        >
+          <div 
+            className="animate-drawer-in"
+            style={{ ...styles.drawerContent, width: '100%', maxWidth: '380px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Notification Drawer Header */}
+            <div style={styles.drawerHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={styles.notifIconCircle}>
+                  <Bell size={16} color="#0018AD" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>Notifications</div>
+                  <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                    {unreadCount > 0 ? `${unreadCount} unread reminder${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    style={styles.markAllReadBtn}
+                    onClick={() => markAllNotificationsRead(agentId)}
+                    title="Mark all as read"
+                  >
+                    <CheckCheck size={13} />
+                    <span>Mark read</span>
+                  </button>
+                )}
+                <button 
+                  type="button"
+                  style={styles.drawerCloseBtn}
+                  onClick={() => setIsNotificationDrawerOpen(false)}
+                >
+                  <X size={18} color="#64748B" />
+                </button>
+              </div>
+            </div>
+
+            {/* Notification List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {agentNotifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 16px', color: '#94A3B8' }}>
+                  <Bell size={32} color="#CBD5E1" style={{ margin: '0 auto 12px auto' }} />
+                  <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#64748B' }}>No notifications yet</div>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px' }}>Incharge reminders and field alerts will appear here</div>
+                </div>
+              ) : (
+                agentNotifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    style={{
+                      ...styles.notificationCard,
+                      backgroundColor: notif.read ? '#FFFFFF' : '#F0F5FF',
+                      borderColor: notif.read ? '#E2E8F0' : '#BFDBFE',
+                    }}
+                    onClick={() => markNotificationRead(notif.id)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          ...styles.notifTypeBadge,
+                          backgroundColor: notif.type === 'warning' ? '#FEF3C7' : '#EFF6FF',
+                          color: notif.type === 'warning' ? '#B45309' : '#1D4ED8',
+                        }}>
+                          {notif.type === 'warning' ? 'Overdue Reminder' : 'Notice'}
+                        </span>
+                        {!notif.read && <span style={styles.unreadDot} />}
+                      </div>
+                      <span style={styles.notifTime}>{notif.time || notif.date || 'Recent'}</span>
+                    </div>
+
+                    <div style={styles.notifMessage}>{notif.message}</div>
+
+                    {notif.type === 'warning' && (
+                      <button
+                        type="button"
+                        style={styles.notifActionBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markNotificationRead(notif.id);
+                          setIsNotificationDrawerOpen(false);
+                          if (notif.tankId) setSelectedTankForQuickRecord(notif.tankId);
+                          if (notif.testType) setSelectedTypeForQuickRecord(notif.testType);
+                          setIsQuickRecordOpen(true);
+                        }}
+                      >
+                        <Plus size={13} strokeWidth={2.5} />
+                        <span>Complete Field Test Now</span>
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
@@ -486,6 +637,98 @@ const styles = {
     fontSize: '13.5px',
     fontWeight: '600',
     cursor: 'pointer',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: '-3px',
+    right: '-3px',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    fontSize: '10px',
+    fontWeight: '800',
+    minWidth: '16px',
+    height: '16px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 4px',
+    border: '1.5px solid #FFFFFF',
+  },
+  notifIconCircle: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    backgroundColor: '#EFF6FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  markAllReadBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#F1F5F9',
+    border: '1px solid #E2E8F0',
+    borderRadius: '6px',
+    padding: '5px 8px',
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#475569',
+    cursor: 'pointer',
+  },
+  notificationCard: {
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    transition: 'all 0.15s ease',
+  },
+  notifTypeBadge: {
+    fontSize: '10.5px',
+    fontWeight: '700',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+  },
+  unreadDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#2563EB',
+    display: 'inline-block',
+  },
+  notifTime: {
+    fontSize: '11px',
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  notifMessage: {
+    fontSize: '12.5px',
+    color: '#334155',
+    lineHeight: 1.45,
+    fontWeight: '500',
+  },
+  notifActionBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    backgroundColor: '#0018AD',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    alignSelf: 'flex-start',
+    marginTop: '2px',
   }
 };
 

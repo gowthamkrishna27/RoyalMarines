@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, UserSquare, Droplets, TestTube, CheckCircle, AlertTriangle,
   ArrowUpRight, ArrowDownRight, ChevronRight, Clock, ShieldCheck, Shield, Phone,
   TrendingUp, Activity, FileText, CheckCircle2, AlertCircle, MapPin, RefreshCw, Check, Eye,
-  Search, Scale, Fish, Layers, Sparkles, X, Plus
+  Search, Scale, Fish, Layers, Sparkles, X, Plus, Bell, User
 } from 'lucide-react';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
@@ -100,7 +100,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { 
     getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById, 
-    getFarmersByInchargeId, getTanksByInchargeId, getMyFarmersByInchargeId, getMyTanksByInchargeId 
+    getFarmersByInchargeId, getTanksByInchargeId, getMyFarmersByInchargeId, getMyTanksByInchargeId,
+    getAgentsByInchargeId, getFarmersByAgentId, getTanksByFarmerId, addNotification
   } = useMockData();
 
   const [gps, setGps] = useState(null);
@@ -126,6 +127,12 @@ const Dashboard = () => {
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
   const [modalInitialTank, setModalInitialTank] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
+
+  // ASM Overdue Tests Modal & Remind Tracking State
+  const [showAgentOverdueModal, setShowAgentOverdueModal] = useState(false);
+  const [agentOverdueSearch, setAgentOverdueSearch] = useState('');
+  const [agentOverdueAgentFilter, setAgentOverdueAgentFilter] = useState('ALL');
+  const [remindedOverdueMap, setRemindedOverdueMap] = useState({});
 
   const metrics = getInchargeDashboardMetrics('INC001');
   
@@ -277,6 +284,123 @@ const Dashboard = () => {
     t.locality.toLowerCase().includes(tankSearch.toLowerCase()) ||
     t.agent.toLowerCase().includes(tankSearch.toLowerCase())
   );
+
+  // All agents supervised under Incharge / ASM INC001
+  const inchargeAgents = getAgentsByInchargeId ? getAgentsByInchargeId('INC001') : (db?.agents || []);
+
+  // Compute all overdue tests across all agents under this ASM
+  const allAgentOverdueTests = useMemo(() => {
+    const list = [];
+    const agentsList = inchargeAgents.length > 0 ? inchargeAgents : (db?.agents || []);
+    
+    agentsList.forEach((agent) => {
+      const farmers = getFarmersByAgentId ? getFarmersByAgentId(agent.id) : (db?.farmers || []).filter(f => f.agentId === agent.id);
+      farmers.forEach((farmer, fIdx) => {
+        const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
+        tanks.forEach((tank, tIdx) => {
+          if (tank.status !== 'Harvested' && tank.testStatus !== 'Completed') {
+            const isExplicitOverdue = tank.testStatus === 'Overdue' || tank.isOverdue;
+            if (isExplicitOverdue) {
+              const doc = tank.doc || (40 + ((fIdx * 10 + tIdx * 15) % 50));
+              const abw = tank.abw || `${(14.5 + ((fIdx * 2.5 + tIdx * 3.2) % 15)).toFixed(1)}g`;
+              const size = tank.size || `${tank.acres || 2.5} Acres`;
+              const testType = tank.testType || ((fIdx + tIdx) % 3 === 0 
+                ? 'Water Analysis' 
+                : (fIdx + tIdx) % 3 === 1 
+                  ? 'Feed Test' 
+                  : 'Disease Observation');
+              
+              const dueDate = tank.dueDate || tank.nextTest || ((tIdx % 2 === 0) ? '18 Aug 2026' : '15 Aug 2026');
+              const daysOverdue = tank.daysOverdue || ((tIdx % 2 === 0) ? '5 Days Overdue' : '8 Days Overdue');
+
+              list.push({
+                id: `OD-${agent.id}-${farmer.id}-${tank.id}`,
+                agentId: agent.id,
+                agentName: agent.name,
+                agentPhone: agent.mobile || agent.phone || '+91 98480 22334',
+                agentLocality: agent.locality || 'Bhimavaram',
+                farmerId: farmer.id,
+                farmerName: farmer.name,
+                farmName: farmer.name.includes('Farm') ? farmer.name : `${farmer.name}'s Farm`,
+                farmerLocation: farmer.location || farmer.village || farmer.locality || 'Bhimavaram',
+                farmerPhone: farmer.phone || '+91 98480 12345',
+                tankId: tank.id,
+                tankName: tank.name || `Tank ${tIdx + 1}`,
+                testType,
+                dueDate,
+                daysOverdue,
+                doc,
+                abw,
+                size,
+                rawTank: tank,
+                rawFarmer: farmer,
+                rawAgent: agent
+              });
+            }
+          }
+        });
+      });
+    });
+
+    return list;
+  }, [inchargeAgents, db, getFarmersByAgentId, getTanksByFarmerId]);
+
+  // Filtered overdue tests based on search and agent filter
+  const filteredAgentOverdueTests = allAgentOverdueTests.filter(item => {
+    const q = agentOverdueSearch.toLowerCase();
+    const matchesSearch = 
+      item.agentName.toLowerCase().includes(q) ||
+      item.farmName.toLowerCase().includes(q) ||
+      item.farmerName.toLowerCase().includes(q) ||
+      item.farmerLocation.toLowerCase().includes(q) ||
+      item.testType.toLowerCase().includes(q) ||
+      item.tankName.toLowerCase().includes(q);
+
+    const matchesAgent = agentOverdueAgentFilter === 'ALL' || item.agentId === agentOverdueAgentFilter;
+    return matchesSearch && matchesAgent;
+  });
+
+  // Unique list of agents with overdue tests for filter tabs
+  const agentsWithOverdue = useMemo(() => {
+    const map = new Map();
+    allAgentOverdueTests.forEach(item => {
+      if (!map.has(item.agentId)) {
+        map.set(item.agentId, { id: item.agentId, name: item.agentName, count: 0 });
+      }
+      map.get(item.agentId).count += 1;
+    });
+    return Array.from(map.values());
+  }, [allAgentOverdueTests]);
+
+  // Remind single agent function (dispatches notification only to the selected agent)
+  const handleRemindSingleAgent = (item) => {
+    if (addNotification) {
+      const message = `Incharge Urgent Reminder: Your assigned test "${item.testType}" for ${item.farmName} (${item.tankName}) is OVERDUE since ${item.dueDate}. Please complete the field test as soon as possible.`;
+      addNotification(item.agentId, message, 'warning', {
+        tankId: item.tankId,
+        farmerId: item.farmerId,
+        testType: item.testType
+      });
+    }
+    setRemindedOverdueMap(prev => ({ ...prev, [item.id]: true }));
+  };
+
+  // Remind all agents function (dispatches individual notifications to each agent)
+  const handleRemindAllOverdueAgents = () => {
+    filteredAgentOverdueTests.forEach(item => {
+      if (addNotification) {
+        const message = `Incharge Urgent Reminder: Your assigned test "${item.testType}" for ${item.farmName} (${item.tankName}) is OVERDUE since ${item.dueDate}. Please complete the field test as soon as possible.`;
+        addNotification(item.agentId, message, 'warning', {
+          tankId: item.tankId,
+          farmerId: item.farmerId,
+          testType: item.testType
+        });
+      }
+    });
+    const newMap = { ...remindedOverdueMap };
+    filteredAgentOverdueTests.forEach(item => { newMap[item.id] = true; });
+    setRemindedOverdueMap(newMap);
+  };
 
   // Map Coordinates for Incharge cluster ponds
   const mapTanks = [
@@ -533,13 +657,13 @@ const Dashboard = () => {
           />
           <KPICard
             title="Overdue Tests" 
-            value={metrics.overdueTests || 2}
+            value={allAgentOverdueTests.length || metrics.overdueTests || 5}
             subtext="Requires agent reminder"
             isPositive={false} 
             icon={AlertTriangle} 
             color="#DC2626" 
             bgColor="#FEE2E2"
-            onClick={() => navigate('/incharge/weekly-tests')}
+            onClick={() => setShowAgentOverdueModal(true)}
           />
         </div>
 
@@ -1212,6 +1336,369 @@ const Dashboard = () => {
                 onClick={() => setShowActiveTanksModal(false)}
               >
                 Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 4.7. AGENT OVERDUE TESTS MODAL (Clean, Calm & Non-Distracting) */}
+      {/* ========================================================= */}
+      {showAgentOverdueModal && (
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalBackdrop} 
+          onClick={() => setShowAgentOverdueModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              width: '100%',
+              maxWidth: '620px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px -15px rgba(15, 23, 42, 0.18)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#FEF2F2',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <AlertCircle size={17} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '15.5px', fontWeight: '700', color: '#0F172A', margin: 0 }}>
+                      Technician Overdue Tests
+                    </h3>
+                    <span style={{ fontSize: '11px', fontWeight: '600', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 7px', borderRadius: '6px' }}>
+                      {allAgentOverdueTests.length} Pending
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Notify technicians with pending routine field tests
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAgentOverdueModal(false)}
+                style={styles.modalCloseBtn}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Compact Neutral Summary Bar */}
+            <div style={{
+              padding: '8px 18px',
+              backgroundColor: '#F8FAFC',
+              borderBottom: '1px solid #F1F5F9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11.5px',
+              color: '#475569',
+              flexWrap: 'wrap',
+              gap: '6px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span><strong>{allAgentOverdueTests.length}</strong> Overdue Tests</span>
+                <span style={{ color: '#CBD5E1' }}>•</span>
+                <span><strong>{agentsWithOverdue.length}</strong> Technicians</span>
+                <span style={{ color: '#CBD5E1' }}>•</span>
+                <span><strong>{new Set(allAgentOverdueTests.map(t => t.farmerName)).size}</strong> Farms</span>
+              </div>
+
+              {filteredAgentOverdueTests.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleRemindAllOverdueAgents}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: '#FFFFFF',
+                    color: '#1A2FB8',
+                    border: '1px solid #CBD5E1',
+                    padding: '3px 9px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                  className="transition-all hover:bg-slate-50 active:scale-95"
+                  title="Send reminders to all listed agents"
+                >
+                  <Bell size={11} /> Remind All ({filteredAgentOverdueTests.length})
+                </button>
+              )}
+            </div>
+
+            {/* Search & Agent Filter Strip */}
+            <div style={{ padding: '10px 18px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#F8FAFC', padding: '6px 10px', borderRadius: '7px', border: '1px solid #E2E8F0' }}>
+                <Search size={13} color="#94A3B8" style={{ flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder="Search agent, farm, or test type..."
+                  value={agentOverdueSearch}
+                  onChange={(e) => setAgentOverdueSearch(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '12px', color: '#0F172A', backgroundColor: 'transparent' }}
+                />
+                {agentOverdueSearch && (
+                  <button type="button" onClick={() => setAgentOverdueSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <X size={12} color="#94A3B8" />
+                  </button>
+                )}
+              </div>
+
+              {/* Agent Filter Tabs (Calm Muted Styling) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflowX: 'auto', paddingBottom: '2px' }}>
+                <button
+                  type="button"
+                  onClick={() => setAgentOverdueAgentFilter('ALL')}
+                  style={{
+                    padding: '3px 9px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: agentOverdueAgentFilter === 'ALL' ? '600' : '500',
+                    backgroundColor: agentOverdueAgentFilter === 'ALL' ? '#0F172A' : '#FFFFFF',
+                    color: agentOverdueAgentFilter === 'ALL' ? '#FFFFFF' : '#475569',
+                    border: agentOverdueAgentFilter === 'ALL' ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                  className="transition-all"
+                >
+                  All ({allAgentOverdueTests.length})
+                </button>
+
+                {agentsWithOverdue.map(ag => (
+                  <button
+                    key={ag.id}
+                    type="button"
+                    onClick={() => setAgentOverdueAgentFilter(ag.id)}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: agentOverdueAgentFilter === ag.id ? '600' : '500',
+                      backgroundColor: agentOverdueAgentFilter === ag.id ? '#0F172A' : '#FFFFFF',
+                      color: agentOverdueAgentFilter === ag.id ? '#FFFFFF' : '#475569',
+                      border: agentOverdueAgentFilter === ag.id ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                    className="transition-all"
+                  >
+                    {ag.name} ({ag.count})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Overdue Tests List (Clean Cards) */}
+            <div style={{ padding: '12px 18px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, backgroundColor: '#F8FAFC' }}>
+              {filteredAgentOverdueTests.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <CheckCircle2 size={26} color="#16A34A" style={{ margin: '0 auto 6px' }} />
+                  <p style={{ fontWeight: '600', color: '#0F172A', margin: '0 0 2px', fontSize: '13px' }}>No Overdue Tests</p>
+                  <span style={{ fontSize: '11.5px' }}>All technicians are up to date.</span>
+                </div>
+              ) : (
+                filteredAgentOverdueTests.map((item, idx) => {
+                  const isReminded = remindedOverdueMap[item.id];
+                  const cleanPhone = (item.agentPhone || '').replace(/\D/g, '');
+                  const whatsappMsg = `Hi ${item.agentName}, gentle reminder from ASM: The test "${item.testType}" for ${item.farmName} (${item.tankName}) is overdue (${item.dueDate}). Please complete the field test as soon as possible.`;
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderLeft: '3px solid #EF4444',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
+                      }}
+                    >
+                      {/* Row 1: Agent Header & Overdue Tag */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>
+                              {item.agentName}
+                            </span>
+                            <span style={{ fontSize: '10.5px', fontWeight: '500', color: '#64748B', backgroundColor: '#F1F5F9', padding: '1px 6px', borderRadius: '4px' }}>
+                              Field Tech
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                              • {item.agentPhone} • {item.agentLocality}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subtle Overdue Badge */}
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          color: '#DC2626',
+                          backgroundColor: '#FEF2F2',
+                          padding: '2px 7px',
+                          borderRadius: '5px',
+                          border: '1px solid #FECACA',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}>
+                          {item.daysOverdue || 'Overdue'}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Farm & Test Details (Neutral Card) */}
+                      <div style={{
+                        backgroundColor: '#F8FAFC',
+                        borderRadius: '6px',
+                        border: '1px solid #E2E8F0',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        fontSize: '12px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ color: '#0F172A', fontWeight: '600' }}>
+                            {item.farmName} <span style={{ color: '#64748B', fontWeight: '400' }}>({item.farmerLocation})</span>
+                          </span>
+                          <span style={{ color: '#475569', fontSize: '11.5px' }}>
+                            {item.tankName} • {item.size} • Day {item.doc}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '2px', borderTop: '1px solid #EEF2F6' }}>
+                          <span style={{ color: '#334155' }}>
+                            Test: <strong style={{ color: '#0F172A' }}>{item.testType}</strong>
+                          </span>
+                          <span style={{ color: '#64748B', fontSize: '11px' }}>
+                            Due: <span style={{ color: '#DC2626', fontWeight: '600' }}>{item.dueDate}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Action Buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemindSingleAgent(item)}
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            backgroundColor: isReminded ? '#F0FDF4' : '#1A2FB8',
+                            color: isReminded ? '#15803D' : '#FFFFFF',
+                            border: isReminded ? '1px solid #BBF7D0' : 'none',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                          }}
+                          className="transition-all active:scale-95"
+                          title={`Send in-app reminder to ${item.agentName}`}
+                        >
+                          {isReminded ? (
+                            <>
+                              <Check size={12} strokeWidth={2.4} />
+                              <span>Reminder Sent</span>
+                            </>
+                          ) : (
+                            <>
+                              <Bell size={12} />
+                              <span>Remind Agent</span>
+                            </>
+                          )}
+                        </button>
+
+                        {cleanPhone && (
+                          <a
+                            href={`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(whatsappMsg)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #E2E8F0',
+                              backgroundColor: '#FFFFFF',
+                              color: '#334155',
+                              fontSize: '11.5px',
+                              fontWeight: '600',
+                              textDecoration: 'none',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                            className="transition-all hover:bg-slate-50 active:scale-95"
+                            title={`Send WhatsApp message to ${item.agentName}`}
+                          >
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '10px 18px', borderTop: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: '#64748B' }}>
+                Showing <strong>{filteredAgentOverdueTests.length}</strong> of {allAgentOverdueTests.length} overdue tests
+              </span>
+              <button
+                type="button"
+                style={styles.closeBtnAction} 
+                onClick={() => setShowAgentOverdueModal(false)}
+              >
+                Close
               </button>
             </div>
           </div>

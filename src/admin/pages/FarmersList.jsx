@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFarmers, getRegions, getAgents, getIncharges, calculateBiomass, calculateFCR } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import {
   Search, Filter, Eye, Plus, Trash2, Check, X,
@@ -9,27 +10,18 @@ import {
 
 const FarmersList = () => {
   const navigate = useNavigate();
+  const { db, createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
   const regions = getRegions();
   const allAgents = getAgents();
   const allIncharges = getIncharges();
 
-  // Load farmers from localStorage or mock data
-  const [farmers, setFarmers] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_farmers_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getFarmers();
-      }
-    }
-    return getFarmers();
-  });
+  // Load farmers reactively from unified data context
+  const [farmers, setFarmers] = useState(() => getFarmers());
 
-  // Save to localStorage whenever farmers change
+  // Keep farmers in sync whenever db changes
   useEffect(() => {
-    localStorage.setItem('royal_admin_farmers_data', JSON.stringify(farmers));
-  }, [farmers]);
+    setFarmers(getFarmers());
+  }, [db]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
@@ -142,27 +134,28 @@ const FarmersList = () => {
       biomass: Math.round((parseFloat(size) || 0) * 800)
     }));
 
-    const createdFarmer = {
-      id: newId,
+    const farmerPayload = {
       name: newFarmer.name.trim(),
       phone: newFarmer.phone.trim(),
       region: selectedRegionObj.name,
       regionId: selectedRegionObj.id,
+      location: `${newFarmer.village.trim() || newFarmer.locality}, ${newFarmer.locality}`,
       locality: newFarmer.locality,
       village: newFarmer.village.trim() || `${newFarmer.locality} Village`,
       agentId: selectedAgentObj.id,
-      agent: selectedAgentObj.name,
-      incharge: selectedAgentObj.incharge,
       waterSource: newFarmer.waterSource,
-      acres: `${totalAcresCalculated.toFixed(1)} Acres`,
-      totalAcres: totalAcresCalculated,
-      tanks: newFarmer.tankCount,
-      tankBreakdown: tankBreakdown,
+      acres: totalAcresCalculated,
+      extent: totalAcresCalculated,
       status: 'Active'
     };
 
-    setFarmers(prev => [createdFarmer, ...prev]);
-    showToast(`Farmer ${createdFarmer.name} (${createdFarmer.id}) added successfully!`);
+    if (createFarmerWithTanks) {
+      createFarmerWithTanks(selectedAgentObj.id, farmerPayload, tankBreakdown);
+    } else {
+      setFarmers(prev => [createdFarmer, ...prev]);
+    }
+
+    showToast(`Farmer ${createdFarmer.name} added successfully!`);
     setShowAddModal(false);
 
     // Reset Form
@@ -216,6 +209,7 @@ const FarmersList = () => {
       region: selectedRegionObj.name,
       regionId: selectedRegionObj.id,
       locality: editFarmer.locality,
+      location: `${editFarmer.village.trim() || editFarmer.locality}, ${editFarmer.locality}`,
       village: editFarmer.village.trim() || `${editFarmer.locality} Village`,
       agentId: selectedAgentObj.id,
       agent: selectedAgentObj.name,
@@ -226,6 +220,9 @@ const FarmersList = () => {
       status: editFarmer.status
     };
 
+    if (updateFarmer) {
+      updateFarmer(selectedFarmer.id, updatedFarmer);
+    }
     setFarmers(prev => prev.map(f => f.id === selectedFarmer.id ? updatedFarmer : f));
     showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
     setShowEditModal(false);
@@ -241,6 +238,9 @@ const FarmersList = () => {
   const handleConfirmDelete = () => {
     if (!selectedFarmer) return;
 
+    if (deleteFarmer) {
+      deleteFarmer(selectedFarmer.id);
+    }
     setFarmers(prev => prev.filter(f => f.id !== selectedFarmer.id));
     showToast(`Farmer ${selectedFarmer.name} (${selectedFarmer.id}) removed from directory.`);
     setShowDeleteModal(false);

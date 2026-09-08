@@ -536,26 +536,150 @@ export const adminVerifications = [
   { id: 'V003', region: 'Coastal Andhra', incharge: 'T. Prasad', agent: 'Ch. Suresh', farmer: 'Ch. Satyanarayana', tank: 'Tank 1', testType: 'Medication', submitted: '2 hours ago', status: 'Rejected' }
 ];
 
+// Unified DB accessor
+const getLiveDb = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('aqua_feed_mock_database_v11');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+};
+
 // Helper methods
 export const getRegions = () => adminRegions;
 export const getRegionById = (id) => adminRegions.find(r => r.id === id || r.code === id);
 
-export const getIncharges = () => adminIncharges;
-export const getInchargesByRegion = (regionId) => adminIncharges.filter(i => i.regionId === regionId);
-export const getInchargeById = (id) => adminIncharges.find(i => i.id === id);
+export const getIncharges = () => {
+  const liveDb = getLiveDb();
+  if (liveDb && Array.isArray(liveDb.incharges) && liveDb.incharges.length > 0) {
+    return liveDb.incharges.map(inc => {
+      const incAgents = (liveDb.agents || []).filter(a => a.inchargeId === inc.id);
+      const incAgentIds = incAgents.map(a => a.id);
+      const incFarmers = (liveDb.farmers || []).filter(f => f.inchargeId === inc.id || (f.agentId && incAgentIds.includes(f.agentId)));
+      const incFarmerIds = incFarmers.map(f => f.id);
+      const incTanks = (liveDb.tanks || []).filter(t => incFarmerIds.includes(t.farmerId) || t.inchargeId === inc.id);
+      return {
+        id: inc.id,
+        name: inc.name,
+        shortName: inc.name,
+        role: `Incharge - ${inc.name}`,
+        regionId: inc.regionId || 'REG-COASTAL',
+        region: 'Coastal Andhra',
+        locality: 'Bhimavaram',
+        phone: inc.phone || '+91 9876543211',
+        email: inc.email || 'incharge@example.com',
+        agents: incAgents.length,
+        farmers: incFarmers.length,
+        tanks: incTanks.length,
+        compliance: 95,
+        status: 'ACTIVE'
+      };
+    });
+  }
+  return adminIncharges;
+};
 
-export const getAgents = () => adminAgents;
-export const getAgentsByIncharge = (inchargeId) => adminAgents.filter(a => a.inchargeId === inchargeId);
-export const getAgentById = (id) => adminAgents.find(a => a.id === id);
+export const getInchargesByRegion = (regionId) => getIncharges().filter(i => i.regionId === regionId);
+export const getInchargeById = (id) => getIncharges().find(i => i.id === id);
 
-export const getFarmers = () => adminFarmers;
-export const getFarmersByAgent = (agentId) => adminFarmers.filter(f => f.agentId === agentId);
+export const getAgents = () => {
+  const liveDb = getLiveDb();
+  if (liveDb && Array.isArray(liveDb.agents) && liveDb.agents.length > 0) {
+    return liveDb.agents.map(a => {
+      const incharge = (liveDb.incharges || []).find(i => i.id === a.inchargeId);
+      const agentFarmers = (liveDb.farmers || []).filter(f => f.agentId === a.id);
+      const farmerIds = agentFarmers.map(f => f.id);
+      const agentTanks = (liveDb.tanks || []).filter(t => farmerIds.includes(t.farmerId) || t.agentId === a.id);
+      return {
+        id: a.id,
+        name: a.name,
+        shortName: a.name,
+        role: `Field Agent - ${a.locality || 'Field'}`,
+        inchargeId: a.inchargeId || 'INC001',
+        incharge: incharge ? incharge.name : 'Ravi Kumar',
+        regionId: 'REG-COASTAL',
+        region: 'Coastal Andhra',
+        locality: a.locality || 'Bhimavaram',
+        assignedArea: a.locality || 'Bhimavaram Cluster',
+        phone: a.phone || '+91 9000000001',
+        email: `${a.name.toLowerCase()}@royalsmarine.com`,
+        farmers: agentFarmers.length,
+        tanks: agentTanks.length,
+        siteVisits: 6,
+        tests: 42,
+        compliance: 94.0,
+        status: a.status || 'ACTIVE'
+      };
+    });
+  }
+  return adminAgents;
+};
+
+export const getAgentsByIncharge = (inchargeId) => getAgents().filter(a => a.inchargeId === inchargeId);
+export const getAgentById = (id) => getAgents().find(a => a.id === id);
+
+export const getFarmers = () => {
+  const liveDb = getLiveDb();
+  if (liveDb && Array.isArray(liveDb.farmers) && liveDb.farmers.length > 0) {
+    return liveDb.farmers.map(f => {
+      const agent = (liveDb.agents || []).find(a => a.id === f.agentId);
+      const incharge = (liveDb.incharges || []).find(i => i.id === (f.inchargeId || agent?.inchargeId));
+      const fTanks = (liveDb.tanks || []).filter(t => t.farmerId === f.id);
+      const totalAcres = parseFloat(f.acres || f.extent) || fTanks.reduce((sum, t) => sum + (parseFloat(t.size || t.acres) || 2.5), 0);
+      
+      return {
+        id: f.id,
+        name: f.name,
+        agentId: f.agentId || 'agent001',
+        agent: agent ? agent.name : (f.agentId ? f.agentId : 'Assigned Technician'),
+        inchargeId: f.inchargeId || agent?.inchargeId || 'INC001',
+        incharge: incharge ? incharge.name : 'Ravi Kumar',
+        region: f.region || 'Coastal Andhra',
+        locality: f.location || f.village || agent?.locality || 'Bhimavaram',
+        assignedArea: agent?.locality || f.location || 'Bhimavaram',
+        phone: f.phone || '+91 9876543210',
+        village: f.village || f.location || 'Bhimavaram',
+        acres: `${totalAcres} Acres`,
+        totalAcres: totalAcres,
+        waterSource: f.waterSource || 'Canal',
+        tanks: fTanks.length || parseInt(f.numberOfTanks) || 1,
+        tankBreakdown: fTanks.map((t, idx) => ({
+          id: t.id,
+          name: t.name || `Tank ${idx + 1}`,
+          acres: parseFloat(t.size || t.acres) || (totalAcres / (fTanks.length || 1)),
+          doc: t.doc || 45,
+          abw: parseFloat(t.abw) || 14.5,
+          fcr: parseFloat(t.fcr) || 1.18,
+          biomass: parseInt(String(t.biomass || '').replace(/\D/g, '')) || 1200,
+          waterSource: t.waterSource || f.waterSource || 'Canal',
+          salinity: parseInt(String(t.salinity || '').replace(/\D/g, '')) || 16,
+          soilType: t.soilType || 'Loam',
+          hatcheryName: t.hatchery || 'Golden Marine Hatchery',
+          brooder: t.brooder || 'Kona Bay',
+          seedDate: t.stockingDate || '2026-05-20',
+          seedStockingLak: parseFloat(t.seedStockingLak) || 2.5,
+          feed: 5000,
+          feedType: t.feedType || 'Premium Pellets',
+          status: t.status || 'Active',
+          testStatus: t.testStatus || 'Due',
+          lastTest: t.lastTest || '22 Aug 2026',
+          nextTest: t.nextTest || '29 Aug 2026'
+        })),
+        status: f.status || 'Active'
+      };
+    });
+  }
+  return adminFarmers;
+};
+
+export const getFarmersByAgent = (agentId) => getFarmers().filter(f => f.agentId === agentId);
 export const getFarmersByIncharge = (inchargeId) => {
   const incharge = getInchargeById(inchargeId);
   const incName = incharge ? incharge.name.split(' ')[0] : '';
   const agents = getAgentsByIncharge(inchargeId);
   const agentIds = agents.map(a => a.id);
-  return adminFarmers
+  return getFarmers()
     .filter(f =>
       f.inchargeId === inchargeId ||
       (incName && f.incharge?.includes(incName)) ||
@@ -563,14 +687,45 @@ export const getFarmersByIncharge = (inchargeId) => {
     )
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 };
-export const getFarmerById = (id) => adminFarmers.find(f => f.id === id);
+export const getFarmerById = (id) => getFarmers().find(f => f.id === id);
 
-export const getTanks = () => adminTanks;
-export const getTanksByFarmer = (farmerId) => adminTanks.filter(t => t.farmerId === farmerId);
+export const getTanks = () => {
+  const liveDb = getLiveDb();
+  if (liveDb && Array.isArray(liveDb.tanks) && liveDb.tanks.length > 0) {
+    return liveDb.tanks.map((t, idx) => {
+      const farmer = (liveDb.farmers || []).find(f => f.id === t.farmerId);
+      const agent = (liveDb.agents || []).find(a => a.id === t.agentId);
+      const incharge = (liveDb.incharges || []).find(i => i.id === (t.inchargeId || agent?.inchargeId));
+      return {
+        id: t.id,
+        name: t.name || `Tank ${idx + 1}`,
+        farmerId: t.farmerId,
+        farmer: farmer ? farmer.name : (t.farmerName || 'Farmer'),
+        agent: agent ? agent.name : (t.agentId ? 'Assigned Tech' : 'Direct Incharge'),
+        incharge: incharge ? incharge.name : 'Ravi Kumar',
+        region: farmer?.region || 'Coastal Andhra',
+        locality: farmer?.location || farmer?.village || 'Bhimavaram',
+        currentCycle: t.currentCycle || 'Cycle 1 (2026)',
+        abw: parseFloat(t.abw) || 14.5,
+        biomass: parseInt(String(t.biomass || '').replace(/\D/g, '')) || 1200,
+        feed: 2500,
+        fcr: parseFloat(t.fcr) || 1.18,
+        compliance: t.testStatus === 'Completed' ? 100 : t.testStatus === 'Overdue' ? 60 : 85,
+        lastTest: t.lastTest || '22 Aug 2026',
+        nextDue: t.nextTest || '29 Aug 2026',
+        status: t.status || 'Active',
+        testStatus: t.testStatus || 'Due'
+      };
+    });
+  }
+  return adminTanks;
+};
+
+export const getTanksByFarmer = (farmerId) => getTanks().filter(t => t.farmerId === farmerId);
 export const getTanksByIncharge = (inchargeId) => {
   const farmers = getFarmersByIncharge(inchargeId);
   const farmerIds = farmers.map(f => f.id);
-  return adminTanks
+  return getTanks()
     .filter(t => farmerIds.includes(t.farmerId) || t.inchargeId === inchargeId)
     .sort((a, b) => {
       const fA = farmers.find(f => f.id === a.farmerId);
@@ -582,7 +737,7 @@ export const getTanksByIncharge = (inchargeId) => {
       return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
     });
 };
-export const getTankById = (id) => adminTanks.find(t => t.id === id);
+export const getTankById = (id) => getTanks().find(t => t.id === id);
 
 export const getActivities = () => adminActivities;
 

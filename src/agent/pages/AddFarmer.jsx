@@ -181,7 +181,7 @@ const AddFarmer = () => {
     };
 
     const createdFarmerId = createFarmerWithTanks(agentId, farmerPayload, tanksData);
-    navigate(`/farmers/${createdFarmerId || ''}`);
+    navigate('/farmers');
   };
 
   return (
