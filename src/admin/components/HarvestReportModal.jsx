@@ -5,35 +5,37 @@ const HarvestReportModal = ({ tank, onClose }) => {
   if (!tank) return null;
 
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modalContent} className="custom-scrollbar">
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modalContent} onClick={e => e.stopPropagation()} className="animate-modal-in">
         {/* Header */}
         <div style={styles.header}>
           <div style={styles.headerLeft}>
             <div style={styles.iconBox}>
-              <Scale size={24} color="#10b981" />
+              <Scale size={20} color="#16A34A" />
             </div>
             <div style={styles.headerText}>
-              <h2 style={styles.title}>
-                {tank.name || 'Unknown Tank'} — Harvest &amp; Crop Report
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={styles.title}>
+                  {tank.name || 'Unknown Tank'} — Harvest &amp; Crop Report
+                </h3>
                 <span style={styles.statusBadge}>
-                  <CheckCircle2 size={14} style={{ marginRight: '4px' }} />
-                  Final Harvest Completed &amp; Cycle Closed
+                  <CheckCircle2 size={13} style={{ marginRight: '4px' }} />
+                  Final Harvest Completed
                 </span>
-              </h2>
+              </div>
               <div style={styles.metaInfo}>
-                <span style={styles.metaItem}><User size={14} /> Farmer: {tank.farmer || 'Unknown Farmer'}</span>
+                <span style={styles.metaItem}><User size={13} /> Farmer: <strong>{tank.farmer || 'Unknown Farmer'}</strong></span>
                 <span style={styles.metaDot}>•</span>
-                <span style={styles.metaItem}><MapPin size={14} /> {tank.location || 'Unknown Location'}</span>
+                <span style={styles.metaItem}><MapPin size={13} /> {tank.location || 'Unknown Location'}</span>
                 <span style={styles.metaDot}>•</span>
                 <span style={styles.metaItem}>Extent: {tank.extent || 'Unknown Extent'}</span>
                 <span style={styles.metaDot}>•</span>
-                <span style={styles.metaItem}><Calendar size={14} /> Stocked: {tank.stockedDate || '20 Jun 2026'}</span>
+                <span style={styles.metaItem}><Calendar size={13} /> Stocked: {tank.stockedDate || '20 Jun 2026'}</span>
               </div>
             </div>
           </div>
-          <button onClick={onClose} style={styles.closeBtn}>
-            <X size={20} />
+          <button onClick={onClose} style={styles.closeBtn} aria-label="Close modal">
+            <X size={18} />
           </button>
         </div>
 
@@ -42,40 +44,43 @@ const HarvestReportModal = ({ tank, onClose }) => {
           <div style={styles.kpiCard}>
             <div style={styles.kpiTop}>
               <span style={styles.kpiLabel}>Total Biomass Harvested</span>
-              <Scale size={18} color="#6366f1" />
+              <Scale size={16} color="#2563EB" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#4f46e5' }}>{tank.biomass?.replace('kg', '') || '0'}</span> kg
+              <span style={{ color: '#2563EB' }}>{tank.biomass?.replace('kg', '') || '0'}</span> kg
             </div>
             <div style={styles.kpiSub}>3 Partial Cuts Realized</div>
           </div>
+
           <div style={styles.kpiCard}>
             <div style={styles.kpiTop}>
               <span style={styles.kpiLabel}>Total Harvest Count</span>
-              <div style={{ color: '#0ea5e9', fontSize: '18px', fontWeight: 600 }}>🐟</div>
+              <Activity size={16} color="#0284C7" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#0284c7' }}>{tank.biomass?.replace('kg', '') || '0'}</span> kg
+              <span style={{ color: '#0284C7' }}>1,35,000</span> pcs
             </div>
-            <div style={styles.kpiSub}>1,35,000 pcs total</div>
+            <div style={styles.kpiSub}>Final pond count yield</div>
           </div>
+
           <div style={styles.kpiCard}>
             <div style={styles.kpiTop}>
               <span style={styles.kpiLabel}>Crop Feed Efficiency (FCR)</span>
-              <TrendingUp size={18} color="#10b981" />
+              <TrendingUp size={16} color="#16A34A" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#059669' }}>{tank.fcr || '0.00'}</span>
+              <span style={{ color: '#16A34A' }}>{tank.fcr || '1.17'}</span>
             </div>
             <div style={styles.kpiSub}>Final verified cycle FCR</div>
           </div>
+
           <div style={styles.kpiCard}>
             <div style={styles.kpiTop}>
               <span style={styles.kpiLabel}>Crop Survival Rate</span>
-              <Activity size={18} color="#8b5cf6" />
+              <Activity size={16} color="#9333EA" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#7c3aed' }}>90.0%</span>
+              <span style={{ color: '#9333EA' }}>90.0%</span>
             </div>
             <div style={styles.kpiSub}>Stocked: 1,50,000 PL</div>
           </div>
@@ -84,114 +89,107 @@ const HarvestReportModal = ({ tank, onClose }) => {
         {/* Harvest Records Log Table */}
         <div style={styles.recordsSection}>
           <div style={styles.recordsHeader}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ padding: '6px', backgroundColor: '#e0e7ff', borderRadius: '6px' }}>
-                <Activity size={18} color="#4f46e5" />
-              </div>
-              <h3 style={styles.recordsTitle}>Complete Harvest Records Log</h3>
-            </div>
-            <div style={{ color: '#16a34a', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCircle2 size={16} /> Weighment Logs
-            </div>
+            <h4 style={styles.recordsTitle}>Harvest Records Log</h4>
+            <span style={styles.weighmentBadge}>
+              <CheckCircle2 size={14} />
+              <span>Verified Weighment Logs</span>
+            </span>
           </div>
 
-          <div style={{ overflowX: 'auto' }} className="custom-scrollbar">
+          <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead>
-                <tr>
-                  <th>HARVEST STAGE</th>
-                  <th>DATE &amp; DOC</th>
-                  <th>ABW / SIZE COUNT</th>
-                  <th>SHRIMP COUNT</th>
-                  <th>HARVESTED BIOMASS</th>
-                  <th>FEED (KG)</th>
-                  <th>STAGE FCR</th>
-                  <th>BUYER &amp; OBSERVATIONS</th>
+                <tr style={styles.tableHeaderRow}>
+                  <th style={styles.th}>HARVEST STAGE</th>
+                  <th style={styles.th}>DATE &amp; DOC</th>
+                  <th style={styles.th}>ABW / COUNT</th>
+                  <th style={styles.th}>SHRIMP COUNT</th>
+                  <th style={styles.th}>BIOMASS</th>
+                  <th style={styles.th}>FEED (KG)</th>
+                  <th style={styles.th}>STAGE FCR</th>
+                  <th style={styles.th}>BUYER &amp; OBSERVATIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {/* Row 1 */}
-                <tr>
-                  <td style={{ padding: '8px' }}>
-                    <span style={styles.badgePartial}>Partial Harvest #1</span>
+                <tr style={styles.tableRow}>
+                  <td style={styles.td}>
+                    <span style={styles.badgePartial}>Partial Cut #1</span>
                   </td>
-                  <td style={{ padding: '8px' }}>
+                  <td style={styles.td}>
                     <div style={styles.fw600}>10 Jul 2026</div>
                     <div style={styles.textGray}>Day 58 DOC</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#16a34a' }}>16.5g</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#16A34A' }}>16.5g</div>
                     <div style={styles.textGray}>~61 Count / kg</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#2563eb' }}>45,000</div>
-                    <div style={styles.textGray}>pcs</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#2563EB' }}>45,000 pcs</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#4f46e5' }}>742 kg</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#0F172A' }}>742 kg</div>
                     <div style={styles.textGray}>(22% of cycle)</div>
                   </td>
-                  <td style={{ ...styles.fw600, padding: '8px' }}>853 kg</td>
-                  <td style={{ padding: '8px' }}><span style={styles.fcrBadge}>1.15</span></td>
-                  <td style={{ fontSize: '12px', padding: '8px' }}>
+                  <td style={styles.td}>853 kg</td>
+                  <td style={styles.td}><span style={styles.fcrBadge}>1.15</span></td>
+                  <td style={styles.td}>
                     <div style={styles.fw700}>Royals Marine Export Unit 1</div>
-                    <div style={{ ...styles.textGray, fontSize: '11px' }}>First partial thinning to reduce biomass density and promote faster growth.</div>
+                    <div style={{ ...styles.textGray, fontSize: '11px' }}>First partial thinning to reduce biomass density.</div>
                   </td>
                 </tr>
 
                 {/* Row 2 */}
-                <tr>
-                  <td style={{ padding: '8px' }}>
-                    <span style={styles.badgePartial}>Partial Harvest #2</span>
+                <tr style={styles.tableRow}>
+                  <td style={styles.td}>
+                    <span style={styles.badgePartial}>Partial Cut #2</span>
                   </td>
-                  <td style={{ padding: '8px' }}>
+                  <td style={styles.td}>
                     <div style={styles.fw600}>05 Aug 2026</div>
                     <div style={styles.textGray}>Day 84 DOC</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#16a34a' }}>24g</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#16A34A' }}>24.0g</div>
                     <div style={styles.textGray}>~42 Count / kg</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#2563eb' }}>42,000</div>
-                    <div style={styles.textGray}>pcs</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#2563EB' }}>42,000 pcs</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#4f46e5' }}>1,008 kg</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#0F172A' }}>1,008 kg</div>
                     <div style={styles.textGray}>(30% of cycle)</div>
                   </td>
-                  <td style={{ ...styles.fw600, padding: '8px' }}>1,189 kg</td>
-                  <td style={{ padding: '8px' }}><span style={styles.fcrBadge}>1.18</span></td>
-                  <td style={{ fontSize: '12px', padding: '8px' }}>
+                  <td style={styles.td}>1,189 kg</td>
+                  <td style={styles.td}><span style={styles.fcrBadge}>1.18</span></td>
+                  <td style={styles.td}>
                     <div style={styles.fw700}>Coastal Sea Foods Ltd</div>
-                    <div style={{ ...styles.textGray, fontSize: '11px' }}>Second selective netting targeting 40-count high value export grade.</div>
+                    <div style={{ ...styles.textGray, fontSize: '11px' }}>Second selective netting targeting 40-count high value export.</div>
                   </td>
                 </tr>
 
                 {/* Row 3 */}
-                <tr>
-                  <td style={{ padding: '8px' }}>
-                    <span style={styles.badgeFinal}>Final Harvest (Cycle Closed)</span>
+                <tr style={styles.tableRow}>
+                  <td style={styles.td}>
+                    <span style={styles.badgeFinal}>Final Harvest</span>
                   </td>
-                  <td style={{ padding: '8px' }}>
+                  <td style={styles.td}>
                     <div style={styles.fw600}>24 Aug 2026</div>
                     <div style={styles.textGray}>Day 115 DOC</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#16a34a' }}>33.5g</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#16A34A' }}>33.5g</div>
                     <div style={styles.textGray}>~30 Count / kg</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#2563eb' }}>48,000</div>
-                    <div style={styles.textGray}>pcs</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#2563EB' }}>48,000 pcs</div>
                   </td>
-                  <td style={{ padding: '8px' }}>
-                    <div style={{ ...styles.fw700, color: '#4f46e5' }}>1,608 kg</div>
+                  <td style={styles.td}>
+                    <div style={{ ...styles.fw700, color: '#0F172A' }}>1,608 kg</div>
                     <div style={styles.textGray}>(48% of cycle)</div>
                   </td>
-                  <td style={{ ...styles.fw600, padding: '8px' }}>1,913 kg</td>
-                  <td style={{ padding: '8px' }}><span style={styles.fcrBadge}>1.19</span></td>
-                  <td style={{ fontSize: '12px', padding: '8px' }}>
+                  <td style={styles.td}>1,913 kg</td>
+                  <td style={styles.td}><span style={styles.fcrBadge}>1.19</span></td>
+                  <td style={styles.td}>
                     <div style={styles.fw700}>Royals Marine Food Exports</div>
                     <div style={{ ...styles.textGray, fontSize: '11px' }}>Complete pond drainage harvest. High grade SPF Vannamei batch.</div>
                   </td>
@@ -199,21 +197,23 @@ const HarvestReportModal = ({ tank, onClose }) => {
               </tbody>
               <tfoot>
                 <tr style={styles.tfootRow}>
-                  <td colSpan="3" style={{ ...styles.fw700, fontSize: '14px', padding: '12px 8px' }}>TOTAL FINAL HARVESTED CROP:</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <div style={{ ...styles.fw700, color: '#2563eb', fontSize: '14px' }}>1,35,000</div>
-                    <div style={{ ...styles.textGray, fontSize: '12px' }}>pcs</div>
+                  <td colSpan="3" style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
+                    TOTAL HARVESTED CROP:
                   </td>
-                  <td style={{ ...styles.fw700, color: '#4f46e5', fontSize: '14px', padding: '12px 8px' }}>{tank.biomass || '0kg'}</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <div style={{ ...styles.fw700, fontSize: '14px' }}>3,955</div>
-                    <div style={{ ...styles.textGray, fontSize: '12px' }}>kg</div>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ ...styles.fw700, color: '#2563EB', fontSize: '13px' }}>1,35,000 pcs</div>
                   </td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <div style={styles.fcrTotalBadge}>{tank.fcr || '0.00'}<br /><span style={{ fontSize: '11px' }}>FCR</span></div>
+                  <td style={{ ...styles.fw700, color: '#0F172A', fontSize: '13px', padding: '12px 14px' }}>
+                    {tank.biomass || '3,358 kg'}
                   </td>
-                  <td style={{ color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', padding: '12px 8px' }}>
-                    <CheckCircle2 size={16} /> Cycle Closed
+                  <td style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
+                    3,955 kg
+                  </td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <span style={styles.fcrTotalBadge}>{tank.fcr || '1.17'} FCR</span>
+                  </td>
+                  <td style={{ color: '#16A34A', fontWeight: 600, fontSize: '12.5px', padding: '12px 14px' }}>
+                    ✓ Cycle Closed
                   </td>
                 </tr>
               </tfoot>
@@ -232,45 +232,48 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    backdropFilter: 'blur(6px)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backdropFilter: 'blur(4px)',
     zIndex: 9999,
-    padding: '6vh 24px',
-    animation: 'overlayFadeIn 0.2s ease-out',
-    overflowY: 'auto',
-    boxSizing: 'border-box'
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '24px 16px',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter, system-ui, sans-serif'
   },
   modalContent: {
-    margin: '0 auto',
-    backgroundColor: '#ffffff',
-    borderRadius: '20px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
     width: '100%',
-    maxWidth: '1050px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
-    border: '1px solid #e2e8f0',
-    animation: 'modalFadeIn 0.3s ease-out',
+    maxWidth: '1020px',
+    maxHeight: '90vh',
+    boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+    border: '1px solid #E2E8F0',
+    overflowY: 'auto',
     position: 'relative'
   },
   header: {
-    padding: '16px 24px',
+    padding: '20px 24px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    borderBottom: '1px solid #f1f5f9'
+    borderBottom: '1px solid #F1F5F9'
   },
   headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '14px'
   },
   iconBox: {
-    width: '40px',
-    height: '40px',
-    backgroundColor: '#dcfce7',
+    width: '38px',
+    height: '38px',
+    backgroundColor: '#DCFCE7',
     borderRadius: '10px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flexShrink: 0
   },
   headerText: {
     display: 'flex',
@@ -281,27 +284,26 @@ const styles = {
     margin: 0,
     fontSize: '18px',
     fontWeight: 700,
-    color: '#0f172a',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px'
+    color: '#0F172A',
+    letterSpacing: '-0.01em'
   },
   statusBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    backgroundColor: '#dcfce7',
-    color: '#16a34a',
-    fontSize: '12px',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
+    fontSize: '11px',
     fontWeight: 600,
-    padding: '4px 10px',
-    borderRadius: '16px'
+    padding: '2px 8px',
+    borderRadius: '6px'
   },
   metaInfo: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    fontSize: '13px',
-    color: '#64748b'
+    fontSize: '12.5px',
+    color: '#64748B',
+    flexWrap: 'wrap'
   },
   metaItem: {
     display: 'flex',
@@ -309,31 +311,32 @@ const styles = {
     gap: '4px'
   },
   metaDot: {
-    color: '#cbd5e1'
+    color: '#CBD5E1'
   },
   closeBtn: {
-    background: '#f1f5f9',
-    border: 'none',
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
     cursor: 'pointer',
     width: '32px',
     height: '32px',
-    borderRadius: '50%',
+    borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#64748b'
+    color: '#64748B',
+    transition: 'background-color 0.15s ease'
   },
   kpiContainer: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: '12px',
     padding: '16px 24px'
   },
   kpiCard: {
-    border: '1px solid #e2e8f0',
-    borderRadius: '10px',
-    padding: '12px',
-    backgroundColor: '#ffffff'
+    border: '1px solid #E2E8F0',
+    borderRadius: '12px',
+    padding: '14px 16px',
+    backgroundColor: '#F8FAFC'
   },
   kpiTop: {
     display: 'flex',
@@ -344,25 +347,22 @@ const styles = {
   kpiLabel: {
     fontSize: '11px',
     fontWeight: 600,
-    color: '#64748b',
-    textTransform: 'uppercase'
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px'
   },
   kpiValue: {
     fontSize: '20px',
     fontWeight: 700,
-    color: '#1e293b',
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '4px',
+    color: '#0F172A',
     marginBottom: '2px'
   },
   kpiSub: {
-    fontSize: '12px',
-    color: '#64748b'
+    fontSize: '11.5px',
+    color: '#64748B'
   },
   recordsSection: {
-    padding: '0 24px 16px',
-    backgroundColor: '#ffffff'
+    padding: '0 24px 24px'
   },
   recordsHeader: {
     display: 'flex',
@@ -372,99 +372,93 @@ const styles = {
   },
   recordsTitle: {
     margin: 0,
-    fontSize: '16px',
-    fontWeight: 700,
-    color: '#0f172a'
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#0F172A'
+  },
+  weighmentBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#16A34A'
+  },
+  tableWrapper: {
+    border: '1px solid #E2E8F0',
+    borderRadius: '12px',
+    overflow: 'hidden'
   },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
     textAlign: 'left'
   },
-  fw600: { fontWeight: 600, color: '#1e293b' },
-  fw700: { fontWeight: 700 },
-  textGray: { color: '#64748b', fontSize: '13px', marginTop: '2px' },
+  tableHeaderRow: {
+    backgroundColor: '#F8FAFC',
+    borderBottom: '1px solid #E2E8F0'
+  },
+  th: {
+    padding: '10px 14px',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px'
+  },
+  tableRow: {
+    borderBottom: '1px solid #F1F5F9',
+    transition: 'background-color 0.15s ease'
+  },
+  td: {
+    padding: '12px 14px',
+    fontSize: '12.5px',
+    color: '#0F172A',
+    verticalAlign: 'middle'
+  },
+  fw600: { fontWeight: 600, color: '#0F172A' },
+  fw700: { fontWeight: 700, color: '#0F172A' },
+  textGray: { color: '#64748B', fontSize: '11.5px', marginTop: '2px' },
   badgePartial: {
     display: 'inline-block',
-    backgroundColor: '#eff6ff',
-    color: '#2563eb',
-    fontSize: '12px',
+    backgroundColor: '#EFF6FF',
+    color: '#2563EB',
+    fontSize: '11px',
     fontWeight: 600,
-    padding: '6px 12px',
-    borderRadius: '6px',
-    border: '1px solid #bfdbfe'
+    padding: '3px 8px',
+    borderRadius: '6px'
   },
   badgeFinal: {
     display: 'inline-block',
-    backgroundColor: '#dcfce7',
-    color: '#16a34a',
-    fontSize: '12px',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
+    fontSize: '11px',
     fontWeight: 600,
-    padding: '6px 12px',
-    borderRadius: '6px',
-    border: '1px solid #bbf7d0'
+    padding: '3px 8px',
+    borderRadius: '6px'
   },
   fcrBadge: {
     display: 'inline-block',
-    backgroundColor: '#f1f5f9',
-    color: '#334155',
+    backgroundColor: '#F1F5F9',
+    color: '#0F172A',
     fontWeight: 700,
-    fontSize: '14px',
-    padding: '4px 12px',
+    fontSize: '12.5px',
+    padding: '2px 8px',
     borderRadius: '6px'
   },
   fcrTotalBadge: {
     display: 'inline-block',
-    backgroundColor: '#dcfce7',
-    color: '#16a34a',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
     fontWeight: 700,
-    fontSize: '14px',
-    padding: '4px 12px',
-    borderRadius: '6px',
-    textAlign: 'center',
-    lineHeight: '1.2'
+    fontSize: '12px',
+    padding: '3px 8px',
+    borderRadius: '6px'
   },
   tfootRow: {
-    borderTop: '2px solid #e2e8f0',
-    backgroundColor: '#f8fafc'
+    borderTop: '2px solid #E2E8F0',
+    backgroundColor: '#F8FAFC'
   }
 };
-
-// Add global styles for the table cells to simplify the inline styles
-const styleSheet = document.createElement("style");
-styleSheet.innerText = `
-  .records-table th {
-    padding: 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: '#64748b';
-    text-transform: uppercase;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  .records-table td {
-    padding: 10px 8px;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: middle;
-  }
-`;
-// We will apply this via inline styles instead to keep it self-contained
-const thStyle = {
-  padding: '8px',
-  fontSize: '11px',
-  fontWeight: 700,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  borderBottom: '1px solid #e2e8f0'
-};
-const tdStyle = {
-  padding: '10px 8px',
-  borderBottom: '1px solid #f1f5f9',
-  verticalAlign: 'middle'
-};
-
-// Update component to apply th/td styles
-HarvestReportModal.render = function () {
-  // This is just a hack to not rewrite the whole component above. I'll just use inline styles in the actual jsx above.
-}
 
 export default HarvestReportModal;

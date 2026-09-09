@@ -553,19 +553,28 @@ const Agents = () => {
       {selectedAgent && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setSelectedAgent(null)}>
           <div 
-            style={{ ...styles.agentModalCard, maxWidth: '800px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} 
+            style={{ 
+              ...styles.agentModalCard, 
+              maxWidth: '800px', 
+              maxHeight: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden'
+            }} 
             onClick={e => e.stopPropagation()}
             className="animate-modal-in"
           >
-            {/* Modal Header */}
+            {/* Modal Header (Fixed at top) */}
             <div style={{
               padding: '16px 20px',
               borderBottom: '1px solid #F1F5F9',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               backgroundColor: '#FFFFFF',
-              gap: '12px'
+              gap: '12px',
+              flexShrink: 0
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                 <div style={styles.modalIconBox}>
@@ -595,55 +604,82 @@ const Agents = () => {
               </button>
             </div>
 
-            {/* Agent Stats Grid (5 stats) */}
-            <div style={{ padding: '14px 20px 0 20px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
-              <div style={{ ...styles.agentStatsGrid, gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', marginBottom: '14px' }}>
-                <div 
-                  style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'FARMERS' ? '#EFF6FF' : '#FFFFFF' }}
-                  onClick={() => setAgentModalTab('FARMERS')}
-                  className="transition-transform active:scale-95 cursor-pointer"
-                  title="Click to view assigned farmers"
-                >
-                  <span style={styles.miniLabel}>ASSIGNED FARMERS</span>
-                  <span style={{ ...styles.agentStatsVal, color: '#1A2FB8' }}>{agentFarmers.length} Farmers</span>
-                </div>
-                <div 
-                  style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'TANKS' ? '#F0F9FF' : '#FFFFFF' }}
-                  onClick={() => setAgentModalTab('TANKS')}
-                  className="transition-transform active:scale-95 cursor-pointer"
-                  title="Click to view supervised tanks"
-                >
-                  <span style={styles.miniLabel}>SUPERVISED TANKS</span>
-                  <span style={{ ...styles.agentStatsVal, color: '#0284C7' }}>{selectedAgent.tanks} Tanks</span>
-                </div>
-                <div 
-                  style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'SUBMISSIONS' ? '#F0FDF4' : '#FFFFFF' }}
-                  onClick={() => setAgentModalTab('SUBMISSIONS')}
-                  className="transition-transform active:scale-95 cursor-pointer"
-                  title="Click to view test submissions"
-                >
-                  <span style={styles.miniLabel}>TESTS LOGGED</span>
-                  <span style={{ ...styles.agentStatsVal, color: '#16A34A' }}>{selectedAgent.tests} Tests</span>
-                </div>
-                <div 
-                  style={{ ...styles.agentStatBox, cursor: 'pointer', border: '1px solid #FDE68A', backgroundColor: '#FFFDF5' }}
-                  onClick={() => setDueTestsAgent(selectedAgent)}
-                  className="transition-transform active:scale-95 hover:shadow-xs cursor-pointer"
-                  title={`Click to view ${selectedAgent.name}'s due tests and farmer details`}
-                >
-                  <span style={styles.miniLabel}>TESTS DUE</span>
-                  <span style={{ ...styles.agentStatsVal, color: '#D97706', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    {selectedAgent.dueTests} Due <ChevronRight size={13} />
-                  </span>
-                </div>
-                <div style={styles.agentStatBox}>
-                  <span style={styles.miniLabel}>TERRITORY</span>
-                  <span style={styles.agentStatsVal}>{selectedAgent.locality}</span>
+            {/* Scrollable Modal Body: Contains Stats Grid, Sticky Tabs Navigation & Tab Content */}
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              WebkitOverflowScrolling: 'touch',
+              backgroundColor: '#F8FAFC',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {/* Agent Stats Grid */}
+              <div style={{ padding: '16px 20px 0 20px' }}>
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gap: '10px',
+                  marginBottom: '16px'
+                }}>
+                  <div 
+                    style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'FARMERS' ? '#EFF6FF' : '#FFFFFF' }}
+                    onClick={() => setAgentModalTab('FARMERS')}
+                    className="transition-transform active:scale-95 cursor-pointer"
+                    title="Click to view assigned farmers"
+                  >
+                    <span style={styles.miniLabel}>ASSIGNED FARMERS</span>
+                    <span style={{ ...styles.agentStatsVal, color: '#1A2FB8' }}>{agentFarmers.length} Farmers</span>
+                  </div>
+                  <div 
+                    style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'TANKS' ? '#F0F9FF' : '#FFFFFF' }}
+                    onClick={() => setAgentModalTab('TANKS')}
+                    className="transition-transform active:scale-95 cursor-pointer"
+                    title="Click to view supervised tanks"
+                  >
+                    <span style={styles.miniLabel}>SUPERVISED TANKS</span>
+                    <span style={{ ...styles.agentStatsVal, color: '#0284C7' }}>{selectedAgent.tanks} Tanks</span>
+                  </div>
+                  <div 
+                    style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'SUBMISSIONS' ? '#F0FDF4' : '#FFFFFF' }}
+                    onClick={() => setAgentModalTab('SUBMISSIONS')}
+                    className="transition-transform active:scale-95 cursor-pointer"
+                    title="Click to view test submissions"
+                  >
+                    <span style={styles.miniLabel}>TESTS LOGGED</span>
+                    <span style={{ ...styles.agentStatsVal, color: '#16A34A' }}>{selectedAgent.tests} Tests</span>
+                  </div>
+                  <div 
+                    style={{ ...styles.agentStatBox, cursor: 'pointer', border: '1px solid #FDE68A', backgroundColor: '#FFFDF5' }}
+                    onClick={() => setDueTestsAgent(selectedAgent)}
+                    className="transition-transform active:scale-95 hover:shadow-xs cursor-pointer"
+                    title={`Click to view ${selectedAgent.name}'s due tests and farmer details`}
+                  >
+                    <span style={styles.miniLabel}>TESTS DUE</span>
+                    <span style={{ ...styles.agentStatsVal, color: '#D97706', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      {selectedAgent.dueTests} Due <ChevronRight size={13} />
+                    </span>
+                  </div>
+                  <div style={styles.agentStatBox}>
+                    <span style={styles.miniLabel}>TERRITORY</span>
+                    <span style={styles.agentStatsVal}>{selectedAgent.locality}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Tab Navigation Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto' }}>
+              {/* Tab Navigation Buttons (Sticky below Stats / top of scroll) */}
+              <div style={{ 
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                backgroundColor: '#F8FAFC',
+                borderBottom: '1px solid #E2E8F0',
+                padding: '0 20px',
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px', 
+                overflowX: 'auto',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+              }}>
                 {[
                   { key: 'PROFILE', label: '👤 Agent Overview', count: null },
                   { key: 'FARMERS', label: '🌾 Assigned Farmers', count: agentFarmers.length },
@@ -655,7 +691,7 @@ const Agents = () => {
                     type="button"
                     onClick={() => setAgentModalTab(tab.key)}
                     style={{
-                      padding: '8px 14px',
+                      padding: '10px 14px',
                       borderTopLeftRadius: '8px',
                       borderTopRightRadius: '8px',
                       fontSize: '12.5px',
@@ -688,10 +724,9 @@ const Agents = () => {
                   </button>
                 ))}
               </div>
-            </div>
 
-            {/* Tab Body Content */}
-            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, backgroundColor: '#F8FAFC' }}>
+              {/* Tab Body Content */}
+              <div style={{ padding: '20px', flex: 1 }}>
               
               {/* TAB 1: PROFILE & OVERVIEW */}
               {agentModalTab === 'PROFILE' && (
@@ -1031,10 +1066,11 @@ const Agents = () => {
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Modal Footer */}
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#FFFFFF' }}>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#FFFFFF', flexShrink: 0 }}>
               <button 
                 type="button"
                 style={styles.closeBtnAction} 
@@ -1054,7 +1090,15 @@ const Agents = () => {
       {selectedAgentTanks && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setSelectedAgentTanks(null)}>
           <div 
-            style={{ ...styles.agentModalCard, maxWidth: '720px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} 
+            style={{ 
+              ...styles.agentModalCard, 
+              maxWidth: '720px', 
+              maxHeight: '92vh', 
+              display: 'flex', 
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden'
+            }} 
             onClick={e => e.stopPropagation()}
             className="animate-modal-in"
           >

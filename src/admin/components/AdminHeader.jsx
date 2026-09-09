@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getAdminSession } from '../utils/adminAuth';
-import { Bell, Search, LogOut, User, Menu } from 'lucide-react';
+import { Bell, Search, LogOut, User, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/new_logo_v2.png';
 import { useMockData } from '../../context/MockDataContext';
@@ -64,15 +64,15 @@ const AdminHeader = ({ onToggleSidebar }) => {
   return (
     <header style={styles.header}>
       {/* LEFT - BRAND & HAMBURGER */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {onToggleSidebar && (
           <button
             type="button"
-            className="flex lg:hidden items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer border border-slate-200"
+            className="flex lg:hidden items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer border border-slate-200 transition-colors"
             onClick={onToggleSidebar}
             aria-label="Open Admin Menu"
           >
-            <Menu size={20} color="#1e293b" />
+            <Menu size={18} color="#0F172A" />
           </button>
         )}
 
@@ -87,29 +87,28 @@ const AdminHeader = ({ onToggleSidebar }) => {
           />
 
           <div className="hidden sm:flex flex-col">
-            <div style={styles.brandTitle}>
+            <span style={styles.brandTitle}>
               ROYAL'S MARINE FOOD
-            </div>
-
-            <div style={styles.brandSubtitle}>
-              Aqua Field &amp; Feed Performance Platform
-            </div>
+            </span>
+            <span style={styles.brandSubtitle}>
+              Aqua Field &amp; Feed Platform
+            </span>
           </div>
         </div>
       </div>
 
       {/* CENTER - SEARCH */}
-      <div className="hidden md:flex relative flex-1 max-w-md mx-4">
+      <div className="hidden md:flex relative flex-1 max-w-lg mx-6">
         <div style={styles.searchBar} className="w-full">
           <Search
-            size={17}
-            color="#94a3b8"
+            size={18}
+            color="#64748B"
             style={{ flexShrink: 0 }}
           />
 
           <input
             type="text"
-            placeholder="Search Farmer, Tank ID, Agent, Phone..."
+            placeholder="Search Farmer, Tank, Agent..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -124,8 +123,9 @@ const AdminHeader = ({ onToggleSidebar }) => {
               onClick={clearSearch}
               style={styles.clearBtn}
               type="button"
+              aria-label="Clear search"
             >
-              ×
+              <X size={15} />
             </button>
           )}
         </div>
@@ -154,7 +154,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
                         <span style={styles.itemTitle}>
                           {farmer.name}
                         </span>
-
                         <span style={styles.itemSub}>
                           {farmer.phone} • {farmer.location}
                         </span>
@@ -182,7 +181,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
                         <span style={styles.itemTitle}>
                           {tank.name} ({tank.id})
                         </span>
-
                         <span style={styles.itemSub}>
                           ABW: {tank.abw} • Status: {tank.testStatus}
                         </span>
@@ -210,7 +208,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
                         <span style={styles.itemTitle}>
                           {agent.name}
                         </span>
-
                         <span style={styles.itemSub}>
                           {agent.locality}
                         </span>
@@ -235,7 +232,7 @@ const AdminHeader = ({ onToggleSidebar }) => {
           style={styles.bellContainer}
           title="3 Overdue test alerts"
         >
-          <Bell size={20} color="#475569" />
+          <Bell size={18} color="#475569" />
           <span style={styles.redDot} />
         </div>
 
@@ -248,18 +245,14 @@ const AdminHeader = ({ onToggleSidebar }) => {
         <div style={styles.profileWrapper}>
           <div
             style={styles.profileButton}
-            onClick={() =>
-              setShowProfileMenu(!showProfileMenu)
-            }
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
           >
             <div style={styles.avatar}>
-              <User size={15} color="#FFFFFF" />
+              <User size={16} color="#FFFFFF" />
             </div>
 
             <span style={styles.profileName}>
-              {session?.name
-                ? session.name
-                : 'Royal Marine A...'}
+              {session?.name ? session.name : 'Royal Marine Admin'}
             </span>
           </div>
 
@@ -270,7 +263,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
                 <div style={styles.profileHeaderName}>
                   {session?.name || 'Royal Marine Admin'}
                 </div>
-
                 <div style={styles.profileHeaderId}>
                   {session?.id || 'admin@royalsmarine.com'}
                 </div>
@@ -284,21 +276,21 @@ const AdminHeader = ({ onToggleSidebar }) => {
                   setShowProfileMenu(false);
                 }}
               >
-                <User size={16} />
-                System Settings
+                <User size={15} color="#64748B" />
+                <span>System Settings</span>
               </button>
 
               <button
                 type="button"
                 style={{
                   ...styles.profileMenuItem,
-                  color: '#dc2626',
-                  borderTop: '1px solid #f1f5f9',
+                  color: '#DC2626',
+                  borderTop: '1px solid #F1F5F9',
                 }}
                 onClick={handleLogout}
               >
-                <LogOut size={16} />
-                Sign Out
+                <LogOut size={15} color="#DC2626" />
+                <span>Sign Out</span>
               </button>
             </div>
           )}
@@ -310,17 +302,18 @@ const AdminHeader = ({ onToggleSidebar }) => {
 
 const styles = {
   header: {
-    backgroundColor: '#ffffff',
-    borderBottom: '1px solid #e2e8f0',
-    padding: '10px 24px',
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #E2E8F0',
+    padding: '0 24px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    height: '68px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+    height: '64px',
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+    fontFamily: 'Inter, system-ui, sans-serif'
   },
 
   brand: {
@@ -332,47 +325,36 @@ const styles = {
   },
 
   logo: {
-    height: '56px',
+    height: '42px',
     objectFit: 'contain',
   },
 
-  brandText: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-
   brandTitle: {
-    fontSize: '15px',
-    fontWeight: 800,
-    color: '#173873',
-    letterSpacing: '0.4px',
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#0F172A',
+    letterSpacing: '0.2px',
     lineHeight: '1.2',
   },
 
   brandSubtitle: {
     fontSize: '11px',
-    fontWeight: 600,
-    color: '#0284c7',
-    letterSpacing: '0.2px',
+    fontWeight: 500,
+    color: '#64748B',
     lineHeight: '1.2',
     marginTop: '2px',
-  },
-
-  searchWrapper: {
-    position: 'relative',
-    flex: '0 1 440px',
-    margin: '0 20px',
   },
 
   searchBar: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    backgroundColor: '#ffffff',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    padding: '8px 14px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: '12px',
+    padding: '0 14px',
+    height: '44px',
+    transition: 'all 0.15s ease',
   },
 
   searchInput: {
@@ -380,20 +362,22 @@ const styles = {
     outline: 'none',
     backgroundColor: 'transparent',
     width: '100%',
-    fontSize: '13.5px',
-    color: '#1e293b',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#0F172A',
     fontFamily: 'inherit',
   },
 
   clearBtn: {
     background: 'none',
     border: 'none',
-    color: '#94a3b8',
+    color: '#64748B',
     cursor: 'pointer',
-    fontSize: '16px',
-    padding: 0,
+    padding: '4px',
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '4px',
   },
 
   searchDropdown: {
@@ -401,11 +385,10 @@ const styles = {
     top: 'calc(100% + 6px)',
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
-    border: '1px solid #e2e8f0',
-    borderRadius: '10px',
-    boxShadow:
-      '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '12px',
+    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04)',
     zIndex: 1000,
     maxHeight: '340px',
     overflowY: 'auto',
@@ -413,15 +396,15 @@ const styles = {
 
   dropdownSection: {
     padding: '6px 0',
-    borderBottom: '1px solid #f1f5f9',
+    borderBottom: '1px solid #F1F5F9',
   },
 
   dropdownSectionHeader: {
     fontSize: '11px',
     fontWeight: 700,
     textTransform: 'uppercase',
-    color: '#94a3b8',
-    padding: '4px 14px',
+    color: '#94A3B8',
+    padding: '6px 14px 4px',
     letterSpacing: '0.5px',
   },
 
@@ -430,31 +413,32 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     cursor: 'pointer',
+    transition: 'background-color 0.12s ease',
   },
 
   itemTitle: {
-    fontSize: '13.5px',
+    fontSize: '13px',
     fontWeight: 600,
-    color: '#0f172a',
+    color: '#0F172A',
   },
 
   itemSub: {
     fontSize: '12px',
-    color: '#64748b',
+    color: '#64748B',
     marginTop: '2px',
   },
 
   noResults: {
-    padding: '14px',
+    padding: '16px',
     fontSize: '13px',
-    color: '#64748b',
+    color: '#64748B',
     textAlign: 'center',
   },
 
   rightControls: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
+    gap: '12px',
     flexShrink: 0,
   },
 
@@ -464,33 +448,34 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '36px',
-    height: '36px',
-    borderRadius: '50%',
-    backgroundColor: '#f8fafc',
-    border: '1px solid #f1f5f9',
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    transition: 'background-color 0.15s ease',
   },
 
   redDot: {
     position: 'absolute',
-    top: '6px',
-    right: '7px',
-    width: '8px',
-    height: '8px',
+    top: '8px',
+    right: '8px',
+    width: '7px',
+    height: '7px',
     borderRadius: '50%',
-    backgroundColor: '#ef4444',
-    border: '1.5px solid #ffffff',
+    backgroundColor: '#DC2626',
+    border: '1.5px solid #FFFFFF',
   },
 
   adminBadge: {
-    backgroundColor: '#fef3c7',
-    color: '#b45309',
+    backgroundColor: '#FEF3C7',
+    color: '#B45309',
     fontSize: '11px',
-    fontWeight: 800,
-    letterSpacing: '0.8px',
-    padding: '4px 12px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    padding: '4px 10px',
     borderRadius: '9999px',
-    border: '1px solid #fde68a',
+    border: '1px solid #FDE68A',
   },
 
   profileWrapper: {
@@ -502,28 +487,30 @@ const styles = {
     alignItems: 'center',
     gap: '10px',
     cursor: 'pointer',
-    padding: '4px 8px 4px 4px',
-    borderRadius: '24px',
+    padding: '4px 10px 4px 4px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#FFFFFF',
+    transition: 'all 0.15s ease',
   },
 
   avatar: {
-    width: '34px',
-    height: '34px',
-    borderRadius: '50%',
-    backgroundColor: '#1d4ed8',
-    color: '#ffffff',
+    width: '30px',
+    height: '30px',
+    borderRadius: '8px',
+    backgroundColor: '#2563EB',
+    color: '#FFFFFF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontWeight: 700,
-    fontSize: '15px',
-    boxShadow: '0 1px 3px rgba(29, 78, 216, 0.3)',
+    fontWeight: 600,
+    fontSize: '13px',
   },
 
   profileName: {
-    fontSize: '13.5px',
+    fontSize: '13px',
     fontWeight: 600,
-    color: '#1e293b',
+    color: '#0F172A',
     maxWidth: '130px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -534,30 +521,31 @@ const styles = {
     position: 'absolute',
     top: 'calc(100% + 8px)',
     right: 0,
-    backgroundColor: '#ffffff',
-    border: '1px solid #e2e8f0',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E2E8F0',
     borderRadius: '12px',
     width: '210px',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
     zIndex: 1000,
     overflow: 'hidden',
   },
 
   profileMenuHeader: {
-    padding: '12px 16px',
-    borderBottom: '1px solid #f1f5f9',
-    backgroundColor: '#f8fafc',
+    padding: '12px 14px',
+    borderBottom: '1px solid #F1F5F9',
+    backgroundColor: '#F8FAFC',
   },
 
   profileHeaderName: {
-    fontWeight: 700,
-    color: '#0f172a',
-    fontSize: '14px',
+    fontWeight: 600,
+    color: '#0F172A',
+    fontSize: '13px',
   },
 
   profileHeaderId: {
-    fontSize: '12px',
-    color: '#64748b',
+    fontSize: '11px',
+    color: '#64748B',
+    marginTop: '2px',
   },
 
   profileMenuItem: {
@@ -565,14 +553,15 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '10px 16px',
+    padding: '10px 14px',
     background: 'none',
     border: 'none',
     fontSize: '13px',
     fontWeight: 500,
-    color: '#334155',
+    color: '#0F172A',
     cursor: 'pointer',
     textAlign: 'left',
+    transition: 'background-color 0.12s ease',
   },
 };
 

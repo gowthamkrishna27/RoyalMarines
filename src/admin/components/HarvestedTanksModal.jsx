@@ -3,23 +3,6 @@ import { X, CheckCircle2, Search, Scale, User, MapPin } from 'lucide-react';
 import HarvestReportModal from './HarvestReportModal';
 import { useMockData } from '../../context/MockDataContext';
 
-const injectStyles = () => {
-  if (typeof document !== 'undefined' && !document.getElementById('modal-animations')) {
-    const style = document.createElement('style');
-    style.id = 'modal-animations';
-    style.innerHTML = `
-      @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes modalFadeIn { from { opacity: 0; transform: translateY(15px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    `;
-    document.head.appendChild(style);
-  }
-};
-injectStyles();
-
 const HarvestedTanksModal = ({ onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTank, setSelectedTank] = useState(null);
@@ -48,51 +31,51 @@ const HarvestedTanksModal = ({ onClose }) => {
 
   return (
     <>
-      <div style={styles.modalOverlay}>
-        <div style={styles.modalContent}>
+      <div style={styles.modalOverlay} onClick={onClose}>
+        <div style={styles.modalContent} onClick={e => e.stopPropagation()} className="animate-modal-in">
           {/* Header */}
           <div style={styles.header}>
             <div style={styles.headerLeft}>
               <div style={styles.iconBox}>
-                <CheckCircle2 size={24} color="#16a34a" />
+                <CheckCircle2 size={20} color="#16A34A" />
               </div>
               <div style={styles.headerText}>
-                <h2 style={styles.title}>
-                  Harvested Tanks — Completed Final Harvest ({harvestedTanks.length})
-                </h2>
-                <div style={styles.subtitle}>
+                <h3 style={styles.title}>
+                  Harvested Tanks — Completed Cycles ({harvestedTanks.length})
+                </h3>
+                <p style={styles.subtitle}>
                   Tanks with final crop drainage, settlement weighment logs, and closed culture cycles
-                </div>
+                </p>
               </div>
             </div>
-            <button onClick={onClose} style={styles.closeBtn}>
-              <X size={20} />
+            <button onClick={onClose} style={styles.closeBtn} aria-label="Close modal">
+              <X size={18} />
             </button>
           </div>
 
           {/* Top Summary Bar */}
           <div style={styles.summaryContainer}>
             <div style={styles.summaryCard}>
-              <div style={styles.summaryLabel}>TOTAL CLOSED TANKS</div>
-              <div style={styles.summaryValue}>{harvestedTanks.length} Tanks</div>
+              <span style={styles.summaryLabel}>TOTAL CLOSED TANKS</span>
+              <span style={styles.summaryValue}>{harvestedTanks.length} Tanks</span>
             </div>
             <div style={styles.summaryCard}>
-              <div style={styles.summaryLabel}>TOTAL REALIZED BIOMASS</div>
-              <div style={{ ...styles.summaryValue, color: '#2563eb' }}>17,800 kg</div>
+              <span style={styles.summaryLabel}>TOTAL REALIZED BIOMASS</span>
+              <span style={{ ...styles.summaryValue, color: '#2563EB' }}>17,800 kg</span>
             </div>
             <div style={styles.summaryCard}>
-              <div style={styles.summaryLabel}>AVG FINAL WEIGHT</div>
-              <div style={{ ...styles.summaryValue, color: '#16a34a' }}>32.2g <span style={{fontSize:'16px', fontWeight:500}}>(~31 count)</span></div>
+              <span style={styles.summaryLabel}>AVG FINAL WEIGHT</span>
+              <span style={{ ...styles.summaryValue, color: '#16A34A' }}>32.2g <span style={{ fontSize: '13px', fontWeight: 500, color: '#64748B' }}>(~31 count)</span></span>
             </div>
             <div style={styles.summaryCard}>
-              <div style={styles.summaryLabel}>AVG CYCLE FCR</div>
-              <div style={{ ...styles.summaryValue, color: '#d97706' }}>1.17</div>
+              <span style={styles.summaryLabel}>AVG CYCLE FCR</span>
+              <span style={{ ...styles.summaryValue, color: '#D97706' }}>1.17</span>
             </div>
           </div>
 
           {/* Search Bar */}
           <div style={styles.searchContainer}>
-            <Search size={18} color="#94a3b8" style={styles.searchIcon} />
+            <Search size={16} color="#64748B" style={styles.searchIcon} />
             <input 
               type="text" 
               placeholder="Search harvested tanks by name, farmer, village, or technician..."
@@ -103,35 +86,42 @@ const HarvestedTanksModal = ({ onClose }) => {
           </div>
 
           {/* Tanks List */}
-          <div style={styles.listContainer} className="custom-scrollbar">
-            {filteredTanks.map((tank) => (
-              <div key={tank.id} style={styles.listItem}>
-                <div style={styles.listItemLeft}>
-                  <div style={styles.itemIconBox}>
-                    <Scale size={20} color="#16a34a" />
-                  </div>
-                  <div style={styles.itemDetails}>
-                    <div style={styles.itemTitleRow}>
-                      <h3 style={styles.itemTitle}>{tank.name}</h3>
-                      <span style={styles.itemStatus}>✓ Final Harvest Completed</span>
-                    </div>
-                    <div style={styles.itemMeta}>
-                      <span style={styles.metaItem}><User size={14} /> Farmer: {tank.farmer}</span>
-                      <span style={styles.metaDot}>•</span>
-                      <span style={styles.metaItem}><MapPin size={14} /> {tank.location}</span>
-                      <span style={styles.metaDot}>•</span>
-                      <span style={styles.metaItem}>Extent: {tank.extent}</span>
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  style={styles.viewBtn}
-                  onClick={() => setSelectedTank(tank)}
-                >
-                  <Scale size={16} /> View Harvest Report
-                </button>
+          <div style={styles.listContainer}>
+            {filteredTanks.length === 0 ? (
+              <div style={styles.emptyNotice}>
+                No harvested tanks found matching your search.
               </div>
-            ))}
+            ) : (
+              filteredTanks.map((tank) => (
+                <div key={tank.id} style={styles.listItem}>
+                  <div style={styles.listItemLeft}>
+                    <div style={styles.itemIconBox}>
+                      <Scale size={18} color="#16A34A" />
+                    </div>
+                    <div style={styles.itemDetails}>
+                      <div style={styles.itemTitleRow}>
+                        <h4 style={styles.itemTitle}>{tank.name}</h4>
+                        <span style={styles.itemStatus}>✓ Final Harvest Completed</span>
+                      </div>
+                      <div style={styles.itemMeta}>
+                        <span style={styles.metaItem}><User size={13} /> Farmer: <strong>{tank.farmer}</strong></span>
+                        <span style={styles.metaDot}>•</span>
+                        <span style={styles.metaItem}><MapPin size={13} /> {tank.location}</span>
+                        <span style={styles.metaDot}>•</span>
+                        <span style={styles.metaItem}>Extent: {tank.extent}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    style={styles.viewBtn}
+                    onClick={() => setSelectedTank(tank)}
+                  >
+                    <Scale size={14} />
+                    <span>View Report</span>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -154,30 +144,33 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     backdropFilter: 'blur(4px)',
     zIndex: 9998,
-    padding: '6vh 24px',
-    animation: 'overlayFadeIn 0.2s ease-out',
-    overflowY: 'auto',
-    boxSizing: 'border-box'
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '24px 16px',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter, system-ui, sans-serif'
   },
   modalContent: {
-    margin: '0 auto',
-    backgroundColor: '#ffffff',
-    borderRadius: '20px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
     width: '100%',
-    maxWidth: '960px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-    border: '1px solid #e2e8f0',
-    animation: 'modalFadeIn 0.3s ease-out',
+    maxWidth: '920px',
+    maxHeight: '90vh',
+    boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+    border: '1px solid #E2E8F0',
+    overflowY: 'auto',
     position: 'relative'
   },
   header: {
-    padding: '16px 24px 12px',
+    padding: '20px 24px 16px',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    borderBottom: '1px solid #F1F5F9'
   },
   headerLeft: {
     display: 'flex',
@@ -185,13 +178,14 @@ const styles = {
     gap: '12px'
   },
   iconBox: {
-    width: '40px',
-    height: '40px',
-    backgroundColor: '#dcfce7',
+    width: '38px',
+    height: '38px',
+    backgroundColor: '#DCFCE7',
     borderRadius: '10px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flexShrink: 0
   },
   headerText: {
     display: 'flex',
@@ -202,128 +196,138 @@ const styles = {
     margin: 0,
     fontSize: '18px',
     fontWeight: 700,
-    color: '#0f172a'
+    color: '#0F172A',
+    letterSpacing: '-0.01em'
   },
   subtitle: {
-    fontSize: '12px',
-    color: '#64748b'
+    margin: 0,
+    fontSize: '12.5px',
+    color: '#64748B'
   },
   closeBtn: {
-    background: '#f1f5f9',
-    border: 'none',
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
     cursor: 'pointer',
     width: '32px',
     height: '32px',
-    borderRadius: '50%',
+    borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#64748b'
+    color: '#64748B',
+    transition: 'background-color 0.15s ease'
   },
   summaryContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    margin: '0 24px',
-    backgroundColor: '#f8fafc',
-    borderRadius: '10px',
-    border: '1px solid #e2e8f0'
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px',
+    padding: '14px 16px',
+    margin: '16px 24px 0',
+    backgroundColor: '#F8FAFC',
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0'
   },
   summaryCard: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px'
+    gap: '2px'
   },
   summaryLabel: {
-    fontSize: '10px',
+    fontSize: '10.5px',
     fontWeight: 700,
-    color: '#64748b',
+    color: '#64748B',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px'
+    letterSpacing: '0.4px'
   },
   summaryValue: {
     fontSize: '18px',
     fontWeight: 700,
-    color: '#0f172a'
+    color: '#0F172A'
   },
   searchContainer: {
-    margin: '12px 24px 8px',
+    margin: '16px 24px 8px',
     position: 'relative',
     display: 'flex',
     alignItems: 'center'
   },
   searchIcon: {
     position: 'absolute',
-    left: '12px'
+    left: '14px'
   },
   searchInput: {
     width: '100%',
-    padding: '10px 16px 10px 36px',
-    borderRadius: '8px',
-    border: '1px solid #cbd5e1',
+    padding: '0 16px 0 40px',
+    height: '42px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
     fontSize: '13px',
     outline: 'none',
-    color: '#0f172a'
+    color: '#0F172A',
+    backgroundColor: '#FFFFFF'
   },
   listContainer: {
-    padding: '8px 24px 24px',
+    padding: '12px 24px 24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px'
+    gap: '10px',
+    maxHeight: '48vh',
+    overflowY: 'auto'
   },
   listItem: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '12px 16px',
-    borderRadius: '10px',
-    border: '1px solid #e2e8f0',
-    backgroundColor: '#ffffff'
+    padding: '14px 16px',
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#FFFFFF',
+    transition: 'background-color 0.15s ease'
   },
   listItemLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px'
+    gap: '14px'
   },
   itemIconBox: {
-    width: '40px',
-    height: '40px',
-    backgroundColor: '#dcfce7',
-    borderRadius: '10px',
+    width: '36px',
+    height: '36px',
+    backgroundColor: '#DCFCE7',
+    borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flexShrink: 0
   },
   itemDetails: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px'
+    gap: '4px'
   },
   itemTitleRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '10px'
   },
   itemTitle: {
     margin: 0,
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: 700,
-    color: '#0f172a'
+    color: '#0F172A'
   },
   itemStatus: {
-    backgroundColor: '#dcfce7',
-    color: '#16a34a',
+    backgroundColor: '#DCFCE7',
+    color: '#16A34A',
     fontSize: '11px',
     fontWeight: 600,
     padding: '2px 8px',
-    borderRadius: '12px'
+    borderRadius: '6px'
   },
   itemMeta: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    fontSize: '13px',
-    color: '#64748b'
+    fontSize: '12.5px',
+    color: '#64748B'
   },
   metaItem: {
     display: 'flex',
@@ -331,20 +335,28 @@ const styles = {
     gap: '4px'
   },
   metaDot: {
-    color: '#cbd5e1'
+    color: '#CBD5E1'
   },
   viewBtn: {
-    backgroundColor: '#1e3a8a',
-    color: '#ffffff',
+    backgroundColor: '#2563EB',
+    color: '#FFFFFF',
     border: 'none',
     borderRadius: '8px',
-    padding: '10px 16px',
-    fontSize: '13px',
+    padding: '8px 14px',
+    fontSize: '12.5px',
     fontWeight: 600,
-    display: 'flex',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(37, 99, 235, 0.2)',
+    transition: 'all 0.15s ease'
+  },
+  emptyNotice: {
+    padding: '32px',
+    textAlign: 'center',
+    fontSize: '13px',
+    color: '#64748B'
   }
 };
 

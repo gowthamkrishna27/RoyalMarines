@@ -225,9 +225,9 @@ const AgentDashboard = () => {
 
       {/* 3. Today's Work Summary */}
       <div style={styles.card}>
-        <div style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</div>
+        <div style={styles.sectionHeaderSmall}>WEEK'S WORK</div>
         <div style={styles.metricsGrid}>
-          <div 
+          <div
             style={{ ...styles.metricCol, cursor: 'pointer' }}
             onClick={() => navigate('/farmers')}
             className="transition-all hover:bg-slate-50 cursor-pointer"
@@ -239,7 +239,7 @@ const AgentDashboard = () => {
 
           <div style={styles.metricDivider} />
 
-          <div 
+          <div
             style={{ ...styles.metricCol, cursor: 'pointer' }}
             onClick={() => navigate('/farmers')}
             className="transition-all hover:bg-slate-50 cursor-pointer"
@@ -251,7 +251,7 @@ const AgentDashboard = () => {
 
           <div style={styles.metricDivider} />
 
-          <div 
+          <div
             style={{ ...styles.metricCol, cursor: 'pointer' }}
             onClick={() => {
               setDueModalFilter('DUE');
@@ -266,7 +266,7 @@ const AgentDashboard = () => {
 
           <div style={styles.metricDivider} />
 
-          <div 
+          <div
             style={{ ...styles.metricCol, cursor: 'pointer' }}
             onClick={() => {
               setDueModalFilter('OVERDUE');
@@ -300,8 +300,8 @@ const AgentDashboard = () => {
             </div>
           ) : (
             recentRecords.map((r, idx) => (
-              <div 
-                key={r.id || idx} 
+              <div
+                key={r.id || idx}
                 className="transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                 style={styles.recentRowCard}
                 onClick={() => navigate('/tests')}
@@ -334,12 +334,12 @@ const AgentDashboard = () => {
       {/* 5. DUE & OVERDUE TESTS DETAIL MODAL */}
       {/* ========================================================= */}
       {showDueTestsModal && (
-        <div 
+        <div
           className="animate-backdrop-in"
           style={styles.modalOverlay}
           onClick={() => setShowDueTestsModal(false)}
         >
-          <div 
+          <div
             className="animate-modal-in"
             style={styles.dueModalCard}
             onClick={(e) => e.stopPropagation()}
@@ -348,16 +348,16 @@ const AgentDashboard = () => {
               <div>
                 <div style={styles.dueModalTag}>WEEKLY TEST SCHEDULE (MON - SUN)</div>
                 <h3 style={styles.dueModalTitle}>
-                  {dueModalFilter === 'OVERDUE' 
-                    ? `Overdue Tests (${displayedDueModalTanks.length} Ponds)` 
-                    : dueModalFilter === 'DUE' 
-                    ? `Weekly Due Tests (${displayedDueModalTanks.length} Ponds)` 
-                    : `Weekly Test Schedule (${displayedDueModalTanks.length} Ponds)`}
+                  {dueModalFilter === 'OVERDUE'
+                    ? `Overdue Tests (${displayedDueModalTanks.length} Ponds)`
+                    : dueModalFilter === 'DUE'
+                      ? `Weekly Due Tests (${displayedDueModalTanks.length} Ponds)`
+                      : `Weekly Test Schedule (${displayedDueModalTanks.length} Ponds)`}
                 </h3>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 style={styles.dueCloseBtn}
                 onClick={() => setShowDueTestsModal(false)}
                 aria-label="Close"
@@ -399,15 +399,15 @@ const AgentDashboard = () => {
                     {dueModalFilter === 'OVERDUE' ? 'No overdue tests!' : 'All tests are up to date!'}
                   </p>
                   <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    {dueModalFilter === 'OVERDUE' 
-                      ? 'None of your assigned ponds are overdue for routine tests.' 
+                    {dueModalFilter === 'OVERDUE'
+                      ? 'None of your assigned ponds are overdue for routine tests.'
                       : 'Great job! All assigned ponds have completed routine tests for this schedule.'}
                   </span>
                 </div>
               ) : (
                 displayedDueModalTanks.map((item, idx) => (
-                  <div 
-                    key={item?.tank?.id || idx} 
+                  <div
+                    key={item?.tank?.id || idx}
                     style={{
                       ...styles.dueTankCard,
                       backgroundColor: item.isOverdue ? '#FEF2F2' : '#FEFCE8',

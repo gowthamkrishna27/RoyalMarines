@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, Droplets, Fish, Wheat, Skull, ClipboardList, Camera, 
-  MapPin, Check, RefreshCw, Pill, Scale, Info, CheckCircle, Activity, Lock 
+  MapPin, Check, RefreshCw, Pill, Scale, Info, CheckCircle, Activity, Lock,
+  Search, Upload, Image, Trash2, Calendar, Clock, UserCheck, ChevronDown, Plus, AlertCircle
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -10,6 +11,16 @@ import { getInchargeSession } from '../../incharge/utils/inchargeAuth';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
+import {
+  MEDICATION_TYPES,
+  MEDICINE_CATEGORIES,
+  DOSAGE_UNITS,
+  APPLICATION_METHODS,
+  PURPOSE_REASONS,
+  PHOTO_TYPES,
+  getMedicines,
+  MEDICINES_CATALOG
+} from '../utils/medicationCatalog';
 
 // Routine Field Modules
 const RECORD_TYPES = [
@@ -170,10 +181,96 @@ const QuickRecordModal = ({
   });
 
   const [medicationForm, setMedicationForm] = useState({
-    medicineName: 'Probiotic Mix',
-    dosage: '1 kg / acre',
-    notes: 'Applied during morning aeration',
+    medicationType: 'Preventive', // 'Preventive' | 'Curative'
+    category: 'Probiotics',
+    medicineName: 'Soil & Water Probiotic (Bacillus Blend)',
+    customMedicineName: '',
+    dosageValue: '1',
+    dosageUnit: 'kg/acre',
+    customDosageUnit: '',
+    applicationMethod: 'Water',
+    purpose: 'Water Quality Maintenance',
+    customPurpose: '',
+    remarks: '',
+    photoCategory: 'Medicine Packet',
+    photoUrl: '',
+    photoName: '',
   });
+
+  const [medicineSearch, setMedicineSearch] = useState('');
+
+  const handleMedicationTypeChange = (newType) => {
+    const defaultCat = 'Probiotics';
+    const meds = getMedicines(newType, defaultCat);
+    const firstMed = meds[0] || { name: 'Other', defaultDosage: '', defaultUnit: 'kg/acre', defaultMethod: 'Water', defaultPurpose: '' };
+    
+    setMedicationForm(prev => ({
+      ...prev,
+      medicationType: newType,
+      category: defaultCat,
+      medicineName: firstMed.name,
+      customMedicineName: '',
+      dosageValue: firstMed.defaultDosage || '',
+      dosageUnit: firstMed.defaultUnit || 'kg/acre',
+      customDosageUnit: '',
+      applicationMethod: firstMed.defaultMethod || 'Water',
+      purpose: newType === 'Curative' ? (firstMed.defaultPurpose || 'White Gut') : (firstMed.defaultPurpose || 'Routine Health Management'),
+      customPurpose: '',
+      remarks: '',
+      photoUrl: '',
+      photoName: '',
+    }));
+    setMedicineSearch('');
+  };
+
+  const handleCategoryChange = (newCat) => {
+    const meds = getMedicines(medicationForm.medicationType, newCat);
+    const firstMed = meds[0] || { name: 'Other', defaultDosage: '', defaultUnit: 'kg/acre', defaultMethod: 'Water', defaultPurpose: '' };
+    
+    setMedicationForm(prev => ({
+      ...prev,
+      category: newCat,
+      medicineName: firstMed.name,
+      customMedicineName: '',
+      dosageValue: firstMed.defaultDosage || '',
+      dosageUnit: firstMed.defaultUnit || 'kg/acre',
+      customDosageUnit: '',
+      applicationMethod: firstMed.defaultMethod || 'Water',
+      purpose: firstMed.defaultPurpose || (prev.medicationType === 'Curative' ? 'White Gut' : 'Routine Health Management'),
+      customPurpose: '',
+    }));
+    setMedicineSearch('');
+  };
+
+  const handleMedicineSelect = (productName) => {
+    const meds = getMedicines(medicationForm.medicationType, medicationForm.category);
+    const found = meds.find(m => m.name === productName);
+    
+    setMedicationForm(prev => ({
+      ...prev,
+      medicineName: productName,
+      customMedicineName: productName === 'Other' ? '' : prev.customMedicineName,
+      dosageValue: found?.defaultDosage ? found.defaultDosage : (productName === 'Other' ? '' : prev.dosageValue),
+      dosageUnit: found?.defaultUnit ? found.defaultUnit : prev.dosageUnit,
+      applicationMethod: found?.defaultMethod ? found.defaultMethod : prev.applicationMethod,
+      purpose: found?.defaultPurpose ? found.defaultPurpose : prev.purpose,
+    }));
+  };
+
+  const handleMedicationPhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setMedicationForm(prev => ({
+          ...prev,
+          photoUrl: event.target?.result,
+          photoName: file.name
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const [photoName, setPhotoName] = useState('');
 
@@ -356,8 +453,84 @@ const QuickRecordModal = ({
       testTypeName = 'Mortality';
       formData = mortalityForm;
     } else if (activeTab === 'MEDICATION') {
+      // 10. Comprehensive Medication Validation Rules
+      if (!selectedFarmerId) {
+        alert('Farmer selection is required.');
+        return;
+      }
+      if (!selectedTankId) {
+        alert('Tank selection is required.');
+        return;
+      }
+      if (!medicationForm.medicationType) {
+        alert('Medication Type is required.');
+        return;
+      }
+      if (!medicationForm.category) {
+        alert('Medicine Category is required.');
+        return;
+      }
+      if (!medicationForm.medicineName) {
+        alert('Medicine / Product is required.');
+        return;
+      }
+      if (medicationForm.medicineName === 'Other' && !medicationForm.customMedicineName?.trim()) {
+        alert('Please enter the custom Medicine / Product name.');
+        return;
+      }
+      if (!medicationForm.dosageValue || isNaN(Number(medicationForm.dosageValue)) || Number(medicationForm.dosageValue) <= 0) {
+        alert('Please enter a valid numeric Dosage Value.');
+        return;
+      }
+      if (!medicationForm.dosageUnit) {
+        alert('Dosage Unit is required.');
+        return;
+      }
+      if (medicationForm.dosageUnit === 'Other' && !medicationForm.customDosageUnit?.trim()) {
+        alert('Please specify the custom Dosage Unit.');
+        return;
+      }
+      if (!medicationForm.applicationMethod) {
+        alert('Application Method is required.');
+        return;
+      }
+      if (medicationForm.medicationType === 'Curative' && !medicationForm.purpose) {
+        alert('Purpose / Reason is mandatory for Curative medications.');
+        return;
+      }
+      if (medicationForm.purpose === 'Other' && !medicationForm.customPurpose?.trim()) {
+        alert('Please specify the custom Purpose / Reason.');
+        return;
+      }
+
       testTypeName = 'Medication';
-      formData = medicationForm;
+      const effectiveMedicine = medicationForm.medicineName === 'Other' ? medicationForm.customMedicineName.trim() : medicationForm.medicineName;
+      const effectiveUnit = medicationForm.dosageUnit === 'Other' ? medicationForm.customDosageUnit.trim() : medicationForm.dosageUnit;
+      const effectivePurpose = medicationForm.purpose === 'Other' ? medicationForm.customPurpose.trim() : (medicationForm.purpose || 'Routine Health Management');
+      const formattedDosage = `${medicationForm.dosageValue} ${effectiveUnit}`;
+
+      formData = {
+        medicationType: medicationForm.medicationType,
+        medicineCategory: medicationForm.category,
+        medicineName: effectiveMedicine,
+        productName: effectiveMedicine,
+        dosageValue: medicationForm.dosageValue,
+        dosageUnit: effectiveUnit,
+        dosage: formattedDosage,
+        applicationMethod: medicationForm.applicationMethod,
+        purpose: effectivePurpose,
+        targetDiagnosis: effectivePurpose,
+        remarks: medicationForm.remarks,
+        notes: medicationForm.remarks || `Applied ${formattedDosage} via ${medicationForm.applicationMethod} (${medicationForm.medicationType})`,
+        photo: medicationForm.photoUrl,
+        photoName: medicationForm.photoName,
+        photoCategory: medicationForm.photoCategory,
+        date: formattedDate,
+        time: formattedTime,
+        loggedByName: isIncharge ? (inchargeSession?.name || 'Incharge') : (session?.name || 'Ramesh'),
+        loggedById: isIncharge ? (inchargeSession?.inchargeId || 'INC001') : (session?.agentId || 'agent001'),
+        status: 'VERIFIED'
+      };
     } else if (activeTab === 'FARM_ACTIVITY') {
       testTypeName = 'Farm Activity';
       formData = activityForm;
@@ -427,7 +600,9 @@ const QuickRecordModal = ({
             <div style={styles.successIconCircle}>
               <CheckCircle size={36} color="#16A34A" />
             </div>
-            <h3 style={styles.successTitle}>Record Saved Successfully</h3>
+            <h3 style={styles.successTitle}>
+              {activeTab === 'MEDICATION' ? 'Medication record saved successfully.' : 'Record Saved Successfully'}
+            </h3>
             <p style={styles.successSub}>
               {submittedRecord.testType} for <strong>{submittedRecord.farmerName}</strong> • <strong>{submittedRecord.tankName}</strong>
             </p>
@@ -465,7 +640,7 @@ const QuickRecordModal = ({
                   </div>
                   <div style={styles.successDetailRow}>
                     <span>Ammonia / Nitrite / K:</span>
-                    <strong>NH3: {waterForm.ammonia} • NO2: {waterForm.nitrite} • K: {waterForm.k} ppm</strong>
+                    <strong>NH3: {waterForm.ammonia} • NO2: {waterForm.nitrite} • K: {waterForm.potassium} ppm</strong>
                   </div>
                   <div style={styles.successDetailRow}>
                     <span>Gases / Water Color:</span>
@@ -476,40 +651,28 @@ const QuickRecordModal = ({
               {activeTab === 'FEED_ENTRY' && (
                 <>
                   <div style={styles.successDetailRow}>
-                    <span>DOC / Date:</span>
+                    <span>DOC / Sampling Date:</span>
                     <strong>DOC {feedForm.doc} • {feedForm.date}</strong>
                   </div>
                   <div style={styles.successDetailRow}>
-                    <span>Seed (lac) / ABW:</span>
-                    <strong>{feedForm.seedLac} lac • {feedForm.abw} g</strong>
+                    <span>ABW / Biomass:</span>
+                    <strong>{feedForm.abw} g • {feedForm.estimatedBiomass} kg</strong>
                   </div>
                   <div style={styles.successDetailRow}>
-                    <span>Day Feed / Cumulative:</span>
-                    <strong>{feedForm.dayFeedKg} kg • {feedForm.cumulativeFeed} kg</strong>
-                  </div>
-                  <div style={styles.successDetailRow}>
-                    <span>Biomass / FCR:</span>
-                    <strong>{feedForm.totalBiomass} kg • FCR {feedForm.fcr}</strong>
-                  </div>
-                  <div style={styles.successDetailRow}>
-                    <span>Check Tray (Feed / Time):</span>
-                    <strong>{feedForm.checkTrayFeedGr} gr • {feedForm.checkTrayTime}</strong>
+                    <span>Daily Feed / FCR:</span>
+                    <strong>{feedForm.dailyFeed} kg • FCR {feedForm.fcr}</strong>
                   </div>
                 </>
               )}
               {activeTab === 'DISEASE' && (
                 <>
                   <div style={styles.successDetailRow}>
-                    <span>DOC / Date:</span>
-                    <strong>DOC {diseaseForm.doc} • {diseaseForm.date}</strong>
+                    <span>Observations:</span>
+                    <strong>{diseaseForm.selectedDiseases.join(', ') || 'No symptoms detected'}</strong>
                   </div>
                   <div style={styles.successDetailRow}>
-                    <span>Symptoms / Diseases:</span>
-                    <strong style={{ color: '#DC2626' }}>{diseaseForm.selectedDiseases.join(', ') || 'None Selected'}</strong>
-                  </div>
-                  <div style={styles.successDetailRow}>
-                    <span>Severity / Population:</span>
-                    <strong>{diseaseForm.severity} • {diseaseForm.affectedPercentage}</strong>
+                    <span>Severity / Spread:</span>
+                    <strong>{diseaseForm.severity} ({diseaseForm.affectedPercentage})</strong>
                   </div>
                   {diseaseForm.actionTaken && (
                     <div style={styles.successDetailRow}>
@@ -530,9 +693,31 @@ const QuickRecordModal = ({
               {activeTab === 'MEDICATION' && (
                 <>
                   <div style={styles.successDetailRow}>
-                    <span>Medicine / Dosage:</span>
-                    <strong>{medicationForm.medicineName} ({medicationForm.dosage})</strong>
+                    <span>Type & Category:</span>
+                    <strong style={{ color: medicationForm.medicationType === 'Curative' ? '#DC2626' : '#1A2FB8' }}>
+                      {medicationForm.medicationType} • {medicationForm.category}
+                    </strong>
                   </div>
+                  <div style={styles.successDetailRow}>
+                    <span>Medicine / Product:</span>
+                    <strong>{medicationForm.medicineName === 'Other' ? medicationForm.customMedicineName : medicationForm.medicineName}</strong>
+                  </div>
+                  <div style={styles.successDetailRow}>
+                    <span>Dosage & Method:</span>
+                    <strong>{medicationForm.dosageValue} {medicationForm.dosageUnit === 'Other' ? medicationForm.customDosageUnit : medicationForm.dosageUnit} ({medicationForm.applicationMethod})</strong>
+                  </div>
+                  {medicationForm.purpose && (
+                    <div style={styles.successDetailRow}>
+                      <span>Purpose / Diagnosis:</span>
+                      <strong>{medicationForm.purpose === 'Other' ? medicationForm.customPurpose : medicationForm.purpose}</strong>
+                    </div>
+                  )}
+                  {medicationForm.photoName && (
+                    <div style={styles.successDetailRow}>
+                      <span>Attached Photo:</span>
+                      <span style={{ color: '#16A34A', fontWeight: '600' }}>✔ {medicationForm.photoCategory} ({medicationForm.photoName})</span>
+                    </div>
+                  )}
                 </>
               )}
               {activeTab === 'FARM_ACTIVITY' && (
@@ -1549,34 +1734,455 @@ const QuickRecordModal = ({
             </div>
           )}
 
-          {/* ----------------- MEDICATION MODULE ----------------- */}
+          {/* ----------------- ENHANCED ENTERPRISE MEDICATION MODULE ----------------- */}
           {activeTab === 'MEDICATION' && (
-            <div style={styles.harvestDetailsCard}>
-              <h3 style={styles.sectionCardTitle}>Medication & Probiotics</h3>
-              <div style={styles.twoColGrid}>
-                <div>
-                  <label style={styles.fieldLabel}>Medicine / Product *</label>
-                  <input
-                    type="text"
-                    value={medicationForm.medicineName}
-                    onChange={(e) => setMedicationForm({ ...medicationForm, medicineName: e.target.value })}
-                    style={styles.inputField}
-                    placeholder="Probiotic Mix"
-                    required
-                  />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* 1. Medication Type (Segmented Radio Control - Requirement 1) */}
+              <div style={styles.harvestDetailsCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ ...styles.fieldLabel, margin: 0, fontWeight: '800', color: '#0F172A' }}>
+                    Medication Type *
+                  </label>
+                  <span style={{ fontSize: '11px', color: medicationForm.medicationType === 'Preventive' ? '#1D4ED8' : '#DC2626', fontWeight: '700' }}>
+                    {medicationForm.medicationType === 'Preventive' ? '🛡️ Preventive (Default)' : '💊 Curative Treatment'}
+                  </span>
                 </div>
-                <div>
-                  <label style={styles.fieldLabel}>Dosage *</label>
-                  <input
-                    type="text"
-                    value={medicationForm.dosage}
-                    onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
-                    style={styles.inputField}
-                    placeholder="1 kg / acre"
-                    required
-                  />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleMedicationTypeChange('Preventive')}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      padding: '12px 10px',
+                      borderRadius: '10px',
+                      border: medicationForm.medicationType === 'Preventive' ? '2px solid #1A2FB8' : '1.5px solid #CBD5E1',
+                      backgroundColor: medicationForm.medicationType === 'Preventive' ? '#EFF6FF' : '#FFFFFF',
+                      color: medicationForm.medicationType === 'Preventive' ? '#1A2FB8' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    className="active:scale-98 transition-transform"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '15px' }}>🛡️</span>
+                      <strong style={{ fontSize: '13.5px' }}>Preventive</strong>
+                    </div>
+                    <span style={{ fontSize: '10.5px', color: medicationForm.medicationType === 'Preventive' ? '#1D4ED8' : '#64748B' }}>
+                      Routine Health & Conditioning
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMedicationTypeChange('Curative')}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      padding: '12px 10px',
+                      borderRadius: '10px',
+                      border: medicationForm.medicationType === 'Curative' ? '2px solid #DC2626' : '1.5px solid #CBD5E1',
+                      backgroundColor: medicationForm.medicationType === 'Curative' ? '#FEF2F2' : '#FFFFFF',
+                      color: medicationForm.medicationType === 'Curative' ? '#DC2626' : '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    className="active:scale-98 transition-transform"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '15px' }}>💊</span>
+                      <strong style={{ fontSize: '13.5px' }}>Curative</strong>
+                    </div>
+                    <span style={{ fontSize: '10.5px', color: medicationForm.medicationType === 'Curative' ? '#B91C1C' : '#64748B' }}>
+                      Targeted Treatment & Stress Cure
+                    </span>
+                  </button>
                 </div>
               </div>
+
+              {/* 2. Medicine Category & Product Card (Requirements 2, 3, 4) */}
+              <div style={styles.harvestDetailsCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ ...styles.sectionCardTitle, margin: 0 }}>Medication Specifications</h3>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: medicationForm.medicationType === 'Curative' ? '#FEE2E2' : '#DBEAFE',
+                    color: medicationForm.medicationType === 'Curative' ? '#DC2626' : '#1A2FB8',
+                    border: `1px solid ${medicationForm.medicationType === 'Curative' ? '#FECACA' : '#BFDBFE'}`
+                  }}>
+                    {medicationForm.medicationType} Treatment
+                  </span>
+                </div>
+
+                {/* 2a. Medicine Category (Searchable / Quick Pills - Requirement 2) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>Medicine Category *</label>
+                  <select
+                    value={medicationForm.category}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    style={styles.selectInput}
+                    required
+                  >
+                    {MEDICINE_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Quick Category Selector Pills */}
+                  <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '8px', paddingBottom: '2px' }}>
+                    {MEDICINE_CATEGORIES.map(cat => {
+                      const isSelected = medicationForm.category === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => handleCategoryChange(cat.id)}
+                          style={{
+                            padding: '5px 11px',
+                            borderRadius: '16px',
+                            fontSize: '11px',
+                            fontWeight: isSelected ? '700' : '600',
+                            backgroundColor: isSelected ? '#1A2FB8' : '#F1F5F9',
+                            color: isSelected ? '#FFFFFF' : '#475569',
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
+                          }}
+                          className="transition-all active:scale-95"
+                        >
+                          {cat.icon} {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2b. Medicine / Product Searchable Dropdown (Requirement 3) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>Medicine / Product *</label>
+                  
+                  {/* Search Filter for Fast Selection */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 10px', backgroundColor: '#F8FAFC', marginBottom: '6px' }}>
+                    <Search size={14} color="#64748B" />
+                    <input
+                      type="text"
+                      placeholder={`Filter ${medicationForm.category} products...`}
+                      value={medicineSearch}
+                      onChange={(e) => setMedicineSearch(e.target.value)}
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '12px', color: '#0F172A', backgroundColor: 'transparent' }}
+                    />
+                    {medicineSearch && (
+                      <button type="button" onClick={() => setMedicineSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        <X size={12} color="#94A3B8" />
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={medicationForm.medicineName}
+                    onChange={(e) => handleMedicineSelect(e.target.value)}
+                    style={styles.selectInput}
+                    required
+                  >
+                    {getMedicines(medicationForm.medicationType, medicationForm.category)
+                      .filter(m => !medicineSearch || m.name.toLowerCase().includes(medicineSearch.toLowerCase()))
+                      .map((med, idx) => (
+                        <option key={idx} value={med.name}>
+                          {med.name} {med.defaultDosage ? `(Standard: ${med.defaultDosage} ${med.defaultUnit})` : ''}
+                        </option>
+                      ))}
+                  </select>
+
+                  {/* Custom Product Input if 'Other' is selected */}
+                  {medicationForm.medicineName === 'Other' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <label style={{ ...styles.fieldLabel, color: '#D97706' }}>Custom Product / Medicine Name *</label>
+                      <input
+                        type="text"
+                        value={medicationForm.customMedicineName}
+                        onChange={(e) => setMedicationForm({ ...medicationForm, customMedicineName: e.target.value })}
+                        style={{ ...styles.inputField, borderColor: '#FDE68A', backgroundColor: '#FFFDF5' }}
+                        placeholder="Enter brand or chemical name..."
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Dosage Value & Dosage Unit (Requirement 4) */}
+                <div style={styles.twoColGrid}>
+                  <div>
+                    <label style={styles.fieldLabel}>Dosage Value *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      value={medicationForm.dosageValue}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, dosageValue: e.target.value })}
+                      style={styles.inputField}
+                      placeholder="e.g. 1.5, 500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.fieldLabel}>Dosage Unit *</label>
+                    <select
+                      value={medicationForm.dosageUnit}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, dosageUnit: e.target.value })}
+                      style={styles.selectInput}
+                      required
+                    >
+                      {DOSAGE_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Custom Dosage Unit if 'Other' */}
+                {medicationForm.dosageUnit === 'Other' && (
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ ...styles.fieldLabel, color: '#D97706' }}>Custom Dosage Unit *</label>
+                    <input
+                      type="text"
+                      value={medicationForm.customDosageUnit}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, customDosageUnit: e.target.value })}
+                      style={{ ...styles.inputField, borderColor: '#FDE68A', backgroundColor: '#FFFDF5' }}
+                      placeholder="e.g. tablets/pond, pouches/acre"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Application Method & Purpose (Requirements 5, 6) */}
+              <div style={styles.harvestDetailsCard}>
+                {/* 4a. Application Method (Requirement 5) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>Application Method *</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    {APPLICATION_METHODS.map(method => {
+                      const isSelected = medicationForm.applicationMethod === method.id;
+                      return (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => setMedicationForm({ ...medicationForm, applicationMethod: method.id })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            padding: '9px 6px',
+                            borderRadius: '8px',
+                            border: isSelected ? '2px solid #1A2FB8' : '1px solid #CBD5E1',
+                            backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                            color: isSelected ? '#1A2FB8' : '#475569',
+                            fontSize: '12px',
+                            fontWeight: isSelected ? '800' : '600',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                          className="transition-all active:scale-95"
+                        >
+                          <span>{method.icon}</span>
+                          <span>{method.id}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4b. Purpose / Reason (Requirement 6) */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ ...styles.fieldLabel, margin: 0 }}>
+                      {medicationForm.medicationType === 'Curative' ? 'Purpose / Reason * (Mandatory)' : 'Purpose / Reason (Optional)'}
+                    </label>
+                    {medicationForm.medicationType === 'Curative' && (
+                      <span style={{ fontSize: '10.5px', color: '#DC2626', fontWeight: '700' }}>● Mandatory for Curative</span>
+                    )}
+                  </div>
+                  <select
+                    value={medicationForm.purpose}
+                    onChange={(e) => setMedicationForm({ ...medicationForm, purpose: e.target.value })}
+                    style={styles.selectInput}
+                    required={medicationForm.medicationType === 'Curative'}
+                  >
+                    <option value="">-- Select Purpose / Diagnosis --</option>
+                    {PURPOSE_REASONS.map(reason => (
+                      <option key={reason} value={reason}>{reason}</option>
+                    ))}
+                  </select>
+
+                  {medicationForm.purpose === 'Other' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <label style={{ ...styles.fieldLabel, color: '#D97706' }}>Custom Purpose / Reason *</label>
+                      <input
+                        type="text"
+                        value={medicationForm.customPurpose}
+                        onChange={(e) => setMedicationForm({ ...medicationForm, customPurpose: e.target.value })}
+                        style={{ ...styles.inputField, borderColor: '#FDE68A', backgroundColor: '#FFFDF5' }}
+                        placeholder="Specify symptom or diagnosis..."
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 5. Remarks / Notes & Photo Upload (Requirements 7, 8) */}
+              <div style={styles.harvestDetailsCard}>
+                {/* 5a. Multiline Remarks / Notes (Requirement 7) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>Remarks / Notes</label>
+                  <textarea
+                    value={medicationForm.remarks}
+                    onChange={(e) => setMedicationForm({ ...medicationForm, remarks: e.target.value })}
+                    style={{ ...styles.inputField, minHeight: '68px', resize: 'vertical' }}
+                    placeholder="Enter observations, symptoms, or additional notes..."
+                    rows={3}
+                  />
+                </div>
+
+                {/* 5b. Photo Upload Section (Requirement 8) */}
+                <div>
+                  <label style={styles.fieldLabel}>Attach Verification Photo (Optional)</label>
+                  
+                  {/* Photo Target Pill Selector */}
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+                    {PHOTO_TYPES.map(pType => {
+                      const isSelected = medicationForm.photoCategory === pType;
+                      return (
+                        <button
+                          key={pType}
+                          type="button"
+                          onClick={() => setMedicationForm({ ...medicationForm, photoCategory: pType })}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '16px',
+                            fontSize: '11px',
+                            fontWeight: isSelected ? '700' : '600',
+                            backgroundColor: isSelected ? '#1A2FB8' : '#F1F5F9',
+                            color: isSelected ? '#FFFFFF' : '#475569',
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
+                          }}
+                          className="transition-all active:scale-95"
+                        >
+                          📷 {pType}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!medicationForm.photoUrl ? (
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '12px',
+                      border: '1.5px dashed #CBD5E1',
+                      borderRadius: '10px',
+                      backgroundColor: '#F8FAFC',
+                      cursor: 'pointer',
+                      fontSize: '12.5px',
+                      fontWeight: '600',
+                      color: '#1A2FB8'
+                    }} className="hover:bg-blue-50 transition-colors">
+                      <Camera size={16} />
+                      <span>Capture / Upload {medicationForm.photoCategory} Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleMedicationPhotoUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      backgroundColor: '#EFF6FF',
+                      border: '1px solid #BFDBFE'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img 
+                          src={medicationForm.photoUrl} 
+                          alt="Medication Evidence" 
+                          style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #DBEAFE' }} 
+                        />
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#1A2FB8' }}>
+                            {medicationForm.photoCategory}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>
+                            {medicationForm.photoName || 'Photo attached'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMedicationForm(prev => ({ ...prev, photoUrl: '', photoName: '' }))}
+                        style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', padding: '6px' }}
+                        title="Remove photo"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 6. Read-Only System Metadata Display (Requirement 9) */}
+              <div style={{
+                backgroundColor: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+                fontSize: '11.5px',
+                color: '#64748B'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={13} color="#2563EB" />
+                  <span>Date: <strong style={{ color: '#0F172A' }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={13} color="#2563EB" />
+                  <span>Time: <strong style={{ color: '#0F172A' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <UserCheck size={13} color="#16A34A" />
+                  <span>Logged By: <strong style={{ color: '#0F172A' }}>{isIncharge ? (inchargeSession?.name || 'Incharge') : (session?.name || 'Ramesh')} ({isIncharge ? (inchargeSession?.inchargeId || 'INC001') : (session?.agentId || 'agent001')})</strong></span>
+                </div>
+              </div>
+
             </div>
           )}
 

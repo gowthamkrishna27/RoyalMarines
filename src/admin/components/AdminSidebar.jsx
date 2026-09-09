@@ -2,23 +2,41 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutGrid, Globe, Users, UserCheck, Tractor, 
-  ClipboardList, ShieldCheck, BarChart3, Download, 
-  History, Settings, MapPin
+  ClipboardList, BarChart3, Download, History, Settings
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
-  const menuItems = [
-    { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={18} /> },
-    { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={18} /> },
-    { name: 'ASMs', path: '/admin/incharges', icon: <Users size={18} /> },
-    { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
-    { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
-    { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> },
-
-    { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={18} /> },
-    { name: 'Export Center', path: '/admin/export-center', icon: <Download size={18} /> },
-    { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },
-    { name: 'System Settings', path: '/admin/settings', icon: <Settings size={18} /> }
+  const navSections = [
+    {
+      title: null,
+      items: [
+        { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={18} /> }
+      ]
+    },
+    {
+      title: 'Operations',
+      items: [
+        { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={18} /> },
+        { name: 'ASMs', path: '/admin/incharges', icon: <Users size={18} /> },
+        { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
+        { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
+        { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> }
+      ]
+    },
+    {
+      title: 'Analytics',
+      items: [
+        { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={18} /> },
+        { name: 'Export Center', path: '/admin/export-center', icon: <Download size={18} /> }
+      ]
+    },
+    {
+      title: 'Administration',
+      items: [
+        { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },
+        { name: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> }
+      ]
+    }
   ];
 
   return (
@@ -26,41 +44,49 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
       ...styles.sidebarContainer,
       ...(isMobileDrawer ? styles.mobileSidebarOverride : {})
     }}>
-      <div style={styles.portalTag}>
-        ENTERPRISE ADMIN PORTAL
-      </div>
-
-      <nav style={styles.navList}>
-        {menuItems.map((item, idx) => (
-          <NavLink
-            key={idx}
-            to={item.path}
-            onClick={() => onNavigate && onNavigate()}
-            style={({ isActive }) => ({
-              ...styles.link,
-              ...(isActive ? styles.activeLink : styles.inactiveLink)
-            })}
-          >
-            {({ isActive }) => (
-              <>
-                <span style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  color: isActive ? '#ffffff' : '#475569',
-                  transition: 'color 0.15s'
-                }}>
-                  {item.icon}
-                </span>
-                <span style={{ 
-                  fontSize: '13.5px', 
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? '#ffffff' : '#334155'
-                }}>
-                  {item.name}
-                </span>
-              </>
+      <nav style={styles.navWrapper}>
+        {navSections.map((section, sIdx) => (
+          <div key={sIdx} style={styles.sectionGroup}>
+            {section.title && (
+              <div style={styles.sectionTitle}>
+                {section.title}
+              </div>
             )}
-          </NavLink>
+            <div style={styles.sectionItems}>
+              {section.items.map((item, iIdx) => (
+                <NavLink
+                  key={iIdx}
+                  to={item.path}
+                  onClick={() => onNavigate && onNavigate()}
+                  style={({ isActive }) => ({
+                    ...styles.link,
+                    ...(isActive ? styles.activeLink : styles.inactiveLink)
+                  })}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        color: isActive ? '#FFFFFF' : '#64748B',
+                        flexShrink: 0
+                      }}>
+                        {item.icon}
+                      </span>
+                      <span style={{ 
+                        fontSize: '13px', 
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive ? '#FFFFFF' : '#0F172A',
+                        letterSpacing: '-0.01em'
+                      }}>
+                        {item.name}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
     </aside>
@@ -69,18 +95,19 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
 
 const styles = {
   sidebarContainer: {
-    width: '235px',
-    backgroundColor: '#ffffff',
+    width: '240px',
+    backgroundColor: '#FFFFFF',
     borderRadius: '16px',
-    border: '1px solid #e2e8f0',
-    padding: '16px 10px',
+    border: '1px solid #E2E8F0',
+    padding: '16px 12px',
     margin: '16px 0 16px 16px',
     display: 'flex',
     flexDirection: 'column',
-    height: 'calc(100vh - 100px)',
+    height: 'calc(100vh - 96px)',
     overflowY: 'auto',
     flexShrink: 0,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)',
+    fontFamily: 'Inter, system-ui, sans-serif'
   },
   mobileSidebarOverride: {
     width: '100%',
@@ -91,17 +118,25 @@ const styles = {
     borderRadius: 0,
     padding: '8px 4px',
   },
-  portalTag: {
+  navWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  sectionGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  sectionTitle: {
     fontSize: '11px',
     fontWeight: 700,
-    color: '#94a3b8',
+    color: '#94A3B8',
     letterSpacing: '0.6px',
-    padding: '6px 12px 14px 12px',
     textTransform: 'uppercase',
-    borderBottom: '1px solid #f1f5f9',
-    marginBottom: '8px'
+    padding: '4px 10px 4px',
   },
-  navList: {
+  sectionItems: {
     display: 'flex',
     flexDirection: 'column',
     gap: '3px'
@@ -109,22 +144,21 @@ const styles = {
   link: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '10px 14px',
+    gap: '10px',
+    padding: '8px 12px',
     borderRadius: '10px',
     textDecoration: 'none',
     transition: 'all 0.15s ease-in-out',
     cursor: 'pointer'
   },
   activeLink: {
-    backgroundColor: '#1d4ed8', // Vibrant deep blue as seen in screenshot
-    boxShadow: '0 2px 6px rgba(29, 78, 216, 0.25)'
+    backgroundColor: '#2563EB',
+    color: '#FFFFFF',
+    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
   },
   inactiveLink: {
     backgroundColor: 'transparent',
-    '&:hover': {
-      backgroundColor: '#f8fafc'
-    }
+    color: '#0F172A',
   }
 };
 

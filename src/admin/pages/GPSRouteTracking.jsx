@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import {
   Search, Calendar, Download, Play, Pause, Square, MapPin,
   Clock, Battery, Wifi, Activity, User, Briefcase, Navigation,
-  AlertTriangle, Info, CheckCircle2, XCircle, Droplet, UserCircle, Map
+  AlertTriangle, Info, CheckCircle2, XCircle, Droplet, UserCircle, Map as MapIcon, ChevronRight
 } from 'lucide-react';
 import { getMockRouteData } from '../utils/mockRouteData';
 import * as XLSX from 'xlsx';
@@ -14,19 +14,19 @@ import * as XLSX from 'xlsx';
 const createCustomIcon = (color) => {
   return L.divIcon({
     className: 'custom-icon',
-    html: `<div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.4);"></div>`,
+    html: `<div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(15,23,42,0.35);"></div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
 };
 
 const icons = {
-  LOGIN: createCustomIcon('#22c55e'),
-  LOGOUT: createCustomIcon('#ef4444'),
-  TANK_VISIT: createCustomIcon('#3b82f6'),
-  FARMER_VISIT: createCustomIcon('#f59e0b'),
-  LONG_STOP: createCustomIcon('#eab308'),
-  MOVING: createCustomIcon('#94a3b8')
+  LOGIN: createCustomIcon('#16A34A'),
+  LOGOUT: createCustomIcon('#DC2626'),
+  TANK_VISIT: createCustomIcon('#2563EB'),
+  FARMER_VISIT: createCustomIcon('#F59E0B'),
+  LONG_STOP: createCustomIcon('#EAB308'),
+  MOVING: createCustomIcon('#94A3B8')
 };
 
 // Component to dynamically fit bounds of the map based on route
@@ -35,7 +35,7 @@ const RouteBounds = ({ route }) => {
   useEffect(() => {
     if (route && route.length > 0) {
       const bounds = L.latLngBounds(route.map(p => [p.lat, p.lng]));
-      map.fitBounds(bounds, { padding: [50, 50] });
+      map.fitBounds(bounds, { padding: [40, 40] });
     }
   }, [route, map]);
   return null;
@@ -43,7 +43,7 @@ const RouteBounds = ({ route }) => {
 
 const GPSRouteTracking = () => {
   const [employeeType, setEmployeeType] = useState('All');
-  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('emp-1');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [trackingData, setTrackingData] = useState(null);
 
@@ -162,105 +162,176 @@ const GPSRouteTracking = () => {
 
   return (
     <div style={styles.container}>
-      {/* HEADER & FILTERS (Sticky) */}
-      <div style={styles.stickyHeader}>
+      {/* SECTION HEADER & FILTERS */}
+      <div style={styles.sectionHeaderCard}>
         <div style={styles.headerTitleRow}>
           <div>
-            <h1 style={styles.pageTitle}>GPS Route Tracking</h1>
-            <p style={styles.pageSubtitle}>Track and replay complete movement history during working hours.</p>
+            <h2 style={styles.sectionTitle}>Agent Tracking &amp; Live Map</h2>
+            <p style={styles.sectionSubtitle}>Monitor field operations, route replay, and pond audit compliance</p>
           </div>
           <div style={styles.actionButtons}>
-            <button style={styles.exportBtn} onClick={handleExportExcel}><Download size={16} /> Export Excel</button>
+            <button
+              type="button"
+              style={styles.exportBtn}
+              onClick={handleExportExcel}
+            >
+              <Download size={15} />
+              <span>Export Excel</span>
+            </button>
           </div>
         </div>
 
+        {/* Filter Bar */}
         <div style={styles.filterBar}>
-          <select style={styles.select} value={employeeType} onChange={e => setEmployeeType(e.target.value)}>
-            <option value="All">All Employees</option>
+          <select
+            style={styles.selectInput}
+            value={employeeType}
+            onChange={e => setEmployeeType(e.target.value)}
+          >
+            <option value="All">All Roles</option>
             <option value="Agents">Agents</option>
             <option value="Incharges">Incharges</option>
           </select>
 
-          <div style={styles.searchBox}>
-            <Search size={16} color="#94a3b8" />
+          <div style={styles.searchSelectBox}>
+            <Search size={16} color="#64748B" />
             <select
-              style={styles.searchInput}
+              style={styles.selectInputBare}
               value={selectedEmployee}
               onChange={e => setSelectedEmployee(e.target.value)}
             >
-              <option value="">▼ Select Employee</option>
+              <option value="">Select Employee...</option>
               {employeeList.map(e => (
-                <option key={e.id} value={e.id}>{e.status === 'Online' ? '🟢 ' : '⚪ '}{e.name} ({e.id}) - {e.type}</option>
+                <option key={e.id} value={e.id}>
+                  {e.status === 'Online' ? '🟢 ' : '⚪ '}{e.name} ({e.id}) - {e.type}
+                </option>
               ))}
             </select>
           </div>
 
           <div style={styles.datePickerContainer}>
-            <Calendar size={16} color="#94a3b8" />
-            <input type="date" style={styles.dateInput} value={date} onChange={e => setDate(e.target.value)} />
+            <Calendar size={16} color="#64748B" />
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
           </div>
 
-          <button style={styles.primaryBtn} disabled={!selectedEmployee}>
-            <Map size={16} /> View Route
+          <button
+            type="button"
+            style={styles.viewRouteBtn}
+            disabled={!selectedEmployee}
+            onClick={() => {
+              if (selectedEmployee) {
+                setTrackingData(getMockRouteData(date, selectedEmployee));
+              }
+            }}
+          >
+            <MapIcon size={15} />
+            <span>View Route</span>
           </button>
         </div>
       </div>
 
       {trackingData ? (
-        <div style={styles.mainContent}>
-          {/* LEFT SIDEBAR - Summary & Stats */}
-          <div style={styles.sidebarColumn}>
-            {/* Employee Summary Card */}
+        <div style={styles.mainGrid}>
+          {/* LEFT COLUMN - Agent Summary, Daily Stats, Alerts */}
+          <div style={styles.leftColumn}>
+            {/* 1. Agent Summary Card */}
             <div style={styles.card}>
-              <div style={styles.cardHeader}>
-                <div style={styles.empPhoto}><User size={24} color="#1d4ed8" /></div>
-                <div>
-                  <h3 style={styles.empName}>{trackingData.employeeInfo.name}</h3>
-                  <p style={styles.empId}>{trackingData.employeeInfo.id} • {trackingData.employeeInfo.role}</p>
+              <div style={styles.agentHeader}>
+                <div style={styles.agentAvatar}>
+                  <User size={20} color="#2563EB" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                    <h3 style={styles.agentName}>{trackingData.employeeInfo.name}</h3>
+                    <span style={{
+                      ...styles.statusBadge,
+                      backgroundColor: trackingData.employeeInfo.status === 'Online' ? '#DCFCE7' : '#F1F5F9',
+                      color: trackingData.employeeInfo.status === 'Online' ? '#16A34A' : '#64748B'
+                    }}>
+                      {trackingData.employeeInfo.status}
+                    </span>
+                  </div>
+                  <p style={styles.agentSub}>{trackingData.employeeInfo.id} • {trackingData.employeeInfo.role}</p>
                 </div>
               </div>
-              <div style={styles.grid2Col}>
-                <div style={styles.statItem}><MapPin size={14} /> <span>{trackingData.employeeInfo.area}</span></div>
-                <div style={styles.statItem}><Clock size={14} /> <span>{trackingData.employeeInfo.workingHours}</span></div>
-                <div style={styles.statItem}><Navigation size={14} /> <span>{trackingData.employeeInfo.totalDistance}</span></div>
-                <div style={styles.statItem}><Battery size={14} /> <span>{trackingData.employeeInfo.battery}</span></div>
-                <div style={styles.statItem}><Wifi size={14} /> <span>{trackingData.employeeInfo.internet}</span></div>
-                <div style={styles.statItem}><Activity size={14} /> <span>{trackingData.employeeInfo.productivityScore}/100</span></div>
+
+              <div style={styles.specsGrid}>
+                <div style={styles.specItem}>
+                  <MapPin size={14} color="#64748B" />
+                  <span style={styles.specText}>{trackingData.employeeInfo.area}</span>
+                </div>
+                <div style={styles.specItem}>
+                  <Clock size={14} color="#64748B" />
+                  <span style={styles.specText}>{trackingData.employeeInfo.workingHours}</span>
+                </div>
+                <div style={styles.specItem}>
+                  <Navigation size={14} color="#64748B" />
+                  <span style={styles.specText}>{trackingData.employeeInfo.totalDistance}</span>
+                </div>
+                <div style={styles.specItem}>
+                  <Battery size={14} color="#64748B" />
+                  <span style={styles.specText}>{trackingData.employeeInfo.battery}</span>
+                </div>
+                <div style={styles.specItem}>
+                  <Wifi size={14} color="#64748B" />
+                  <span style={styles.specText}>{trackingData.employeeInfo.internet}</span>
+                </div>
+                <div style={styles.specItem}>
+                  <Activity size={14} color="#2563EB" />
+                  <span style={{ ...styles.specText, fontWeight: 700, color: '#2563EB' }}>
+                    Score: {trackingData.employeeInfo.productivityScore}/100
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Daily Stats */}
+            {/* 2. Daily Statistics Card */}
             <div style={styles.card}>
               <h4 style={styles.cardTitle}>Daily Statistics</h4>
               <div style={styles.statsGrid}>
                 <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Travel Time</div>
-                  <div style={styles.statValue}>{trackingData.stats.travelTime}</div>
+                  <span style={styles.statLabel}>TRAVEL TIME</span>
+                  <span style={styles.statValue}>{trackingData.stats.travelTime}</span>
                 </div>
                 <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Idle Time</div>
-                  <div style={styles.statValue}>{trackingData.stats.idleTime}</div>
+                  <span style={styles.statLabel}>IDLE TIME</span>
+                  <span style={styles.statValue}>{trackingData.stats.idleTime}</span>
                 </div>
                 <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Avg Speed</div>
-                  <div style={styles.statValue}>{trackingData.stats.avgSpeed}</div>
+                  <span style={styles.statLabel}>AVG SPEED</span>
+                  <span style={styles.statValue}>{trackingData.stats.avgSpeed}</span>
                 </div>
                 <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Tank Visits</div>
-                  <div style={styles.statValue}>{trackingData.stats.tankVisits}</div>
+                  <span style={styles.statLabel}>TANK VISITS</span>
+                  <span style={styles.statValue}>{trackingData.stats.tankVisits}</span>
                 </div>
               </div>
             </div>
 
-            {/* Smart Alerts */}
-            {trackingData.alerts.length > 0 && (
+            {/* 3. Smart Alerts Card */}
+            {trackingData.alerts && trackingData.alerts.length > 0 && (
               <div style={styles.card}>
                 <h4 style={styles.cardTitle}>Smart Alerts</h4>
                 <div style={styles.alertsList}>
                   {trackingData.alerts.map(alert => (
-                    <div key={alert.id} style={{ ...styles.alertItem, borderLeftColor: alert.type === 'WARNING' ? '#ef4444' : '#f59e0b' }}>
-                      <div style={styles.alertIcon}>
-                        {alert.type === 'WARNING' ? <AlertTriangle size={16} color="#ef4444" /> : <Info size={16} color="#f59e0b" />}
+                    <div
+                      key={alert.id}
+                      style={{
+                        ...styles.alertItem,
+                        borderLeftColor: alert.type === 'WARNING' ? '#DC2626' : '#F59E0B'
+                      }}
+                    >
+                      <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                        {alert.type === 'WARNING' ? (
+                          <AlertTriangle size={16} color="#DC2626" />
+                        ) : (
+                          <Info size={16} color="#F59E0B" />
+                        )}
                       </div>
                       <div>
                         <div style={styles.alertTitle}>{alert.title}</div>
@@ -273,118 +344,175 @@ const GPSRouteTracking = () => {
             )}
           </div>
 
-          {/* MAIN COLUMN - Map & Replay */}
-          <div style={styles.mapColumn}>
-            <div style={styles.mapWrapper}>
-              <MapContainer
-                center={[visibleRoute[0]?.lat || 16.5449, visibleRoute[0]?.lng || 81.5212]}
-                zoom={12}
-                style={{ height: '100%', width: '100%', borderRadius: '12px' }}
-              >
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-                />
+          {/* RIGHT COLUMN - Live Map & Replay + Timeline & Tank Verification */}
+          <div style={styles.rightColumn}>
+            {/* Live Map Card */}
+            <div style={styles.mapCard}>
+              <div style={styles.mapContainer}>
+                <MapContainer
+                  center={[visibleRoute[0]?.lat || 16.5449, visibleRoute[0]?.lng || 81.5212]}
+                  zoom={12}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    attribution='&copy; OpenStreetMap contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
 
-                <RouteBounds route={trackingData.route} />
+                  <RouteBounds route={trackingData.route} />
 
-                {polylinePositions.length > 1 && (
-                  <Polyline positions={polylinePositions} color="#3b82f6" weight={4} opacity={0.8} />
-                )}
+                  {polylinePositions.length > 1 && (
+                    <Polyline positions={polylinePositions} color="#2563EB" weight={4} opacity={0.85} />
+                  )}
 
-                {visibleRoute.map(point => (
-                  <Marker
-                    key={point.id}
-                    position={[point.lat, point.lng]}
-                    icon={icons[point.type] || icons.MOVING}
+                  {visibleRoute.map(point => (
+                    <Marker
+                      key={point.id}
+                      position={[point.lat, point.lng]}
+                      icon={icons[point.type] || icons.MOVING}
+                    >
+                      <Popup>
+                        <div style={styles.popupContent}>
+                          <div style={styles.popupTitle}>{point.locationName}</div>
+                          <div style={styles.popupRow}><span>Time:</span> <strong>{point.time}</strong></div>
+                          <div style={styles.popupRow}><span>Duration:</span> {point.duration}</div>
+                          <div style={styles.popupRow}><span>Purpose:</span> {point.purpose}</div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+              </div>
+
+              {/* Playback Control Bar */}
+              <div style={styles.playbackBar}>
+                <div style={styles.playbackLeft}>
+                  <button
+                    type="button"
+                    onClick={handlePlayPause}
+                    style={styles.playBtn}
+                    aria-label={isReplaying ? "Pause replay" : "Play route replay"}
                   >
-                    <Popup>
-                      <div style={styles.popupContent}>
-                        <strong>{point.locationName}</strong>
-                        <div style={styles.popupRow}><span>Time:</span> {point.time}</div>
-                        <div style={styles.popupRow}><span>Duration:</span> {point.duration}</div>
-                        <div style={styles.popupRow}><span>Purpose:</span> {point.purpose}</div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
+                    {isReplaying ? <Pause size={16} /> : <Play size={16} />}
+                  </button>
 
-              {/* Replay Controls Overlay */}
-              <div style={styles.replayControls}>
-                <button onClick={handlePlayPause} style={styles.replayBtn}>
-                  {isReplaying ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-                <button onClick={handleStop} style={styles.replayBtn}>
-                  <Square size={18} />
-                </button>
-                <div style={styles.replayProgress}>
-                  <div style={{
-                    height: '100%',
-                    backgroundColor: '#1d4ed8',
-                    width: `${((replayIndex + 1) / trackingData.route.length) * 100}%`
-                  }} />
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    style={styles.stopBtn}
+                    aria-label="Stop replay"
+                  >
+                    <Square size={14} />
+                  </button>
                 </div>
-                <span style={styles.replayTime}>
-                  {visibleRoute[visibleRoute.length - 1]?.time || '00:00 AM'}
-                </span>
+
+                <div style={styles.progressBarWrapper}>
+                  <div
+                    style={{
+                      ...styles.progressBarFill,
+                      width: `${((replayIndex + 1) / trackingData.route.length) * 100}%`
+                    }}
+                  />
+                </div>
+
+                <div style={styles.playbackTimestamp}>
+                  <Clock size={13} color="#64748B" />
+                  <span>{visibleRoute[visibleRoute.length - 1]?.time || '09:00 AM'}</span>
+                </div>
               </div>
             </div>
 
-            {/* BOTTOM SECTION - Timeline & Tanks */}
-            <div style={styles.bottomSection}>
-              <div style={{ ...styles.card, flex: 1 }}>
-                <h4 style={styles.cardTitle}>Route Timeline</h4>
-                <div style={styles.timeline}>
+            {/* Bottom Row - Route Timeline & Tank Visit Verification */}
+            <div style={styles.bottomSplit}>
+              {/* Route Timeline */}
+              <div style={styles.card}>
+                <div style={styles.cardHeaderFlex}>
+                  <h4 style={styles.cardTitle}>Route Timeline</h4>
+                  <span style={styles.timelineCountBadge}>{trackingData.route.length} Checkpoints</span>
+                </div>
+
+                <div style={styles.timelineList}>
                   {trackingData.route.map((item, idx) => (
                     <div key={item.id} style={styles.timelineItem}>
-                      <div style={styles.timelineTime}>{item.time}</div>
-                      <div style={styles.timelineDotLine}>
-                        <div style={{ ...styles.timelineDot, backgroundColor: item.type === 'LOGIN' ? '#22c55e' : item.type === 'LOGOUT' ? '#ef4444' : '#3b82f6' }} />
-                        {idx !== trackingData.route.length - 1 && <div style={styles.timelineLine} />}
+                      <div style={styles.timelineTimeCol}>
+                        {item.time}
                       </div>
-                      <div style={styles.timelineContent}>
+
+                      <div style={styles.timelineNodeCol}>
+                        <div
+                          style={{
+                            ...styles.timelineNode,
+                            backgroundColor: item.type === 'LOGIN' ? '#16A34A' : item.type === 'LOGOUT' ? '#DC2626' : '#2563EB'
+                          }}
+                        />
+                        {idx !== trackingData.route.length - 1 && (
+                          <div style={styles.timelineConnector} />
+                        )}
+                      </div>
+
+                      <div style={styles.timelineContentCol}>
                         <div style={styles.timelineTitle}>{item.locationName}</div>
-                        <div style={styles.timelineDesc}>{item.purpose} • {item.duration}</div>
+                        <div style={styles.timelineSubtitle}>
+                          {item.purpose} {item.duration ? `• ${item.duration}` : ''}
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={{ ...styles.card, flex: 1 }}>
-                <h4 style={styles.cardTitle}>Tank Visit Verification</h4>
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.thRow}>
-                      <th style={styles.th}>Tank</th>
-                      <th style={styles.th}>Farmer</th>
-                      <th style={styles.th}>Time</th>
-                      <th style={styles.th}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trackingData.assignedTanks.map((t, idx) => (
-                      <tr key={idx} style={styles.tdRow}>
-                        <td style={styles.td}><strong>{t.name}</strong></td>
-                        <td style={styles.td}>{t.farmer}</td>
-                        <td style={styles.td}>{t.arrival}</td>
-                        <td style={styles.td}>
-                          {t.verified ? <CheckCircle2 size={16} color="#16a34a" /> : <XCircle size={16} color="#ef4444" />}
-                        </td>
+              {/* Tank Visit Verification */}
+              <div style={styles.card}>
+                <div style={styles.cardHeaderFlex}>
+                  <h4 style={styles.cardTitle}>Tank Verification</h4>
+                  <span style={styles.timelineCountBadge}>{trackingData.assignedTanks.length} Tanks</span>
+                </div>
+
+                <div style={styles.tableContainer}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr style={styles.tableHeaderRow}>
+                        <th style={styles.th}>Tank</th>
+                        <th style={styles.th}>Farmer</th>
+                        <th style={styles.th}>Arrival</th>
+                        <th style={styles.th}>Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {trackingData.assignedTanks.map((t, idx) => (
+                        <tr key={idx} style={styles.tableRow}>
+                          <td style={styles.tdBold}>{t.name}</td>
+                          <td style={styles.td}>{t.farmer}</td>
+                          <td style={styles.td}>{t.arrival}</td>
+                          <td style={styles.td}>
+                            {t.verified ? (
+                              <span style={styles.verifiedChip}>
+                                <CheckCircle2 size={13} />
+                                <span>Verified</span>
+                              </span>
+                            ) : (
+                              <span style={styles.missedChip}>
+                                <XCircle size={13} />
+                                <span>Missed</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div style={styles.emptyState}>
-          <Navigation size={48} color="#cbd5e1" />
-          <h3>Select an employee to view tracking data</h3>
-          <p>Choose an agent or incharge and select a date to replay their daily route.</p>
+        <div style={styles.emptyCard}>
+          <div style={styles.emptyIconBox}>
+            <Navigation size={32} color="#64748B" />
+          </div>
+          <h3 style={styles.emptyTitle}>Select an employee to view tracking data</h3>
+          <p style={styles.emptyDesc}>Choose a field agent or incharge and date to inspect route history and pond visits.</p>
         </div>
       )}
     </div>
@@ -393,372 +521,581 @@ const GPSRouteTracking = () => {
 
 const styles = {
   container: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
     fontFamily: 'Inter, system-ui, sans-serif'
   },
-  stickyHeader: {
-    position: 'sticky',
-    top: 0,
-    backgroundColor: '#f8fafc',
-    zIndex: 10,
-    paddingBottom: '20px',
-    marginBottom: '20px',
-    borderBottom: '1px solid #e2e8f0'
+
+  sectionHeaderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E2E8F0',
+    padding: '20px 24px',
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.06)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
   },
+
   headerTitleRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px'
-  },
-  pageTitle: {
-    margin: 0,
-    fontSize: '24px',
-    fontWeight: 700,
-    color: '#0f172a'
-  },
-  pageSubtitle: {
-    margin: '4px 0 0 0',
-    fontSize: '14px',
-    color: '#64748b'
-  },
-  actionButtons: {
-    display: 'flex',
+    flexWrap: 'wrap',
     gap: '12px'
   },
-  exportBtn: {
+
+  sectionTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#0F172A',
+    margin: 0,
+    letterSpacing: '-0.01em'
+  },
+
+  sectionSubtitle: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#64748B',
+    margin: '3px 0 0 0'
+  },
+
+  actionButtons: {
     display: 'flex',
+    gap: '10px'
+  },
+
+  exportBtn: {
+    display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
     padding: '8px 16px',
-    backgroundColor: '#ffffff',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    cursor: 'pointer',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    color: '#0F172A',
     fontSize: '13px',
     fontWeight: 600,
-    color: '#334155'
-  },
-  primaryBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 20px',
-    backgroundColor: '#1d4ed8',
-    border: 'none',
-    borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#ffffff'
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+    transition: 'all 0.15s ease'
   },
+
   filterBar: {
     display: 'flex',
-    gap: '16px',
+    gap: '12px',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    padding: '12px 20px',
-    borderRadius: '12px',
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+    flexWrap: 'wrap'
   },
-  select: {
-    padding: '10px 14px',
-    borderRadius: '8px',
-    border: '1px solid #d1d5db',
+
+  selectInput: {
+    padding: '0 12px',
+    height: '42px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
     outline: 'none',
-    fontSize: '14px',
-    color: '#1e293b'
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC'
   },
-  searchBox: {
+
+  searchSelectBox: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    padding: '0 14px',
-    flex: 1,
-    height: '42px'
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    padding: '0 12px',
+    flex: '1 1 220px',
+    height: '42px',
+    backgroundColor: '#F8FAFC'
   },
-  searchInput: {
+
+  selectInputBare: {
     border: 'none',
     outline: 'none',
     width: '100%',
-    fontSize: '14px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#0F172A',
     backgroundColor: 'transparent'
   },
+
   datePickerContainer: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    padding: '0 14px',
-    height: '42px'
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    padding: '0 12px',
+    height: '42px',
+    backgroundColor: '#F8FAFC'
   },
+
   dateInput: {
     border: 'none',
     outline: 'none',
-    fontSize: '14px'
+    fontSize: '13px',
+    color: '#0F172A',
+    backgroundColor: 'transparent'
   },
-  mainContent: {
-    display: 'flex',
-    gap: '24px',
+
+  viewRouteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '0 18px',
+    height: '42px',
+    backgroundColor: '#2563EB',
+    border: 'none',
+    borderRadius: '10px',
+    color: '#FFFFFF',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+    transition: 'all 0.15s ease'
+  },
+
+  mainGrid: {
+    display: 'grid',
+    gridTemplateColumns: '320px 1fr',
+    gap: '20px',
     alignItems: 'flex-start'
   },
-  sidebarColumn: {
-    width: '320px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-    flexShrink: 0
-  },
-  mapColumn: {
-    flex: 1,
+
+  leftColumn: {
     display: 'flex',
     flexDirection: 'column',
     gap: '20px'
   },
+
+  rightColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px'
+  },
+
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: '16px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid #E2E8F0',
     padding: '20px',
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.06)'
   },
+
+  cardHeaderFlex: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px'
+  },
+
   cardTitle: {
-    margin: '0 0 16px 0',
-    fontSize: '16px',
+    margin: '0 0 14px 0',
+    fontSize: '15px',
     fontWeight: 600,
-    color: '#0f172a'
+    color: '#0F172A'
   },
-  cardHeader: {
+
+  agentHeader: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    marginBottom: '20px'
+    gap: '12px',
+    marginBottom: '16px',
+    paddingBottom: '14px',
+    borderBottom: '1px solid #F1F5F9'
   },
-  empPhoto: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '24px',
-    backgroundColor: '#eff6ff',
+
+  agentAvatar: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '10px',
+    backgroundColor: '#EFF6FF',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flexShrink: 0
   },
-  empName: {
+
+  agentName: {
     margin: 0,
-    fontSize: '18px',
+    fontSize: '15px',
     fontWeight: 700,
-    color: '#1e293b'
+    color: '#0F172A'
   },
-  empId: {
-    margin: '4px 0 0 0',
-    fontSize: '13px',
-    color: '#64748b'
+
+  agentSub: {
+    margin: '2px 0 0 0',
+    fontSize: '12px',
+    color: '#64748B'
   },
-  grid2Col: {
+
+  statusBadge: {
+    fontSize: '11px',
+    fontWeight: 700,
+    padding: '2px 8px',
+    borderRadius: '6px'
+  },
+
+  specsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '12px'
+    gap: '10px'
   },
-  statItem: {
+
+  specItem: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    fontSize: '13px',
-    color: '#475569'
+    fontSize: '12.5px',
+    color: '#334155'
   },
+
+  specText: {
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '12px'
+    gap: '10px'
   },
+
   statBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F8FAFC',
     padding: '12px',
     borderRadius: '10px',
-    border: '1px solid #f1f5f9'
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
   },
+
   statLabel: {
-    fontSize: '12px',
-    color: '#64748b',
-    marginBottom: '4px'
+    fontSize: '10.5px',
+    fontWeight: 600,
+    color: '#64748B',
+    letterSpacing: '0.4px'
   },
+
   statValue: {
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 700,
-    color: '#0f172a'
+    color: '#0F172A'
   },
+
   alertsList: {
     display: 'flex',
     flexDirection: 'column',
     gap: '10px'
   },
+
   alertItem: {
     display: 'flex',
-    gap: '12px',
-    padding: '12px',
-    backgroundColor: '#fff',
-    border: '1px solid #e2e8f0',
-    borderLeftWidth: '4px',
-    borderRadius: '8px'
+    gap: '10px',
+    padding: '10px 12px',
+    backgroundColor: '#F8FAFC',
+    borderRadius: '8px',
+    border: '1px solid #E2E8F0',
+    borderLeftWidth: '3px'
   },
-  alertIcon: {
-    marginTop: '2px'
-  },
+
   alertTitle: {
     fontSize: '13px',
     fontWeight: 600,
-    color: '#1e293b'
+    color: '#0F172A'
   },
+
   alertMsg: {
     fontSize: '12px',
-    color: '#64748b',
-    marginTop: '4px'
+    color: '#64748B',
+    marginTop: '2px'
   },
-  mapWrapper: {
-    height: '500px',
-    width: '100%',
+
+  mapCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: '16px',
+    border: '1px solid #E2E8F0',
     overflow: 'hidden',
-    position: 'relative',
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.06)'
   },
-  replayControls: {
-    position: 'absolute',
-    bottom: '20px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: '#ffffff',
-    borderRadius: '30px',
-    padding: '8px 16px',
+
+  mapContainer: {
+    height: '420px',
+    width: '100%'
+  },
+
+  playbackBar: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-    zIndex: 1000 // Leaflet map container is z-index 400
+    gap: '14px',
+    padding: '12px 20px',
+    backgroundColor: '#FFFFFF',
+    borderTop: '1px solid #E2E8F0'
   },
-  replayBtn: {
-    background: 'none',
+
+  playbackLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+
+  playBtn: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '8px',
+    backgroundColor: '#2563EB',
+    color: '#FFFFFF',
     border: 'none',
-    cursor: 'pointer',
-    color: '#1d4ed8',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
-    borderRadius: '16px',
-    transition: 'background-color 0.2s',
-    ':hover': { backgroundColor: '#eff6ff' }
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
   },
-  replayProgress: {
-    width: '150px',
+
+  stopBtn: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '8px',
+    backgroundColor: '#F1F5F9',
+    color: '#475569',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+  },
+
+  progressBarWrapper: {
+    flex: 1,
     height: '6px',
-    backgroundColor: '#e2e8f0',
-    borderRadius: '3px',
+    backgroundColor: '#F1F5F9',
+    borderRadius: '999px',
     overflow: 'hidden'
   },
-  replayTime: {
+
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#2563EB',
+    transition: 'width 0.2s ease'
+  },
+
+  playbackTimestamp: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
     fontSize: '13px',
     fontWeight: 600,
-    color: '#334155',
-    minWidth: '65px',
-    textAlign: 'right'
+    color: '#0F172A',
+    flexShrink: 0
   },
-  bottomSection: {
-    display: 'flex',
-    gap: '24px'
+
+  bottomSplit: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '20px'
   },
-  timeline: {
-    maxHeight: '350px',
-    overflowY: 'auto',
-    paddingRight: '10px'
-  },
-  timelineItem: {
-    display: 'flex',
-    gap: '16px',
-    marginBottom: '16px'
-  },
-  timelineTime: {
-    fontSize: '12px',
+
+  timelineCountBadge: {
+    fontSize: '11px',
     fontWeight: 600,
-    color: '#64748b',
-    width: '65px',
-    paddingTop: '2px'
+    color: '#2563EB',
+    backgroundColor: '#EFF6FF',
+    padding: '2px 8px',
+    borderRadius: '6px'
   },
-  timelineDotLine: {
+
+  timelineList: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center'
+    maxHeight: '320px',
+    overflowY: 'auto'
   },
-  timelineDot: {
-    width: '12px',
-    height: '12px',
-    borderRadius: '6px',
-    zIndex: 2
+
+  timelineItem: {
+    display: 'flex',
+    gap: '12px',
+    position: 'relative'
   },
-  timelineLine: {
+
+  timelineTimeCol: {
+    width: '70px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#64748B',
+    paddingTop: '2px',
+    flexShrink: 0
+  },
+
+  timelineNodeCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '16px',
+    flexShrink: 0
+  },
+
+  timelineNode: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    marginTop: '6px',
+    zIndex: 1
+  },
+
+  timelineConnector: {
     width: '2px',
     flex: 1,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#E2E8F0',
     margin: '4px 0'
   },
-  timelineContent: {
+
+  timelineContentCol: {
     flex: 1,
     paddingBottom: '16px'
   },
+
   timelineTitle: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 600,
-    color: '#1e293b'
+    color: '#0F172A'
   },
-  timelineDesc: {
+
+  timelineSubtitle: {
     fontSize: '12px',
-    color: '#64748b',
-    marginTop: '4px'
+    color: '#64748B',
+    marginTop: '2px'
   },
+
+  tableContainer: {
+    border: '1px solid #E2E8F0',
+    borderRadius: '10px',
+    overflow: 'hidden'
+  },
+
   table: {
     width: '100%',
     borderCollapse: 'collapse',
-    fontSize: '13px'
+    textAlign: 'left'
   },
-  thRow: {
-    backgroundColor: '#f8fafc',
-    borderBottom: '2px solid #e2e8f0'
+
+  tableHeaderRow: {
+    backgroundColor: '#F8FAFC',
+    borderBottom: '1px solid #E2E8F0'
   },
+
   th: {
-    textAlign: 'left',
-    padding: '12px',
+    padding: '10px 14px',
+    fontSize: '11.5px',
     fontWeight: 600,
-    color: '#64748b'
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px'
   },
-  tdRow: {
-    borderBottom: '1px solid #f1f5f9'
+
+  tableRow: {
+    borderBottom: '1px solid #F1F5F9',
+    transition: 'background-color 0.15s ease'
   },
+
   td: {
-    padding: '12px',
-    color: '#334155'
+    padding: '12px 14px',
+    fontSize: '12.5px',
+    color: '#64748B'
   },
+
+  tdBold: {
+    padding: '12px 14px',
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#0F172A'
+  },
+
+  verifiedChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#15803D',
+    backgroundColor: '#DCFCE7',
+    padding: '2px 8px',
+    borderRadius: '6px'
+  },
+
+  missedChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#DC2626',
+    backgroundColor: '#FEE2E2',
+    padding: '2px 8px',
+    borderRadius: '6px'
+  },
+
   popupContent: {
-    fontSize: '13px'
+    padding: '4px 6px',
+    fontFamily: 'Inter, system-ui, sans-serif'
   },
+
+  popupTitle: {
+    fontSize: '13px',
+    fontWeight: 700,
+    color: '#0F172A',
+    marginBottom: '4px'
+  },
+
   popupRow: {
-    marginTop: '4px',
-    '& span': { fontWeight: 600, color: '#64748b' }
+    fontSize: '12px',
+    color: '#475569',
+    marginTop: '2px'
   },
-  emptyState: {
+
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E2E8F0',
+    padding: '48px 24px',
+    textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '80px 20px',
-    textAlign: 'center',
-    backgroundColor: '#ffffff',
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.06)'
+  },
+
+  emptyIconBox: {
+    width: '64px',
+    height: '64px',
     borderRadius: '16px',
-    border: '1px dashed #cbd5e1'
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '16px'
+  },
+
+  emptyTitle: {
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#0F172A',
+    margin: '0 0 6px 0'
+  },
+
+  emptyDesc: {
+    fontSize: '13px',
+    color: '#64748B',
+    margin: 0,
+    maxWidth: '380px'
   }
 };
 
