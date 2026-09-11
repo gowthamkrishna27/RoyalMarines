@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAgents, getIncharges, getRegions } from '../utils/adminMockData';
+import { getAgents, getIncharges, getRegions, getFarmers } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import {
   Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Shield,
   Users, Building, Compass, Eye, Edit, RotateCcw,
   ChevronDown, CheckCircle2, Tractor, ClipboardList,
-  AlertCircle, Clock, Sparkles, Building2, Globe
+  AlertCircle, Clock, Sparkles, Building2, Globe, TestTube, Bell, Activity, Droplets
 } from 'lucide-react';
 
 const AgentsList = () => {
   const navigate = useNavigate();
   const regions = getRegions();
+  const { db, addNotification } = useMockData();
 
   // 1. Load Incharges from localStorage or fallback
   const [incharges, setIncharges] = useState(() => {
@@ -38,6 +40,31 @@ const AgentsList = () => {
     }
     return getAgents();
   });
+
+  // 3. Load Farmers from localStorage or fallback
+  const [farmersList] = useState(() => {
+    const saved = localStorage.getItem('royal_admin_farmers_data');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return getFarmers();
+      }
+    }
+    return getFarmers();
+  });
+
+  const [selectedAgentForFarmers, setSelectedAgentForFarmers] = useState(null);
+  const [farmerModalSearch, setFarmerModalSearch] = useState('');
+
+  // Tests & Due Tests Modal States
+  const [selectedAgentForTests, setSelectedAgentForTests] = useState(null);
+  const [testsModalSearch, setTestsModalSearch] = useState('');
+  const [testsModalFilter, setTestsModalFilter] = useState('ALL');
+
+  const [selectedAgentForDueTests, setSelectedAgentForDueTests] = useState(null);
+  const [dueModalSearch, setDueModalSearch] = useState('');
+  const [remindedTanks, setRemindedTanks] = useState({});
 
   // Persist to localStorage
   useEffect(() => {
@@ -172,6 +199,185 @@ const AgentsList = () => {
       return 0;
     });
   }, [agents, searchTerm, regionFilter, statusFilter, sortBy]);
+
+  // Filter assigned farmers for the selected agent modal
+  const filteredAgentFarmers = useMemo(() => {
+    if (!selectedAgentForFarmers) return [];
+    return farmersList.filter(f =>
+      f.agentId === selectedAgentForFarmers.id ||
+      f.agent?.toLowerCase().includes(selectedAgentForFarmers.name.toLowerCase().split(' ')[0]) ||
+      f.agent?.toLowerCase().includes(selectedAgentForFarmers.shortName?.toLowerCase() || '') ||
+      (f.locality && selectedAgentForFarmers.locality && f.locality.toLowerCase().trim() === selectedAgentForFarmers.locality.toLowerCase().trim())
+    ).filter(f => {
+      if (!farmerModalSearch) return true;
+      const term = farmerModalSearch.toLowerCase();
+      return (
+        f.name?.toLowerCase().includes(term) ||
+        f.phone?.includes(term) ||
+        f.village?.toLowerCase().includes(term) ||
+        f.waterSource?.toLowerCase().includes(term) ||
+        f.locality?.toLowerCase().includes(term)
+      );
+    });
+  }, [selectedAgentForFarmers, farmersList, farmerModalSearch]);
+
+  // Compute test records for the selected agent
+  const filteredAgentTests = useMemo(() => {
+    if (!selectedAgentForTests) return [];
+    const ag = selectedAgentForTests;
+    const rawSubs = (db?.submissions || []).filter(s =>
+      s.agentId === ag.id ||
+      s.agentName?.toLowerCase().includes(ag.name.toLowerCase().split(' ')[0]) ||
+      (ag.name.toLowerCase().includes('mahesh') && s.agentId === 'agent003') ||
+      (ag.name.toLowerCase().includes('ramesh') && s.agentId === 'agent001') ||
+      (ag.name.toLowerCase().includes('suresh') && s.agentId === 'agent002')
+    );
+
+    const farmers = (db?.farmers || []).filter(f =>
+      f.agentId === ag.id ||
+      (ag.name.toLowerCase().includes('mahesh') && f.agentId === 'agent003') ||
+      (ag.name.toLowerCase().includes('ramesh') && f.agentId === 'agent001') ||
+      (ag.name.toLowerCase().includes('suresh') && f.agentId === 'agent002')
+    );
+    const farmerNames = farmers.length > 0 ? farmers.map(f => f.name) : ['Ashok', 'Ravi', 'Krishna', 'Siva', 'Subba Rao'];
+
+    const testTypes = [
+      { type: 'Water Telemetry Analysis', category: 'WATER', icon: '💧', params: 'pH: 7.8 • DO: 6.2 mg/L • Salinity: 18 ppt • Temp: 29.4°C' },
+      { type: 'Weekly Feed & Biomass Sampling', category: 'FEED', icon: '⚖️', params: 'ABW: 16.4g • Feed Consumption: 85 kg/day • FCR: 1.18' },
+      { type: 'Soil & Alkaline Tray Audit', category: 'WATER', icon: '🧪', params: 'Alkalinity: 140 ppm • Ammonia: 0.02 ppm • Nitrite: 0.01 ppm' },
+      { type: 'Shrimp Health & Swimming Biocheck', category: 'HEALTH', icon: '🦐', params: 'Gut Fullness: 95% • Activity: Active • Zero Disease Symptoms' }
+    ];
+
+    const result = [...rawSubs.map((s, i) => {
+      const farmer = (db?.farmers || []).find(f => f.id === s.farmerId) || { name: s.farmerId || farmerNames[i % farmerNames.length] };
+      const tank = (db?.tanks || []).find(t => t.id === s.tankId) || { name: `Tank ${(i % 3) + 1}`, doc: 45 + (i * 3) };
+      const tt = testTypes[i % testTypes.length];
+      return {
+        id: s.id || `TEST-RM-${ag.id}-${100 + i}`,
+        date: s.date || '2026-08-24',
+        time: s.time || '09:30 AM',
+        farmerName: farmer.name,
+        tankName: tank.name || 'Tank 1',
+        doc: tank.doc || (45 + i),
+        testType: s.type || tt.type,
+        category: tt.category,
+        params: s.params || tt.params,
+        status: 'VERIFIED'
+      };
+    })];
+
+    const targetCount = ag.tests || 42;
+    for (let i = result.length; i < targetCount; i++) {
+      const tt = testTypes[i % testTypes.length];
+      const fName = farmerNames[i % farmerNames.length];
+      const dayOffset = Math.floor(i / 3);
+      const dateObj = new Date(2026, 7, 24 - dayOffset);
+      const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      result.push({
+        id: `TEST-RM-${ag.name.substring(0,3).toUpperCase()}-${200 + i}`,
+        date: dateStr,
+        time: `${(8 + (i % 8)).toString().padStart(2, '0')}:${(15 * (i % 4)).toString().padStart(2, '0')} ${i % 2 === 0 ? 'AM' : 'PM'}`,
+        farmerName: fName,
+        tankName: `Tank ${(i % 2) + 1}`,
+        doc: 30 + ((i * 2) % 65),
+        testType: tt.type,
+        category: tt.category,
+        params: tt.params,
+        status: 'VERIFIED'
+      });
+    }
+
+    return result.filter(item => {
+      const matchesFilter = testsModalFilter === 'ALL' || item.category === testsModalFilter;
+      if (!matchesFilter) return false;
+      if (!testsModalSearch) return true;
+      const term = testsModalSearch.toLowerCase();
+      return (
+        item.id.toLowerCase().includes(term) ||
+        item.farmerName.toLowerCase().includes(term) ||
+        item.tankName.toLowerCase().includes(term) ||
+        item.testType.toLowerCase().includes(term) ||
+        item.params.toLowerCase().includes(term)
+      );
+    });
+  }, [selectedAgentForTests, db, testsModalFilter, testsModalSearch]);
+
+  // Compute due tests for the selected agent
+  const filteredAgentDueTests = useMemo(() => {
+    if (!selectedAgentForDueTests) return [];
+    const ag = selectedAgentForDueTests;
+    const farmers = (db?.farmers || []).filter(f =>
+      f.agentId === ag.id ||
+      (ag.name.toLowerCase().includes('mahesh') && f.agentId === 'agent003') ||
+      (ag.name.toLowerCase().includes('ramesh') && f.agentId === 'agent001') ||
+      (ag.name.toLowerCase().includes('suresh') && f.agentId === 'agent002')
+    );
+    const farmerIds = farmers.map(f => f.id);
+
+    const agentTanks = (db?.tanks || []).filter(t =>
+      (farmerIds.includes(t.farmerId) || t.agentId === ag.id) &&
+      t.status !== 'Harvested' &&
+      (t.testStatus === 'Due' || t.testStatus === 'Overdue')
+    );
+
+    let list = [];
+    if (agentTanks.length > 0) {
+      list = agentTanks.map((t, idx) => {
+        const farmer = farmers.find(f => f.id === t.farmerId) || (db?.farmers || []).find(f => f.id === t.farmerId) || { name: 'Local Farmer', phone: ag.phone, locality: ag.locality };
+        const isOverdue = t.testStatus === 'Overdue' || idx === 0;
+        return {
+          tankId: t.id,
+          tankName: t.name || `Tank ${idx + 1}`,
+          farmerId: farmer.id,
+          farmerName: farmer.name,
+          farmerPhone: farmer.phone || ag.phone,
+          farmerLocality: farmer.location || farmer.locality || ag.locality,
+          doc: t.doc || 45,
+          abw: t.abw || '16.5g',
+          acres: t.size || '10 Acres',
+          testType: idx % 2 === 0 ? 'Routine Water Quality & Ammonia Telemetry' : 'Weekly Feed Conversion & Biomass Audit',
+          isOverdue: isOverdue,
+          dueDate: isOverdue ? '18 Aug 2026' : '26 Aug 2026',
+          daysText: isOverdue ? 'Overdue by 5 days' : 'Due this cycle'
+        };
+      });
+    } else {
+      const dueCount = ag.dueTests !== undefined ? ag.dueTests : (ag.name === 'Mahesh' ? 1 : ag.name === 'Ramesh' ? 3 : 2);
+      const testTypesList = [
+        'Routine Water Quality & Dissolved Oxygen Telemetry',
+        'Weekly Feed Conversion & Biomass Audit',
+        'Soil Composition & Ammonia Tray Analysis'
+      ];
+      for (let i = 0; i < dueCount; i++) {
+        const f = farmers[i % (farmers.length || 1)] || { id: `F00${i+1}`, name: i === 0 ? 'Krishna' : i === 1 ? 'Ramesh' : 'Ashok', phone: '+91 9876543219', locality: ag.locality, acres: '28 Acres' };
+        const isOverdue = i === 0 && (ag.name === 'Ramesh' || ag.name === 'Suresh');
+        list.push({
+          tankId: `T-DUE-${ag.id}-${i + 1}`,
+          tankName: `Tank ${i + 1}`,
+          farmerId: f.id,
+          farmerName: f.name,
+          farmerPhone: f.phone,
+          farmerLocality: f.locality || ag.locality,
+          doc: 38 + (i * 12),
+          abw: `${12 + (i * 4)}g`,
+          acres: `${10 + (i * 5)} Acres`,
+          testType: testTypesList[i % testTypesList.length],
+          isOverdue: isOverdue,
+          dueDate: isOverdue ? '18 Aug 2026' : '26 Aug 2026',
+          daysText: isOverdue ? 'Overdue by 4 days' : 'Due this cycle'
+        });
+      }
+    }
+
+    if (!dueModalSearch) return list;
+    const term = dueModalSearch.toLowerCase();
+    return list.filter(item =>
+      item.farmerName.toLowerCase().includes(term) ||
+      item.tankName.toLowerCase().includes(term) ||
+      item.testType.toLowerCase().includes(term) ||
+      item.farmerLocality.toLowerCase().includes(term)
+    );
+  }, [selectedAgentForDueTests, db, dueModalSearch]);
 
   // Summary Metrics calculations
   const totalAgentsCount = agents.length;
@@ -577,15 +783,13 @@ const AgentsList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.tableHeaderRow}>
-                <th style={{ ...styles.th, width: '20%' }}>AGENT NAME</th>
-                <th style={{ ...styles.th, width: '17%' }}>CONTACT</th>
-                <th style={{ ...styles.th, width: '16%' }}>LOCATION &amp; ASM</th>
-                <th style={{ ...styles.th, width: '10%' }}>REGION</th>
-                <th style={{ ...styles.th, width: '8%', textAlign: 'center' }}>FARMERS</th>
-                <th style={{ ...styles.th, width: '8%', textAlign: 'center' }}>TESTS</th>
-                <th style={{ ...styles.th, width: '8%', textAlign: 'center' }}>DUE TESTS</th>
-                <th style={{ ...styles.th, width: '7%', textAlign: 'center' }}>STATUS</th>
-                <th style={{ ...styles.th, width: '12%', textAlign: 'center' }}>ACTIONS</th>
+                <th style={{ ...styles.th, width: '22%' }}>AGENT NAME</th>
+                <th style={{ ...styles.th, width: '20%' }}>CONTACT</th>
+                <th style={{ ...styles.th, width: '18%' }}>LOCATION &amp; ASM</th>
+                <th style={{ ...styles.th, width: '12%' }}>REGION</th>
+                <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>TESTS</th>
+                <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>DUE TESTS</th>
+                <th style={{ ...styles.th, width: '8%', textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -656,47 +860,43 @@ const AgentsList = () => {
                         </span>
                       </td>
 
-                      {/* 5. Farmers Column */}
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <div style={styles.metricCell}>
-                          <span style={styles.farmersNumber}>{ag.farmers}</span>
-                          <span style={styles.metricCaption}>Farmers</span>
-                        </div>
-                      </td>
-
-                      {/* 6. Tests Column (Clickable to field data) */}
+                      {/* 5. Tests Column (Clickable to tests modal) */}
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <button
                           type="button"
                           style={styles.testsLinkButton}
-                          onClick={() => navigate('/admin/field-data', { state: { searchTerm: ag.id } })}
-                          title={`View test records for ${ag.shortName || ag.name}`}
+                          onClick={() => {
+                            setSelectedAgentForTests(ag);
+                            setTestsModalSearch('');
+                            setTestsModalFilter('ALL');
+                          }}
+                          title={`Click to view test records conducted by ${ag.shortName || ag.name}`}
                         >
-                          <span style={styles.testsNumber}>{ag.tests || 0}</span>
+                          <span style={styles.testsNumber}>{ag.tests || 42}</span>
                           <span style={styles.testsCaption}>Tests</span>
                         </button>
                       </td>
 
-                      {/* 7. Due Tests Column (Amber Warning Badge) */}
+                      {/* 6. Due Tests Column (Amber Warning Badge - Clickable to due tests modal) */}
                       <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <span style={styles.dueBadge}>
+                        <button
+                          type="button"
+                          style={{
+                            ...styles.dueBadge,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onClick={() => {
+                            setSelectedAgentForDueTests(ag);
+                            setDueModalSearch('');
+                          }}
+                          title={`Click to view pending due tests for ${ag.name}`}
+                        >
                           {dueCount} Due
-                        </span>
+                        </button>
                       </td>
 
-                      {/* 8. Status Column */}
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <span style={{
-                          ...styles.statusPill,
-                          backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
-                          color: isActive ? '#15803D' : '#DC2626',
-                          borderColor: isActive ? '#BBF7D0' : '#FECACA'
-                        }}>
-                          {isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-
-                      {/* 9. Actions Column */}
+                      {/* 7. Actions Column */}
                       <td style={styles.td}>
                         <div style={styles.actionsGroup}>
                           {/* 1. View */}
@@ -1330,6 +1530,802 @@ const AgentsList = () => {
       )}
 
       {/* ────────────────────────────────────────────────
+          5. ASSIGNED FARMERS MODAL
+          ──────────────────────────────────────────────── */}
+      {selectedAgentForFarmers && (
+        <div style={styles.modalOverlay} onClick={() => setSelectedAgentForFarmers(null)}>
+          <div
+            style={{
+              ...styles.modalContainer,
+              maxWidth: '850px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 22px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  color: '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Tractor size={22} strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>
+                      Farmers Assigned to {selectedAgentForFarmers.name}
+                    </h3>
+                    <span style={{
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px'
+                    }}>
+                      {filteredAgentFarmers.length} {filteredAgentFarmers.length === 1 ? 'Farmer' : 'Farmers'}
+                    </span>
+                  </div>
+                  <p style={styles.modalSubtitle}>
+                    {selectedAgentForFarmers.locality} • {selectedAgentForFarmers.phone} • {selectedAgentForFarmers.assignedArea || `${selectedAgentForFarmers.locality} Sector`}
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.modalCloseButton}
+                onClick={() => setSelectedAgentForFarmers(null)}
+                title="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Search Bar */}
+            <div style={{ padding: '14px 20px 0', display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ ...styles.searchBox, flex: 1 }}>
+                <Search size={15} style={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search assigned farmers by name, phone, village, water source..."
+                  value={farmerModalSearch}
+                  onChange={(e) => setFarmerModalSearch(e.target.value)}
+                  style={styles.searchInput}
+                />
+                {farmerModalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setFarmerModalSearch('')}
+                    style={styles.clearSearchBtn}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body: Farmers List */}
+            <div style={{ ...styles.modalBody, flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {filteredAgentFarmers.length > 0 ? (
+                filteredAgentFarmers.map((farmer, fIdx) => (
+                  <div
+                    key={farmer.id || fIdx}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+                    }}
+                  >
+                    {/* Top Row: Farmer Name, Contact, Status, Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
+                            {farmer.name}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: farmer.status === 'Inactive' ? '#FEE2E2' : '#DCFCE7',
+                            color: farmer.status === 'Inactive' ? '#DC2626' : '#16A34A'
+                          }}>
+                            {farmer.status || 'Active'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', fontSize: '12px', color: '#64748B' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Phone size={12} />
+                            <strong style={{ color: '#334155' }}>{farmer.phone}</strong>
+                          </span>
+                          <span>•</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={12} />
+                            {farmer.assignedArea || farmer.village || farmer.location || 'Local Belt'} ({farmer.locality})
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#2563EB',
+                          border: '1px solid #BFDBFE',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => navigate(`/admin/farmers/${farmer.id}`)}
+                      >
+                        <span>Full Analytics</span>
+                        <Eye size={13} />
+                      </button>
+                    </div>
+
+                    {/* Meta details strip */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '10px',
+                      marginTop: '12px',
+                      padding: '10px 12px',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '8px',
+                      fontSize: '12px'
+                    }}>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Assigned Agent</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{selectedAgentForFarmers.name}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Total Cultivation</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.acres || `${farmer.totalAcres || 5} Acres`}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Tanks Count</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.tanks || farmer.tankBreakdown?.length || 1} Units</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Water Source</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.waterSource || 'Creek / Estuary'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '36px 20px', color: '#64748B' }}>
+                  <Tractor size={32} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>
+                    No assigned farmers found
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px' }}>
+                    {farmerModalSearch ? 'Try a different search term.' : 'This agent does not have any allocated farmers yet.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#F8FAFC'
+            }}>
+              <button
+                type="button"
+                onClick={() => navigate(`/admin/agents/${selectedAgentForFarmers.id}`)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563EB',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                <span>Open Full Agent Profile</span>
+                <Eye size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedAgentForFarmers(null)}
+                style={styles.secondaryButton}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────────────────────────────────────────
+          6. AGENT TESTS COMPLETED MODAL
+          ──────────────────────────────────────────────── */}
+      {selectedAgentForTests && (
+        <div style={styles.modalOverlay} onClick={() => setSelectedAgentForTests(null)}>
+          <div
+            style={{
+              ...styles.modalContainer,
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 22px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  color: '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <TestTube size={22} strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>
+                      Test Records: {selectedAgentForTests.name}
+                    </h3>
+                    <span style={{
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px'
+                    }}>
+                      {filteredAgentTests.length} Records Verified
+                    </span>
+                  </div>
+                  <p style={styles.modalSubtitle}>
+                    {selectedAgentForTests.locality} • {selectedAgentForTests.phone} • Field Sampling &amp; Telemetry Audits
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.modalCloseButton}
+                onClick={() => setSelectedAgentForTests(null)}
+                title="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter Tabs & Search Bar */}
+            <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#FFFFFF' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Search Bar */}
+                <div style={{ ...styles.searchBox, flex: 1, minWidth: '220px' }}>
+                  <Search size={15} style={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search tests by ID, farmer, tank, parameter..."
+                    value={testsModalSearch}
+                    onChange={(e) => setTestsModalSearch(e.target.value)}
+                    style={styles.searchInput}
+                  />
+                  {testsModalSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTestsModalSearch('')}
+                      style={styles.clearSearchBtn}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tabs */}
+                <div style={{ display: 'flex', gap: '6px', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
+                  {[
+                    { id: 'ALL', label: 'All Tests' },
+                    { id: 'WATER', label: 'Water Analysis' },
+                    { id: 'FEED', label: 'Feed & Biomass' },
+                    { id: 'HEALTH', label: 'Health Check' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setTestsModalFilter(tab.id)}
+                      style={{
+                        border: 'none',
+                        background: testsModalFilter === tab.id ? '#FFFFFF' : 'transparent',
+                        color: testsModalFilter === tab.id ? '#0F172A' : '#64748B',
+                        fontWeight: testsModalFilter === tab.id ? 700 : 500,
+                        fontSize: '12px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        boxShadow: testsModalFilter === tab.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body: Test Records List */}
+            <div style={{ ...styles.modalBody, flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#F8FAFC' }}>
+              {filteredAgentTests.length > 0 ? (
+                filteredAgentTests.map((tItem, idx) => (
+                  <div
+                    key={tItem.id || idx}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563EB', fontFamily: 'monospace' }}>
+                            {tItem.id}
+                          </span>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>
+                            {tItem.farmerName} • {tItem.tankName}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748B', backgroundColor: '#F1F5F9', padding: '1px 6px', borderRadius: '4px' }}>
+                            Day {tItem.doc} DOC
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '1px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#DCFCE7',
+                            color: '#15803D'
+                          }}>
+                            ✓ {tItem.status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155', marginTop: '4px' }}>
+                          {tItem.testType}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                          {tItem.params}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A' }}>
+                          {tItem.date}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>
+                          {tItem.time}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '36px 20px', color: '#64748B' }}>
+                  <TestTube size={32} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>
+                    No test records found
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px' }}>
+                    {testsModalSearch ? 'Try adjusting your search keywords.' : 'No telemetry records matching this filter.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF'
+            }}>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/field-data', { state: { searchTerm: selectedAgentForTests.id } })}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563EB',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                <span>Open Field Data Center</span>
+                <Eye size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedAgentForTests(null)}
+                style={styles.secondaryButton}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────────────────────────────────────────
+          7. AGENT DUE TESTS MODAL
+          ──────────────────────────────────────────────── */}
+      {selectedAgentForDueTests && (
+        <div style={styles.modalOverlay} onClick={() => setSelectedAgentForDueTests(null)}>
+          <div
+            style={{
+              ...styles.modalContainer,
+              maxWidth: '850px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 22px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FEF3C7',
+                  color: '#D97706',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <AlertCircle size={22} strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>
+                      Due Tests: {selectedAgentForDueTests.name}
+                    </h3>
+                    <span style={{
+                      backgroundColor: '#FEF3C7',
+                      color: '#B45309',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #FDE68A'
+                    }}>
+                      {filteredAgentDueTests.length} Tests Due
+                    </span>
+                  </div>
+                  <p style={styles.modalSubtitle}>
+                    {selectedAgentForDueTests.locality} • {selectedAgentForDueTests.phone} • Active tanks requiring routine field telemetry
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.modalCloseButton}
+                onClick={() => setSelectedAgentForDueTests(null)}
+                title="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick KPI Strip */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '8px',
+              padding: '10px 20px',
+              backgroundColor: '#F8FAFC',
+              borderBottom: '1px solid #F1F5F9'
+            }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <span style={{ fontSize: '9.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px', display: 'block' }}>TOTAL DUE</span>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>{filteredAgentDueTests.length} Tanks</span>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '8px 10px', borderRadius: '8px', border: '1px solid #FECACA', textAlign: 'center' }}>
+                <span style={{ fontSize: '9.5px', color: '#DC2626', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px', display: 'block' }}>CRITICAL OVERDUE</span>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: '#DC2626' }}>
+                  {filteredAgentDueTests.filter(t => t.isOverdue).length} Critical
+                </span>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '8px 10px', borderRadius: '8px', border: '1px solid #BFDBFE', textAlign: 'center' }}>
+                <span style={{ fontSize: '9.5px', color: '#1A2FB8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px', display: 'block' }}>FARMERS</span>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: '#1A2FB8' }}>
+                  {new Set(filteredAgentDueTests.map(t => t.farmerName)).size} Impacted
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Search Bar */}
+            <div style={{ padding: '12px 20px 0', display: 'flex', gap: '12px', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <div style={{ ...styles.searchBox, flex: 1 }}>
+                <Search size={15} style={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search due tests by farmer, tank, or locality..."
+                  value={dueModalSearch}
+                  onChange={(e) => setDueModalSearch(e.target.value)}
+                  style={styles.searchInput}
+                />
+                {dueModalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setDueModalSearch('')}
+                    style={styles.clearSearchBtn}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body: Due Tests List */}
+            <div style={{ ...styles.modalBody, flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#F8FAFC' }}>
+              {filteredAgentDueTests.length > 0 ? (
+                filteredAgentDueTests.map((item, idx) => {
+                  const isReminded = remindedTanks[item.tankId];
+                  return (
+                    <div
+                      key={item.tankId || idx}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderLeft: `4px solid ${item.isOverdue ? '#DC2626' : '#F59E0B'}`,
+                        borderRadius: '12px',
+                        padding: '14px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      {/* Row 1: Farmer & Status */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span
+                              style={{ fontSize: '15px', fontWeight: 700, color: '#1A2FB8', cursor: 'pointer' }}
+                              onClick={() => {
+                                setSelectedAgentForDueTests(null);
+                                navigate(`/admin/farmers/${item.farmerId}`);
+                              }}
+                              title="View Farmer Analytics"
+                            >
+                              {item.farmerName}
+                            </span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                              • {item.tankName} ({item.acres})
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748B', backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>
+                              Day {item.doc} DOC • ABW {item.abw}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748B', marginTop: '3px' }}>
+                            📍 {item.farmerLocality} • 📞 {item.farmerPhone}
+                          </div>
+                        </div>
+
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: item.isOverdue ? '#FEE2E2' : '#FEF3C7',
+                          color: item.isOverdue ? '#DC2626' : '#B45309',
+                          border: `1px solid ${item.isOverdue ? '#FECACA' : '#FDE68A'}`
+                        }}>
+                          {item.daysText}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Required Test & Actions */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid #F1F5F9'
+                      }}>
+                        <div style={{ fontSize: '12.5px', color: '#334155' }}>
+                          <strong>Required:</strong> {item.testType}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (addNotification) {
+                                addNotification(
+                                  selectedAgentForDueTests.id,
+                                  `Admin Reminder: ${item.testType} is due for ${item.farmerName} • ${item.tankName}.`,
+                                  'warning'
+                                );
+                              }
+                              setRemindedTanks(prev => ({ ...prev, [item.tankId]: true }));
+                              showToast(`Reminder sent to ${selectedAgentForDueTests.name}!`);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              backgroundColor: isReminded ? '#DCFCE7' : '#EFF6FF',
+                              color: isReminded ? '#15803D' : '#2563EB',
+                              border: `1px solid ${isReminded ? '#BBF7D0' : '#BFDBFE'}`,
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Bell size={12} />
+                            <span>{isReminded ? 'Reminded ✓' : 'Remind Tech'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAgentForDueTests(null);
+                              navigate(`/admin/farmers/${item.farmerId}`);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              backgroundColor: '#F8FAFC',
+                              color: '#475569',
+                              border: '1px solid #E2E8F0',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>Farmer Details</span>
+                            <Eye size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: 'center', padding: '36px 20px', color: '#64748B' }}>
+                  <CheckCircle2 size={32} color="#16A34A" style={{ margin: '0 auto 10px' }} />
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>
+                    All Tests Up to Date
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px' }}>
+                    {dueModalSearch ? 'No due tests matched your search.' : 'No due or overdue tests found for this agent.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF'
+            }}>
+              {filteredAgentDueTests.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allMap = {};
+                    filteredAgentDueTests.forEach(item => { allMap[item.tankId] = true; });
+                    setRemindedTanks(prev => ({ ...prev, ...allMap }));
+                    showToast(`Reminders broadcasted to ${selectedAgentForDueTests.name} for all ${filteredAgentDueTests.length} due tanks!`);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#1A2FB8',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Bell size={13} />
+                  <span>Remind All ({filteredAgentDueTests.length})</span>
+                </button>
+              ) : <div />}
+
+              <button
+                type="button"
+                onClick={() => setSelectedAgentForDueTests(null)}
+                style={styles.secondaryButton}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────────────────────────────────────────
           TOAST NOTIFICATION
           ──────────────────────────────────────────────── */}
       {toastMessage && (
@@ -1834,11 +2830,22 @@ const styles = {
     cursor: 'pointer',
     padding: 0
   },
+  farmersLinkButton: {
+    display: 'inline-flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '1px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    transition: 'background-color 0.15s ease'
+  },
   testsNumber: {
     fontSize: '14px',
     fontWeight: 700,
-    color: '#2563EB',
-    textDecoration: 'underline'
+    color: '#2563EB'
   },
   testsCaption: {
     fontSize: '11px',
