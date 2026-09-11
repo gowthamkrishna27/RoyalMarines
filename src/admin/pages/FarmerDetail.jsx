@@ -696,9 +696,6 @@ const FarmerDetail = () => {
             <h3 style={styles.sectionCardTitle}>
               {activeTank.name} Setup Specifications
             </h3>
-            <p style={styles.sectionCardSubtitle}>
-              Biophysical specifications and tank origin parameters
-            </p>
           </div>
 
           <button
@@ -715,57 +712,46 @@ const FarmerDetail = () => {
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>TANK SIZE</span>
             <span style={styles.specPrimaryValue}>{activeTank.acres} Acres</span>
-            <span style={styles.specFootnote}>Cultivated Water Spread</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SOURCE OF WATER</span>
             <span style={styles.specPrimaryValue}>{activeTank.waterSource || farmer.waterSource || 'Creek / Estuary'}</span>
-            <span style={styles.specFootnote}>Primary Water Intake</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SALINITY</span>
             <span style={styles.specPrimaryValue}>{activeTank.salinity} ppt</span>
-            <span style={styles.specFootnote}>Baseline Tank Salinity</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SOIL TYPE</span>
             <span style={styles.specPrimaryValue}>{activeTank.soilType || 'Clay Loam'}</span>
-            <span style={styles.specFootnote}>Soil Composition</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>HATCHERY NAME</span>
             <span style={styles.specPrimaryValue}>{activeTank.hatcheryName || 'Apex Hatcheries'}</span>
-            <span style={styles.specFootnote}>SPF Certified Source</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>BROODER LINEAGE</span>
             <span style={styles.specPrimaryValue}>{activeTank.brooder || 'Kona Bay'}</span>
-            <span style={styles.specFootnote}>Genetic Line</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SEED DATE</span>
             <span style={styles.specPrimaryValue}>{activeTank.seedDate || '2026-05-15'}</span>
-            <span style={styles.specFootnote}>Stocking Date</span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>SEED STOCKING</span>
             <span style={styles.specPrimaryValue}>{activeTank.seedStockingLak} Lakhs</span>
-            <span style={styles.specFootnote}>
-              Density: {((activeTank.seedStockingLak * 100000) / (activeTank.acres * 4046.86)).toFixed(1)} / m²
-            </span>
           </div>
 
           <div style={styles.specItemCard}>
             <span style={styles.specLabel}>FEED TYPE</span>
             <span style={styles.specPrimaryValue}>{activeTank.feedType || 'Premium Pellets'}</span>
-            <span style={styles.specFootnote}>Commercial Diet</span>
           </div>
         </div>
       </div>
@@ -777,9 +763,6 @@ const FarmerDetail = () => {
             <h3 style={styles.sectionCardTitle}>
               {activeTank.name} Growth Trajectory &amp; Feed Curve
             </h3>
-            <p style={styles.sectionCardSubtitle}>
-              Sampling telemetry across Day of Culture (DOC 10 to DOC 70)
-            </p>
           </div>
 
           {/* Metric Selector Tabs */}
@@ -911,22 +894,12 @@ const FarmerDetail = () => {
             <h3 style={styles.sectionCardTitle}>
               {activeTank.name} Water Quality Telemetry
             </h3>
-            <p style={styles.sectionCardSubtitle}>
-              On-site field measurements submitted by agent <strong>{farmer.agent}</strong>
-            </p>
           </div>
 
           <div style={styles.simpleAuditBadge}>
             <ShieldCheck size={14} color="#64748b" />
             <span>Agent Verified On-Site</span>
           </div>
-        </div>
-
-        {/* Clean Standard Threshold Note */}
-        <div style={styles.thresholdNoteRow}>
-          <span style={styles.thresholdNoteText}>
-            <strong>Standard Thresholds:</strong> Salinity 0–30 ppt • pH 7.5–8.5 • Alkalinity 100–300 ppm • Ammonia &lt;0.5 mg/L • Nitrite &lt;0.25 mg/L • DO &gt;4.0 mg/L
-          </span>
         </div>
 
         {/* Water Quality Table */}

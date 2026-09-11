@@ -1598,9 +1598,6 @@ const Agents = () => {
               gap: '10px',
             }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', fontWeight: '800', color: '#D97706', letterSpacing: '0.4px', marginBottom: '2px', textTransform: 'uppercase' }}>
-                  <TestTube size={12} style={{ flexShrink: 0 }} /> Field Sampling & Test Dues
-                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
                     {dueTestsAgent === 'ALL' ? 'All Pending Test Dues' : `${dueTestsAgent.name}'s Due Tests`}
@@ -1609,9 +1606,6 @@ const Agents = () => {
                     {currentDueTanksList.length} Tests Pending
                   </span>
                 </div>
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0', lineHeight: 1.3 }}>
-                  Ponds requiring routine water quality, growth sampling, or feed audits
-                </p>
               </div>
 
               <button

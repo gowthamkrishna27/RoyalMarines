@@ -107,7 +107,7 @@ const HarvestReportModal = ({ tank, onClose }) => {
                   <th style={styles.th}>BIOMASS</th>
                   <th style={styles.th}>FEED (KG)</th>
                   <th style={styles.th}>STAGE FCR</th>
-                  <th style={styles.th}>BUYER &amp; OBSERVATIONS</th>
+                  <th style={styles.th}>BUYER</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,7 +135,6 @@ const HarvestReportModal = ({ tank, onClose }) => {
                   <td style={styles.td}><span style={styles.fcrBadge}>1.15</span></td>
                   <td style={styles.td}>
                     <div style={styles.fw700}>Royals Marine Export Unit 1</div>
-                    <div style={{ ...styles.textGray, fontSize: '11px' }}>First partial thinning to reduce biomass density.</div>
                   </td>
                 </tr>
 
@@ -163,7 +162,6 @@ const HarvestReportModal = ({ tank, onClose }) => {
                   <td style={styles.td}><span style={styles.fcrBadge}>1.18</span></td>
                   <td style={styles.td}>
                     <div style={styles.fw700}>Coastal Sea Foods Ltd</div>
-                    <div style={{ ...styles.textGray, fontSize: '11px' }}>Second selective netting targeting 40-count high value export.</div>
                   </td>
                 </tr>
 
@@ -191,7 +189,6 @@ const HarvestReportModal = ({ tank, onClose }) => {
                   <td style={styles.td}><span style={styles.fcrBadge}>1.19</span></td>
                   <td style={styles.td}>
                     <div style={styles.fw700}>Royals Marine Food Exports</div>
-                    <div style={{ ...styles.textGray, fontSize: '11px' }}>Complete pond drainage harvest. High grade SPF Vannamei batch.</div>
                   </td>
                 </tr>
               </tbody>
@@ -212,8 +209,8 @@ const HarvestReportModal = ({ tank, onClose }) => {
                   <td style={{ padding: '12px 14px' }}>
                     <span style={styles.fcrTotalBadge}>{tank.fcr || '1.17'} FCR</span>
                   </td>
-                  <td style={{ color: '#16A34A', fontWeight: 600, fontSize: '12.5px', padding: '12px 14px' }}>
-                    ✓ Cycle Closed
+                  <td style={{ color: '#94A3B8', padding: '12px 14px' }}>
+                    —
                   </td>
                 </tr>
               </tfoot>

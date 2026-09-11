@@ -43,9 +43,6 @@ const HarvestedTanksModal = ({ onClose }) => {
                 <h3 style={styles.title}>
                   Harvested Tanks — Completed Cycles ({harvestedTanks.length})
                 </h3>
-                <p style={styles.subtitle}>
-                  Tanks with final crop drainage, settlement weighment logs, and closed culture cycles
-                </p>
               </div>
             </div>
             <button onClick={onClose} style={styles.closeBtn} aria-label="Close modal">

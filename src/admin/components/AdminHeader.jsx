@@ -218,17 +218,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
 
       {/* RIGHT CONTROLS */}
       <div style={styles.rightControls}>
-        {/* NOTIFICATION */}
-        <div
-          style={styles.bellContainer}
-          title="3 Overdue test alerts"
-        >
-          <Bell size={18} color="#475569" />
-          <span style={styles.redDot} />
-        </div>
-
-
-
         {/* PROFILE */}
         <div style={styles.profileWrapper}>
           <div

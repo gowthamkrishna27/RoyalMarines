@@ -379,7 +379,7 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                   <th style={{ ...styles.th, textAlign: 'right' }}>Harvested Biomass</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Feed (kg)</th>
                   <th style={{ ...styles.th, textAlign: 'center' }}>Stage FCR</th>
-                  <th style={styles.th}>Buyer & Observations</th>
+                  <th style={styles.th}>Buyer</th>
                 </tr>
               </thead>
               <tbody>
@@ -444,14 +444,11 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                         </span>
                       </td>
 
-                      {/* 8. Buyer & Remarks */}
+                      {/* 8. Buyer */}
                       <td style={{ ...styles.td, maxWidth: '220px' }}>
                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
                           {h.buyer}
                         </div>
-                        <span style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
-                          {h.remarks}
-                        </span>
                       </td>
                     </tr>
                   );
@@ -501,10 +498,8 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                         {presentFCR}
                       </span>
                     </td>
-                    <td style={{ ...styles.td, maxWidth: '220px' }}>
-                      <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: '700', display: 'block' }}>
-                        ⚡ Final Harvest Forecast: Day 90-100 DOC (~30g Target)
-                      </span>
+                    <td style={{ ...styles.td, maxWidth: '220px', color: '#94A3B8' }}>
+                      —
                     </td>
                   </tr>
                 )}
@@ -514,7 +509,7 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
               <tfoot>
                 <tr style={styles.tfootRow}>
                   <td colSpan="3" style={{ ...styles.tfTd, fontWeight: '800', color: '#0F172A' }}>
-                    {isFinalHarvested ? 'TOTAL FINAL HARVESTED CROP:' : 'CUMULATIVE CROP SUMMARY (REALIZED + STANDING):'}
+                    {isFinalHarvested ? 'TOTAL FINAL HARVESTED CROP:' : 'CUMULATIVE CROP SUMMARY:'}
                   </td>
                   <td style={{ ...styles.tfTd, textAlign: 'right', fontWeight: '800', color: '#0284C7', fontSize: '14px' }}>
                     {totalCropShrimp.toLocaleString()} pcs
@@ -530,8 +525,8 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                       {overallFCR} FCR
                     </span>
                   </td>
-                  <td style={{ ...styles.tfTd, fontSize: '11.5px', color: isFinalHarvested ? '#16A34A' : '#D97706', fontWeight: '700' }}>
-                    {isFinalHarvested ? '✓ Cycle Closed' : '🟡 Active Culture'}
+                  <td style={{ ...styles.tfTd, color: '#94A3B8' }}>
+                    —
                   </td>
                 </tr>
               </tfoot>
