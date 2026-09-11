@@ -29,12 +29,6 @@ const InchargeDetail = () => {
     <>
       <PageHeader
         title={`Incharge: ${incharge.name}`}
-        breadcrumbs={[
-          { label: 'Organization' },
-          { label: 'Regions' },
-          { label: incharge.region },
-          { label: incharge.name, active: true }
-        ]}
       />
       <div className="content-inner">
 

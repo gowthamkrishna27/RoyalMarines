@@ -5,7 +5,7 @@ import { getInchargeSession } from '../utils/inchargeAuth';
 import BackButton from '../../components/BackButton';
 import topnavlogo from '../../assets/topnavlogo.png';
 
-const InchargeHeader = ({ title = "Dashboard", showBack = false }) => {
+const InchargeHeader = ({ title = "Dashboard", showBack = false, isMobile = false }) => {
   const navigate = useNavigate();
   const session = getInchargeSession();
   const [timeStr, setTimeStr] = useState('');
@@ -44,22 +44,23 @@ const InchargeHeader = ({ title = "Dashboard", showBack = false }) => {
 
   return (
     <header style={styles.header}>
-      {/* 1. LEFT: Mobile Logo only (or BackButton when showBack is true) */}
+      {/* 1. LEFT: BackButton or Mobile Logo (only shown on mobile where sidebar is hidden) */}
       <div style={styles.leftGroup}>
-        {showBack && <BackButton fallback="/incharge/dashboard" />}
-        
-        {/* Royals Marine Logo (Clickable to Dashboard) */}
-        <div 
-          style={styles.logoContainer}
-          onClick={() => navigate('/incharge/dashboard')}
-          title="Royals Marine"
-        >
-          <img 
-            src={topnavlogo} 
-            alt="Royals Marine" 
-            style={styles.logoImg}
-          />
-        </div>
+        {showBack ? (
+          <BackButton fallback="/incharge/dashboard" />
+        ) : isMobile ? (
+          <div 
+            style={styles.logoContainer}
+            onClick={() => navigate('/incharge/dashboard')}
+            title="Royals Marine"
+          >
+            <img 
+              src={topnavlogo} 
+              alt="Royals Marine" 
+              style={styles.logoImg}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* 2. RIGHT: Constant Date/Time Badge + Profile Avatar */}

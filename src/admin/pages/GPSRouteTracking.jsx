@@ -167,7 +167,6 @@ const GPSRouteTracking = () => {
         <div style={styles.headerTitleRow}>
           <div>
             <h2 style={styles.sectionTitle}>Agent Tracking &amp; Live Map</h2>
-            <p style={styles.sectionSubtitle}>Monitor field operations, route replay, and pond audit compliance</p>
           </div>
           <div style={styles.actionButtons}>
             <button
@@ -256,7 +255,6 @@ const GPSRouteTracking = () => {
                       {trackingData.employeeInfo.status}
                     </span>
                   </div>
-                  <p style={styles.agentSub}>{trackingData.employeeInfo.id} • {trackingData.employeeInfo.role}</p>
                 </div>
               </div>
 

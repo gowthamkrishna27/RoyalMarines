@@ -125,7 +125,6 @@ const FieldData = () => {
       <div style={styles.headerRow}>
         <div>
           <h1 style={styles.title}>Field Data &amp; Daily Records</h1>
-          <p style={styles.subtitle}>Audit trail of field tests, daily water quality logs, and feed measurements.</p>
         </div>
       </div>
 

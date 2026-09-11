@@ -383,27 +383,9 @@ const AgentsList = () => {
           ──────────────────────────────────────────────── */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <nav aria-label="Breadcrumb" style={styles.breadcrumb}>
-            <span
-              style={styles.breadcrumbLink}
-              onClick={() => navigate('/admin/dashboard')}
-            >
-              Dashboard
-            </span>
-            <span style={styles.breadcrumbSeparator}>/</span>
-            <span style={styles.breadcrumbLink} onClick={() => navigate('/admin/regions')}>
-              Operations
-            </span>
-            <span style={styles.breadcrumbSeparator}>/</span>
-            <span style={styles.breadcrumbActive}>Agents</span>
-          </nav>
           <div style={styles.titleRow}>
             <h1 style={styles.pageTitle}>Agents Management</h1>
-            <span style={styles.countPill}>{filteredAgents.length} agents</span>
           </div>
-          <p style={styles.pageSubtitle}>
-            Manage field agents, assignments, operational regions, tests, and performance.
-          </p>
         </div>
 
         <div style={styles.headerRight}>
@@ -595,7 +577,7 @@ const AgentsList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.tableHeaderRow}>
-                <th style={{ ...styles.th, width: '20%' }}>AGENT DETAILS</th>
+                <th style={{ ...styles.th, width: '20%' }}>AGENT NAME</th>
                 <th style={{ ...styles.th, width: '17%' }}>CONTACT</th>
                 <th style={{ ...styles.th, width: '16%' }}>LOCATION &amp; ASM</th>
                 <th style={{ ...styles.th, width: '10%' }}>REGION</th>
@@ -610,7 +592,6 @@ const AgentsList = () => {
               {filteredAgents.length > 0 ? (
                 filteredAgents.map((ag, index) => {
                   const activeInc = getInchargeForLocality(ag.locality, ag.regionId);
-                  const initials = getInitials(ag.name);
                   const isAlternate = index % 2 === 1;
                   const isActive = (ag.status || 'ACTIVE') === 'ACTIVE';
                   const dueCount = ag.dueTests !== undefined ? ag.dueTests : (ag.tanks ? Math.ceil(ag.tanks / 2) : 2);
@@ -623,23 +604,14 @@ const AgentsList = () => {
                         backgroundColor: isAlternate ? '#FAFCFF' : '#FFFFFF'
                       }}
                     >
-                      {/* 1. Agent Details Column */}
+                      {/* 1. Agent Name Column */}
                       <td style={styles.td}>
                         <div
                           style={styles.agentCell}
                           onClick={() => navigate(`/admin/agents/${ag.id}`)}
                           title="Click to view full Agent Profile & Performance"
                         >
-                          <div style={styles.avatar}>
-                            {initials}
-                          </div>
-                          <div style={styles.agentInfo}>
-                            <span style={styles.agentName}>{ag.name}</span>
-                            <div style={styles.idRoleRow}>
-                              <span style={styles.employeeId}>{ag.id}</span>
-                              <span style={styles.roleTag}>{ag.role || 'Field Agent'}</span>
-                            </div>
-                          </div>
+                          <span style={styles.agentName}>{ag.name}</span>
                         </div>
                       </td>
 

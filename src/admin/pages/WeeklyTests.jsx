@@ -8,7 +8,7 @@ const WeeklyTests = () => {
 
   return (
     <>
-      <PageHeader title="Organization-wide Weekly Tests" breadcrumbs={[{ label: 'Monitoring' }, { label: 'Weekly Tests', active: true }]} />
+      <PageHeader title="Organization-wide Weekly Tests" />
       <div className="content-inner">
         
         {/* Filters */}

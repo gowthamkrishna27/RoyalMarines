@@ -194,7 +194,6 @@ const Harvest = () => {
           </div>
           <div>
             <h2 style={styles.title}>Harvest Report & Management</h2>
-            <div style={styles.subtitle}>Sequential partial & final harvest tracking with auto-generated analytics</div>
           </div>
         </div>
 
@@ -314,7 +313,6 @@ const Harvest = () => {
         <div style={styles.reportHeader}>
           <div>
             <h3 style={styles.sectionTitle}>Automated Harvest Performance Summary</h3>
-            <span style={styles.reportSub}>Calculated dynamically from all partial and final harvest entries</span>
           </div>
           <span style={styles.autoCalcTag}>
             <Sparkles size={13} /> Auto-Computed
@@ -353,7 +351,6 @@ const Harvest = () => {
         <div style={styles.tableHeaderSection}>
           <div>
             <h3 style={styles.sectionTitle}>Sequential Harvest Records ({sequencedHarvests.length})</h3>
-            <span style={styles.reportSub}>Automatically ordered and numbered by chronological occurrence</span>
           </div>
 
           <button 
@@ -425,14 +422,6 @@ const Harvest = () => {
             </table>
           </div>
         )}
-      </div>
-
-      {/* 6. Enterprise Information Card */}
-      <div style={styles.infoCard}>
-        <Info size={20} color="#1A2FB8" style={{ flexShrink: 0, marginTop: '2px' }} />
-        <p style={styles.infoCardText}>
-          Every harvest is stored as a separate record. Users can record unlimited Partial Harvests followed by one Final Harvest for each tank. The system automatically generates the Harvest Report and calculates Total Harvested Seed, Total Biomass, Survival %, and FCR.
-        </p>
       </div>
 
       {/* Harvest Entry Modal */}

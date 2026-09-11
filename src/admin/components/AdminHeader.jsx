@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { getAdminSession } from '../utils/adminAuth';
 import { Bell, Search, LogOut, User, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import logoImg from '../../assets/new_logo_v2.png';
+import logoImg from '../../assets/topnavlogo.png';
 import { useMockData } from '../../context/MockDataContext';
 
 const AdminHeader = ({ onToggleSidebar }) => {
@@ -85,15 +85,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
             alt="Royal's Marine Logo"
             style={styles.logo}
           />
-
-          <div className="hidden sm:flex flex-col">
-            <span style={styles.brandTitle}>
-              ROYAL'S MARINE FOOD
-            </span>
-            <span style={styles.brandSubtitle}>
-              Aqua Field &amp; Feed Platform
-            </span>
-          </div>
         </div>
       </div>
 
@@ -236,10 +227,7 @@ const AdminHeader = ({ onToggleSidebar }) => {
           <span style={styles.redDot} />
         </div>
 
-        {/* ADMIN BADGE */}
-        <div style={styles.adminBadge}>
-          ADMIN
-        </div>
+
 
         {/* PROFILE */}
         <div style={styles.profileWrapper}>
@@ -325,25 +313,14 @@ const styles = {
   },
 
   logo: {
-    height: '42px',
+    height: '46px',
+    maxHeight: '48px',
+    width: 'auto',
     objectFit: 'contain',
+    display: 'block',
   },
 
-  brandTitle: {
-    fontSize: '14px',
-    fontWeight: 700,
-    color: '#0F172A',
-    letterSpacing: '0.2px',
-    lineHeight: '1.2',
-  },
 
-  brandSubtitle: {
-    fontSize: '11px',
-    fontWeight: 500,
-    color: '#64748B',
-    lineHeight: '1.2',
-    marginTop: '2px',
-  },
 
   searchBar: {
     display: 'flex',
@@ -467,16 +444,7 @@ const styles = {
     border: '1.5px solid #FFFFFF',
   },
 
-  adminBadge: {
-    backgroundColor: '#FEF3C7',
-    color: '#B45309',
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '0.6px',
-    padding: '4px 10px',
-    borderRadius: '9999px',
-    border: '1px solid #FDE68A',
-  },
+
 
   profileWrapper: {
     position: 'relative',

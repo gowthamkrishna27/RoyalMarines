@@ -123,7 +123,6 @@ const AgentLogin = () => {
         <div style={styles.header}>
           <img src={logo} alt="Royals Marine" style={styles.logo} />
           <h2 style={styles.title}>Technician Sign In</h2>
-          <p style={styles.subtitle}>Enter your credentials to access field operations</p>
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
@@ -183,11 +182,6 @@ const AgentLogin = () => {
               <span>{loading ? 'Signing in...' : 'Sign In'}</span>
               <ArrowRight size={16} />
             </button>
-
-            {/* Quick Demo Hint */}
-            <div style={styles.demoHintBox}>
-              <span>💡 Demo: ID: <b>agent001</b> • Pass: <b>agent123</b></span>
-            </div>
           </form>
         ) : (
           /* Forgot Password Minimal Flow */

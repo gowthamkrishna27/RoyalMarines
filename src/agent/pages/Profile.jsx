@@ -26,7 +26,6 @@ const Profile = () => {
       {/* Header */}
       <div style={styles.headerRow}>
         <div>
-          <span style={styles.headerTag}>ACCOUNT</span>
           <h1 style={styles.headerTitle}>Profile</h1>
         </div>
         <span style={styles.readOnlyPill}>

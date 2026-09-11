@@ -126,7 +126,6 @@ const Reports = () => {
       {/* 1. Header Row with Action Dropdown */}
       <div style={styles.headerRow}>
         <div>
-          <span style={styles.headerTag}>EXCEL AUDIT & OPERATIONS REPORTS</span>
           <h1 style={styles.headerTitle}>Field Reports Center</h1>
         </div>
 

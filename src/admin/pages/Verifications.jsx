@@ -9,7 +9,7 @@ const Verifications = () => {
 
   return (
     <>
-      <PageHeader title="Organization Verifications Monitoring" breadcrumbs={[{ label: 'Monitoring' }, { label: 'Verifications', active: true }]} />
+      <PageHeader title="Organization Verifications Monitoring" />
       <div className="content-inner">
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>

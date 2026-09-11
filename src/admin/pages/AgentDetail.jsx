@@ -208,11 +208,6 @@ const AgentDetail = () => {
 
       <PageHeader
         title={`Field Agent Profile: ${agent.name}`}
-        breadcrumbs={[
-          { label: 'Organization' },
-          { label: 'Agents', path: '/admin/agents' },
-          { label: agent.name, active: true }
-        ]}
       />
 
       {/* 1. Master Agent Profile Card */}
@@ -221,7 +216,6 @@ const AgentDetail = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <h2 style={styles.agentTitle}>{agent.name}</h2>
-              <span style={styles.idBadge}>{agent.id}</span>
               <span style={{
                 ...styles.activePill,
                 backgroundColor: agent.status === 'ACTIVE' ? '#f0fdf4' : '#fef2f2',
@@ -323,9 +317,6 @@ const AgentDetail = () => {
             <h3 style={styles.sectionCardTitle}>
               Farmers Allocated to {agent.shortName || agent.name} ({allocatedFarmers.length})
             </h3>
-            <p style={styles.sectionCardSubtitle}>
-              Tank clusters, acreage, and telemetry status assigned to this field agent
-            </p>
           </div>
         </div>
 
@@ -333,7 +324,7 @@ const AgentDetail = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadRow}>
-                <th style={styles.th}>FARMER NAME / ID</th>
+                <th style={styles.th}>FARMER NAME</th>
                 <th style={styles.th}>CONTACT</th>
                 <th style={styles.th}>VILLAGE</th>
                 <th style={styles.th}>SOURCE OF WATER</th>
@@ -346,7 +337,7 @@ const AgentDetail = () => {
               {allocatedFarmers.length > 0 ? (
                 allocatedFarmers.map(farmer => (
                   <tr key={farmer.id} style={styles.tr}>
-                    {/* Name & ID */}
+                    {/* Farmer Name */}
                     <td style={styles.td}>
                       <div
                         style={styles.nameColumnClickable}
@@ -354,7 +345,6 @@ const AgentDetail = () => {
                         title="Click to view full Farmer & Tank Growth Analytics"
                       >
                         <span style={styles.farmerName}>{farmer.name}</span>
-                        <span style={styles.farmerIdBadge}>{farmer.id}</span>
                       </div>
                     </td>
 

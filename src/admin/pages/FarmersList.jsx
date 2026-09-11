@@ -338,23 +338,9 @@ const FarmersList = () => {
           ──────────────────────────────────────────────── */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <nav aria-label="Breadcrumb" style={styles.breadcrumb}>
-            <span
-              style={styles.breadcrumbLink}
-              onClick={() => navigate('/admin/dashboard')}
-            >
-              Dashboard
-            </span>
-            <span style={styles.breadcrumbSeparator}>/</span>
-            <span style={styles.breadcrumbActive}>Farmers</span>
-          </nav>
           <div style={styles.titleRow}>
             <h1 style={styles.pageTitle}>Farmers</h1>
-            <span style={styles.countPill}>{filtered.length} total</span>
           </div>
-          <p style={styles.pageSubtitle}>
-            Manage farmers, tanks and cultivation records.
-          </p>
         </div>
 
         <div style={styles.headerRight}>
@@ -561,13 +547,7 @@ const FarmersList = () => {
                             onClick={() => navigate(`/admin/farmers/${item.id}`)}
                             title="Click to view full farmer profile & growth graphs"
                           >
-                            <div style={styles.avatar}>
-                              {initials}
-                            </div>
-                            <div style={styles.farmerInfo}>
-                              <span style={styles.farmerName}>{item.name}</span>
-                              <span style={styles.farmerId}>{item.id}</span>
-                            </div>
+                            <span style={styles.farmerName}>{item.name}</span>
                           </div>
                         </td>
 

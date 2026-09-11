@@ -23,7 +23,7 @@ const TanksList = () => {
 
   return (
     <>
-      <PageHeader title="All Tanks" breadcrumbs={[{ label: 'Organization' }, { label: 'Tanks', active: true }]} />
+      <PageHeader title="All Tanks" />
       <div className="content-inner">
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>

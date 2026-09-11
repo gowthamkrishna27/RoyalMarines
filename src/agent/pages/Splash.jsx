@@ -23,7 +23,7 @@ const Splash = () => {
     <div className="animate-fade-in" style={styles.container}>
       <div style={styles.content}>
         <img src={topnavlogo} alt="Royals Marine" style={styles.logoImage} />
-        <MarineLoader message="INITIALIZING MARINE NETWORK..." />
+        <MarineLoader message="" />
 
         <button
           onClick={() => {

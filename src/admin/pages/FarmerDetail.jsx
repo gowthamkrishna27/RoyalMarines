@@ -601,11 +601,6 @@ const FarmerDetail = () => {
 
       <PageHeader
         title={`Farmer & Tank Analytics: ${farmer.name}`}
-        breadcrumbs={[
-          { label: 'Organization' },
-          { label: 'Farmers', path: '/admin/farmers' },
-          { label: farmer.name, active: true }
-        ]}
       />
 
       {/* 1. Farmer Master Profile Card */}
@@ -614,7 +609,6 @@ const FarmerDetail = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h2 style={styles.farmerTitle}>{farmer.name}</h2>
-              <span style={styles.idBadge}>{farmer.id}</span>
               <span style={styles.activePill}>{farmer.status || 'Active'}</span>
             </div>
             <p style={styles.profileSubtitle}>

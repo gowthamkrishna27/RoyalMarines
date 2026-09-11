@@ -26,11 +26,6 @@ const RegionDetail = () => {
     <>
       <PageHeader
         title={`${region.name} Region Details`}
-        breadcrumbs={[
-          { label: 'Organization' },
-          { label: 'Regions', path: '/admin/regions' },
-          { label: region.name, active: true }
-        ]}
       />
       <div className="content-inner">
 

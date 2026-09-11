@@ -186,9 +186,6 @@ const Reports = () => {
         <div style={styles.topHeaderRow}>
           <div style={{ flex: 1, minWidth: '240px' }}>
             <h2 style={styles.pageHeading}>Reports &amp; Data Exports</h2>
-            <p style={styles.pageSubheading}>
-              Generate field performance analytics, water quality sampling sheets, and enterprise audit workbooks.
-            </p>
           </div>
 
           {/* Export Files Dropdown Button */}
@@ -614,9 +611,6 @@ const Reports = () => {
                   Audit Logs &amp; Field Records Ledger ({searchedSubmissions.length} Entries)
                 </h3>
               </div>
-              <span style={styles.cardSub}>
-                Verified telemetry logs, pH, DO, salinity, feed, and biomass records for {scopeLabel}
-              </span>
             </div>
 
             {/* Excel & Export Shortcuts */}

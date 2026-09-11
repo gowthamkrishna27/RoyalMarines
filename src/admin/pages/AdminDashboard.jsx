@@ -109,33 +109,7 @@ const AdminDashboard = () => {
 
   return (
     <div style={styles.dashboardContainer}>
-      {/* 1. Page Header (Compact Title + Subtitle replacing huge hero banner) */}
-      <div style={styles.pageHeader}>
-        <div>
-          <h1 style={styles.pageTitle}>Dashboard</h1>
-          <p style={styles.pageSubtitle}>Last Updated • Just now</p>
-        </div>
 
-        <div style={styles.headerActions}>
-          <button
-            type="button"
-            style={styles.headerSecondaryBtn}
-            onClick={() => setShowHarvestedModal(true)}
-          >
-            <Archive size={15} />
-            <span>Harvested Tanks</span>
-          </button>
-          
-          <button
-            type="button"
-            style={styles.headerPrimaryBtn}
-            onClick={() => setShowDueTestsModal(true)}
-          >
-            <AlertCircle size={15} />
-            <span>Due Tests ({dueAndOverdueTanks.length})</span>
-          </button>
-        </div>
-      </div>
 
       {/* 2. KPI Stat Cards Row (7 Cards, Clickable, No View All Links) */}
       <div style={styles.kpiGrid}>
@@ -260,7 +234,6 @@ const AdminDashboard = () => {
               <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
               <span style={styles.countBadge}>{harvestRecords.length} Records</span>
             </div>
-            <p style={styles.sectionSubtitle}>Track culture history, partial harvests, and performance metrics</p>
           </div>
 
           <div style={styles.harvestControls}>
@@ -606,68 +579,7 @@ const styles = {
     fontFamily: 'Inter, system-ui, sans-serif'
   },
 
-  pageHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '4px 0',
-    flexWrap: 'wrap',
-    gap: '16px'
-  },
 
-  pageTitle: {
-    fontSize: '28px',
-    fontWeight: 700,
-    color: '#0F172A',
-    margin: 0,
-    letterSpacing: '-0.02em',
-    lineHeight: '1.2'
-  },
-
-  pageSubtitle: {
-    fontSize: '13px',
-    fontWeight: 500,
-    color: '#64748B',
-    margin: '4px 0 0 0'
-  },
-
-  headerActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px'
-  },
-
-  headerSecondaryBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 16px',
-    backgroundColor: '#FFFFFF',
-    border: '1px solid #E2E8F0',
-    borderRadius: '10px',
-    color: '#0F172A',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-    transition: 'all 0.15s ease'
-  },
-
-  headerPrimaryBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 16px',
-    backgroundColor: '#2563EB',
-    border: 'none',
-    borderRadius: '10px',
-    color: '#FFFFFF',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-    transition: 'all 0.15s ease'
-  },
 
   kpiGrid: {
     display: 'grid',

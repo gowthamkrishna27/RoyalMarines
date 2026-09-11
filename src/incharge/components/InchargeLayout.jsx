@@ -78,7 +78,7 @@ const InchargeLayout = ({ children }) => {
           transition: 'margin-left 0.25s ease'
         }}>
           {/* Constant Uniform Header across entire ASM Portal */}
-          <InchargeHeader />
+          <InchargeHeader isMobile={isMobile} />
 
           <div 
             ref={scrollContainerRef}

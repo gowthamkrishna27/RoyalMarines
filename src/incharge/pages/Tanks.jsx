@@ -147,14 +147,13 @@ const Tanks = () => {
               <thead>
                 <tr style={styles.thRow}>
                   <th style={styles.th}>Tank / Pond</th>
-                  <th style={styles.th}>Farmer Name</th>
-                  <th style={styles.th}>Village / Area</th>
+                  <th style={styles.th}>Farmer & Locality</th>
                   <th style={styles.th}>Pond Size</th>
-                  <th style={styles.th}>Assigned Technician</th>
+                  <th style={styles.th}>Assigned Tech</th>
                   <th style={styles.th}>Last Test</th>
                   <th style={styles.th}>Next Audit</th>
-                  <th style={styles.th}>Culture Status</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                  <th style={styles.th}>Status</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -162,98 +161,105 @@ const Tanks = () => {
                   const rawTank = (db?.tanks || []).find(t => t.id === tank.id);
                   const isPending = tank.status === 'Pending Verification';
                   const isHarvested = tank.status === 'Harvested';
+                  const weeklySchedule = getTankWeeklySchedule(rawTank || tank, db?.submissions || []);
 
                   return (
-                    <tr key={tank.id} style={styles.tr}>
+                    <tr key={tank.id} style={styles.tr} className="hover:bg-slate-50/80 transition-colors">
+                      {/* Tank / Pond */}
                       <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div style={styles.tankIconCircle}>
-                            <Droplets size={15} color="#1A2FB8" />
+                            <Droplets size={16} color="#1A2FB8" />
                           </div>
                           <div>
                             <div style={styles.tankTitle}>{tank.name}</div>
+                            <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '500' }}>DOC: {tank.doc} days</div>
                           </div>
                         </div>
                       </td>
 
+                      {/* Farmer & Locality */}
                       <td style={styles.td}>
-                        <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>
-                          {tank.farmer}
-                        </span>
-                      </td>
-
-                      <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#475569' }}>
-                          <MapPin size={12} color="#1A2FB8" />
-                          <span>{tank.locality}</span>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>
+                            {tank.farmer}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                            <MapPin size={11} color="#94A3B8" />
+                            <span>{tank.locality}</span>
+                          </div>
                         </div>
                       </td>
 
+                      {/* Pond Size */}
                       <td style={styles.td}>
                         <span style={styles.sizeBadge}>{tank.size}</span>
                       </td>
 
+                      {/* Assigned Tech */}
                       <td style={styles.td}>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#0F172A' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: tank.agent === 'Direct Incharge' ? '#1A2FB8' : '#334155' }}>
                           {tank.agent}
                         </span>
                       </td>
 
+                      {/* Last Test */}
                       <td style={styles.td}>
-                        <span style={{ fontSize: '12.5px', color: '#64748B' }}>{tank.lastTest}</span>
+                        <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: '500' }}>{tank.lastTest}</span>
                       </td>
 
+                      {/* Next Audit */}
                       <td style={styles.td}>
-                        {(() => {
-                          const weeklySchedule = getTankWeeklySchedule(rawTank || tank, db?.submissions || []);
-                          return (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontSize: '12.5px', color: '#1A2FB8', fontWeight: '600' }}>{tank.nextDue}</span>
-                              {!isHarvested && !weeklySchedule.isAllDone && (
-                                <span style={{
-                                  fontSize: '10px',
-                                  color: '#B45309',
-                                  backgroundColor: '#FEF3C7',
-                                  padding: '1px 6px',
-                                  borderRadius: '4px',
-                                  border: '1px solid #FDE68A',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '3px',
-                                  width: 'fit-content'
-                                }}>
-                                  <Clock size={10} /> {weeklySchedule.dueCount} Tests Due
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ fontSize: '12.5px', color: isHarvested ? '#94A3B8' : '#0F172A', fontWeight: '600' }}>
+                            {isHarvested ? 'Cycle Closed' : tank.nextDue}
+                          </span>
+                          {!isHarvested && !weeklySchedule.isAllDone && (
+                            <span style={{
+                              fontSize: '10.5px',
+                              fontWeight: '700',
+                              color: '#B45309',
+                              backgroundColor: '#FEF3C7',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              border: '1px solid #FDE68A',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              width: 'fit-content'
+                            }}>
+                              <Clock size={10} /> {weeklySchedule.dueCount} Due
+                            </span>
+                          )}
+                        </div>
                       </td>
 
+                      {/* Culture Status */}
                       <td style={styles.td}>
                         {isPending ? (
                           <span style={styles.pendingPill}>
-                            <Clock size={11} /> Pending Review
+                            <Clock size={12} /> Pending Review
                           </span>
                         ) : isHarvested ? (
                           <button
                             type="button"
                             onClick={() => setSelectedHarvestTank(rawTank || tank)}
                             style={{ ...styles.harvestedPill, cursor: 'pointer', border: 'none' }}
-                            className="transition-transform active:scale-95 hover:opacity-90"
-                            title="Click to view full harvest, FCR, biomass & shrimp counts"
+                            className="transition-transform active:scale-95 hover:bg-slate-200"
+                            title="Click to view full harvest, FCR & biomass telemetry"
                           >
-                            <Award size={12} /> ✓ Harvest Completed
+                            <Award size={12} /> Harvest Completed
                           </button>
                         ) : (
                           <span style={styles.activePill}>
-                            <CheckCircle2 size={11} /> Active Culture
+                            <CheckCircle2 size={12} /> Active
                           </span>
                         )}
                       </td>
 
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                      {/* Actions */}
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           {!isHarvested && (
                             <button 
                               type="button"
@@ -267,7 +273,7 @@ const Tanks = () => {
                                 tank: rawTank || tank,
                                 farmer: getFarmerById((rawTank || tank).farmerId) || { name: tank.farmer, location: tank.locality }
                               })}
-                              title="View Weekly Routine Test Schedule"
+                              title="Routine Test Schedule"
                             >
                               <Clock size={14} />
                             </button>
@@ -283,9 +289,9 @@ const Tanks = () => {
                                 setSelectedTank(tank);
                               }
                             }}
-                            title={isHarvested ? "View Full Harvest & FCR Details" : "View Tank Parameters"}
+                            title={isHarvested ? "View Harvest Details" : "View Tank Parameters"}
                           >
-                            <Eye size={15} />
+                            <Eye size={14} />
                           </button>
                         </div>
                       </td>

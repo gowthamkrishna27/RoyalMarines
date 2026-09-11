@@ -177,11 +177,8 @@ const MarineLoader = ({ message = 'Synchronizing Field Data...', size = 'default
         </div>
       </div>
 
-      {!isCompact && (
-        <>
-          <div className="marine-loader-text">{message}</div>
-          <div className="marine-loader-sub">Royals Marine Field Network</div>
-        </>
+      {!isCompact && message && (
+        <div className="marine-loader-text">{message}</div>
       )}
     </div>
   );

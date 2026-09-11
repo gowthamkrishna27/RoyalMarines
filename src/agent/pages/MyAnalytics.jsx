@@ -59,7 +59,6 @@ const MyAnalytics = () => {
       {/* Page Header */}
       <div style={styles.headerRow}>
         <div>
-          <span style={styles.headerTag}>PERFORMANCE CHARTS</span>
           <h1 style={styles.headerTitle}>My Analytics</h1>
         </div>
 

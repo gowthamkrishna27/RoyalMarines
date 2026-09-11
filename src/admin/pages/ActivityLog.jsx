@@ -8,7 +8,7 @@ const ActivityLog = () => {
 
   return (
     <>
-      <PageHeader title="Organization Activity Log" breadcrumbs={[{ label: 'System' }, { label: 'Activity Log', active: true }]} />
+      <PageHeader title="Organization Activity Log" />
       <div className="content-inner">
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>

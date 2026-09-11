@@ -43,7 +43,6 @@ const InchargeLogin = () => {
         <div style={styles.header}>
           <img src={logo} alt="Royals Marine Food" style={styles.logo} />
           <h2 style={styles.title}>ASM Sign In</h2>
-          <p style={styles.subtitle}>Regional operations & field team allocations</p>
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
@@ -90,10 +89,6 @@ const InchargeLogin = () => {
             <span>{loading ? 'Signing in...' : 'Sign In as ASM'}</span>
             <ArrowRight size={16} />
           </button>
-
-          <div style={styles.demoHintBox}>
-            <span>💡 Demo: ID: <b>INC001</b> • Pass: <b>incharge123</b></span>
-          </div>
         </form>
       </div>
     </div>

@@ -676,7 +676,6 @@ const Dashboard = () => {
             <div style={styles.cardHeaderRow}>
               <div>
                 <h3 style={styles.cardTitle}>Weekly Test Compliance</h3>
-                <span style={styles.cardSub}>Current Week Cluster Testing Progress</span>
               </div>
               <span style={{ ...styles.pillTag, backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0' }}>
                 78% Completed

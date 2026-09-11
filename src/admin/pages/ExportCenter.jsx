@@ -89,7 +89,7 @@ const ExportCenter = () => {
 
   return (
     <>
-      <PageHeader title="Export Center" breadcrumbs={[{ label: 'Reports' }, { label: 'Export Center', active: true }]} />
+      <PageHeader title="Export Center" />
       <div className="content-inner">
 
         <div className="grid md:grid-cols-3" style={{ gap: '24px' }}>

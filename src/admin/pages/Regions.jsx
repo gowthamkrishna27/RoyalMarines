@@ -348,9 +348,6 @@ const Regions = () => {
       <div style={styles.topHeader}>
         <div>
           <h1 style={styles.mainTitle}>REGIONS &amp; LOCALITIES COMMAND CENTER</h1>
-          <p style={styles.mainSubtitle}>
-            Filter farmers by Region, Locality, and Operational Area • Alphabetical Directory &amp; Complete Farmer Profiles
-          </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
@@ -452,7 +449,7 @@ const Regions = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.theadRow}>
-                <th style={styles.th}>FARMER NAME &amp; ID</th>
+                <th style={styles.th}>FARMER NAME</th>
                 <th style={styles.th}>CONTACT</th>
                 <th style={styles.th}>REGION &amp; LOCALITY</th>
                 <th style={styles.th}>ASSIGNED AREA / VILLAGE</th>
@@ -466,7 +463,7 @@ const Regions = () => {
               {filteredAndSortedFarmers.length > 0 ? (
                 filteredAndSortedFarmers.map(farmer => (
                   <tr key={farmer.id} style={styles.tr}>
-                    {/* Farmer Name & ID (Clickable to View All Details) */}
+                    {/* Farmer Name (Clickable to View All Details) */}
                     <td style={styles.td}>
                       <div
                         style={styles.farmerNameBlock}
@@ -474,7 +471,6 @@ const Regions = () => {
                         title="Click to view all farmer details and tank telemetry"
                       >
                         <span style={styles.farmerNameLink}>{farmer.name}</span>
-                        <span style={styles.farmerIdBadge}>{farmer.id}</span>
                       </div>
                     </td>
 
@@ -597,9 +593,6 @@ const Regions = () => {
                 Farmers Cultivation &amp; Acreage Distribution (Bar Graph)
               </h2>
             </div>
-            <p style={styles.chartSubtitle}>
-              Comparison of Land Holding (Acres), Active Tanks, and Efficiency for farmers in selected area (A to Z)
-            </p>
           </div>
 
           {/* Metric Selector Tabs */}

@@ -45,7 +45,7 @@ const Reports = () => {
 
   return (
     <>
-      <PageHeader title="Consolidated Reports" breadcrumbs={[{ label: 'Reports' }, { label: 'Generate Reports', active: true }]} />
+      <PageHeader title="Consolidated Reports" />
       <div className="content-inner">
 
         <div className="card" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 32px' }}>

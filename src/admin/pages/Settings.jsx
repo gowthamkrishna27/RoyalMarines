@@ -15,11 +15,11 @@ const Settings = () => {
 
   return (
     <>
-      <PageHeader title="System Settings" breadcrumbs={[{ label: 'System' }, { label: 'Settings', active: true }]} />
+      <PageHeader title="System Settings" />
       <div className="content-inner">
         <div className="card" style={{ maxWidth: '600px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--color-border)' }}>
-            Admin Profile Profile
+            Admin Profile
           </h3>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px' }}>
@@ -27,8 +27,7 @@ const Settings = () => {
               <Shield size={36} />
             </div>
             <div>
-              <h4 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 4px 0' }}>{session?.name || 'Admin'}</h4>
-              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '14px' }}>System Administrator</p>
+              <h4 style={{ fontSize: '20px', fontWeight: 700, margin: '0' }}>{session?.name || 'Admin'}</h4>
             </div>
           </div>
 

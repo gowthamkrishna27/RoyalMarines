@@ -225,7 +225,7 @@ const AgentDashboard = () => {
 
       {/* 3. Today's Work Summary */}
       <div style={styles.card}>
-        <div style={styles.sectionHeaderSmall}>WEEK'S WORK</div>
+        <div style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</div>
         <div style={styles.metricsGrid}>
           <div
             style={{ ...styles.metricCol, cursor: 'pointer' }}

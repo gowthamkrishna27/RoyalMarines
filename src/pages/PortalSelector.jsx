@@ -48,7 +48,6 @@ const PortalSelector = () => {
         <div style={styles.header}>
           <img src={logo} alt="Royals Marine Food" style={styles.logo} />
           <h1 style={styles.brandTitle}>Royals Marine Food</h1>
-          <p style={styles.brandSubtitle}>Aquaculture Monitoring & Feed Management System</p>
         </div>
 
         {/* Minimal Portal Cards */}
@@ -75,15 +74,7 @@ const PortalSelector = () => {
                   <div style={{ ...styles.iconWrapper, backgroundColor: portal.bg }}>
                     <Icon size={22} color={portal.color} />
                   </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <h2 style={styles.portalTitle}>{portal.title}</h2>
-                      <span style={{ ...styles.portalBadge, color: portal.color, backgroundColor: portal.bg }}>
-                        {portal.badge}
-                      </span>
-                    </div>
-                    <p style={styles.portalSubtitle}>{portal.subtitle}</p>
-                  </div>
+                  <h2 style={styles.portalTitle}>{portal.title}</h2>
                 </div>
 
                 <div style={{ ...styles.enterIconCircle, color: portal.color }}>

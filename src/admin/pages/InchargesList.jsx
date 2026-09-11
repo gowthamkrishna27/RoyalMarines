@@ -53,6 +53,19 @@ const InchargesList = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState('');
 
+  // 3. Load Farmers from localStorage or fallback mock data
+  const [farmers, setFarmers] = useState(() => {
+    const saved = localStorage.getItem('royal_admin_farmers_data');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return getFarmers();
+      }
+    }
+    return getFarmers();
+  });
+
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -60,6 +73,8 @@ const InchargesList = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [showAssignAgentModal, setShowAssignAgentModal] = useState(false);
+  const [selectedInchargeForFarmers, setSelectedInchargeForFarmers] = useState(null);
+  const [farmerModalSearch, setFarmerModalSearch] = useState('');
 
   const [selectedIncharge, setSelectedIncharge] = useState(null);
   const [selectedAgentToAssign, setSelectedAgentToAssign] = useState('');
@@ -151,6 +166,51 @@ const InchargesList = () => {
     if (!incharge) return [];
     return agents.filter(a => a.inchargeId !== incharge.id && !a.incharge?.includes(incharge.shortName || incharge.name.split(' ')[0]));
   };
+
+  // Get all detailed farmers reporting under the clicked incharge
+  const inchargeFarmersList = useMemo(() => {
+    if (!selectedInchargeForFarmers) return [];
+    const inc = selectedInchargeForFarmers;
+    const incName = (inc.shortName || inc.name || '').split('(')[0].trim().toLowerCase();
+    const incLoc = (inc.locality || '').toLowerCase();
+    const incReg = (inc.region || '').toLowerCase();
+
+    // Assigned agent IDs
+    const assignedAgentIds = agents
+      .filter(a => a.inchargeId === inc.id || a.incharge?.toLowerCase().includes(incName))
+      .map(a => a.id);
+
+    const directFarmers = farmers.filter(f => {
+      const fInc = (f.incharge || '').toLowerCase();
+      if (fInc && (fInc.includes(incName) || (inc.shortName && fInc.includes(inc.shortName.toLowerCase())))) return true;
+      if (f.agentId && assignedAgentIds.includes(f.agentId)) return true;
+      if (f.locality && f.locality.toLowerCase() === incLoc) return true;
+      return false;
+    });
+
+    if (directFarmers.length > 0) return directFarmers;
+
+    // Fallback: match by locality or region
+    const regionalFarmers = farmers.filter(f => 
+      (f.locality && f.locality.toLowerCase().includes(incLoc)) ||
+      (f.region && f.region.toLowerCase().includes(incReg))
+    );
+
+    return regionalFarmers.length > 0 ? regionalFarmers : farmers.slice(0, 6);
+  }, [selectedInchargeForFarmers, farmers, agents]);
+
+  const filteredInchargeFarmers = useMemo(() => {
+    if (!farmerModalSearch.trim()) return inchargeFarmersList;
+    const term = farmerModalSearch.toLowerCase();
+    return inchargeFarmersList.filter(f => 
+      f.name?.toLowerCase().includes(term) ||
+      f.phone?.includes(term) ||
+      f.village?.toLowerCase().includes(term) ||
+      f.assignedArea?.toLowerCase().includes(term) ||
+      f.locality?.toLowerCase().includes(term) ||
+      f.agent?.toLowerCase().includes(term)
+    );
+  }, [inchargeFarmersList, farmerModalSearch]);
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -371,27 +431,9 @@ const InchargesList = () => {
           ──────────────────────────────────────────────── */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <nav aria-label="Breadcrumb" style={styles.breadcrumb}>
-            <span
-              style={styles.breadcrumbLink}
-              onClick={() => navigate('/admin/dashboard')}
-            >
-              Dashboard
-            </span>
-            <span style={styles.breadcrumbSeparator}>/</span>
-            <span style={styles.breadcrumbLink} onClick={() => navigate('/admin/regions')}>
-              Operations
-            </span>
-            <span style={styles.breadcrumbSeparator}>/</span>
-            <span style={styles.breadcrumbActive}>ASMs</span>
-          </nav>
           <div style={styles.titleRow}>
             <h1 style={styles.pageTitle}>ASM Personnel Management</h1>
-            <span style={styles.countPill}>{filteredIncharges.length} active</span>
           </div>
-          <p style={styles.pageSubtitle}>
-            Manage regional ASM operations, assignments, jurisdictions, and personnel.
-          </p>
         </div>
 
         <div style={styles.headerRight}>
@@ -567,7 +609,7 @@ const InchargesList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.tableHeaderRow}>
-                <th style={{ ...styles.th, width: '22%' }}>EMPLOYEE ID / NAME</th>
+                <th style={{ ...styles.th, width: '22%' }}>ASM / INCHARGE NAME</th>
                 <th style={{ ...styles.th, width: '20%' }}>CONTACT</th>
                 <th style={{ ...styles.th, width: '16%' }}>REGION &amp; LOCALITY</th>
                 <th style={{ ...styles.th, width: '12%', textAlign: 'center' }}>AGENTS MANAGED</th>
@@ -580,7 +622,6 @@ const InchargesList = () => {
               {filteredIncharges.length > 0 ? (
                 filteredIncharges.map((inc, index) => {
                   const assignedAgents = getAssignedAgents(inc);
-                  const initials = getInitials(inc.name);
                   const isAlternate = index % 2 === 1;
                   const isActive = (inc.status || 'ACTIVE') === 'ACTIVE';
 
@@ -592,19 +633,19 @@ const InchargesList = () => {
                         backgroundColor: isAlternate ? '#FAFCFF' : '#FFFFFF'
                       }}
                     >
-                      {/* 1. Employee ID / Name Column */}
+                      {/* 1. Incharge Name Column (Clickable to view all farmer details) */}
                       <td style={styles.td}>
                         <div style={styles.employeeCell}>
-                          <div style={styles.avatar}>
-                            {initials}
-                          </div>
-                          <div style={styles.employeeInfo}>
-                            <span style={styles.employeeName}>{inc.name}</span>
-                            <div style={styles.idRoleRow}>
-                              <span style={styles.employeeId}>{inc.id}</span>
-                              <span style={styles.roleTag}>{inc.role || 'Regional ASM'}</span>
-                            </div>
-                          </div>
+                          <span
+                            style={styles.employeeName}
+                            onClick={() => {
+                              setSelectedInchargeForFarmers(inc);
+                              setFarmerModalSearch('');
+                            }}
+                            title="Click to view all farmer details under this Incharge"
+                          >
+                            {inc.name}
+                          </span>
                         </div>
                       </td>
 
@@ -1312,6 +1353,238 @@ const InchargesList = () => {
       )}
 
       {/* ────────────────────────────────────────────────
+          MODAL 6: INCHARGE FARMERS & COMPLETE DETAILS MODAL
+          ──────────────────────────────────────────────── */}
+      {selectedInchargeForFarmers && (
+        <div style={styles.modalBackdrop} onClick={() => setSelectedInchargeForFarmers(null)}>
+          <div style={{ ...styles.modalContent, width: '920px', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  color: '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Tractor size={22} strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={styles.modalTitle}>
+                      Farmers under {selectedInchargeForFarmers.name}
+                    </h3>
+                    <span style={{
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px'
+                    }}>
+                      {filteredInchargeFarmers.length} {filteredInchargeFarmers.length === 1 ? 'Farmer' : 'Farmers'}
+                    </span>
+                  </div>
+                  <p style={styles.modalSubtitle}>
+                    {selectedInchargeForFarmers.locality} • {selectedInchargeForFarmers.region} • {selectedInchargeForFarmers.phone}
+                  </p>
+                </div>
+              </div>
+              <button
+                style={styles.modalCloseButton}
+                onClick={() => setSelectedInchargeForFarmers(null)}
+                title="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Search Bar */}
+            <div style={{ padding: '14px 20px 0', display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ ...styles.searchBox, flex: 1 }}>
+                <Search size={15} style={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search farmers by name, phone, area, village, or agent..."
+                  value={farmerModalSearch}
+                  onChange={(e) => setFarmerModalSearch(e.target.value)}
+                  style={styles.searchInput}
+                />
+                {farmerModalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setFarmerModalSearch('')}
+                    style={styles.clearSearchBtn}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body: Farmers List */}
+            <div style={{ ...styles.modalBody, flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {filteredInchargeFarmers.length > 0 ? (
+                filteredInchargeFarmers.map((farmer, fIdx) => (
+                  <div
+                    key={farmer.id || fIdx}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+                    }}
+                  >
+                    {/* Top Row: Farmer Name, Contact, Status, Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
+                            {farmer.name}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: farmer.status === 'Inactive' ? '#FEE2E2' : '#DCFCE7',
+                            color: farmer.status === 'Inactive' ? '#DC2626' : '#16A34A'
+                          }}>
+                            {farmer.status || 'Active'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', fontSize: '12px', color: '#64748B' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Phone size={12} />
+                            <strong style={{ color: '#334155' }}>{farmer.phone}</strong>
+                          </span>
+                          <span>•</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={12} />
+                            {farmer.assignedArea || farmer.village || farmer.location || 'Local Belt'} ({farmer.locality})
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#2563EB',
+                          border: '1px solid #BFDBFE',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => navigate(`/admin/farmers/${farmer.id}`)}
+                      >
+                        <span>Full Analytics</span>
+                        <Eye size={13} />
+                      </button>
+                    </div>
+
+                    {/* Meta details strip */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '10px',
+                      marginTop: '12px',
+                      padding: '10px 12px',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '8px',
+                      fontSize: '12px'
+                    }}>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Assigned Agent</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.agent || 'Direct Technician'}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Total Cultivation</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.acres || `${farmer.totalAcres || 5} Acres`}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Tanks Count</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.tanks || farmer.tankBreakdown?.length || 1} Units</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748B', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600 }}>Water Source</span>
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{farmer.waterSource || 'Creek / Estuary'}</span>
+                      </div>
+                    </div>
+
+                    {/* Tanks Breakdown Section */}
+                    {farmer.tankBreakdown && farmer.tankBreakdown.length > 0 && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748B', letterSpacing: '0.4px', marginBottom: '6px' }}>
+                          Tanks &amp; Telemetry Breakdown:
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', border: '1px solid #F1F5F9', borderRadius: '6px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#F1F5F9', color: '#475569', textAlign: 'left' }}>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>Tank</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>Size</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>DOC</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>ABW</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>FCR</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>Biomass</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>Water &amp; Salinity</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600 }}>Hatchery / Brooder</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {farmer.tankBreakdown.map((tank, tIdx) => (
+                                <tr key={tank.id || tIdx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                                  <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0F172A' }}>{tank.name || `Tank ${tIdx + 1}`}</td>
+                                  <td style={{ padding: '6px 10px', color: '#64748B' }}>{tank.acres ? `${tank.acres} Ac` : '2.5 Ac'}</td>
+                                  <td style={{ padding: '6px 10px', fontWeight: 700, color: '#2563EB' }}>{tank.doc || 45} DOC</td>
+                                  <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0F172A' }}>{tank.abw ? `${tank.abw}g` : '18.5g'}</td>
+                                  <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0F172A' }}>{tank.fcr || '1.25'}</td>
+                                  <td style={{ padding: '6px 10px', color: '#64748B' }}>{tank.biomass ? `${tank.biomass.toLocaleString()} kg` : '2,400 kg'}</td>
+                                  <td style={{ padding: '6px 10px', color: '#64748B' }}>{tank.waterSource || 'Creek'} ({tank.salinity || 16} ppt)</td>
+                                  <td style={{ padding: '6px 10px', color: '#64748B' }}>{tank.hatcheryName || 'Apex Marine'} ({tank.brooder || 'Kona Bay'})</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '13px' }}>
+                  No farmers match the search filter for this Incharge.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={styles.modalFooter}>
+              <button
+                type="button"
+                onClick={() => setSelectedInchargeForFarmers(null)}
+                style={styles.secondaryButton}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────────────────────────────────────────
           TOAST NOTIFICATION
           ──────────────────────────────────────────────── */}
       {toastMessage && (
@@ -1685,10 +1958,12 @@ const styles = {
     gap: '2px'
   },
   employeeName: {
-    fontSize: '13.5px',
-    fontWeight: 600,
+    fontSize: '14px',
+    fontWeight: 700,
     color: '#0F172A',
-    lineHeight: '1.3'
+    lineHeight: '1.3',
+    cursor: 'pointer',
+    transition: 'color 0.15s ease',
   },
   idRoleRow: {
     display: 'flex',

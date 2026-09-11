@@ -494,7 +494,6 @@ const WeeklyTests = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Weekly Test Progress</h3>
-              <p style={{ fontSize: '12.5px', color: '#64748B', margin: '3px 0 0 0' }}>Current Week Cluster Testing Progress</p>
             </div>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', borderRadius: '8px', fontSize: '12px', fontWeight: '700' }}>
               78% Completed

@@ -28,12 +28,6 @@ const TankHistory = () => {
     <>
       <PageHeader
         title={`Tank History: ${tank.name} (${tank.farmer})`}
-        breadcrumbs={[
-          { label: 'Organization' },
-          { label: tank.agent },
-          { label: tank.farmer },
-          { label: tank.name, active: true }
-        ]}
       />
       <div className="content-inner">
 

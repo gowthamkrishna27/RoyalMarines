@@ -146,7 +146,7 @@ const Analytics = () => {
 
   return (
     <>
-      <PageHeader title="Management Analytics" breadcrumbs={[{ label: 'Monitoring' }, { label: 'Analytics', active: true }]} />
+      <PageHeader title="Management Analytics" />
       <div className="content-inner">
 
         {/* Filters */}

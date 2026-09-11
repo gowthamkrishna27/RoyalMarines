@@ -43,7 +43,6 @@ const AdminLogin = () => {
         <div style={styles.header}>
           <img src={logo} alt="Royals Marine Food" style={styles.logo} />
           <h2 style={styles.title}>Admin Portal Sign In</h2>
-          <p style={styles.subtitle}>Executive administration & global analytics</p>
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
@@ -90,10 +89,6 @@ const AdminLogin = () => {
             <span>{loading ? 'Authenticating...' : 'Sign In as Admin'}</span>
             <ArrowRight size={16} />
           </button>
-
-          <div style={styles.demoHintBox}>
-            <span>💡 Demo: ID: <b>ADM001</b> • Pass: <b>admin123</b></span>
-          </div>
         </form>
       </div>
     </div>

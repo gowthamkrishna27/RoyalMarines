@@ -421,11 +421,8 @@ const Agents = () => {
                       }}
                       title={`Click to view all profile details of ${agent.name}`}
                     >
-                      <div>
-                        <div style={{ ...styles.agentName, color: '#1A2FB8', fontWeight: '800' }}>
-                          {agent.name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748B' }}>Field Tech • View Profile</div>
+                      <div style={{ ...styles.agentName, color: '#1A2FB8', fontWeight: '800' }}>
+                        {agent.name}
                       </div>
                     </td>
 

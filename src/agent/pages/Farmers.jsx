@@ -54,7 +54,6 @@ const Farmers = () => {
       {/* Header */}
       <div style={styles.headerRow}>
         <div>
-          <span style={styles.headerTag}>DIRECTORY</span>
           <h1 style={styles.headerTitle}>My Farmers</h1>
         </div>
 
