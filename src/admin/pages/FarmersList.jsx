@@ -772,7 +772,7 @@ const FarmersList = () => {
             <div style={styles.modalHeader}>
               <div>
                 <h3 style={styles.modalTitle}>Add Aquaculture Farmer</h3>
-                <p style={styles.modalSubtitle}>Register a new farmer with pond allocations and field agent assignments.</p>
+                <p style={styles.modalSubtitle}>Register a new farmer with pond allocations</p>
               </div>
               <button
                 style={styles.modalCloseButton}
