@@ -1,0 +1,19 @@
+{
+  "name": "royalsmarine-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Royals Marine Food - Full-stack Aqua Feed Management Platform",
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm --prefix frontend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "db:view": "npm --prefix backend run db:view --",
+    "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
+    "lint": "npm --prefix frontend run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
