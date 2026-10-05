@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, Plus, Check, AlertTriangle, 
   ChevronRight, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { getAsmBasePath } from '../utils/asmNavigation';
 
 const MyFarmers = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
   const { db, getMyFarmersByInchargeId, getTanksByFarmerId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,7 +65,7 @@ const MyFarmers = () => {
           type="button"
           className="transition-all duration-150 active:scale-95 cursor-pointer"
           style={styles.addFarmerBtn}
-          onClick={() => navigate('/incharge/add-farmer')}
+          onClick={() => navigate(`${base}/add-farmer`)}
         >
           <Plus size={16} strokeWidth={2.8} />
           <span>Add Farmer</span>
@@ -148,7 +151,7 @@ const MyFarmers = () => {
             <div
               key={farmer.id}
               style={styles.farmerCard}
-              onClick={() => navigate(`/incharge/farmers/${farmer.id}`)}
+              onClick={() => navigate(`${base}/farmers/${farmer.id}`)}
               className="transition-all hover:border-slate-300 active:scale-[0.99] cursor-pointer"
             >
               <div style={styles.cardLeft}>

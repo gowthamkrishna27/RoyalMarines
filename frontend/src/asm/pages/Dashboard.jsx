@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Users, UserSquare, Droplets, TestTube, CheckCircle, AlertTriangle,
   ArrowUpRight, ArrowDownRight, ChevronRight, Clock, ShieldCheck, Shield, Phone,
@@ -8,12 +8,14 @@ import {
 } from 'lucide-react';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
+import { getAsmBasePath } from '../utils/asmNavigation';
 import FarmLeafletMap from '../../agent/components/FarmLeafletMap';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../../agent/utils/gpsService';
 import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
+import { getInchargeSession } from '../utils/inchargeAuth';
 
 const COMPLIANCE_COLORS = ['#16A34A', '#D97706', '#DC2626', '#64748B'];
 
@@ -90,6 +92,8 @@ const KPICard = ({ title, value, subtext, isPositive, icon: Icon, color, onClick
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
   const { 
     getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById, 
     getFarmersByInchargeId, getTanksByInchargeId, getMyFarmersByInchargeId, getMyTanksByInchargeId,
@@ -125,7 +129,10 @@ const Dashboard = () => {
   const [agentOverdueSearch, setAgentOverdueSearch] = useState('');
   const [agentOverdueAgentFilter, setAgentOverdueAgentFilter] = useState('ALL');
   const [remindedOverdueMap, setRemindedOverdueMap] = useState({});
+  const [mapScope, setMapScope] = useState('ALL'); // 'ALL' | 'PERSONAL'
+  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
 
+  const session = getInchargeSession() || { name: 'Ravi Kumar', inchargeId: 'INC001', region: 'Bhimavaram Region' };
   const metrics = getInchargeDashboardMetrics('INC001');
   
   // Personal farmers and tanks directly under Incharge (INC001)
@@ -392,15 +399,55 @@ const Dashboard = () => {
     const newMap = { ...remindedOverdueMap };
     filteredAgentOverdueTests.forEach(item => { newMap[item.id] = true; });
     setRemindedOverdueMap(newMap);
+    setBroadcastSuccess(true);
+    setTimeout(() => setBroadcastSuccess(false), 4000);
   };
 
-  // Map Coordinates for Incharge cluster ponds
+  // Map Coordinates for Incharge cluster ponds fallback
   const mapTanks = [
     { id: 'T003', name: 'Tank 1', farmer: 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
     { id: 'T008', name: 'Tank 1', farmer: 'Siva', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
     { id: 'T001', name: 'Tank 1', farmer: 'Ashok', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
     { id: 'T002', name: 'Tank 2', farmer: 'Ashok', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
   ];
+
+  // Dynamic Map Coordinates for ASM personal ponds vs Supervised team ponds
+  const personalMapTanks = useMemo(() => {
+    if (!personalTanksDetails || personalTanksDetails.length === 0) return [];
+    return personalTanksDetails.map((item, idx) => ({
+      id: item.tank.id,
+      name: item.tank.name,
+      farmer: item.farmer.name,
+      distance: `${350 + (idx * 220)}m away`,
+      status: item.isHarvested ? 'Harvested' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Optimal')),
+      due: item.isDue || item.isOverdue,
+      species: item.species,
+      agentName: 'Self (ASM / Field Tech)',
+      isPersonal: true
+    }));
+  }, [personalTanksDetails]);
+
+  const teamMapTanks = useMemo(() => {
+    if (!allDashboardTanks || allDashboardTanks.length === 0) return [];
+    return allDashboardTanks.slice(0, 16).map((t, idx) => ({
+      id: t.id,
+      name: t.name,
+      farmer: t.farmer,
+      distance: `${450 + (idx * 160)}m away`,
+      status: t.status === 'Harvested' ? 'Harvested' : (t.status === 'Overdue' ? 'Overdue' : (t.status === 'Test Due' || t.status === 'Due' ? 'Test Due' : 'Optimal')),
+      due: t.status === 'Test Due' || t.status === 'Due' || t.status === 'Overdue',
+      species: t.species,
+      agentName: t.agent || 'Field Tech',
+      isPersonal: false
+    }));
+  }, [allDashboardTanks]);
+
+  const activeDisplayedMapTanks = useMemo(() => {
+    if (mapScope === 'PERSONAL') {
+      return personalMapTanks.length > 0 ? personalMapTanks : mapTanks;
+    }
+    return teamMapTanks.length > 0 ? teamMapTanks : mapTanks;
+  }, [mapScope, personalMapTanks, teamMapTanks]);
 
   useEffect(() => {
     const existingGPS = getStoredGPS();
@@ -429,18 +476,219 @@ const Dashboard = () => {
       <div className="p-3.5 sm:p-5 lg:p-6 max-w-[1440px] mx-auto">
         
         {/* ========================================================= */}
+        {/* DUAL-ROLE ASM / TECHNICIAN COMMAND & ACTION BAR            */}
+        {/* ========================================================= */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '12px',
+              backgroundColor: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#1A2FB8',
+              fontWeight: '800',
+              fontSize: '18px',
+              flexShrink: 0
+            }}>
+              {session?.name ? session.name.charAt(0) : 'R'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                  {session?.name || 'Ravi Kumar'}
+                </h2>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  backgroundColor: '#EFF6FF',
+                  color: '#1A2FB8',
+                  border: '1px solid #BFDBFE',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <ShieldCheck size={13} /> Dual Role: ASM Supervisor & Field Agent
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', fontSize: '12px', color: '#64748B', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin size={13} color="#1A2FB8" /> {session?.region || 'Bhimavaram Region'} (Zone INC001)
+                </span>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={handleRefreshGPS}
+                  disabled={gpsLoading}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: '#0284C7',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11.5px',
+                    fontWeight: '600'
+                  }}
+                  className="hover:underline"
+                >
+                  <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
+                  {gps ? `${gps.latitude?.toFixed(4)}, ${gps.longitude?.toFixed(4)}` : 'Locating GPS...'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setModalInitialTank(personalTanks[0]?.id || null);
+                setModalInitialType('WATER_QUALITY');
+                setIsQuickRecordOpen(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#1A2FB8',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(26,47,184,0.2)'
+              }}
+              className="transition-all hover:brightness-110 active:scale-95"
+            >
+              <Plus size={14} strokeWidth={2.5} /> Log Pond Test
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(`${base}/harvest`)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#F8FAFC',
+                color: '#0F172A',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+              className="transition-all hover:bg-slate-100 active:scale-95"
+            >
+              <Scale size={14} color="#16A34A" /> Harvest
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(`${base}/agents`)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#EFF6FF',
+                color: '#1A2FB8',
+                border: '1px solid #BFDBFE',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+              className="transition-all hover:bg-blue-100 active:scale-95"
+            >
+              <Users size={14} /> Monitor Agents ({inchargeAgents.length})
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
         {/* 0. FARM TANK MAP & SIDE PANEL (LOCATION & THIS WEEK'S WORK) */}
         {/* ========================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-start">
           {/* Left: FARM TANK MAP */}
           <div className="lg:col-span-7 flex flex-col gap-2">
-            <div style={styles.cardHeaderRow}>
+            <div style={{ ...styles.cardHeaderRow, flexWrap: 'wrap', gap: '8px' }}>
               <span style={styles.sectionHeaderSmall}>FARM TANK MAP</span>
+              <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  onClick={() => setMapScope('PERSONAL')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: mapScope === 'PERSONAL' ? '#FFFFFF' : 'transparent',
+                    color: mapScope === 'PERSONAL' ? '#1A2FB8' : '#64748B',
+                    boxShadow: mapScope === 'PERSONAL' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  className="transition-all"
+                >
+                  <User size={12} />
+                  <span>My Ponds ({personalTanks.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapScope('ALL')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: mapScope === 'ALL' ? '#FFFFFF' : 'transparent',
+                    color: mapScope === 'ALL' ? '#1A2FB8' : '#64748B',
+                    boxShadow: mapScope === 'ALL' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  className="transition-all"
+                >
+                  <Users size={12} />
+                  <span>All Team Ponds ({allDashboardTanks.length})</span>
+                </button>
+              </div>
             </div>
 
             <FarmLeafletMap
               gps={gps}
-              tanks={mapTanks}
+              tanks={activeDisplayedMapTanks}
               selectedTank={selectedMapTank}
               onSelectTank={(tank) => setSelectedMapTank(tank)}
             />
@@ -453,9 +701,14 @@ const Dashboard = () => {
                     <span style={selectedMapTank.due ? styles.tagDue : styles.tagOptimal}>
                       {selectedMapTank.status}
                     </span>
+                    {selectedMapTank.agentName && (
+                      <span style={{ fontSize: '10.5px', fontWeight: '700', padding: '2px 7px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1A2FB8', border: '1px solid #BFDBFE' }}>
+                        Tech: {selectedMapTank.agentName}
+                      </span>
+                    )}
                   </div>
                   <div style={styles.drawerSub}>
-                    {selectedMapTank.farmer} • {selectedMapTank.distance} away
+                    {selectedMapTank.farmer} • {selectedMapTank.distance} away • {selectedMapTank.species || 'Vannamei'}
                   </div>
                 </div>
 
@@ -465,8 +718,8 @@ const Dashboard = () => {
                     className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
                     style={styles.viewPondBtn}
                     onClick={() => {
-                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
-                      const fMatch = inchargeFarmers.find(f => f.name === selectedMapTank.farmer) || { name: selectedMapTank.farmer };
+                      const tMatch = (db?.tanks || []).find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      const fMatch = (db?.farmers || []).find(f => f.name === selectedMapTank.farmer || f.id === tMatch.farmerId) || { name: selectedMapTank.farmer };
                       setSelectedRoutineTank({ tank: tMatch, farmer: fMatch });
                     }}
                   >
@@ -491,7 +744,7 @@ const Dashboard = () => {
                       cursor: 'pointer',
                     }}
                     onClick={() => {
-                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      const tMatch = (db?.tanks || []).find(t => t.id === selectedMapTank.id) || selectedMapTank;
                       setModalInitialTank(tMatch.id);
                       setModalInitialType('WATER_QUALITY');
                       setIsQuickRecordOpen(true);
@@ -513,7 +766,7 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 gap-3 my-auto py-2">
                 <div 
                   style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #F1F5F9' }}
-                  onClick={() => navigate('/incharge/my-farmers')}
+                  onClick={() => navigate(`${base}/my-farmers`)}
                   className="transition-all hover:bg-blue-50/50 hover:border-blue-100 active:scale-95 cursor-pointer"
                   title="View My Personal Farmers"
                 >
@@ -587,7 +840,7 @@ const Dashboard = () => {
             isPositive={true} 
             icon={UserSquare} 
             color="#1A2FB8" 
-            onClick={() => navigate('/incharge/farmers')}
+            onClick={() => navigate(`${base}/farmers`)}
           />
           <KPICard
             title="My Agents" 
@@ -596,7 +849,7 @@ const Dashboard = () => {
             isPositive={true} 
             icon={Users} 
             color="#1A2FB8" 
-            onClick={() => navigate('/incharge/agents')}
+            onClick={() => navigate(`${base}/agents`)}
           />
           <KPICard
             title="Agent Tests Logged" 
@@ -605,7 +858,7 @@ const Dashboard = () => {
             isPositive={true} 
             icon={TestTube} 
             color="#0284C7" 
-            onClick={() => navigate('/incharge/tests')}
+            onClick={() => navigate(`${base}/tests`)}
           />
           <KPICard
             title="Overdue Tests" 
@@ -705,7 +958,7 @@ const Dashboard = () => {
               </span>
               <button
                 type="button"
-                onClick={() => navigate('/incharge/weekly-tests')}
+                onClick={() => navigate(`${base}/weekly-tests`)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -722,6 +975,248 @@ const Dashboard = () => {
                 <span>View Full Breakdown</span>
                 <ChevronRight size={13} />
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* 3. FIELD AGENTS LIVE OBSERVATION SECTION                   */}
+        {/* ========================================================= */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={styles.chartCard}>
+            <div style={{ ...styles.cardHeaderRow, flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <Users size={18} color="#1A2FB8" />
+                <h3 style={styles.cardTitle}>Field Agents Team Observation</h3>
+                <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#EFF6FF', color: '#1A2FB8' }}>
+                  {inchargeAgents.length} Supervised Techs
+                </span>
+                {allAgentOverdueTests.length > 0 && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                    {allAgentOverdueTests.length} Total Overdue
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {allAgentOverdueTests.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRemindAllOverdueAgents}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      backgroundColor: '#DC2626',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 3px rgba(220,38,38,0.25)'
+                    }}
+                    className="transition-all hover:bg-red-700 active:scale-95"
+                    title="Send immediate broadcast reminder to all technicians with overdue tests"
+                  >
+                    <Bell size={13} /> Broadcast Overdue Alert
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`${base}/agents`)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#1A2FB8',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  className="hover:underline cursor-pointer"
+                >
+                  <span>Full Agents Hub</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Broadcast Success Feedback Toast */}
+            {broadcastSuccess && (
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#DCFCE7',
+                border: '1px solid #BBF7D0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#15803D',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                <CheckCircle2 size={16} color="#16A34A" />
+                <span>Urgent overdue reminder broadcast successfully dispatched to all {inchargeAgents.length} field technicians!</span>
+              </div>
+            )}
+
+            {/* Grid of Agent Observation Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px', marginTop: '16px' }}>
+              {inchargeAgents.slice(0, 4).map((ag) => {
+                const agFarmers = getFarmersByAgentId ? getFarmersByAgentId(ag.id) : [];
+                const agTanks = agFarmers.flatMap(f => getTanksByFarmerId(f.id));
+                const agSubs = (db?.submissions || []).filter(s => s.agentId === ag.id);
+                const overdueT = agTanks.filter(t => t.testStatus === 'Overdue' && t.status !== 'Harvested').length;
+                const phone = ag.mobile || ag.phone || '+91 98480 22334';
+                const isReminded = remindedOverdueMap[ag.id];
+
+                return (
+                  <div
+                    key={ag.id}
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      transition: 'all 0.15s ease'
+                    }}
+                    className="hover:border-blue-300 hover:shadow-xs"
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          backgroundColor: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#1A2FB8',
+                          fontWeight: '800',
+                          fontSize: '13px'
+                        }}>
+                          {ag.name ? ag.name.charAt(0) : 'A'}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>{ag.name}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>📍 {ag.locality || 'Bhimavaram Cluster'}</div>
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: overdueT > 0 ? '#FEE2E2' : '#DCFCE7',
+                        color: overdueT > 0 ? '#DC2626' : '#15803D',
+                        border: overdueT > 0 ? '1px solid #FECACA' : '1px solid #BBF7D0'
+                      }}>
+                        {overdueT > 0 ? `${overdueT} Overdue` : 'Active in Field'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', backgroundColor: '#FFFFFF', padding: '8px 6px', borderRadius: '8px', border: '1px solid #F1F5F9' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#1A2FB8' }}>{agFarmers.length}</div>
+                        <div style={{ fontSize: '10px', color: '#64748B' }}>Farmers</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#0284C7' }}>{agTanks.length}</div>
+                        <div style={{ fontSize: '10px', color: '#64748B' }}>Ponds</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#16A34A' }}>{agSubs.length}</div>
+                        <div style={{ fontSize: '10px', color: '#64748B' }}>Tests</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                      <a
+                        href={`tel:${phone}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '32px',
+                          height: '32px',
+                          backgroundColor: '#F1F5F9',
+                          color: '#475569',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '7px',
+                          flexShrink: 0
+                        }}
+                        className="transition-all hover:bg-slate-200 active:scale-95"
+                        title={`Call ${ag.name} (${phone})`}
+                      >
+                        <Phone size={13} />
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate(`${base}/agents`)}
+                        style={{
+                          flex: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#1A2FB8',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '7px',
+                          padding: '6px 10px',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                        className="transition-all hover:bg-blue-100 active:scale-95"
+                      >
+                        <Eye size={12} strokeWidth={2.5} /> Observe
+                      </button>
+
+                      {overdueT > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const firstOD = allAgentOverdueTests.find(item => item.agentId === ag.id);
+                            if (firstOD) handleRemindSingleAgent(firstOD);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            backgroundColor: isReminded ? '#DCFCE7' : '#FEF2F2',
+                            color: isReminded ? '#15803D' : '#DC2626',
+                            border: isReminded ? '1px solid #BBF7D0' : '1px solid #FECACA',
+                            borderRadius: '7px',
+                            padding: '6px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          className="transition-all hover:brightness-95 active:scale-95"
+                          title="Send quick overdue test reminder to agent"
+                        >
+                          <Bell size={12} /> {isReminded ? 'Nudged ✓' : 'Nudge'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2271,7 +2766,7 @@ const Dashboard = () => {
                 type="button"
                 onClick={() => {
                   setShowMyTanksModal(false);
-                  navigate('/incharge/my-tanks');
+                  navigate(`${base}/my-tanks`);
                 }}
                 style={{
                   display: 'inline-flex',

@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, Check, AlertTriangle, 
   ChevronRight, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { getAsmBasePath } from '../utils/asmNavigation';
 
 const Farmers = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
   const { db, getTanksByFarmerId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,7 +137,7 @@ const Farmers = () => {
             <div
               key={farmer.id}
               style={styles.farmerCard}
-              onClick={() => navigate(`/incharge/tanks`)}
+              onClick={() => navigate(`${base}/tanks`)}
               className="transition-all hover:border-slate-300 active:scale-[0.99] cursor-pointer"
             >
               <div style={styles.cardLeft}>

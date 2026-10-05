@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
+import { getAsmBasePath } from '../utils/asmNavigation';
 import { 
   ArrowLeft, CheckCircle2, XCircle, AlertCircle, 
   MapPin, ShieldCheck, User, Droplets, Calendar, Clock, 
@@ -11,6 +12,8 @@ import {
 const RecordReview = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
   const { db, getFarmerById, getTankById, getAgentById, updateSubmissionStatus, addNotification } = useMockData();
   const [record, setRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +58,7 @@ const RecordReview = () => {
   const handleApprove = () => {
     updateSubmissionStatus(record.id, 'Approved');
     addNotification(record.agentId, `Record for ${record.tank} (${record.farmer}) was Approved by Cluster Incharge.`, 'success');
-    navigate('/incharge/tests');
+    navigate(`${base}/tests`);
   };
 
   const openModal = (action) => {
@@ -76,7 +79,7 @@ const RecordReview = () => {
     );
 
     setShowModal(false);
-    navigate('/incharge/tests');
+    navigate(`${base}/tests`);
   };
 
   const parameterItems = [
@@ -96,7 +99,7 @@ const RecordReview = () => {
         {/* Top Breadcrumb Navigation */}
         <button 
           type="button"
-          onClick={() => navigate('/incharge/tests')}
+          onClick={() => navigate(`${base}/tests`)}
           style={styles.backLinkBtn}
           className="transition-all duration-150 active:scale-98 cursor-pointer"
         >
@@ -225,7 +228,7 @@ const RecordReview = () => {
 
               <button 
                 type="button"
-                onClick={() => navigate('/incharge/tests')}
+                onClick={() => navigate(`${base}/tests`)}
                 style={styles.backToHistoryBtn}
                 className="transition-all duration-150 active:scale-98 cursor-pointer"
               >

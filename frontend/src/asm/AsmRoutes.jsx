@@ -23,6 +23,7 @@ import TankDetails from '../agent/pages/TankDetails';
 import SiteVisit from '../agent/pages/SiteVisit';
 import AddFarmer from '../agent/pages/AddFarmer';
 import AddTanks from '../agent/pages/AddTanks';
+import Harvest from '../agent/pages/Harvest';
 
 const AsmRoutes = () => {
   return (
@@ -39,6 +40,7 @@ const AsmRoutes = () => {
       <Route path="tanks" element={<Tanks />} />
       <Route path="tanks/:tankId" element={<TankDetails />} />
       <Route path="visit/:tankId" element={<SiteVisit />} />
+      <Route path="harvest" element={<Harvest />} />
       <Route path="allocations" element={<Allocations />} />
       <Route path="tests" element={<Tests />} />
       <Route path="history" element={<Tests />} />

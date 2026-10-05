@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Clock } from 'lucide-react';
 import { getInchargeSession } from '../utils/inchargeAuth';
+import { getAsmBasePath } from '../utils/asmNavigation';
 import BackButton from '../../components/BackButton';
 import topnavlogo from '../../assets/topnavlogo.png';
 
@@ -42,16 +43,19 @@ const InchargeHeader = ({ title = "Dashboard", showBack = false, isMobile = fals
     return () => clearInterval(interval);
   }, []);
 
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
+
   return (
     <header style={styles.header}>
       {/* 1. LEFT: BackButton or Mobile Logo (only shown on mobile where sidebar is hidden) */}
       <div style={styles.leftGroup}>
         {showBack ? (
-          <BackButton fallback="/incharge/dashboard" />
+          <BackButton fallback={`${base}/dashboard`} />
         ) : isMobile ? (
           <div 
             style={styles.logoContainer}
-            onClick={() => navigate('/incharge/dashboard')}
+            onClick={() => navigate(`${base}/dashboard`)}
             title="Royals Marine"
           >
             <img 
@@ -76,7 +80,7 @@ const InchargeHeader = ({ title = "Dashboard", showBack = false, isMobile = fals
         {/* User Profile Button */}
         <button 
           type="button" 
-          onClick={() => navigate('/incharge/settings')}
+          onClick={() => navigate(`${base}/settings`)}
           style={styles.profileRoundBtn}
           title="ASM Profile & Settings"
           aria-label="Profile"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, User, ArrowRight } from 'lucide-react';
 import { loginIncharge } from '../utils/inchargeAuth';
 import logo from '../../assets/logo-trans2.png';
@@ -12,6 +12,7 @@ const InchargeLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -26,7 +27,8 @@ const InchargeLogin = () => {
     setTimeout(() => {
       const result = loginIncharge(identifier, password);
       if (result.success) {
-        navigate('/incharge/dashboard');
+        const target = location.pathname.includes('incharge') ? '/incharge/dashboard' : '/asm/dashboard';
+        navigate(target);
       } else {
         setError(result.error);
         setLoading(false);

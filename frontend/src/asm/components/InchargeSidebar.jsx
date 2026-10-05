@@ -1,321 +1,366 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
-  Users, 
-  UserSquare, 
-  UserCheck,
-  User,
-  Droplets, 
-  Network, 
-  TestTube, 
-  CheckCircle, 
-  Calendar, 
-  BarChart, 
-  Download, 
-  Activity, 
-  Settings,
-  LogOut,
-  Shield,
-  MapPin,
-  Layers,
-  X,
-  History
+  Home, Users, Plus, Calendar, FileText, UserCheck, 
+  Settings, LogOut, Shield, ChevronRight, Layers, Eye
 } from 'lucide-react';
 import { logoutIncharge, getInchargeSession } from '../utils/inchargeAuth';
+import { getAsmBasePath } from '../utils/asmNavigation';
 import { useMockData } from '../../context/MockDataContext';
+import QuickRecordModal from '../../agent/components/QuickRecordModal';
 import topnavlogo from '../../assets/topnavlogo.png';
 
-const navGroups = [
-  {
-    title: 'MAIN',
-    items: [
-      { path: '/incharge/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/incharge/agents', label: 'My Agents', icon: Users },
-      { path: '/incharge/my-farmers', label: 'My Farmers', icon: UserCheck },
-      { path: '/incharge/farmers', label: 'Farmers', icon: UserSquare },
-    ]
-  },
-  {
-    title: 'OPERATIONS',
-    items: [
-      { path: '/incharge/weekly-tests', label: 'Weekly Tests', icon: Calendar },
-    ]
-  },
-  {
-    title: 'REPORTS & AUDIT',
-    items: [
-      { path: '/incharge/reports', label: 'Reports', icon: BarChart },
-      { path: '/incharge/export-data', label: 'Export Data', icon: Download },
-      { path: '/incharge/settings', label: 'Settings', icon: Settings },
-    ]
-  }
-];
-
-const InchargeSidebar = ({ isMobile = false, isOpen = false, onClose = () => {} }) => {
+const InchargeSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const session = getInchargeSession();
-  const { db } = useMockData();
+  const { db, getAgentsByInchargeId } = useMockData();
+  const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
 
-  const pendingCount = (db?.submissions || []).filter(s => s.status === 'PENDING_VERIFICATION').length;
+  const base = getAsmBasePath(location.pathname);
 
-  const isCurrentActive = (path) => location.pathname === path || (path !== '/incharge/dashboard' && location.pathname.startsWith(path));
+  // Compute live agent alert count
+  const inchargeAgents = getAgentsByInchargeId ? getAgentsByInchargeId('INC001') : (db?.agents || []);
+  const overdueAgentCount = (inchargeAgents || []).reduce((acc, ag) => {
+    const farmers = (db?.farmers || []).filter(f => f.agentId === ag.id);
+    const tanks = (db?.tanks || []).filter(t => farmers.some(f => f.id === t.farmerId));
+    const hasOverdue = tanks.some(t => t.testStatus === 'Overdue' && t.status !== 'Harvested');
+    return acc + (hasOverdue ? 1 : 0);
+  }, 0);
 
   const handleLogout = () => {
-    if (window.confirm('Log out of ASM Portal?')) {
+    if (window.confirm('Log out of Area Sales Manager (ASM) Portal?')) {
       logoutIncharge();
-      navigate('/incharge-login');
+      navigate('/login');
     }
   };
 
+  const navItems = [
+    { 
+      name: 'Home', 
+      path: `${base}/dashboard`, 
+      icon: Home, 
+      match: [`${base}/dashboard`, `${base}`, base] 
+    },
+    { 
+      name: 'My Agents', 
+      path: `${base}/agents`, 
+      icon: Users, 
+      badge: overdueAgentCount > 0 ? `${overdueAgentCount} Due` : null,
+      match: [`${base}/agents`] 
+    },
+    { 
+      name: 'My Farmers', 
+      path: `${base}/my-farmers`, 
+      icon: UserCheck, 
+      match: [`${base}/my-farmers`, `${base}/farmers`, `${base}/add-farmer`] 
+    },
+    { 
+      name: 'Harvest', 
+      path: `${base}/harvest`, 
+      icon: Scale, 
+      match: [`${base}/harvest`] 
+    },
+    { 
+      name: 'Weekly Tests', 
+      path: `${base}/weekly-tests`, 
+      icon: Calendar, 
+      match: [`${base}/weekly-tests`, `${base}/tests`, `${base}/history`] 
+    },
+    { 
+      name: 'Reports', 
+      path: `${base}/reports`, 
+      icon: FileText, 
+      match: [`${base}/reports`, `${base}/export-data`] 
+    },
+    { 
+      name: 'Settings', 
+      path: `${base}/settings`, 
+      icon: Settings, 
+      match: [`${base}/settings`, `${base}/profile`] 
+    },
+  ];
+
+  const isItemActive = (item) => {
+    const current = location.pathname.toLowerCase();
+    if (item.name === 'Home' && (current === base.toLowerCase() || current === `${base.toLowerCase()}/` || current === `${base.toLowerCase()}/dashboard`)) {
+      return true;
+    }
+    return item.match.some(p => {
+      const target = p.toLowerCase();
+      return current === target || current.startsWith(target + '/');
+    });
+  };
+
   return (
-    <aside style={{
-      ...styles.sidebar,
-      position: 'fixed',
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: '260px',
-      transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-      transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-      zIndex: 999,
-      boxShadow: isMobile && isOpen ? '4px 0 24px rgba(0,0,0,0.18)' : 'none'
-    }}>
-      {/* 1. Brand Header */}
-      <div style={{ ...styles.brandHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div 
-          onClick={() => { navigate('/incharge/dashboard'); if (isMobile && onClose) onClose(); }} 
-          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          title="Royals Marine"
-        >
+    <>
+      <aside style={styles.sidebar}>
+        {/* 1. Brand Header */}
+        <div style={styles.brandHeader} onClick={() => navigate(`${base}/dashboard`)} title="Royals Marine">
           <img src={topnavlogo} alt="Royals Marine" style={styles.brandLogoImg} />
         </div>
-        {isMobile && (
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: '#F1F5F9',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X size={18} color="#475569" />
-          </button>
-        )}
-      </div>
 
-      {/* 2. Navigation Menu */}
-      <div style={styles.navMenu}>
-        {navGroups.map((group) => (
-          <div key={group.title} style={{ marginBottom: '14px' }}>
-            <div style={styles.groupHeading}>{group.title}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = isCurrentActive(item.path);
-                const badgeCount = item.badgeKey === 'pendingVerifications' ? pendingCount : 0;
+        {/* 2. Primary Action Buttons: Record & Harvest (Identical to Agent) */}
+        <div style={styles.actionSection}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button 
+              className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
+              style={styles.quickRecordBtn}
+              onClick={() => setIsQuickRecordOpen(true)}
+              aria-label="New Field Record"
+            >
+              <Plus size={14} strokeWidth={2.5} /> Record
+            </button>
 
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => { if (isMobile && onClose) onClose(); }}
-                    className="transition-all duration-150 active:scale-98"
-                    style={{
-                      ...styles.navLink,
-                      backgroundColor: isActive ? '#EFF6FF' : 'transparent',
-                      color: isActive ? '#1A2FB8' : '#475569',
-                      fontWeight: isActive ? '700' : '500',
-                      borderLeft: isActive ? '3.5px solid #1A2FB8' : '3.5px solid transparent',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Icon 
-                        size={17} 
-                        color={isActive ? '#1A2FB8' : '#64748B'} 
-                        strokeWidth={isActive ? 2.4 : 1.8} 
-                      />
-                      <span>{item.label}</span>
-                    </div>
-
-                    {badgeCount > 0 && (
-                      <span style={styles.badgePill}>
-                        {badgeCount}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 3. Footer with ASM Profile & Logout */}
-      <div style={styles.footerSection}>
-        <div style={styles.userCard}>
-          <div style={styles.avatarWrap}>
-            <User size={16} color="#1A2FB8" />
-          </div>
-          <div style={styles.userInfo}>
-            <span style={styles.userName}>{session?.name || 'ASM Officer'}</span>
-            <div style={styles.userSubRow}>
-              <MapPin size={10} color="#64748B" />
-              <span>{session?.region || 'Coastal Andhra'}</span>
-            </div>
+            <button 
+              className="transition-all duration-200 hover:brightness-105 active:scale-98 cursor-pointer"
+              style={styles.harvestSideBtn}
+              onClick={() => navigate(`${base}/harvest`)}
+              aria-label="Harvest Management"
+            >
+              <Scale size={14} strokeWidth={2.4} /> Harvest
+            </button>
           </div>
         </div>
 
-        <button 
-          type="button"
-          onClick={handleLogout}
-          className="transition-all duration-150 hover:bg-rose-50 active:scale-98 cursor-pointer"
-          style={styles.logoutBtn}
-          title="Sign out"
-        >
-          <LogOut size={15} color="#DC2626" />
-          <span>Logout</span>
-        </button>
-      </div>
-    </aside>
+        {/* 3. Core Navigation Links */}
+        <nav style={styles.navMenu}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isItemActive(item);
+
+            return (
+              <NavLink
+                key={item.name}
+                to={item.path}
+                className="transition-all duration-150 hover:bg-slate-50 active:scale-98"
+                style={{
+                  ...styles.navLink,
+                  backgroundColor: active ? '#EFF6FF' : 'transparent',
+                  color: active ? '#1A2FB8' : '#475569',
+                  fontWeight: active ? '700' : '500',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <Icon size={18} color={active ? '#1A2FB8' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
+                  <span>{item.name}</span>
+                </div>
+                {item.badge && (
+                  <span style={styles.navBadge}>{item.badge}</span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* 4. Footer with Manager Profile Card & Logout */}
+        <div style={styles.footerSection}>
+          <div 
+            style={styles.profileCard}
+            onClick={() => navigate(`${base}/settings`)}
+            title="View Profile & Settings"
+          >
+            <div style={styles.profileAvatar}>
+              <Shield size={18} color="#1A2FB8" strokeWidth={2.4} />
+            </div>
+            <div style={styles.profileInfo}>
+              <div style={styles.profileName}>{session?.name || 'Regional Manager'}</div>
+              <div style={styles.profileRole}>
+                <span style={styles.roleChip}>ASM</span>
+                <span style={styles.idText}>ID: {session?.inchargeId || session?.agentId || 'INC001'}</span>
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="button" 
+            style={styles.logoutBtn}
+            onClick={handleLogout}
+            title="Log out of ASM Portal"
+          >
+            <LogOut size={16} color="#DC2626" />
+            <span>Log Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Global Quick Record Modal */}
+      <QuickRecordModal 
+        isOpen={isQuickRecordOpen}
+        onClose={() => setIsQuickRecordOpen(false)}
+      />
+    </>
   );
 };
 
 const styles = {
   sidebar: {
-    width: '260px',
-    height: '100vh',
+    width: '100%',
+    height: '100%',
     backgroundColor: '#FFFFFF',
     borderRight: '1px solid #E2E8F0',
     display: 'flex',
     flexDirection: 'column',
-    position: 'fixed',
-    left: 0,
-    top: 0,
-    zIndex: 40,
-    boxShadow: '2px 0 10px rgba(0, 0, 0, 0.02)',
+    boxSizing: 'border-box',
+    userSelect: 'none',
   },
   brandHeader: {
     padding: '16px 20px',
     borderBottom: '1px solid #F1F5F9',
+    display: 'flex',
+    alignItems: 'center',
     cursor: 'pointer',
   },
   brandLogoImg: {
-    height: '42px',
-    maxWidth: '180px',
+    height: '38px',
+    maxWidth: '170px',
     objectFit: 'contain',
     display: 'block',
+  },
+  actionSection: {
+    padding: '14px 16px 8px 16px',
+  },
+  quickRecordBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    padding: '9px 12px',
+    borderRadius: '10px',
+    fontSize: '12px',
+    fontWeight: '700',
+    boxShadow: '0 2px 6px rgba(26, 47, 184, 0.25)',
+  },
+  agentsSideBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    backgroundColor: '#F8FAFC',
+    color: '#1A2FB8',
+    border: '1px solid #BFDBFE',
+    padding: '9px 12px',
+    borderRadius: '10px',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  harvestSideBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    backgroundColor: '#F0FDF4',
+    color: '#15803D',
+    border: '1px solid #BBF7D0',
+    padding: '9px 12px',
+    borderRadius: '10px',
+    fontSize: '12px',
+    fontWeight: '700',
   },
   navMenu: {
     flex: 1,
     overflowY: 'auto',
-    padding: '16px 10px',
+    padding: '8px 12px',
     display: 'flex',
     flexDirection: 'column',
-    scrollbarWidth: 'thin',
-  },
-  groupHeading: {
-    fontSize: '10px',
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: '0.6px',
-    padding: '4px 12px 6px 12px',
-    textTransform: 'uppercase',
+    gap: '4px',
   },
   navLink: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '8px 12px',
-    borderRadius: '8px',
-    textDecoration: 'none',
-    fontSize: '13px',
-    transition: 'all 0.15s ease-in-out',
-  },
-  badgePill: {
-    backgroundColor: '#F59E0B',
-    color: '#FFFFFF',
-    fontSize: '10.5px',
-    fontWeight: '800',
-    padding: '1px 6px',
+    padding: '10px 14px',
     borderRadius: '10px',
-    minWidth: '18px',
-    textAlign: 'center',
+    textDecoration: 'none',
+    fontSize: '13.5px',
+    transition: 'all 0.15s ease',
+  },
+  navBadge: {
+    fontSize: '10px',
+    fontWeight: '700',
+    backgroundColor: '#FEE2E2',
+    color: '#DC2626',
+    padding: '2px 6px',
+    borderRadius: '6px',
   },
   footerSection: {
     padding: '12px 14px',
     borderTop: '1px solid #F1F5F9',
-    backgroundColor: '#F8FAFC',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    backgroundColor: '#FAFAFA',
   },
-  userCard: {
+  profileCard: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '6px 8px',
-    borderRadius: '8px',
+    padding: '10px 12px',
+    borderRadius: '10px',
     backgroundColor: '#FFFFFF',
     border: '1px solid #E2E8F0',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
-  avatarWrap: {
-    width: '32px',
-    height: '32px',
+  profileAvatar: {
+    width: '36px',
+    height: '36px',
     borderRadius: '8px',
-    backgroundColor: '#1A2FB8',
-    color: '#FFFFFF',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #BFDBFE',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontWeight: '700',
-    fontSize: '13px',
     flexShrink: 0,
   },
-  avatarInitial: {
-    textTransform: 'uppercase',
+  profileInfo: {
+    flex: 1,
+    minWidth: 0,
   },
-  userInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  userName: {
-    fontSize: '12.5px',
+  profileName: {
+    fontSize: '13px',
     fontWeight: '700',
     color: '#0F172A',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-  userSubRow: {
+  profileRole: {
     display: 'flex',
     alignItems: 'center',
-    gap: '3px',
+    gap: '6px',
+    marginTop: '2px',
+  },
+  roleChip: {
+    fontSize: '9.5px',
+    fontWeight: '800',
+    backgroundColor: '#EFF6FF',
+    color: '#1A2FB8',
+    padding: '1px 5px',
+    borderRadius: '4px',
+  },
+  idText: {
     fontSize: '11px',
     color: '#64748B',
-    fontWeight: '500',
   },
   logoutBtn: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
-    padding: '7px',
+    gap: '8px',
+    width: '100%',
+    padding: '8px 12px',
     borderRadius: '8px',
-    border: '1px solid #FECACA',
-    backgroundColor: '#FFF1F2',
+    border: '1px solid #FEE2E2',
+    backgroundColor: '#FFFFFF',
     color: '#DC2626',
-    fontSize: '12px',
-    fontWeight: '700',
+    fontSize: '12.5px',
+    fontWeight: '600',
     cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
 };
 

@@ -8,12 +8,15 @@ import {
   Search, Filter, Eye, X, Phone, MapPin, 
   Users, Droplets, TestTube, CheckCircle2, ShieldCheck, 
   User, Layers, TrendingUp, Scale, Fish, Activity, ChevronRight, ArrowLeft, Clock,
-  Bell, Check, AlertCircle, Calendar, FileText
+  Bell, Check, AlertCircle, Calendar, FileText, LayoutGrid, List
 } from 'lucide-react';
 
 const Agents = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocality, setFilterLocality] = useState('ALL');
+  const [viewMode, setViewMode] = useState('GRID'); // 'GRID' | 'TABLE'
+  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
+  const [agentRemindedMap, setAgentRemindedMap] = useState({});
   const { db, getFarmersByAgentId, getTanksByFarmerId, getSubmissionsByAgentId, getAgentsByInchargeId, addNotification } = useMockData();
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [agentModalTab, setAgentModalTab] = useState('FARMERS'); // 'FARMERS' | 'TANKS' | 'SUBMISSIONS'
@@ -67,6 +70,28 @@ const Agents = () => {
   const totalFarmersAssigned = agents.reduce((acc, a) => acc + a.farmers, 0);
   const totalTanksAssigned = agents.reduce((acc, a) => acc + a.tanks, 0);
   const totalTestsDue = agents.reduce((acc, a) => acc + a.dueTests, 0);
+  const totalOverdueCount = agents.reduce((acc, a) => acc + (a.overdueCount || 0), 0);
+
+  const handleBroadcastOverdueAlert = () => {
+    const overdueAgents = agents.filter(a => a.overdueCount > 0);
+    overdueAgents.forEach(ag => {
+      if (addNotification) {
+        addNotification(ag.id, `Incharge Urgent Alert: You have ${ag.overdueCount} overdue field test(s) requiring immediate attention. Please complete and submit records today.`, 'warning');
+      }
+    });
+    const newMap = { ...agentRemindedMap };
+    overdueAgents.forEach(ag => { newMap[ag.id] = true; });
+    setAgentRemindedMap(newMap);
+    setBroadcastSuccess(true);
+    setTimeout(() => setBroadcastSuccess(false), 4000);
+  };
+
+  const handleNudgeAgent = (agent) => {
+    if (addNotification) {
+      addNotification(agent.id, `Incharge Urgent Reminder: Please review and complete your pending field tests for assigned farms.`, 'warning');
+    }
+    setAgentRemindedMap(prev => ({ ...prev, [agent.id]: true }));
+  };
 
   // Helper to fetch due tanks and full farmer details
   const getDueTanksForAgent = (agentOrAll) => {
@@ -364,7 +389,7 @@ const Agents = () => {
         {/* ========================================================= */}
         <div style={styles.mainCard}>
           {/* Action Bar */}
-          <div style={styles.actionBar}>
+          <div style={{ ...styles.actionBar, flexWrap: 'wrap', gap: '12px' }}>
             <div style={styles.searchGroup}>
               <div style={styles.searchBox}>
                 <Search size={17} color="#64748B" />
@@ -390,11 +415,284 @@ const Agents = () => {
                 </select>
               )}
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {totalOverdueCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBroadcastOverdueAlert}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    backgroundColor: '#DC2626',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 12px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(220,38,38,0.25)'
+                  }}
+                  className="transition-all hover:bg-red-700 active:scale-95"
+                  title="Broadcast urgent alert to all technicians with overdue tests"
+                >
+                  <Bell size={13} /> Broadcast Alert ({totalOverdueCount})
+                </button>
+              )}
+
+              {/* View Switcher: Grid vs Table */}
+              <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('GRID')}
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: viewMode === 'GRID' ? '#FFFFFF' : 'transparent',
+                    color: viewMode === 'GRID' ? '#1A2FB8' : '#64748B',
+                    boxShadow: viewMode === 'GRID' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                  className="transition-all"
+                >
+                  <LayoutGrid size={14} />
+                  <span>Cards</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('TABLE')}
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: viewMode === 'TABLE' ? '#FFFFFF' : 'transparent',
+                    color: viewMode === 'TABLE' ? '#1A2FB8' : '#64748B',
+                    boxShadow: viewMode === 'TABLE' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                  className="transition-all"
+                >
+                  <List size={14} />
+                  <span>Table</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={styles.table}>
+          {/* View Mode 1: GRID VIEW */}
+          {viewMode === 'GRID' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style={{ padding: '16px' }}>
+              {filteredAgents.map((agent) => {
+                const isOverdue = agent.overdueCount > 0;
+                const isReminded = agentRemindedMap[agent.id];
+                return (
+                  <div
+                    key={agent.id}
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '12px',
+                      border: '1px solid #E2E8F0',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    className="hover:border-blue-300 hover:shadow-xs"
+                  >
+                    {/* Header: Avatar, Name, Status Pill */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '12px',
+                          backgroundColor: '#EFF6FF',
+                          border: '1.5px solid #BFDBFE',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#1A2FB8',
+                          fontWeight: '800',
+                          fontSize: '15px'
+                        }}>
+                          {agent.name ? agent.name.charAt(0) : 'A'}
+                        </div>
+                        <div>
+                          <div 
+                            style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', cursor: 'pointer' }}
+                            onClick={() => {
+                              setAgentModalTab('PROFILE');
+                              setSelectedAgent(agent);
+                            }}
+                            className="hover:text-blue-700"
+                          >
+                            {agent.name}
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={12} color="#1A2FB8" /> {agent.locality || 'Bhimavaram Cluster'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span style={{
+                        fontSize: '10.5px',
+                        fontWeight: '700',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: isOverdue ? '#FEE2E2' : '#DCFCE7',
+                        color: isOverdue ? '#DC2626' : '#15803D',
+                        border: isOverdue ? '1px solid #FECACA' : '1px solid #BBF7D0'
+                      }}>
+                        {isOverdue ? `${agent.overdueCount} Overdue` : 'Active in Field'}
+                      </span>
+                    </div>
+
+                    {/* 4 Stats Chips */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center', backgroundColor: '#F8FAFC', padding: '10px 6px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
+                      <div 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setAgentModalTab('FARMERS');
+                          setSelectedAgent(agent);
+                        }}
+                        title="View Farmers"
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8' }}>{agent.farmers}</div>
+                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Farmers</div>
+                      </div>
+                      <div 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedAgentTanks(agent)}
+                        title="View Ponds"
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284C7' }}>{agent.tanks}</div>
+                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Ponds</div>
+                      </div>
+                      <div 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setAgentModalTab('SUBMISSIONS');
+                          setSelectedAgent(agent);
+                        }}
+                        title="View Submissions"
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#16A34A' }}>{agent.tests}</div>
+                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Tests</div>
+                      </div>
+                      <div 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setDueTestsAgent(agent)}
+                        title="View Dues"
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '800', color: isOverdue ? '#DC2626' : '#D97706' }}>{agent.dueTests}</div>
+                        <div style={{ fontSize: '10.5px', color: isOverdue ? '#DC2626' : '#64748B' }}>Dues</div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons: Phone call, Inspect, Remind */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <a
+                        href={`tel:${agent.mobile}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '34px',
+                          height: '34px',
+                          backgroundColor: '#F1F5F9',
+                          color: '#475569',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '8px',
+                          flexShrink: 0
+                        }}
+                        className="transition-all hover:bg-slate-200 active:scale-95"
+                        title={`Call ${agent.name} (${agent.mobile})`}
+                      >
+                        <Phone size={14} />
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAgentModalTab('FARMERS');
+                          setSelectedAgent(agent);
+                        }}
+                        style={{
+                          flex: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#1A2FB8',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '8px',
+                          padding: '7px 12px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                        className="transition-all hover:bg-blue-100 active:scale-95"
+                      >
+                        <Eye size={13} strokeWidth={2.5} /> Inspect Portfolio
+                      </button>
+
+                      {isOverdue && (
+                        <button
+                          type="button"
+                          onClick={() => handleNudgeAgent(agent)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            backgroundColor: isReminded ? '#DCFCE7' : '#FEF2F2',
+                            color: isReminded ? '#15803D' : '#DC2626',
+                            border: isReminded ? '1px solid #BBF7D0' : '1px solid #FECACA',
+                            borderRadius: '8px',
+                            padding: '7px 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          className="transition-all hover:brightness-95 active:scale-95"
+                          title="Send urgent overdue notification"
+                        >
+                          <Bell size={13} /> {isReminded ? 'Sent ✓' : 'Nudge'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {filteredAgents.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', padding: '32px', textAlign: 'center', color: '#64748B' }}>
+                  No field technicians match your search criteria.
+                </div>
+              )}
+            </div>
+          ) : (
+            /* View Mode 2: TABLE VIEW */
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
                   <th style={styles.th}>Technician</th>
@@ -404,6 +702,7 @@ const Agents = () => {
                   <th style={styles.th}>Supervised Tanks</th>
                   <th style={styles.th}>Tests Done</th>
                   <th style={styles.th}>Test Dues</th>
+                  <th style={styles.th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -528,12 +827,73 @@ const Agents = () => {
                         <ChevronRight size={12} />
                       </button>
                     </td>
+
+                    <td style={styles.td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <a
+                          href={`tel:${agent.mobile}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            border: '1px solid #CBD5E1'
+                          }}
+                          className="hover:bg-slate-200"
+                          title={`Call ${agent.name}`}
+                        >
+                          <Phone size={12} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgentModalTab('FARMERS');
+                            setSelectedAgent(agent);
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#EFF6FF',
+                            color: '#1A2FB8',
+                            border: '1px solid #BFDBFE',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          className="hover:bg-blue-100"
+                        >
+                          Inspect
+                        </button>
+                        {agent.overdueCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleNudgeAgent(agent)}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              backgroundColor: agentRemindedMap[agent.id] ? '#DCFCE7' : '#FEF2F2',
+                              color: agentRemindedMap[agent.id] ? '#15803D' : '#DC2626',
+                              border: agentRemindedMap[agent.id] ? '1px solid #BBF7D0' : '1px solid #FECACA',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {agentRemindedMap[agent.id] ? 'Sent ✓' : 'Nudge'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
 
                 {filteredAgents.length === 0 && (
                   <tr>
-                    <td colSpan="7" style={styles.emptyTd}>
+                    <td colSpan="8" style={styles.emptyTd}>
                       No field technicians match your search criteria.
                     </td>
                   </tr>
@@ -541,6 +901,7 @@ const Agents = () => {
               </tbody>
             </table>
           </div>
+        )}
         </div>
       </div>
 
