@@ -38,14 +38,9 @@ app.use(express.static(publicDir));
 // Response performance timing header & logging
 app.use(responseTimer);
 
-// Root greeting
+// Root: Chrome-style offline dead page
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Royals Marine Food Private Limited - Aqua Feed Management API',
-    status: 'ACTIVE',
-    documentation: '/api/health',
-    console: '/console',
-  });
+  res.sendFile(path.join(publicDir, 'offline.html'));
 });
 
 // Database Console Web GUI routes
@@ -60,7 +55,15 @@ app.get(['/console', '/database', '/admin/db'], (req, res) => {
 // API Routes
 app.use('/api', apiRouter);
 
-// 404 & Centralized Error Handling
+// Fallback for all other non-API browser GET requests -> Chrome offline dead page
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+  }
+  res.sendFile(path.join(publicDir, 'offline.html'));
+});
+
+// 404 & Centralized Error Handling for API routes
 app.use(notFoundHandler);
 app.use(errorHandler);
 

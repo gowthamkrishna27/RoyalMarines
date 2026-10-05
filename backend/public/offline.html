@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>No internet</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><path fill=%22%239aa0a6%22 d=%22M9 1h4v4h-1v1h-2V5H9V2h1V1zm-3 5h5v3h-1v1H8v2h2v1H8v1H7v-1H6v-2H5V7h1V6zm-2 2h1v2H4V8zm-1 2h1v2H3v-2z%22/></svg>">
+  <link rel="stylesheet" href="/offline/offline.css">
+</head>
+<body class="offline">
+
+  <div class="main-wrap">
+    <!-- Authentic Chromium T-Rex Runner Wrapper -->
+    <div class="interstitial-wrapper">
+      <div id="main-content">
+        <div class="icon icon-offline" alt=""></div>
+      </div>
+    </div>
+
+    <!-- Heading matching reference -->
+    <h1 id="mainTitle">Press space to play</h1>
+
+    <!-- Suggestions matter matching reference -->
+    <div class="try-label">Try:</div>
+    <ul class="suggestions">
+      <li>Checking the network cables, modem, and router</li>
+      <li>Reconnecting to Wi-Fi</li>
+      <li><a href="#" onclick="return false;">Running Windows Network Diagnostics</a></li>
+    </ul>
+
+    <!-- Error code matching reference -->
+    <div class="error-code">ERR_INTERNET_DISCONNECTED</div>
+  </div>
+
+  <!-- Separated Offline Resources (Sprites & Audio) -->
+  <div id="offline-resources">
+    <img id="offline-resources-1x" src="/offline/assets/100-offline-sprite.png" alt="1x sprite" />
+    <img id="offline-resources-2x" src="/offline/assets/200-offline-sprite.png" alt="2x sprite" />
+    <template id="audio-resources">
+      <audio id="offline-sound-press" src="/offline/assets/offline-sound-press.mp3"></audio>
+      <audio id="offline-sound-hit" src="/offline/assets/offline-sound-hit.mp3"></audio>
+      <audio id="offline-sound-reached" src="/offline/assets/offline-sound-reached.mp3"></audio>
+    </template>
+  </div>
+
+  <!-- Official Optimized Chromium Runner Engine -->
+  <script src="/offline/runner.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+/* Chrome Offline Page Design System & Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #ffffff;
+  --heading: #202124;
+  --text: #5f6368;
+  --link: #1a73e8;
+  --err: #5f6368;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202124;
+    --heading: #e8eaed;
+    --text: #9aa0a6;
+    --link: #8ab4f8;
+    --err: #757b80;
+  }
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 0;
+  margin: 0;
+  min-height: 100vh;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+}
+
+/* Centered in viewport */
+.main-wrap {
+  width: 100%;
+  max-width: 600px;
+  margin: 14vh auto 0 auto;
+  padding: 0 16px;
+  position: relative;
+}
+
+/* Game Container Area */
+.interstitial-wrapper {
+  width: 100%;
+  max-width: 600px;
+  height: 150px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.runner-container {
+  height: 150px;
+  max-width: 600px;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+}
+
+.runner-canvas {
+  height: 150px;
+  max-width: 600px;
+  opacity: 1;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  cursor: pointer;
+}
+
+/* Invert canvas in Dark Mode so Chromium dark sprites (#535353) display as crisp #acacac */
+@media (prefers-color-scheme: dark) {
+  .runner-canvas,
+  .icon-offline {
+    filter: invert(1);
+  }
+}
+
+/* Offline Icon */
+.icon {
+  -webkit-user-select: none;
+  user-select: none;
+  display: inline-block;
+}
+
+.icon-offline {
+  width: 44px;
+  height: 47px;
+  position: absolute;
+  top: 93px;
+  left: 0;
+  background-image: -webkit-image-set(
+    url('/offline/assets/100-error-offline.png') 1x,
+    url('/offline/assets/200-error-offline.png') 2x
+  );
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+/* Typography & Content */
+h1 {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--heading);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.try-label {
+  color: var(--text);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+ul.suggestions {
+  list-style-type: disc;
+  margin-left: 20px;
+  margin-bottom: 26px;
+  color: var(--text);
+}
+
+ul.suggestions li {
+  margin-bottom: 5px;
+}
+
+ul.suggestions a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+ul.suggestions a:hover {
+  text-decoration: underline;
+}
+
+.error-code {
+  font-size: 11px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--err);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+#offline-resources {
+  display: none;
+}
