@@ -74,16 +74,21 @@ export const getTankWeeklySchedule = (tank, submissions = []) => {
   });
 
   const testList = ROUTINE_TESTS.map(test => {
-    const foundSub = tankSubs.find(s => {
+    const matchingSubs = tankSubs.filter(s => {
       const typeStr = String(s?.testType || s?.recordType || '').toUpperCase();
       return test.matchKeys.some(m => typeStr.includes(m));
     });
 
+    matchingSubs.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    const latestSub = matchingSubs[0] || null;
+
     return {
       ...test,
-      isDone: Boolean(foundSub),
-      completedDate: foundSub ? (foundSub.date || '2026-09-01') : null,
-      submission: foundSub || null
+      isDone: Boolean(latestSub),
+      completedDate: latestSub ? (latestSub.date || '2026-09-01') : null,
+      submission: latestSub,
+      recordCount: matchingSubs.length,
+      allSubmissions: matchingSubs
     };
   });
 

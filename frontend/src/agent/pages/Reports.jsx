@@ -64,25 +64,52 @@ const Reports = () => {
   });
   const totalTestsCount = relevantSubmissions.length > 0 ? relevantSubmissions.length : (relevantTanks.length * 4);
 
-  // Clean Water Parameter Chart Data
-  const waterQualityChartData = [
-    { day: 'Mon', do: 5.4, ph: 7.8 },
-    { day: 'Tue', do: 5.8, ph: 7.9 },
-    { day: 'Wed', do: 5.2, ph: 7.7 },
-    { day: 'Thu', do: 5.6, ph: 8.0 },
-    { day: 'Fri', do: 6.0, ph: 7.9 },
-    { day: 'Sat', do: 5.7, ph: 7.8 },
-    { day: 'Sun', do: 5.9, ph: 7.9 },
-  ];
+  // Clean dynamic Water Parameter Chart Data
+  const waterQualityChartData = useMemo(() => {
+    const subsWithWq = relevantSubmissions.filter(s => s.data && (s.data.waterQuality || s.data.do || s.data.ph));
+    if (subsWithWq.length > 0) {
+      return subsWithWq.slice(0, 7).reverse().map((s, idx) => {
+        const wq = s.data.waterQuality || {};
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        return {
+          day: s.date ? s.date.slice(5) : days[idx % 7],
+          do: parseFloat(wq.do || s.data.do) || 5.5,
+          ph: parseFloat(wq.ph || s.data.ph) || 7.8,
+        };
+      });
+    }
+    return [
+      { day: 'Mon', do: 5.4, ph: 7.8 },
+      { day: 'Tue', do: 5.8, ph: 7.9 },
+      { day: 'Wed', do: 5.2, ph: 7.7 },
+      { day: 'Thu', do: 5.6, ph: 8.0 },
+      { day: 'Fri', do: 6.0, ph: 7.9 },
+      { day: 'Sat', do: 5.7, ph: 7.8 },
+      { day: 'Sun', do: 5.9, ph: 7.9 },
+    ];
+  }, [relevantSubmissions]);
 
-  // Category Distribution
-  const categories = [
-    { name: 'Water Quality', count: 14, percent: 39, color: '#1A2FB8' },
-    { name: 'Feed Tests', count: 8, percent: 22, color: '#D97706' },
-    { name: 'Weekly Sampling', count: 6, percent: 17, color: '#2563EB' },
-    { name: 'Farm Activity', count: 5, percent: 14, color: '#059669' },
-    { name: 'Disease Observation', count: 3, percent: 8, color: '#DC2626' },
-  ];
+  // Clean dynamic Category Distribution
+  const categories = useMemo(() => {
+    let wq = 0, feed = 0, sampling = 0, activity = 0, disease = 0;
+    relevantSubmissions.forEach(s => {
+      const type = (s.testType || s.recordType || '').toLowerCase();
+      if (type.includes('water') || type.includes('analysis')) wq++;
+      else if (type.includes('feed')) feed++;
+      else if (type.includes('sampling') || type.includes('biomass')) sampling++;
+      else if (type.includes('disease') || type.includes('mortality')) disease++;
+      else activity++;
+    });
+
+    const total = relevantSubmissions.length || 1;
+    return [
+      { name: 'Water Quality', count: wq, percent: Math.round((wq / total) * 100), color: '#1A2FB8' },
+      { name: 'Feed Tests', count: feed, percent: Math.round((feed / total) * 100), color: '#D97706' },
+      { name: 'Weekly Sampling', count: sampling, percent: Math.round((sampling / total) * 100), color: '#2563EB' },
+      { name: 'Farm Activity', count: activity, percent: Math.round((activity / total) * 100), color: '#059669' },
+      { name: 'Disease Observation', count: disease, percent: Math.round((disease / total) * 100), color: '#DC2626' },
+    ];
+  }, [relevantSubmissions]);
 
   // Export handlers
   const handleExportFullWorkbook = () => {

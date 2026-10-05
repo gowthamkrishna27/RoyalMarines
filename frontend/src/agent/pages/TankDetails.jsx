@@ -455,9 +455,32 @@ const TankDetails = () => {
 
                 <div style={styles.testRowRight}>
                   {isDone ? (
-                    <span style={styles.doneBadgePill}>
-                      ✓ Done
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={styles.doneBadgePill}>
+                        ✓ Done {test.recordCount > 1 ? `(${test.recordCount})` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
+                        style={{
+                          ...styles.recordTestBtn,
+                          backgroundColor: '#EFF6FF',
+                          color: '#1A2FB8',
+                          border: '1px solid #BFDBFE',
+                          padding: '6px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        onClick={() => {
+                          setModalInitialType(test.key);
+                          setIsRecordModalOpen(true);
+                        }}
+                        title={`Record another new ${test.label}`}
+                      >
+                        <Plus size={13} strokeWidth={2.8} /> New
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"

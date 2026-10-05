@@ -1,30 +1,51 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, Plus, Check, AlertTriangle, 
   ChevronRight, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
+import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 const Farmers = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const session = getSession();
   const { db, getFarmersByAgentId, getTanksByFarmerId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState('ALL');
+  
+  // Read initial filter from navigation state (e.g. { filterMode: 'DUE' }) or URL param (?filter=due)
+  const initialFilter = location.state?.filterMode || 
+    (new URLSearchParams(location.search).get('filter') === 'due' || new URLSearchParams(location.search).get('tab') === 'due' ? 'DUE' : 'ALL');
+  const [filterMode, setFilterMode] = useState(initialFilter);
+
+  useEffect(() => {
+    if (location.state?.filterMode) {
+      setFilterMode(location.state.filterMode);
+    } else if (new URLSearchParams(location.search).get('filter') === 'due' || new URLSearchParams(location.search).get('tab') === 'due') {
+      setFilterMode('DUE');
+    }
+  }, [location.state, location.search]);
 
   const agentId = session?.agentId || 'agent001';
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
 
   const farmerItems = assignedFarmers.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
-    const hasPendingTest = tanks.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
+    const dueTanksCount = tanks.filter(tank => {
+      if (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted) return false;
+      if (tank.testStatus === 'Due' || tank.testStatus === 'Pending' || tank.testStatus === 'Overdue' || tank.isOverdue) return true;
+      const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+      return !schedule.isAllDone;
+    }).length;
+    const hasPendingTest = dueTanksCount > 0;
 
     return {
       ...farmer,
       tankCount: tanks.length || parseInt(farmer.numberOfTanks) || 1,
+      dueTanksCount,
       villageName: farmer.village || farmer.location || 'Chinnamiram',
       testStatus: hasPendingTest ? 'Test Due' : 'Up to date',
       isDue: hasPendingTest,
@@ -163,7 +184,7 @@ const Farmers = () => {
                 {farmer.isDue ? (
                   <span style={styles.statusDue}>
                     <AlertTriangle size={12} color="#D97706" />
-                    <span>Test Due</span>
+                    <span>{farmer.dueTanksCount > 1 ? `${farmer.dueTanksCount} Tanks Due` : 'Test Due'}</span>
                   </span>
                 ) : (
                   <span style={styles.statusUpToDate}>

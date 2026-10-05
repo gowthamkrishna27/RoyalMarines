@@ -23,8 +23,6 @@ const AgentDashboard = () => {
   const [modalInitialTank, setModalInitialTank] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedMapTank, setSelectedMapTank] = useState(null);
-  const [showDueTestsModal, setShowDueTestsModal] = useState(false);
-  const [dueModalFilter, setDueModalFilter] = useState('ALL'); // 'ALL' | 'DUE' | 'OVERDUE'
 
   const agentId = session?.agentId || 'agent001';
 
@@ -52,12 +50,6 @@ const AgentDashboard = () => {
 
   const dueTanksList = tanksWithDueInfo.filter(t => t.isDue);
   const overdueTanksList = tanksWithDueInfo.filter(t => t.isOverdue);
-
-  const displayedDueModalTanks = tanksWithDueInfo.filter(t => {
-    if (dueModalFilter === 'OVERDUE') return t.isOverdue;
-    if (dueModalFilter === 'DUE') return t.isDue;
-    return t.isDue || t.isOverdue;
-  });
 
   // Submissions made by this technician (excluding Harvest records as Harvest has its dedicated portal)
   const technicianSubmissions = (db?.submissions || [])
@@ -231,12 +223,9 @@ const AgentDashboard = () => {
 
               <div
                 style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: '#FEFCE8', borderRadius: '12px', border: '1px solid #FEF08A' }}
-                onClick={() => {
-                  setDueModalFilter('DUE');
-                  setShowDueTestsModal(true);
-                }}
+                onClick={() => navigate('/farmers', { state: { filterMode: 'DUE' } })}
                 className="transition-all hover:brightness-95 active:scale-95 cursor-pointer"
-                title="Click to view all Due Tests details"
+                title="View farmers with Due Tests"
               >
                 <span style={{ ...styles.metricVal, color: '#B45309' }}>{dueTanksList.length}</span>
                 <span style={{ ...styles.metricLabel, color: '#92400E' }}>Tests Due</span>
@@ -244,12 +233,9 @@ const AgentDashboard = () => {
 
               <div
                 style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: overdueTanksList.length > 0 ? '#FEF2F2' : '#F8FAFC', borderRadius: '12px', border: overdueTanksList.length > 0 ? '1px solid #FECACA' : '1px solid #F1F5F9' }}
-                onClick={() => {
-                  setDueModalFilter('OVERDUE');
-                  setShowDueTestsModal(true);
-                }}
+                onClick={() => navigate('/farmers', { state: { filterMode: 'DUE' } })}
                 className="transition-all hover:brightness-95 active:scale-95 cursor-pointer"
-                title="Click to view all Overdue Tests details"
+                title="View farmers with Overdue Tests"
               >
                 <span style={{ ...styles.metricVal, color: overdueTanksList.length > 0 ? '#DC2626' : '#64748B' }}>{overdueTanksList.length}</span>
                 <span style={{ ...styles.metricLabel, color: overdueTanksList.length > 0 ? '#991B1B' : '#64748B' }}>Overdue</span>
@@ -307,152 +293,6 @@ const AgentDashboard = () => {
           )}
         </div>
       </div>
-
-      {/* ========================================================= */}
-      {/* 5. DUE & OVERDUE TESTS DETAIL MODAL */}
-      {/* ========================================================= */}
-      {showDueTestsModal && (
-        <div
-          className="animate-backdrop-in"
-          style={styles.modalOverlay}
-          onClick={() => setShowDueTestsModal(false)}
-        >
-          <div
-            className="animate-modal-in"
-            style={styles.dueModalCard}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={styles.dueModalHeader}>
-              <div>
-                <div style={styles.dueModalTag}>WEEKLY TEST SCHEDULE (MON - SUN)</div>
-                <h3 style={styles.dueModalTitle}>
-                  {dueModalFilter === 'OVERDUE'
-                    ? `Overdue Tests (${displayedDueModalTanks.length} Ponds)`
-                    : dueModalFilter === 'DUE'
-                      ? `Weekly Due Tests (${displayedDueModalTanks.length} Ponds)`
-                      : `Weekly Test Schedule (${displayedDueModalTanks.length} Ponds)`}
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                style={styles.dueCloseBtn}
-                onClick={() => setShowDueTestsModal(false)}
-                aria-label="Close"
-              >
-                <X size={20} color="#64748B" />
-              </button>
-            </div>
-
-            {/* Filter Tabs inside Modal */}
-            <div style={styles.dueFilterTabs}>
-              <button
-                type="button"
-                style={dueModalFilter === 'ALL' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
-                onClick={() => setDueModalFilter('ALL')}
-              >
-                All ({tanksWithDueInfo.filter(t => t.isDue || t.isOverdue).length})
-              </button>
-              <button
-                type="button"
-                style={dueModalFilter === 'DUE' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
-                onClick={() => setDueModalFilter('DUE')}
-              >
-                Due ({dueTanksList.length})
-              </button>
-              <button
-                type="button"
-                style={dueModalFilter === 'OVERDUE' ? styles.dueFilterTabBtnActive : styles.dueFilterTabBtn}
-                onClick={() => setDueModalFilter('OVERDUE')}
-              >
-                Overdue ({overdueTanksList.length})
-              </button>
-            </div>
-
-            <div style={styles.dueModalBody}>
-              {displayedDueModalTanks.length === 0 ? (
-                <div style={styles.allDoneBox}>
-                  <CheckCircle size={36} color="#16A34A" />
-                  <p style={{ margin: '8px 0 0 0', fontWeight: '700', color: '#0F172A' }}>
-                    {dueModalFilter === 'OVERDUE' ? 'No overdue tests!' : 'All tests are up to date!'}
-                  </p>
-                  <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    {dueModalFilter === 'OVERDUE'
-                      ? 'None of your assigned ponds are overdue for routine tests.'
-                      : 'Great job! All assigned ponds have completed routine tests for this schedule.'}
-                  </span>
-                </div>
-              ) : (
-                displayedDueModalTanks.map((item, idx) => (
-                  <div
-                    key={item?.tank?.id || idx}
-                    style={{
-                      ...styles.dueTankCard,
-                      backgroundColor: item.isOverdue ? '#FEF2F2' : '#FEFCE8',
-                      borderColor: item.isOverdue ? '#FECACA' : '#FEF08A',
-                    }}
-                  >
-                    <div style={styles.dueTankTop}>
-                      <div>
-                        <div style={styles.dueFarmerName}>
-                          {item?.farmer?.name || 'Farmer'} <span style={styles.dueLocationText}>• {item?.farmer?.location || 'Chinnamiram'}</span>
-                        </div>
-                        <div style={styles.dueTankSubRow}>
-                          <strong style={{ color: '#0F172A' }}>{item?.tank?.name || `Tank ${idx + 1}`}</strong>
-                          <span>•</span>
-                          <span>{item?.tank?.acres || item?.tank?.size || '2.5'} Acres</span>
-                          <span>•</span>
-                          <span style={{ color: '#1A2FB8', fontWeight: '600' }}>{item?.tank?.doc || 77} Days</span>
-                        </div>
-                      </div>
-
-                      {item.isOverdue ? (
-                        <span style={styles.overdueCountBadge}>
-                          <AlertTriangle size={12} /> Overdue
-                        </span>
-                      ) : (
-                        <span style={styles.dueCountBadge}>
-                          <Clock size={12} /> {item?.schedule?.dueCount || 0} Tests Due
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={styles.dueActionsRow}>
-                      <button
-                        type="button"
-                        className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
-                        style={styles.dueViewScheduleBtn}
-                        onClick={() => {
-                          setShowDueTestsModal(false);
-                          if (item?.tank?.id) {
-                            navigate(`/tanks/${item.tank.id}`);
-                          }
-                        }}
-                      >
-                        <Eye size={13} /> View Schedule
-                      </button>
-
-                      <button
-                        type="button"
-                        className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-                        style={styles.dueRecordBtn}
-                        onClick={() => {
-                          setShowDueTestsModal(false);
-                          if (item?.tank) {
-                            handleOpenRecordForTank(item.tank, item?.schedule?.dueTests?.[0]?.key || 'WATER_QUALITY');
-                          }
-                        }}
-                      >
-                        <Plus size={13} strokeWidth={2.6} /> Record Test
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Record Modal */}
       <QuickRecordModal

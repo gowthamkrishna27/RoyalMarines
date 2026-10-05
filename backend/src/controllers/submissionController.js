@@ -10,17 +10,20 @@ export const getSubmissions = async (req, res) => {
 };
 
 export const createSubmission = async (req, res) => {
-  const { farmerId, tankId, testType, data } = req.body;
+  const { farmerId, tankId, testType, data, agentId, id, date, status } = req.body;
 
   if (!tankId || !data) {
     return sendError(res, 'tankId and data are required', 400);
   }
 
   const submission = await store.createSubmission({
-    agentId: req.user?.id || req.body.agentId || 'agent001',
+    id: id || req.body.id,
+    agentId: req.user?.id || req.body.agentId || agentId || 'agent001',
     farmerId: farmerId || '',
     tankId,
     testType: testType || 'Water Quality Test',
+    date: date || new Date().toISOString().split('T')[0],
+    status: status || 'PENDING_VERIFICATION',
     data,
   });
 
@@ -31,11 +34,12 @@ export const verifySubmission = async (req, res) => {
   const { id } = req.params;
   const { status, notes } = req.body;
 
-  if (!status || !['COMPLETED', 'FLAGGED', 'REJECTED'].includes(status.toUpperCase())) {
-    return sendError(res, 'Valid status (COMPLETED, FLAGGED, REJECTED) is required', 400);
+  const validStatuses = ['COMPLETED', 'VERIFIED', 'APPROVED', 'FLAGGED', 'REJECTED', 'CHANGES REQUESTED', 'PENDING_VERIFICATION'];
+  if (!status || !validStatuses.includes(status.toUpperCase())) {
+    return sendError(res, `Valid status (${validStatuses.join(', ')}) is required`, 400);
   }
 
-  const updated = await store.updateSubmissionStatus(id, status.toUpperCase(), notes);
+  const updated = await store.updateSubmissionStatus(id, status, notes);
 
   if (!updated) {
     return sendError(res, `Submission with ID ${id} not found`, 404);

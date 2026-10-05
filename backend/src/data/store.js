@@ -378,6 +378,23 @@ class DataStore {
     return this.getTankById(id);
   }
 
+  async deleteTank(id) {
+    if (isDbConnected()) {
+      try {
+        await query('DELETE FROM tanks WHERE id = ?', [id]);
+      } catch (err) {
+        console.error('[DB Error in deleteTank]', err.message);
+      }
+    }
+
+    const index = this.tanks.findIndex((t) => t.id === id);
+    if (index !== -1) {
+      this.tanks.splice(index, 1);
+      return true;
+    }
+    return true;
+  }
+
   // --- Submissions ---
   async getSubmissions(filter = {}) {
     if (isDbConnected()) {
@@ -412,7 +429,7 @@ class DataStore {
   }
 
   async createSubmission(data) {
-    const id = `SUB${String(Date.now()).slice(-4)}`;
+    const id = data.id || `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const newSub = {
       id,
       agentId: data.agentId || 'agent001',

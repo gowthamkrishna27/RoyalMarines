@@ -57,3 +57,17 @@ export const getAgents = async (req, res) => {
 
   return sendSuccess(res, agents, 'Agents with performance metrics retrieved');
 };
+
+export const getIncharges = async (req, res) => {
+  if (isDbConnected()) {
+    try {
+      const rows = await query('SELECT * FROM incharges');
+      const enriched = rows.map((r) => ({
+        ...r,
+        regionId: r.region_id,
+      }));
+      return sendSuccess(res, enriched, 'Incharges list retrieved from database');
+    } catch {}
+  }
+  return sendSuccess(res, store.incharges, 'Incharges list retrieved');
+};

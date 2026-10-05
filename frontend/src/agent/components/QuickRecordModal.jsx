@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown, 
+import {
+  X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
   Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
@@ -11,12 +11,12 @@ import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-const QuickRecordModal = ({ 
-  isOpen, 
-  onClose, 
-  initialType = 'WATER_QUALITY', 
-  preselectedFarmerId = null, 
-  preselectedTankId = null, 
+const QuickRecordModal = ({
+  isOpen,
+  onClose,
+  initialType = 'WATER_QUALITY',
+  preselectedFarmerId = null,
+  preselectedTankId = null,
   onSuccess,
   userRole = null
 }) => {
@@ -240,8 +240,8 @@ const QuickRecordModal = ({
               </div>
             </div>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="transition-all duration-150 active:scale-95 cursor-pointer"
               style={styles.primaryBtn}
               onClick={onClose}
@@ -278,9 +278,9 @@ const QuickRecordModal = ({
               </p>
             </div>
           </div>
-          <button 
-            type="button" 
-            style={styles.closeBtn} 
+          <button
+            type="button"
+            style={styles.closeBtn}
             onClick={onClose}
             aria-label="Close"
           >
@@ -494,8 +494,8 @@ const QuickRecordModal = ({
                 {gpsData?.locality || 'Chinnamiram, Bhimavaram'} • Verified GPS
               </span>
             </div>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={refreshGPS}
               style={styles.gpsRefreshBtn}
               title="Refresh GPS"

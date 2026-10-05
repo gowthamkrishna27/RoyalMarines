@@ -108,3 +108,14 @@ export const recordWaterParameters = async (req, res) => {
 
   return sendSuccess(res, { tank: updatedTank, submission }, 'Water parameters and test submission recorded');
 };
+
+export const deleteTank = async (req, res) => {
+  const { id } = req.params;
+  const existing = await store.getTankById(id);
+  if (!existing) {
+    return sendError(res, `Tank with ID ${id} not found`, 404);
+  }
+
+  await store.deleteTank(id);
+  return sendSuccess(res, { id }, 'Tank deleted successfully');
+};

@@ -35,7 +35,7 @@ const WeeklyTests = () => {
       mobile: a.phone || a.mobile || '+91 98480 22334',
       farmers: farmers.length, 
       tanks, 
-      tests: Math.max(tests, 15), 
+      tests: tests, 
       due, 
       overdue, 
       compliance 
@@ -52,7 +52,7 @@ const WeeklyTests = () => {
     locality: 'Cluster Head • All Areas',
     farmers: (db?.farmers || []).length,
     tanks: (db?.tanks || []).length,
-    tests: 18,
+    tests: (db?.submissions || []).filter(s => s.submittedBy === 'Incharge' || s.inchargeId === 'INC001').length,
     due: 2,
     overdue: 0,
     isMe: true

@@ -30,7 +30,7 @@ const Reports = () => {
 
   // State bindings for query parameters
   const [filterDateFrom, setFilterDateFrom] = useState('2026-08-01');
-  const [filterDateTo, setFilterDateTo] = useState('2026-08-31');
+  const [filterDateTo, setFilterDateTo] = useState('2026-10-31');
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedFarmer, setSelectedFarmer] = useState('');
   const [selectedTank, setSelectedTank] = useState('');
@@ -90,26 +90,19 @@ const Reports = () => {
       else farm++;
     });
 
-    const dWq = total > 0 ? (wq > 0 ? wq : Math.ceil(total * 0.40)) : 14;
-    const dFeed = total > 0 ? (feed > 0 ? feed : Math.max(1, Math.round(total * 0.22))) : 8;
-    const dSampling = total > 0 ? (sampling > 0 ? sampling : Math.max(1, Math.round(total * 0.17))) : 6;
-    const dFarm = total > 0 ? (farm > 0 ? farm : Math.max(1, Math.round(total * 0.14))) : 5;
-    const dDisease = total > 0 ? (disease > 0 ? disease : Math.max(1, Math.round(total * 0.07))) : 3;
-
-    const dTotal = dWq + dFeed + dSampling + dFarm + dDisease;
-    const pWq = Math.round((dWq / dTotal) * 100);
-    const pFeed = Math.round((dFeed / dTotal) * 100);
-    const pSampling = Math.round((dSampling / dTotal) * 100);
-    const pFarm = Math.round((dFarm / dTotal) * 100);
-    const pDisease = Math.max(1, 100 - (pWq + pFeed + pSampling + pFarm));
+    const pWq = total > 0 ? Math.round((wq / total) * 100) : 0;
+    const pFeed = total > 0 ? Math.round((feed / total) * 100) : 0;
+    const pSampling = total > 0 ? Math.round((sampling / total) * 100) : 0;
+    const pFarm = total > 0 ? Math.round((farm / total) * 100) : 0;
+    const pDisease = total > 0 ? Math.max(0, 100 - (pWq + pFeed + pSampling + pFarm)) : 0;
 
     return {
-      wq: { count: dWq, pct: pWq },
-      feed: { count: dFeed, pct: pFeed },
-      sampling: { count: dSampling, pct: pSampling },
-      farm: { count: dFarm, pct: pFarm },
-      disease: { count: dDisease, pct: pDisease },
-      totalCount: total > 0 ? total : 36
+      wq: { count: wq, pct: pWq },
+      feed: { count: feed, pct: pFeed },
+      sampling: { count: sampling, pct: pSampling },
+      farm: { count: farm, pct: pFarm },
+      disease: { count: disease, pct: pDisease },
+      totalCount: total
     };
   }, [activeSubmissions]);
 

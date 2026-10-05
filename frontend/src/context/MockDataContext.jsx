@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSession } from '../agent/utils/agentAuth';
+import { apiClient } from '../utils/apiClient';
 
 // --- Initial Data Seed ---
 
@@ -332,6 +333,65 @@ export const getTankWeeklyComputedStatus = (tank, submissions = []) => {
 export const MockDataProvider = ({ children }) => {
   const [db, setDb] = useState(getInitialDb);
   const [toastMessage, setToastMessage] = useState('');
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [dbConnected, setDbConnected] = useState(true);
+
+  const fetchDataFromDb = async () => {
+    setIsLoadingDb(true);
+    try {
+      const [farmersRes, tanksRes, subsRes, harvestsRes, agentsRes, regionsRes, inchargesRes] = await Promise.allSettled([
+        apiClient.get('/farmers'),
+        apiClient.get('/tanks'),
+        apiClient.get('/submissions'),
+        apiClient.get('/harvests'),
+        apiClient.get('/analytics/agents'),
+        apiClient.get('/analytics/regions'),
+        apiClient.get('/analytics/incharges'),
+      ]);
+
+      const apiFarmers = farmersRes.status === 'fulfilled' && farmersRes.value?.data ? farmersRes.value.data : null;
+      const apiTanks = tanksRes.status === 'fulfilled' && tanksRes.value?.data ? tanksRes.value.data : null;
+      const apiSubs = subsRes.status === 'fulfilled' && subsRes.value?.data ? subsRes.value.data : null;
+      const apiHarvests = harvestsRes.status === 'fulfilled' && harvestsRes.value?.data ? harvestsRes.value.data : null;
+      const apiAgents = agentsRes.status === 'fulfilled' && agentsRes.value?.data ? agentsRes.value.data : null;
+      const apiRegions = regionsRes.status === 'fulfilled' && regionsRes.value?.data ? regionsRes.value.data : null;
+      const apiIncharges = inchargesRes.status === 'fulfilled' && inchargesRes.value?.data ? inchargesRes.value.data : null;
+
+      if (apiFarmers || apiTanks || apiSubs) {
+        setDb(prev => {
+          const mergedFarmers = apiFarmers && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
+          const rawTanks = apiTanks && apiTanks.length > 0 ? apiTanks : prev.tanks;
+          const mergedTanks = normalizeTanks(rawTanks);
+          const mergedSubs = apiSubs ? apiSubs : prev.submissions;
+          const mergedHarvests = apiHarvests ? apiHarvests : prev.harvests;
+          const mergedAgents = apiAgents && apiAgents.length > 0 ? apiAgents : prev.agents;
+          const mergedRegions = apiRegions && apiRegions.length > 0 ? apiRegions : prev.regions;
+          const mergedIncharges = apiIncharges && apiIncharges.length > 0 ? apiIncharges : prev.incharges;
+
+          return {
+            ...prev,
+            farmers: mergedFarmers,
+            tanks: mergedTanks,
+            submissions: mergedSubs,
+            harvests: mergedHarvests,
+            agents: mergedAgents,
+            regions: mergedRegions,
+            incharges: mergedIncharges,
+          };
+        });
+        setDbConnected(true);
+      }
+    } catch (err) {
+      console.warn('[MockDataContext] Live DB fetch error:', err.message);
+      setDbConnected(false);
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDataFromDb();
+  }, []);
 
   // Save to LocalStorage whenever DB changes
   useEffect(() => {
@@ -534,6 +594,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       farmers: prev.farmers.map(f => f.id === farmerId ? { ...f, inchargeId } : f)
     }));
+    apiClient.put(`/farmers/${farmerId}`, { inchargeId }).catch(() => {});
     showToast(`Farmer assigned to Incharge!`);
   };
 
@@ -542,6 +603,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       tanks: prev.tanks.map(t => t.id === tankId ? { ...t, inchargeId } : t)
     }));
+    apiClient.put(`/tanks/${tankId}`, { inchargeId }).catch(() => {});
     showToast(`Tank assigned to Incharge!`);
   };
 
@@ -594,6 +656,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       tanks: prev.tanks.map(t => t.id === tankId ? { ...t, ...updates } : t)
     }));
+    apiClient.put(`/tanks/${tankId}`, updates).catch(() => {});
     showToast(`Tank ${tankId} updated!`);
   };
 
@@ -602,6 +665,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       farmers: prev.farmers.map(f => f.id === farmerId ? { ...f, ...updates } : f)
     }));
+    apiClient.put(`/farmers/${farmerId}`, updates).catch(() => {});
     showToast(`Farmer ${farmerId} updated!`);
   };
 
@@ -646,16 +710,26 @@ export const MockDataProvider = ({ children }) => {
         activities: [{ id: Date.now(), time: timeStr, action: actionText, detail: detailText }, ...(prev.activities || [])]
       };
     });
+    apiClient.post('/submissions', {
+      id: newSubmission.id,
+      farmerId: submissionData.farmerId,
+      tankId: submissionData.tankId,
+      testType: submissionData.testType || 'Water Quality Test',
+      agentId: submissionData.agentId || 'agent001',
+      date: newSubmission.date,
+      data: submissionData.data || submissionData
+    }).catch(() => {});
     showToast('Record submitted for verification!');
   };
 
-  const updateSubmissionStatus = (submissionId, newStatus) => {
+  const updateSubmissionStatus = (submissionId, newStatus, notes = '') => {
     setDb(prev => ({
       ...prev,
       submissions: prev.submissions.map(s =>
         s.id === submissionId ? { ...s, status: newStatus } : s
       )
     }));
+    apiClient.patch(`/submissions/${submissionId}/verify`, { status: newStatus, notes }).catch(() => {});
     showToast(`Submission marked as ${newStatus}`);
   };
 
@@ -669,6 +743,7 @@ export const MockDataProvider = ({ children }) => {
       );
       return { ...prev, farmers: newFarmers, tanks: newTanks };
     });
+    apiClient.put(`/farmers/${farmerId}`, { agentId: newAgentId }).catch(() => {});
     showToast(`Farmer reassigned successfully!`);
   };
 
@@ -744,6 +819,9 @@ export const MockDataProvider = ({ children }) => {
         gps: farmerData.gps || null
       };
 
+      apiClient.post('/farmers', newFarmer).then(() => {
+        newTanks.forEach(t => apiClient.post('/tanks', t).catch(() => {}));
+      }).catch(() => {});
       showToast(`Added Farmer ${farmerData.name} with ${newTanks.length} tanks!`);
 
       return {
@@ -790,6 +868,7 @@ export const MockDataProvider = ({ children }) => {
         salinity: tankData.salinity || '15 ppt',
         waterSource: tankData.waterSource || 'Borewell'
       };
+      apiClient.post('/tanks', newTank).catch(() => {});
       showToast(`Tank ${newTank.name} (${newTankId}) added successfully!`);
       return {
         ...prev,
@@ -803,6 +882,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       tanks: prev.tanks.map(t => t.id === tankId ? { ...t, ...updatedData } : t)
     }));
+    apiClient.put(`/tanks/${tankId}`, updatedData).catch(() => {});
     showToast(`Tank ${tankId} updated successfully!`);
   };
 
@@ -811,6 +891,7 @@ export const MockDataProvider = ({ children }) => {
       ...prev,
       tanks: prev.tanks.filter(t => t.id !== tankId)
     }));
+    apiClient.delete(`/tanks/${tankId}`).catch(() => {});
     showToast(`Tank ${tankId} deleted successfully!`);
   };
 
@@ -862,6 +943,7 @@ export const MockDataProvider = ({ children }) => {
       farmers: prev.farmers.filter(f => f.id !== farmerId),
       tanks: prev.tanks.filter(t => t.farmerId !== farmerId)
     }));
+    apiClient.delete(`/farmers/${farmerId}`).catch(() => {});
     showToast(`Farmer ${farmerId} and associated tanks removed.`);
   };
 
@@ -1202,6 +1284,29 @@ export const MockDataProvider = ({ children }) => {
       };
     });
 
+    apiClient.post('/submissions', {
+      id: newRecord.id,
+      farmerId: newRecord.farmerId,
+      tankId: newRecord.tankId,
+      testType: newRecord.testType,
+      agentId: newRecord.agentId,
+      date: newRecord.date,
+      status: newRecord.status,
+      data: newRecord.data
+    }).catch(() => {});
+
+    if (recordType === 'HARVEST_ENTRY' || recordType === 'HARVEST') {
+      apiClient.post('/harvests', {
+        farmerId: newRecord.farmerId,
+        tankId: newRecord.tankId,
+        date: newRecord.date,
+        quantityKg: parseFloat(data.harvestedBiomass || data.quantityKg || 0),
+        countPerKg: parseFloat(data.abw ? (1000 / parseFloat(data.abw)) : (data.countPerKg || 40)),
+        quality: data.quality || 'Grade A',
+        pricePerKg: parseFloat(data.pricePerKg || 380),
+        revenue: parseFloat(data.harvestedBiomass || data.quantityKg || 0) * parseFloat(data.pricePerKg || 380)
+      }).catch(() => {});
+    }
     showToast(`Field record saved successfully! GPS coordinates attached.`);
     return newRecord;
   };
@@ -1238,6 +1343,7 @@ export const MockDataProvider = ({ children }) => {
         notes: pondData.notes || '',
       };
 
+      apiClient.post('/tanks', newTank).catch(() => {});
       showToast(`Tank ${newTank.name} added to farmer!`);
       return {
         ...prev,
@@ -1251,6 +1357,10 @@ export const MockDataProvider = ({ children }) => {
   return (
     <MockDataContext.Provider value={{
       db,
+      fetchDataFromDb,
+      refreshDb: fetchDataFromDb,
+      isLoadingDb,
+      dbConnected,
       getAgentById,
       getFarmersByAgentId,
       getFarmerById,
