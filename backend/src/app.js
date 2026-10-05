@@ -23,7 +23,19 @@ app.use(compression());
 // Enable Cross-Origin Resource Sharing
 app.use(
   cors({
-    origin: config.corsOrigin === '*' ? true : config.corsOrigin,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (/^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      if (config.corsOrigin === '*' || origin === config.corsOrigin || origin.replace(/\/$/, '') === (config.corsOrigin || '').replace(/\/$/, '')) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
