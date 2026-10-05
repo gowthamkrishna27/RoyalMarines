@@ -1,26 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import InchargeHeader from '../components/InchargeHeader';
 import { useMockData } from '../../context/MockDataContext';
+import { getAsmBasePath } from '../utils/asmNavigation';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
 import { 
   Search, Filter, Eye, X, Phone, MapPin, 
   Users, Droplets, TestTube, CheckCircle2, ShieldCheck, 
   User, Layers, TrendingUp, Scale, Fish, Activity, ChevronRight, ArrowLeft, Clock,
-  Bell, Check, AlertCircle, Calendar, FileText, LayoutGrid, List
+  Bell, Check, AlertCircle, Calendar, FileText, UserCheck, Plus
 } from 'lucide-react';
 
 const Agents = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const base = getAsmBasePath(location.pathname);
+
+  // Top Section Switcher: 'MY_FARMERS' | 'MY_AGENTS'
+  const isMyFarmersRoute = location.pathname.includes('my-farmers');
+  const [activeWorkTab, setActiveWorkTab] = useState(
+    location.state?.tab || (isMyFarmersRoute ? 'MY_FARMERS' : 'MY_AGENTS')
+  );
+
+  useEffect(() => {
+    if (location.pathname.includes('my-farmers')) {
+      setActiveWorkTab('MY_FARMERS');
+    } else if (location.pathname.includes('agents')) {
+      setActiveWorkTab('MY_AGENTS');
+    }
+  }, [location.pathname]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocality, setFilterLocality] = useState('ALL');
-  const [viewMode, setViewMode] = useState('GRID'); // 'GRID' | 'TABLE'
   const [broadcastSuccess, setBroadcastSuccess] = useState(false);
   const [agentRemindedMap, setAgentRemindedMap] = useState({});
-  const { db, getFarmersByAgentId, getTanksByFarmerId, getSubmissionsByAgentId, getAgentsByInchargeId, addNotification } = useMockData();
+  const { db, getFarmersByAgentId, getTanksByFarmerId, getSubmissionsByAgentId, getAgentsByInchargeId, getMyFarmersByInchargeId, addNotification } = useMockData();
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [agentModalTab, setAgentModalTab] = useState('FARMERS'); // 'FARMERS' | 'TANKS' | 'SUBMISSIONS'
   const [selectedFarmer, setSelectedFarmer] = useState(null);
+  const [selectedFarmerTankIndex, setSelectedFarmerTankIndex] = useState(0);
   const [selectedAgentTanks, setSelectedAgentTanks] = useState(null);
   const [agentTanksSearch, setAgentTanksSearch] = useState('');
   const [agentTanksFilter, setAgentTanksFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'DUE' | 'HARVESTED'
@@ -29,6 +49,96 @@ const Agents = () => {
   const [dueTestsAgent, setDueTestsAgent] = useState(null); // null, agent object, or 'ALL'
   const [remindedTanks, setRemindedTanks] = useState({});
   const [dueSearch, setDueSearch] = useState('');
+
+  // Personal Farmers allocated directly to the Incharge / ASM
+  const [farmerSearch, setFarmerSearch] = useState('');
+  const [farmerFilter, setFarmerFilter] = useState('ALL'); // 'ALL' | 'DUE' | 'UP_TO_DATE'
+
+  const inchargePersonalFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
+  const personalFarmersList = inchargePersonalFarmers.length > 0
+    ? inchargePersonalFarmers
+    : (db?.farmers || []).filter(f => f.inchargeId === 'INC001' && (!f.agentId || f.assignedTo === 'Incharge'));
+
+  const personalFarmerItems = personalFarmersList.map((farmer, fIdx) => {
+    const rawTanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
+    const hasPendingTest = rawTanks.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
+    
+    const formattedTanks = rawTanks.map((t, tIdx) => {
+      const isDue = t.testStatus === 'Due' || (!t.testStatus && tIdx === 0);
+      const isOverdue = t.testStatus === 'Overdue' || (tIdx === 1);
+      const doc = t.doc || (35 + ((fIdx * 12 + tIdx * 15) % 65));
+      const abw = t.abw || `${(12.5 + ((fIdx * 2.1 + tIdx * 3.4) % 18)).toFixed(1)}g`;
+      const biomass = t.biomass || `${(1500 + ((fIdx * 300 + tIdx * 450) % 2500))} kg`;
+      const fcr = t.fcr || (1.12 + ((fIdx + tIdx) % 15) * 0.02).toFixed(2);
+      const size = t.size || `${t.acres || 2.5} Acres`;
+      const species = t.species || 'Vannamei';
+      const stocking = t.stocking || `${(80000 + (tIdx * 25000))} PL`;
+      const feedBrand = t.feedBrand || 'Royals High-Growth 38%';
+      const waterQuality = t.waterQuality || {
+        ph: (7.6 + ((fIdx + tIdx) % 8) * 0.1).toFixed(1),
+        do: `${(4.8 + ((fIdx + tIdx) % 6) * 0.2).toFixed(1)} ppm`,
+        salinity: `${12 + (fIdx + tIdx) % 8} ppt`,
+        ammonia: `${(0.04 + ((fIdx + tIdx) % 5) * 0.02).toFixed(2)} ppm`,
+        alkalinity: `${120 + ((fIdx + tIdx) % 6) * 5} ppm`
+      };
+
+      return {
+        ...t,
+        rawTank: t,
+        rawFarmer: farmer,
+        farmerName: farmer.name,
+        farmerPhone: farmer.phone,
+        farmerLocality: farmer.village || farmer.location || 'Chinnamiram',
+        doc,
+        abw,
+        biomass,
+        fcr,
+        size,
+        species,
+        stocking,
+        feedBrand,
+        waterQuality,
+        isDue,
+        isOverdue,
+        isHarvested: t.status === 'Harvested',
+        lastTest: t.lastTested || '3 days ago',
+        nextTest: isOverdue ? 'Overdue today' : (isDue ? 'Due Tomorrow' : 'In 5 days')
+      };
+    });
+
+    const regionName = farmer.region || farmer.zone || farmer.district || 'Coastal Region';
+    const localityName = farmer.locality || farmer.village || farmer.location || 'Chinnamiram';
+
+    return {
+      ...farmer,
+      regionName,
+      localityName,
+      region: regionName,
+      locality: localityName,
+      villageName: localityName,
+      tankCount: formattedTanks.length || parseInt(farmer.numberOfTanks) || 1,
+      testStatus: hasPendingTest ? 'Test Due' : 'Up to date',
+      isDue: hasPendingTest,
+      tanksList: formattedTanks
+    };
+  });
+
+  const personalDueCount = personalFarmerItems.filter(f => f.isDue).length;
+  const personalUpToDateCount = personalFarmerItems.filter(f => !f.isDue).length;
+  const totalPersonalTanks = personalFarmerItems.reduce((acc, f) => acc + f.tankCount, 0);
+
+  const filteredPersonalFarmers = personalFarmerItems.filter(f => {
+    if (farmerSearch.trim()) {
+      const q = farmerSearch.toLowerCase();
+      return (
+        f.name.toLowerCase().includes(q) ||
+        (f.regionName || '').toLowerCase().includes(q) ||
+        (f.localityName || '').toLowerCase().includes(q) ||
+        (f.villageName || '').toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   const inchargeAgentsList = getAgentsByInchargeId ? getAgentsByInchargeId('INC001') : (db?.agents || []);
   const agents = inchargeAgentsList.map((a, idx) => {
@@ -246,7 +356,8 @@ const Agents = () => {
     const tanks = getTanksByFarmerId(f.id);
     return {
       ...f,
-      locality: f.location || f.village || selectedAgent.locality || 'Bhimavaram',
+      region: f.region || f.zone || f.district || selectedAgent.region || 'Coastal Region',
+      locality: f.locality || f.village || f.location || selectedAgent.locality || 'Bhimavaram',
       tanks: tanks.length,
       acres: f.acres || 5,
       tanksList: tanks
@@ -348,15 +459,106 @@ const Agents = () => {
     ];
   })() : [];
 
+  const activeFarmerTank = farmerTanks[selectedFarmerTankIndex] || farmerTanks[0];
+
   return (
     <>
-      <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
+      <div style={{ padding: '16px 16px 32px', maxWidth: '1440px', margin: '0 auto' }}>
         {/* ========================================================= */}
-        {/* 1. Summary Quick Bar */}
+        {/* 0. Top Work Category Switcher: My Farmers vs My Agents (Mobile Only, Hidden on Desktop) */}
         {/* ========================================================= */}
-        <div style={styles.summaryBar} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-4 gap-x-4 sm:gap-6 items-center">
-          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
-            <span style={styles.summaryLabel}>Total Technicians</span>
+        <div className="flex lg:hidden items-center mb-4">
+          <div style={{
+            display: 'flex',
+            width: '100%',
+            backgroundColor: '#F1F5F9',
+            padding: '4px',
+            borderRadius: '12px',
+            border: '1px solid #E2E8F0',
+            gap: '4px'
+          }}>
+            <button
+              type="button"
+              onClick={() => navigate(`${base}/my-farmers`)}
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '9px 12px',
+                borderRadius: '9px',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                backgroundColor: 'transparent',
+                color: '#475569',
+                transition: 'all 0.15s ease'
+              }}
+              className="transition-all active:scale-98"
+            >
+              <UserCheck size={16} />
+              <span>My Farmers</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: '800',
+                padding: '2px 6px',
+                borderRadius: '10px',
+                backgroundColor: '#E2E8F0',
+                color: '#475569',
+                marginLeft: '2px'
+              }}>
+                {personalFarmerItems.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '9px 12px',
+                borderRadius: '9px',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                backgroundColor: '#1A2FB8',
+                color: '#FFFFFF',
+                boxShadow: '0 2px 6px rgba(26, 47, 184, 0.28)',
+                transition: 'all 0.15s ease'
+              }}
+              className="transition-all active:scale-98"
+            >
+              <Users size={16} />
+              <span>My Agents</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: '800',
+                padding: '2px 6px',
+                borderRadius: '10px',
+                backgroundColor: '#FFFFFF',
+                color: '#1A2FB8',
+                marginLeft: '2px'
+              }}>
+                {agents.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* SECTION: MY AGENTS (Field Technicians) */}
+        {/* ========================================================= */}
+        <div>
+          {/* 1. Summary Quick Bar */}
+          <div style={styles.summaryBar} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-4 gap-x-4 sm:gap-6 items-center">
+            <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
+              <span style={styles.summaryLabel}>Total Technicians</span>
             <span style={styles.summaryValue}>{agents.length}</span>
           </div>
           <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
@@ -415,294 +617,19 @@ const Agents = () => {
                 </select>
               )}
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              {totalOverdueCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleBroadcastOverdueAlert}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    backgroundColor: '#DC2626',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '7px 12px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 3px rgba(220,38,38,0.25)'
-                  }}
-                  className="transition-all hover:bg-red-700 active:scale-95"
-                  title="Broadcast urgent alert to all technicians with overdue tests"
-                >
-                  <Bell size={13} /> Broadcast Alert ({totalOverdueCount})
-                </button>
-              )}
-
-              {/* View Switcher: Grid vs Table */}
-              <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('GRID')}
-                  style={{
-                    padding: '5px 10px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    borderRadius: '6px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: viewMode === 'GRID' ? '#FFFFFF' : 'transparent',
-                    color: viewMode === 'GRID' ? '#1A2FB8' : '#64748B',
-                    boxShadow: viewMode === 'GRID' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}
-                  className="transition-all"
-                >
-                  <LayoutGrid size={14} />
-                  <span>Cards</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewMode('TABLE')}
-                  style={{
-                    padding: '5px 10px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    borderRadius: '6px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: viewMode === 'TABLE' ? '#FFFFFF' : 'transparent',
-                    color: viewMode === 'TABLE' ? '#1A2FB8' : '#64748B',
-                    boxShadow: viewMode === 'TABLE' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}
-                  className="transition-all"
-                >
-                  <List size={14} />
-                  <span>Table</span>
-                </button>
-              </div>
-            </div>
           </div>
 
-          {/* View Mode 1: GRID VIEW */}
-          {viewMode === 'GRID' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style={{ padding: '16px' }}>
-              {filteredAgents.map((agent) => {
-                const isOverdue = agent.overdueCount > 0;
-                const isReminded = agentRemindedMap[agent.id];
-                return (
-                  <div
-                    key={agent.id}
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: '12px',
-                      border: '1px solid #E2E8F0',
-                      padding: '16px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    className="hover:border-blue-300 hover:shadow-xs"
-                  >
-                    {/* Header: Avatar, Name, Status Pill */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '12px',
-                          backgroundColor: '#EFF6FF',
-                          border: '1.5px solid #BFDBFE',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#1A2FB8',
-                          fontWeight: '800',
-                          fontSize: '15px'
-                        }}>
-                          {agent.name ? agent.name.charAt(0) : 'A'}
-                        </div>
-                        <div>
-                          <div 
-                            style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', cursor: 'pointer' }}
-                            onClick={() => {
-                              setAgentModalTab('PROFILE');
-                              setSelectedAgent(agent);
-                            }}
-                            className="hover:text-blue-700"
-                          >
-                            {agent.name}
-                          </div>
-                          <div style={{ fontSize: '11.5px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <MapPin size={12} color="#1A2FB8" /> {agent.locality || 'Bhimavaram Cluster'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <span style={{
-                        fontSize: '10.5px',
-                        fontWeight: '700',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: isOverdue ? '#FEE2E2' : '#DCFCE7',
-                        color: isOverdue ? '#DC2626' : '#15803D',
-                        border: isOverdue ? '1px solid #FECACA' : '1px solid #BBF7D0'
-                      }}>
-                        {isOverdue ? `${agent.overdueCount} Overdue` : 'Active in Field'}
-                      </span>
-                    </div>
-
-                    {/* 4 Stats Chips */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', textAlign: 'center', backgroundColor: '#F8FAFC', padding: '10px 6px', borderRadius: '10px', border: '1px solid #F1F5F9' }}>
-                      <div 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          setAgentModalTab('FARMERS');
-                          setSelectedAgent(agent);
-                        }}
-                        title="View Farmers"
-                      >
-                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8' }}>{agent.farmers}</div>
-                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Farmers</div>
-                      </div>
-                      <div 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedAgentTanks(agent)}
-                        title="View Ponds"
-                      >
-                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284C7' }}>{agent.tanks}</div>
-                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Ponds</div>
-                      </div>
-                      <div 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          setAgentModalTab('SUBMISSIONS');
-                          setSelectedAgent(agent);
-                        }}
-                        title="View Submissions"
-                      >
-                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#16A34A' }}>{agent.tests}</div>
-                        <div style={{ fontSize: '10.5px', color: '#64748B' }}>Tests</div>
-                      </div>
-                      <div 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setDueTestsAgent(agent)}
-                        title="View Dues"
-                      >
-                        <div style={{ fontSize: '13px', fontWeight: '800', color: isOverdue ? '#DC2626' : '#D97706' }}>{agent.dueTests}</div>
-                        <div style={{ fontSize: '10.5px', color: isOverdue ? '#DC2626' : '#64748B' }}>Dues</div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons: Phone call, Inspect, Remind */}
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <a
-                        href={`tel:${agent.mobile}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '34px',
-                          height: '34px',
-                          backgroundColor: '#F1F5F9',
-                          color: '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '8px',
-                          flexShrink: 0
-                        }}
-                        className="transition-all hover:bg-slate-200 active:scale-95"
-                        title={`Call ${agent.name} (${agent.mobile})`}
-                      >
-                        <Phone size={14} />
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAgentModalTab('FARMERS');
-                          setSelectedAgent(agent);
-                        }}
-                        style={{
-                          flex: 1,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px',
-                          backgroundColor: '#EFF6FF',
-                          color: '#1A2FB8',
-                          border: '1px solid #BFDBFE',
-                          borderRadius: '8px',
-                          padding: '7px 12px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-blue-100 active:scale-95"
-                      >
-                        <Eye size={13} strokeWidth={2.5} /> Inspect Portfolio
-                      </button>
-
-                      {isOverdue && (
-                        <button
-                          type="button"
-                          onClick={() => handleNudgeAgent(agent)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            backgroundColor: isReminded ? '#DCFCE7' : '#FEF2F2',
-                            color: isReminded ? '#15803D' : '#DC2626',
-                            border: isReminded ? '1px solid #BBF7D0' : '1px solid #FECACA',
-                            borderRadius: '8px',
-                            padding: '7px 12px',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            cursor: 'pointer'
-                          }}
-                          className="transition-all hover:brightness-95 active:scale-95"
-                          title="Send urgent overdue notification"
-                        >
-                          <Bell size={13} /> {isReminded ? 'Sent ✓' : 'Nudge'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {filteredAgents.length === 0 && (
-                <div style={{ gridColumn: '1 / -1', padding: '32px', textAlign: 'center', color: '#64748B' }}>
-                  No field technicians match your search criteria.
-                </div>
-              )}
-            </div>
-          ) : (
-            /* View Mode 2: TABLE VIEW */
-            <div style={{ overflowX: 'auto' }}>
-              <table style={styles.table}>
+          {/* Table View Format Only */}
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
                   <th style={styles.th}>Technician</th>
-                  <th style={styles.th}>Contact</th>
-                  <th style={styles.th}>Locality</th>
-                  <th style={styles.th}>Assigned Farmers</th>
-                  <th style={styles.th}>Supervised Tanks</th>
-                  <th style={styles.th}>Tests Done</th>
-                  <th style={styles.th}>Test Dues</th>
-                  <th style={styles.th}>Actions</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Farmers</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Tanks</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Done</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Due</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -720,86 +647,55 @@ const Agents = () => {
                       }}
                       title={`Click to view all profile details of ${agent.name}`}
                     >
-                      <div style={{ ...styles.agentName, color: '#1A2FB8', fontWeight: '800' }}>
+                      <div style={{ fontSize: '13px', color: '#1A2FB8', fontWeight: '800' }}>
                         {agent.name}
                       </div>
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '13px' }}>
-                        <Phone size={13} color="#64748B" />
+                      <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                         <span>{agent.mobile}</span>
-                      </div>
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0F172A', fontSize: '13px', fontWeight: '500' }}>
-                        <MapPin size={13} color="#1A2FB8" />
+                        <span>•</span>
                         <span>{agent.locality}</span>
                       </div>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setAgentModalTab('FARMERS');
                         setSelectedAgent(agent);
                       }}
                       title={`Click to view all farmers assigned to ${agent.name}`}
                     >
-                      <span 
-                        style={{
-                          ...styles.countBadge,
-                          backgroundColor: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          color: '#1A2FB8',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-blue-100 active:scale-95 cursor-pointer"
-                      >
-                        <Users size={12} color="#1A2FB8" />
-                        <span>{agent.farmers} Farmers</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                        {agent.farmers}
                       </span>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setSelectedAgentTanks(agent);
                       }}
                       title={`Click to view all tanks supervised by ${agent.name}`}
                     >
-                      <span 
-                        style={{
-                          ...styles.countBadge,
-                          backgroundColor: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          color: '#0284C7',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-sky-100 active:scale-95 cursor-pointer"
-                      >
-                        <Droplets size={12} color="#0284C7" />
-                        <span>{agent.tanks} Tanks</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284C7' }}>
+                        {agent.tanks}
                       </span>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setAgentModalTab('SUBMISSIONS');
                         setSelectedAgent(agent);
                       }}
                       title={`Click to view field test logs by ${agent.name}`}
                     >
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                        {agent.tests} Tests
+                      <span style={styles.statusPill}>
+                        <CheckCircle2 size={10} /> {agent.tests}
                       </span>
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -810,34 +706,33 @@ const Agents = () => {
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          padding: '4px 10px',
-                          borderRadius: '7px',
+                          gap: '3px',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
                           backgroundColor: agent.overdueCount > 0 ? '#FEE2E2' : '#FEF3C7',
                           color: agent.overdueCount > 0 ? '#DC2626' : '#B45309',
-                          fontSize: '12px',
+                          fontSize: '11px',
                           fontWeight: '700',
                           border: agent.overdueCount > 0 ? '1px solid #FECACA' : '1px solid #FDE68A',
                           cursor: 'pointer'
                         }}
-                        className="transition-transform active:scale-95 hover:shadow-xs cursor-pointer"
+                        className="transition-transform active:scale-95 cursor-pointer"
                       >
-                        <Clock size={12} />
-                        <span>{agent.dueTests} {agent.dueTests === 1 ? 'Test Due' : 'Tests Due'}</span>
-                        <ChevronRight size={12} />
+                        <Clock size={10} />
+                        <span>{agent.dueTests} Due</span>
                       </button>
                     </td>
 
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <a
                           href={`tel:${agent.mobile}`}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            width: '28px',
-                            height: '28px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '6px',
                             backgroundColor: '#F1F5F9',
                             color: '#475569',
@@ -846,7 +741,7 @@ const Agents = () => {
                           className="hover:bg-slate-200"
                           title={`Call ${agent.name}`}
                         >
-                          <Phone size={12} />
+                          <Phone size={11} />
                         </a>
                         <button
                           type="button"
@@ -854,38 +749,10 @@ const Agents = () => {
                             setAgentModalTab('FARMERS');
                             setSelectedAgent(agent);
                           }}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            backgroundColor: '#EFF6FF',
-                            color: '#1A2FB8',
-                            border: '1px solid #BFDBFE',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            cursor: 'pointer'
-                          }}
-                          className="hover:bg-blue-100"
+                          style={styles.viewPortfolioBtn}
                         >
                           Inspect
                         </button>
-                        {agent.overdueCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleNudgeAgent(agent)}
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              backgroundColor: agentRemindedMap[agent.id] ? '#DCFCE7' : '#FEF2F2',
-                              color: agentRemindedMap[agent.id] ? '#15803D' : '#DC2626',
-                              border: agentRemindedMap[agent.id] ? '1px solid #BBF7D0' : '1px solid #FECACA',
-                              fontSize: '11px',
-                              fontWeight: '700',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {agentRemindedMap[agent.id] ? 'Sent ✓' : 'Nudge'}
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -893,7 +760,7 @@ const Agents = () => {
 
                 {filteredAgents.length === 0 && (
                   <tr>
-                    <td colSpan="8" style={styles.emptyTd}>
+                    <td colSpan="6" style={styles.emptyTd}>
                       No field technicians match your search criteria.
                     </td>
                   </tr>
@@ -901,9 +768,9 @@ const Agents = () => {
               </tbody>
             </table>
           </div>
-        )}
         </div>
       </div>
+    </div>
 
       {/* ========================================================= */}
       {/* 3. AGENT DETAILS & MULTI-TAB MODAL (Profile, Farmers, Tanks, Tests) */}
@@ -1173,12 +1040,12 @@ const Agents = () => {
               {/* TAB 2: ASSIGNED FARMERS */}
               {agentModalTab === 'FARMERS' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
                       Assigned Farmers ({agentFarmers.length})
                     </h4>
                     <span style={{ fontSize: '11.5px', color: '#64748B' }}>
-                      Click any farmer to inspect details & tanks
+                      Click any farmer to inspect full details & ponds
                     </span>
                   </div>
 
@@ -1186,43 +1053,64 @@ const Agents = () => {
                     {agentFarmers.map((farmer) => (
                       <div
                         key={farmer.id}
-                        style={styles.farmerCard}
                         onClick={() => setSelectedFarmer(farmer)}
-                        className="transition-all duration-150 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer"
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: '12px',
+                          border: '1px solid #E2E8F0',
+                          padding: '12px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                          cursor: 'pointer'
+                        }}
+                        className="hover:border-blue-400 hover:bg-blue-50/20 active:scale-[0.99] transition-all cursor-pointer"
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                          <div>
-                            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
-                              {farmer.name}
-                            </div>
-                            <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
-                              📞 {farmer.phone}
-                            </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '8px',
+                            backgroundColor: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#1A2FB8',
+                            fontWeight: '800',
+                            fontSize: '15px',
+                            flexShrink: 0
+                          }}>
+                            {farmer.name ? farmer.name.charAt(0) : 'F'}
                           </div>
 
-                          <span style={styles.tanksCountBadge}>
-                            <Droplets size={12} color="#0284C7" />
-                            {farmer.tanks || farmer.tanksList?.length || 2} Tanks
-                          </span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#0F172A', lineHeight: 1.3, marginBottom: '2px' }}>
+                              {farmer.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.3 }}>
+                              {farmer.localityName || farmer.villageName || farmer.locality || 'Chinnamiram'}, {farmer.regionName || farmer.region || 'Coastal Region'}
+                            </div>
+                          </div>
                         </div>
 
-                        <div style={styles.farmerMetaRow}>
-                          <span style={styles.metaChip}>📍 {farmer.locality}</span>
-                          <span style={styles.metaChip}>🌾 {farmer.acres} Acres</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#1A2FB8', fontWeight: '700', fontSize: '12px', flexShrink: 0 }}>
+                          <span className="hidden sm:inline">View Details</span>
+                          <div style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            backgroundColor: '#EFF6FF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <ChevronRight size={15} color="#1A2FB8" strokeWidth={2.5} />
+                          </div>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFarmer(farmer);
-                          }}
-                          style={styles.inspectGrowthBtn}
-                          className="transition-all duration-150 active:scale-98 cursor-pointer hover:bg-blue-900"
-                        >
-                          <span>Inspect Farmer & Tanks</span>
-                          <ChevronRight size={14} />
-                        </button>
                       </div>
                     ))}
 
@@ -1762,9 +1650,9 @@ const Agents = () => {
                   <ArrowLeft size={16} />
                 </button>
                 <div>
-                  <h3 style={styles.modalTitle}>{selectedFarmer.name} — Farm & Growth Details</h3>
+                  <h3 style={styles.modalTitle}>{selectedFarmer.name} — Full Farmer Details</h3>
                   <p style={styles.modalSub}>
-                    📍 {selectedFarmer.locality || selectedFarmer.location || selectedFarmer.village || 'Bhimavaram'} • 📞 {selectedFarmer.phone} • 🌾 {selectedFarmer.acres || 5} Acres Farm
+                    <strong>Region:</strong> {selectedFarmer.region || selectedFarmer.regionName || 'Coastal Region'} • <strong>Locality:</strong> {selectedFarmer.locality || selectedFarmer.localityName || selectedFarmer.villageName || selectedFarmer.village || 'Chinnamiram'} • 🌾 {selectedFarmer.acres || 5} Acres Farm
                   </p>
                 </div>
               </div>
@@ -1779,123 +1667,159 @@ const Agents = () => {
 
             {/* Farmer Quick Bio Banner */}
             <div style={styles.farmerBioBanner}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={styles.farmerBioIcon}>
-                  <Fish size={18} color="#1A2FB8" />
-                </div>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
-                    Assigned Field Technician: <span style={{ color: '#1A2FB8' }}>{selectedAgent?.name || 'Ramesh'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={styles.farmerBioIcon}>
+                    <Fish size={18} color="#1A2FB8" />
                   </div>
-                  <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                    Water Source: {selectedFarmer.waterSource || 'Canal'} • Supervised Culture Tanks: {farmerTanks.length}
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
+                      Farmer: {selectedFarmer.name} • 📞 {selectedFarmer.phone || '+91 98480 12345'}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                      Region: <strong>{selectedFarmer.region || selectedFarmer.regionName || 'Coastal Region'}</strong> • Locality: <strong>{selectedFarmer.locality || selectedFarmer.localityName || selectedFarmer.villageName || selectedFarmer.village || 'Chinnamiram'}</strong> • Water Source: {selectedFarmer.waterSource || 'Canal'} • Supervised Ponds: {farmerTanks.length}
+                    </div>
                   </div>
                 </div>
+
+                {selectedFarmer.phone && (
+                  <a
+                    href={`tel:${selectedFarmer.phone}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      backgroundColor: '#1A2FB8',
+                      color: '#FFFFFF',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textDecoration: 'none'
+                    }}
+                    className="hover:bg-blue-900 transition-all active:scale-95"
+                  >
+                    <Phone size={13} />
+                    <span>Call Farmer</span>
+                  </a>
+                )}
               </div>
             </div>
 
-            {/* Tanks Growth & Telemetry Cards List */}
+            {/* Farmer Tanks Section with direct redirection */}
             <div style={{ marginTop: '18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  Pond-by-Pond Culture Growth & Telemetry ({farmerTanks.length} Tanks)
-                </h4>
+                <div>
+                  <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                    Supervised Ponds & Tanks ({farmerTanks.length})
+                  </h4>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Click any pond to open its full details and record partial or final harvests.
+                  </p>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '520px', overflowY: 'auto' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '12px'
+              }}>
                 {farmerTanks.map((tank, idx) => (
-                  <div key={tank.id || idx} style={styles.tankGrowthCard}>
-                    {/* Tank Top Bar */}
-                    <div style={styles.tankCardHeader}>
+                  <button
+                    key={tank.id || idx}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFarmer(null);
+                      navigate(`${base}/tanks/${tank.id || `T${idx + 1}`}`, {
+                        state: { farmer: selectedFarmer, tank: tank }
+                      });
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
+                    }}
+                    className="transition-all hover:border-blue-600 hover:shadow-md hover:bg-blue-50/10 active:scale-[0.98] cursor-pointer"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={styles.tankIconBox}>
-                          <Droplets size={16} color="#1A2FB8" />
+                        <div style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '8px',
+                          backgroundColor: '#EFF6FF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#1A2FB8',
+                          flexShrink: 0
+                        }}>
+                          <Droplets size={16} />
                         </div>
                         <div>
                           <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
                             {tank.name || `Pond ${idx + 1}`}
                           </div>
                           <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                            Size: {tank.size || '2.5 Acres'} • {tank.stocking || '100,000 PL'} Stocking
+                            {tank.species || 'Vannamei'} • {tank.size || '2.5 Acres'}
                           </div>
                         </div>
                       </div>
+                      <ChevronRight size={16} color="#94A3B8" />
+                    </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedHarvestTank({
-                            ...tank,
-                            farmer: selectedFarmer?.name,
-                            farmerId: selectedFarmer?.id,
-                            locality: selectedFarmer?.locality,
-                            size: tank.size || '20 Acres'
-                          })}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            backgroundColor: '#FEF3C7',
-                            color: '#92400E',
-                            fontSize: '11.5px',
-                            fontWeight: '700',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            border: '1px solid #FDE68A',
-                            cursor: 'pointer'
-                          }}
-                          className="transition-transform active:scale-95 hover:brightness-95 cursor-pointer"
-                          title="View Full Harvest Records, Partial Cuts & Standing Crop"
-                        >
-                          <Scale size={12} color="#92400E" />
-                          <span>Harvest Report</span>
-                        </button>
-
-                        <span style={tank.isHarvested ? styles.harvestedTagBtn : styles.activeCultureTag}>
-                          <CheckCircle2 size={12} />
-                          <span>{tank.isHarvested ? 'Harvested' : 'Active Culture'}</span>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      marginTop: '2px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid #F1F5F9'
+                    }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: '#1A2FB8',
+                        backgroundColor: '#EFF6FF',
+                        padding: '2px 8px',
+                        borderRadius: '6px'
+                      }}>
+                        Day {tank.doc || 45} DOC
+                      </span>
+                      {tank.isHarvested ? (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          color: '#475569',
+                          backgroundColor: '#F1F5F9',
+                          padding: '2px 8px',
+                          borderRadius: '6px'
+                        }}>
+                          Harvested
                         </span>
-                      </div>
+                      ) : (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          color: '#15803D',
+                          backgroundColor: '#DCFCE7',
+                          padding: '2px 8px',
+                          borderRadius: '6px'
+                        }}>
+                          Active Culture
+                        </span>
+                      )}
                     </div>
-
-                    {/* Growth Metrics Grid */}
-                    <div style={styles.growthGrid}>
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>ABW (Body Wt)</span>
-                        <span style={{ ...styles.growthVal, color: '#1A2FB8' }}>{tank.abw}</span>
-                        <span style={styles.growthSub}>{tank.count}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Estimated Biomass</span>
-                        <span style={styles.growthVal}>{tank.biomass}</span>
-                        <span style={styles.growthSub}>Weekly Gain: {tank.weeklyGain}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Feed Ratio (FCR)</span>
-                        <span style={{ ...styles.growthVal, color: '#16A34A' }}>{tank.fcr}</span>
-                        <span style={styles.growthSub}>Daily Feed: {tank.feedRate}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Water Quality (DO / pH)</span>
-                        <span style={styles.growthVal}>DO {tank.waterQuality?.do}</span>
-                        <span style={styles.growthSub}>pH {tank.waterQuality?.ph} • Sal {tank.waterQuality?.salinity}</span>
-                      </div>
-                    </div>
-
-                    {/* Tank Bottom Details */}
-                    <div style={styles.tankDetailsFooter}>
-                      <span>Feed: <b>{tank.feedBrand}</b></span>
-                      <span>•</span>
-                      <span>Ammonia: <b>{tank.waterQuality?.ammonia}</b></span>
-                      <span>•</span>
-                      <span>Alkalinity: <b>{tank.waterQuality?.alkalinity}</b></span>
-                      <span>•</span>
-                      <span>Survival: <b style={{ color: '#16A34A' }}>{tank.survival}</b></span>
-                    </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2408,7 +2332,6 @@ const styles = {
   },
   table: {
     width: '100%',
-    minWidth: '760px',
     borderCollapse: 'collapse',
     textAlign: 'left',
   },
@@ -2417,12 +2340,12 @@ const styles = {
     backgroundColor: '#F8FAFC',
   },
   th: {
-    padding: '12px 14px',
-    fontSize: '12px',
+    padding: '8px 6px',
+    fontSize: '10.5px',
     fontWeight: '700',
     color: '#475569',
     textTransform: 'uppercase',
-    letterSpacing: '0.4px',
+    letterSpacing: '0.3px',
     whiteSpace: 'nowrap',
   },
   tr: {
@@ -2430,49 +2353,48 @@ const styles = {
     transition: 'background-color 0.15s',
   },
   td: {
-    padding: '12px 14px',
+    padding: '8px 6px',
     verticalAlign: 'middle',
-    whiteSpace: 'nowrap',
   },
   agentAvatar: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     fontWeight: '800',
-    fontSize: '13px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   agentName: {
-    fontSize: '13.5px',
+    fontSize: '12.5px',
     fontWeight: '700',
     color: '#0F172A',
   },
   agentIdTag: {
-    fontSize: '11px',
+    fontSize: '10.5px',
     color: '#94A3B8',
     fontWeight: '500',
   },
   countBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '5px',
+    gap: '3px',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
-    padding: '4px 10px',
+    padding: '2px 6px',
     borderRadius: '6px',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     color: '#0F172A',
     whiteSpace: 'nowrap',
   },
   progressBar: {
-    width: '50px',
-    height: '6px',
+    width: '40px',
+    height: '5px',
     backgroundColor: '#E2E8F0',
     borderRadius: '3px',
     overflow: 'hidden',
@@ -2483,17 +2405,17 @@ const styles = {
     borderRadius: '3px',
   },
   complianceText: {
-    fontSize: '12.5px',
+    fontSize: '11.5px',
     fontWeight: '700',
     color: '#16A34A',
   },
   statusPill: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '4px 9px',
-    borderRadius: '12px',
-    fontSize: '11.5px',
+    gap: '3px',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: '700',
     backgroundColor: '#DCFCE7',
     color: '#15803D',
@@ -2501,13 +2423,13 @@ const styles = {
   viewPortfolioBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '6px 12px',
+    gap: '3px',
+    padding: '4px 8px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     border: '1px solid #BFDBFE',
     borderRadius: '6px',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
     whiteSpace: 'nowrap',

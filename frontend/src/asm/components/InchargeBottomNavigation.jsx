@@ -27,14 +27,65 @@ const InchargeBottomNavigation = () => {
       label: 'Home', 
       path: `${base}/dashboard`, 
       icon: Home, 
-      match: [`${base}/dashboard`, `${base}`, base] 
+      exactMatch: [
+        `${base}/dashboard`, 
+        `${base}`, 
+        `${base}/`, 
+        '/incharge', 
+        '/incharge/', 
+        '/incharge/dashboard', 
+        '/asm', 
+        '/asm/', 
+        '/asm/dashboard',
+        '/home'
+      ],
+      matchPrefixes: [
+        `${base}/dashboard/`,
+        '/incharge/dashboard/',
+        '/asm/dashboard/'
+      ]
     },
     { 
-      label: 'Agents', 
+      label: 'Work', 
       path: `${base}/agents`, 
       icon: Users, 
       badge: overdueAgentCount > 0 ? overdueAgentCount : null,
-      match: [`${base}/agents`] 
+      exactMatch: [
+        `${base}/agents`, 
+        `${base}/work`,
+        `${base}/my-farmers`,
+        `${base}/farmers`,
+        '/incharge/agents', 
+        '/incharge/work',
+        '/incharge/my-farmers',
+        '/incharge/farmers',
+        '/asm/agents', 
+        '/asm/work',
+        '/asm/my-farmers',
+        '/asm/farmers',
+        '/agents',
+        '/work',
+        '/my-farmers',
+        '/farmers'
+      ],
+      matchPrefixes: [
+        `${base}/agents/`, 
+        `${base}/work/`,
+        `${base}/my-farmers/`,
+        `${base}/farmers/`,
+        '/incharge/agents/', 
+        '/incharge/work/',
+        '/incharge/my-farmers/',
+        '/incharge/farmers/',
+        '/asm/agents/', 
+        '/asm/work/',
+        '/asm/my-farmers/',
+        '/asm/farmers/',
+        '/agents/',
+        '/work/',
+        '/my-farmers/',
+        '/farmers/'
+      ] 
     },
     { 
       label: 'Record', 
@@ -45,26 +96,77 @@ const InchargeBottomNavigation = () => {
       label: 'Tests', 
       path: `${base}/weekly-tests`, 
       icon: Calendar, 
-      match: [`${base}/weekly-tests`, `${base}/tests`, `${base}/history`] 
+      exactMatch: [
+        `${base}/weekly-tests`, 
+        `${base}/tests`, 
+        `${base}/history`, 
+        '/incharge/weekly-tests', 
+        '/incharge/tests', 
+        '/incharge/history', 
+        '/asm/weekly-tests', 
+        '/asm/tests', 
+        '/asm/history', 
+        '/weekly-tests', 
+        '/tests', 
+        '/history'
+      ],
+      matchPrefixes: [
+        `${base}/weekly-tests/`, 
+        `${base}/tests/`, 
+        `${base}/history/`, 
+        '/incharge/weekly-tests/', 
+        '/incharge/tests/', 
+        '/incharge/history/', 
+        '/asm/weekly-tests/', 
+        '/asm/tests/', 
+        '/asm/history/', 
+        '/weekly-tests/', 
+        '/tests/', 
+        '/history/'
+      ] 
     },
     { 
       label: 'Reports', 
       path: `${base}/reports`, 
       icon: FileText, 
-      match: [`${base}/reports`, `${base}/export-data`] 
+      exactMatch: [
+        `${base}/reports`, 
+        `${base}/export-data`, 
+        '/incharge/reports', 
+        '/incharge/export-data', 
+        '/asm/reports', 
+        '/asm/export-data', 
+        '/reports', 
+        '/export-data'
+      ],
+      matchPrefixes: [
+        `${base}/reports/`, 
+        `${base}/export-data/`, 
+        '/incharge/reports/', 
+        '/incharge/export-data/', 
+        '/asm/reports/', 
+        '/asm/export-data/', 
+        '/reports/', 
+        '/export-data/'
+      ] 
     },
   ];
 
   const isActive = (item) => {
-    if (!item.match) return false;
-    const current = location.pathname.toLowerCase();
-    if (item.label === 'Home' && (current === base.toLowerCase() || current === `${base.toLowerCase()}/` || current === `${base.toLowerCase()}/dashboard`)) {
+    if (item.isAction) return false;
+    const current = (location.pathname || '').toLowerCase();
+    
+    // 1. Direct exact matches
+    if (item.exactMatch && item.exactMatch.some(p => current === p.toLowerCase())) {
       return true;
     }
-    return item.match.some(p => {
-      const target = p.toLowerCase();
-      return current === target || current.startsWith(target + '/');
-    });
+
+    // 2. Sub-route prefix matches
+    if (item.matchPrefixes && item.matchPrefixes.some(p => current.startsWith(p.toLowerCase()))) {
+      return true;
+    }
+
+    return false;
   };
 
   return (

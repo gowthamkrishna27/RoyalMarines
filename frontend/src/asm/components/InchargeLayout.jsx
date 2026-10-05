@@ -7,7 +7,7 @@ import { getInchargeSession, logoutIncharge } from '../utils/inchargeAuth';
 import { getAsmBasePath } from '../utils/asmNavigation';
 import { 
   Shield, Menu, X, Home, Users, Calendar, FileText, 
-  UserCheck, LogOut, Plus, ChevronRight, Bell, CheckCheck, AlertTriangle, Eye, Scale
+  UserCheck, LogOut, Plus, ChevronRight, Bell, CheckCheck, AlertTriangle, Eye, Scale, User
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
@@ -217,14 +217,6 @@ const InchargeLayout = ({ children }) => {
           {/* Mobile Top Header (< 1024px) */}
           <header className="agent-mobile-header">
             <div style={styles.mobileHeaderLeft}>
-              <button
-                type="button"
-                style={styles.hamburgerBtn}
-                onClick={() => setIsDrawerOpen(true)}
-                aria-label="Open Navigation Menu"
-              >
-                <Menu size={20} color="#0F172A" />
-              </button>
               <div 
                 onClick={() => navigate(`${base}/dashboard`)} 
                 style={styles.mobileLogoContainer}
@@ -246,19 +238,7 @@ const InchargeLayout = ({ children }) => {
                 <span style={styles.mobileTimeText}>{formatTime(currentTime)}</span>
               </div>
 
-              {/* Notification Button */}
-              <button
-                type="button"
-                style={styles.headerIconBtn}
-                onClick={() => setIsNotificationDrawerOpen(true)}
-                title="Notifications"
-                aria-label="Notifications"
-              >
-                <Bell size={17} color="#334155" />
-                {unreadCount > 0 && <span style={styles.unreadBadgeDot} />}
-              </button>
-
-              {/* User Profile Button */}
+              {/* User Profile Avatar Button */}
               <button
                 type="button"
                 style={styles.profileRoundBtn}
@@ -266,7 +246,7 @@ const InchargeLayout = ({ children }) => {
                 title="ASM Profile & Settings"
                 aria-label="Profile"
               >
-                <Shield size={16} color="#1A2FB8" strokeWidth={2.4} />
+                <User size={16} color="#1A2FB8" strokeWidth={2.4} />
               </button>
             </div>
           </header>
@@ -280,19 +260,7 @@ const InchargeLayout = ({ children }) => {
                 <span style={styles.timeText}>{formatTime(currentTime)}</span>
               </div>
 
-              {/* Notification Button */}
-              <button
-                type="button"
-                style={styles.headerIconBtn}
-                onClick={() => setIsNotificationDrawerOpen(true)}
-                title="Notifications"
-                aria-label="Notifications"
-              >
-                <Bell size={18} color="#334155" />
-                {unreadCount > 0 && <span style={styles.unreadBadgeDot} />}
-              </button>
-
-              {/* Profile Round Button */}
+              {/* Profile Avatar Round Button */}
               <button
                 type="button"
                 className="transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-md cursor-pointer"
@@ -301,7 +269,7 @@ const InchargeLayout = ({ children }) => {
                 title="ASM Profile & Settings"
                 aria-label="Profile"
               >
-                <Shield size={17} color="#1A2FB8" strokeWidth={2.4} />
+                <User size={17} color="#1A2FB8" strokeWidth={2.4} />
               </button>
             </div>
           </header>

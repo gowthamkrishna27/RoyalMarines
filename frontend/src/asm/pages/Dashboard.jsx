@@ -27,8 +27,8 @@ const mockComplianceData = [
 ];
 
 const KPICard = ({ title, value, subtext, isPositive, icon: Icon, color, onClick, alertBadge }) => (
-  <div 
-    onClick={onClick} 
+  <div
+    onClick={onClick}
     style={{
       backgroundColor: '#FFFFFF',
       borderRadius: '10px',
@@ -41,7 +41,7 @@ const KPICard = ({ title, value, subtext, isPositive, icon: Icon, color, onClick
       cursor: 'pointer',
       boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
       transition: 'all 0.15s ease-in-out',
-    }} 
+    }}
     className="transition-all duration-150 hover:border-slate-300 hover:shadow-sm active:scale-[0.99]"
   >
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -94,8 +94,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const base = getAsmBasePath(location.pathname);
-  const { 
-    getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById, 
+  const {
+    getInchargeDashboardMetrics, db, getFarmerById, getTankById, getAgentById,
     getFarmersByInchargeId, getTanksByInchargeId, getMyFarmersByInchargeId, getMyTanksByInchargeId,
     getAgentsByInchargeId, getFarmersByAgentId, getTanksByFarmerId, addNotification
   } = useMockData();
@@ -134,7 +134,7 @@ const Dashboard = () => {
 
   const session = getInchargeSession() || { name: 'Ravi Kumar', inchargeId: 'INC001', region: 'Bhimavaram Region' };
   const metrics = getInchargeDashboardMetrics('INC001');
-  
+
   // Personal farmers and tanks directly under Incharge (INC001)
   const personalFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
   const personalTanks = getMyTanksByInchargeId ? getMyTanksByInchargeId('INC001') : [];
@@ -168,15 +168,15 @@ const Dashboard = () => {
 
   // Full detailed personal tanks assigned by Admin to Incharge
   const personalTanksDetails = personalTanks.map((tank, idx) => {
-    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || 
-                   (db?.farmers || []).find(f => f.id === tank.farmerId) || 
-                   { name: tank.farmerName || 'Farmer', location: tank.location || 'Field', phone: '' };
+    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) ||
+      (db?.farmers || []).find(f => f.id === tank.farmerId) ||
+      { name: tank.farmerName || 'Farmer', location: tank.location || 'Field', phone: '' };
     const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
     const isHarvested = tank.status === 'Harvested';
     const isDue = !schedule.isAllDone && !isHarvested;
     const isOverdue = tank.testStatus === 'Overdue' && !isHarvested;
     const isCompleted = (schedule.isAllDone || tank.testStatus === 'Completed') && !isHarvested;
-    
+
     const doc = tank.doc || (isHarvested ? 115 : (45 + ((idx * 8) % 40)));
     const abw = tank.abw || (doc >= 80 ? '28.5g' : doc >= 60 ? '21.0g' : '17.5g');
     const biomass = tank.biomass || `${Math.round(parseFloat(abw) * 140)} kg`;
@@ -206,7 +206,7 @@ const Dashboard = () => {
 
   const filteredPersonalTanks = personalTanksDetails.filter(item => {
     const q = myTanksSearch.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       (item.tank.name || '').toLowerCase().includes(q) ||
       (item.farmer.name || '').toLowerCase().includes(q) ||
       (item.farmer.location || '').toLowerCase().includes(q);
@@ -259,7 +259,7 @@ const Dashboard = () => {
 
   const filteredActiveTanks = activeTanksList.filter(t => {
     const q = activeTanksSearch.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       t.name.toLowerCase().includes(q) ||
       t.farmer.toLowerCase().includes(q) ||
       t.locality.toLowerCase().includes(q) ||
@@ -291,7 +291,7 @@ const Dashboard = () => {
   const allAgentOverdueTests = useMemo(() => {
     const list = [];
     const agentsList = inchargeAgents.length > 0 ? inchargeAgents : (db?.agents || []);
-    
+
     agentsList.forEach((agent) => {
       const farmers = getFarmersByAgentId ? getFarmersByAgentId(agent.id) : (db?.farmers || []).filter(f => f.agentId === agent.id);
       farmers.forEach((farmer, fIdx) => {
@@ -303,12 +303,12 @@ const Dashboard = () => {
               const doc = tank.doc || (40 + ((fIdx * 10 + tIdx * 15) % 50));
               const abw = tank.abw || `${(14.5 + ((fIdx * 2.5 + tIdx * 3.2) % 15)).toFixed(1)}g`;
               const size = tank.size || `${tank.acres || 2.5} Acres`;
-              const testType = tank.testType || ((fIdx + tIdx) % 3 === 0 
-                ? 'Water Analysis' 
-                : (fIdx + tIdx) % 3 === 1 
-                  ? 'Feed Test' 
+              const testType = tank.testType || ((fIdx + tIdx) % 3 === 0
+                ? 'Water Analysis'
+                : (fIdx + tIdx) % 3 === 1
+                  ? 'Feed Test'
                   : 'Disease Observation');
-              
+
               const dueDate = tank.dueDate || tank.nextTest || ((tIdx % 2 === 0) ? '18 Aug 2026' : '15 Aug 2026');
               const daysOverdue = tank.daysOverdue || ((tIdx % 2 === 0) ? '5 Days Overdue' : '8 Days Overdue');
 
@@ -347,7 +347,7 @@ const Dashboard = () => {
   // Filtered overdue tests based on search and agent filter
   const filteredAgentOverdueTests = allAgentOverdueTests.filter(item => {
     const q = agentOverdueSearch.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       item.agentName.toLowerCase().includes(q) ||
       item.farmName.toLowerCase().includes(q) ||
       item.farmerName.toLowerCase().includes(q) ||
@@ -474,162 +474,6 @@ const Dashboard = () => {
   return (
     <>
       <div className="p-3.5 sm:p-5 lg:p-6 max-w-[1440px] mx-auto">
-        
-        {/* ========================================================= */}
-        {/* DUAL-ROLE ASM / TECHNICIAN COMMAND & ACTION BAR            */}
-        {/* ========================================================= */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E2E8F0',
-          padding: '16px 20px',
-          marginBottom: '20px',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '16px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '12px',
-              backgroundColor: '#EFF6FF',
-              border: '1.5px solid #BFDBFE',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#1A2FB8',
-              fontWeight: '800',
-              fontSize: '18px',
-              flexShrink: 0
-            }}>
-              {session?.name ? session.name.charAt(0) : 'R'}
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  {session?.name || 'Ravi Kumar'}
-                </h2>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: '#EFF6FF',
-                  color: '#1A2FB8',
-                  border: '1px solid #BFDBFE',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <ShieldCheck size={13} /> Dual Role: ASM Supervisor & Field Agent
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', fontSize: '12px', color: '#64748B', flexWrap: 'wrap' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <MapPin size={13} color="#1A2FB8" /> {session?.region || 'Bhimavaram Region'} (Zone INC001)
-                </span>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={handleRefreshGPS}
-                  disabled={gpsLoading}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    color: '#0284C7',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '11.5px',
-                    fontWeight: '600'
-                  }}
-                  className="hover:underline"
-                >
-                  <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
-                  {gps ? `${gps.latitude?.toFixed(4)}, ${gps.longitude?.toFixed(4)}` : 'Locating GPS...'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setModalInitialTank(personalTanks[0]?.id || null);
-                setModalInitialType('WATER_QUALITY');
-                setIsQuickRecordOpen(true);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: '#1A2FB8',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(26,47,184,0.2)'
-              }}
-              className="transition-all hover:brightness-110 active:scale-95"
-            >
-              <Plus size={14} strokeWidth={2.5} /> Log Pond Test
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(`${base}/harvest`)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: '#F8FAFC',
-                color: '#0F172A',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer'
-              }}
-              className="transition-all hover:bg-slate-100 active:scale-95"
-            >
-              <Scale size={14} color="#16A34A" /> Harvest
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(`${base}/agents`)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: '#EFF6FF',
-                color: '#1A2FB8',
-                border: '1px solid #BFDBFE',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer'
-              }}
-              className="transition-all hover:bg-blue-100 active:scale-95"
-            >
-              <Users size={14} /> Monitor Agents ({inchargeAgents.length})
-            </button>
-          </div>
-        </div>
-
         {/* ========================================================= */}
         {/* 0. FARM TANK MAP & SIDE PANEL (LOCATION & THIS WEEK'S WORK) */}
         {/* ========================================================= */}
@@ -637,7 +481,7 @@ const Dashboard = () => {
           {/* Left: FARM TANK MAP */}
           <div className="lg:col-span-7 flex flex-col gap-2">
             <div style={{ ...styles.cardHeaderRow, flexWrap: 'wrap', gap: '8px' }}>
-              <span style={styles.sectionHeaderSmall}>FARM TANK MAP</span>
+              <span style={styles.sectionHeaderSmall}>MAP</span>
               <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                 <button
                   type="button"
@@ -764,7 +608,7 @@ const Dashboard = () => {
                 <span style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</span>
               </div>
               <div className="grid grid-cols-2 gap-3 my-auto py-2">
-                <div 
+                <div
                   style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #F1F5F9' }}
                   onClick={() => navigate(`${base}/my-farmers`)}
                   className="transition-all hover:bg-blue-50/50 hover:border-blue-100 active:scale-95 cursor-pointer"
@@ -774,7 +618,7 @@ const Dashboard = () => {
                   <span style={styles.metricLabel}>My Farmers</span>
                 </div>
 
-                <div 
+                <div
                   style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #F1F5F9' }}
                   onClick={() => setShowMyTanksModal(true)}
                   className="transition-all hover:bg-blue-50/50 hover:border-blue-100 active:scale-95 cursor-pointer"
@@ -784,7 +628,7 @@ const Dashboard = () => {
                   <span style={styles.metricLabel}>My Tanks</span>
                 </div>
 
-                <div 
+                <div
                   style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: '#FEFCE8', borderRadius: '12px', border: '1px solid #FEF08A' }}
                   onClick={() => {
                     setDueModalFilter('DUE');
@@ -797,7 +641,7 @@ const Dashboard = () => {
                   <span style={{ ...styles.metricLabel, color: '#92400E' }}>Tests Due</span>
                 </div>
 
-                <div 
+                <div
                   style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: overdueTanksList.length > 0 ? '#FEF2F2' : '#F8FAFC', borderRadius: '12px', border: overdueTanksList.length > 0 ? '1px solid #FECACA' : '1px solid #F1F5F9' }}
                   onClick={() => {
                     setDueModalFilter('OVERDUE');
@@ -816,410 +660,64 @@ const Dashboard = () => {
         {/* Top 6 KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <KPICard
-            title="Active Tanks" 
+            title="Active Tanks"
             value={activeTanksList.length}
             subtext="Active cycle"
-            isPositive={true} 
-            icon={Droplets} 
-            color="#16A34A" 
+            isPositive={true}
+            icon={Droplets}
+            color="#16A34A"
             onClick={() => setShowActiveTanksModal(true)}
           />
           <KPICard
-            title="Harvested Tanks" 
+            title="Harvested Tanks"
             value={harvestedTanksList.length}
             subtext="Completed"
-            isPositive={true} 
-            icon={CheckCircle2} 
-            color="#16A34A" 
+            isPositive={true}
+            icon={CheckCircle2}
+            color="#16A34A"
             onClick={() => setShowHarvestedModal(true)}
           />
           <KPICard
-            title="Total Farmers" 
+            title="Total Farmers"
             value={(db?.farmers || []).length}
             subtext={`+${metrics.newFarmersMonth || 3} this month`}
-            isPositive={true} 
-            icon={UserSquare} 
-            color="#1A2FB8" 
+            isPositive={true}
+            icon={UserSquare}
+            color="#1A2FB8"
             onClick={() => navigate(`${base}/farmers`)}
           />
           <KPICard
-            title="My Agents" 
+            title="My Agents"
             value={metrics.totalAgents || 6}
             subtext={`+${metrics.newAgentsMonth || 1} this month`}
-            isPositive={true} 
-            icon={Users} 
-            color="#1A2FB8" 
+            isPositive={true}
+            icon={Users}
+            color="#1A2FB8"
             onClick={() => navigate(`${base}/agents`)}
           />
           <KPICard
-            title="Agent Tests Logged" 
+            title="Agent Tests Logged"
             value={metrics.totalSubmissions || 28}
             subtext="Field tests"
-            isPositive={true} 
-            icon={TestTube} 
-            color="#0284C7" 
+            isPositive={true}
+            icon={TestTube}
+            color="#0284C7"
             onClick={() => navigate(`${base}/tests`)}
           />
           <KPICard
-            title="Overdue Tests" 
+            title="Overdue Tests"
             value={allAgentOverdueTests.length || metrics.overdueTests || 5}
             subtext="Requires reminder"
-            isPositive={false} 
-            icon={AlertTriangle} 
-            color="#DC2626" 
+            isPositive={false}
+            icon={AlertTriangle}
+            color="#DC2626"
             onClick={() => setShowAgentOverdueModal(true)}
           />
         </div>
 
-        {/* ========================================================= */}
-        {/* 2. WEEKLY TEST PROGRESS SECTION */}
-        {/* ========================================================= */}
-        <div style={{ marginBottom: '24px' }}>
-          {/* Weekly Test Compliance */}
-          <div style={styles.chartCard}>
-            <div style={styles.cardHeaderRow}>
-              <div>
-                <h3 style={styles.cardTitle}>Weekly Test Compliance</h3>
-              </div>
-              <span style={{ ...styles.pillTag, backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0' }}>
-                78% Completed
-              </span>
-            </div>
 
-            {/* Progress Bars Breakdown List */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '16px' }}>
-              
-              {/* 1. Completed - 78% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
-                    <span style={{ fontWeight: '700', color: '#0F172A' }}>Completed</span>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>(1,025 Tests)</span>
-                  </div>
-                  <span style={{ fontWeight: '800', color: '#16A34A', fontSize: '13.5px' }}>78%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '78%', height: '100%', backgroundColor: '#16A34A', borderRadius: '4px', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
 
-              {/* 2. Due - 14% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0284C7' }} />
-                    <span style={{ fontWeight: '700', color: '#0F172A' }}>Due</span>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>(185 Tests)</span>
-                  </div>
-                  <span style={{ fontWeight: '800', color: '#0284C7', fontSize: '13.5px' }}>14%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '14%', height: '100%', backgroundColor: '#0284C7', borderRadius: '4px', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
 
-              {/* 3. Overdue - 5% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#DC2626' }} />
-                    <span style={{ fontWeight: '700', color: '#0F172A' }}>Overdue</span>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>(67 Tests)</span>
-                  </div>
-                  <span style={{ fontWeight: '800', color: '#DC2626', fontSize: '13.5px' }}>5%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '5%', height: '100%', backgroundColor: '#DC2626', borderRadius: '4px', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-
-              {/* 4. Scheduled - 3% */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
-                    <span style={{ fontWeight: '700', color: '#0F172A' }}>Scheduled</span>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>(47 Tests)</span>
-                  </div>
-                  <span style={{ fontWeight: '800', color: '#8B5CF6', fontSize: '13.5px' }}>3%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '3%', height: '100%', backgroundColor: '#8B5CF6', borderRadius: '4px', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-
-            </div>
-
-            {/* Footer action link */}
-            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11.5px', color: '#64748B' }}>
-                Total: <strong>1,324 Cluster Tests</strong>
-              </span>
-              <button
-                type="button"
-                onClick={() => navigate(`${base}/weekly-tests`)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#1A2FB8',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-                className="hover:underline cursor-pointer"
-              >
-                <span>View Full Breakdown</span>
-                <ChevronRight size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 3. FIELD AGENTS LIVE OBSERVATION SECTION                   */}
-        {/* ========================================================= */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={styles.chartCard}>
-            <div style={{ ...styles.cardHeaderRow, flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <Users size={18} color="#1A2FB8" />
-                <h3 style={styles.cardTitle}>Field Agents Team Observation</h3>
-                <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#EFF6FF', color: '#1A2FB8' }}>
-                  {inchargeAgents.length} Supervised Techs
-                </span>
-                {allAgentOverdueTests.length > 0 && (
-                  <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-                    {allAgentOverdueTests.length} Total Overdue
-                  </span>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                {allAgentOverdueTests.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRemindAllOverdueAgents}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      backgroundColor: '#DC2626',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '6px 12px',
-                      fontSize: '11.5px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 3px rgba(220,38,38,0.25)'
-                    }}
-                    className="transition-all hover:bg-red-700 active:scale-95"
-                    title="Send immediate broadcast reminder to all technicians with overdue tests"
-                  >
-                    <Bell size={13} /> Broadcast Overdue Alert
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => navigate(`${base}/agents`)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#1A2FB8',
-                    fontSize: '12.5px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                  className="hover:underline cursor-pointer"
-                >
-                  <span>Full Agents Hub</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Broadcast Success Feedback Toast */}
-            {broadcastSuccess && (
-              <div style={{
-                marginTop: '12px',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                backgroundColor: '#DCFCE7',
-                border: '1px solid #BBF7D0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                color: '#15803D',
-                fontSize: '12px',
-                fontWeight: '600'
-              }}>
-                <CheckCircle2 size={16} color="#16A34A" />
-                <span>Urgent overdue reminder broadcast successfully dispatched to all {inchargeAgents.length} field technicians!</span>
-              </div>
-            )}
-
-            {/* Grid of Agent Observation Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px', marginTop: '16px' }}>
-              {inchargeAgents.slice(0, 4).map((ag) => {
-                const agFarmers = getFarmersByAgentId ? getFarmersByAgentId(ag.id) : [];
-                const agTanks = agFarmers.flatMap(f => getTanksByFarmerId(f.id));
-                const agSubs = (db?.submissions || []).filter(s => s.agentId === ag.id);
-                const overdueT = agTanks.filter(t => t.testStatus === 'Overdue' && t.status !== 'Harvested').length;
-                const phone = ag.mobile || ag.phone || '+91 98480 22334';
-                const isReminded = remindedOverdueMap[ag.id];
-
-                return (
-                  <div
-                    key={ag.id}
-                    style={{
-                      backgroundColor: '#F8FAFC',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '12px',
-                      padding: '14px 16px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                      transition: 'all 0.15s ease'
-                    }}
-                    className="hover:border-blue-300 hover:shadow-xs"
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '10px',
-                          backgroundColor: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#1A2FB8',
-                          fontWeight: '800',
-                          fontSize: '13px'
-                        }}>
-                          {ag.name ? ag.name.charAt(0) : 'A'}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>{ag.name}</div>
-                          <div style={{ fontSize: '11px', color: '#64748B' }}>📍 {ag.locality || 'Bhimavaram Cluster'}</div>
-                        </div>
-                      </div>
-                      <span style={{
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        backgroundColor: overdueT > 0 ? '#FEE2E2' : '#DCFCE7',
-                        color: overdueT > 0 ? '#DC2626' : '#15803D',
-                        border: overdueT > 0 ? '1px solid #FECACA' : '1px solid #BBF7D0'
-                      }}>
-                        {overdueT > 0 ? `${overdueT} Overdue` : 'Active in Field'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', backgroundColor: '#FFFFFF', padding: '8px 6px', borderRadius: '8px', border: '1px solid #F1F5F9' }}>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#1A2FB8' }}>{agFarmers.length}</div>
-                        <div style={{ fontSize: '10px', color: '#64748B' }}>Farmers</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#0284C7' }}>{agTanks.length}</div>
-                        <div style={{ fontSize: '10px', color: '#64748B' }}>Ponds</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#16A34A' }}>{agSubs.length}</div>
-                        <div style={{ fontSize: '10px', color: '#64748B' }}>Tests</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                      <a
-                        href={`tel:${phone}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '32px',
-                          height: '32px',
-                          backgroundColor: '#F1F5F9',
-                          color: '#475569',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '7px',
-                          flexShrink: 0
-                        }}
-                        className="transition-all hover:bg-slate-200 active:scale-95"
-                        title={`Call ${ag.name} (${phone})`}
-                      >
-                        <Phone size={13} />
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => navigate(`${base}/agents`)}
-                        style={{
-                          flex: 1,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px',
-                          backgroundColor: '#EFF6FF',
-                          color: '#1A2FB8',
-                          border: '1px solid #BFDBFE',
-                          borderRadius: '7px',
-                          padding: '6px 10px',
-                          fontSize: '11.5px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-blue-100 active:scale-95"
-                      >
-                        <Eye size={12} strokeWidth={2.5} /> Observe
-                      </button>
-
-                      {overdueT > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const firstOD = allAgentOverdueTests.find(item => item.agentId === ag.id);
-                            if (firstOD) handleRemindSingleAgent(firstOD);
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            backgroundColor: isReminded ? '#DCFCE7' : '#FEF2F2',
-                            color: isReminded ? '#15803D' : '#DC2626',
-                            border: isReminded ? '1px solid #BBF7D0' : '1px solid #FECACA',
-                            borderRadius: '7px',
-                            padding: '6px 10px',
-                            fontSize: '11.5px',
-                            fontWeight: '700',
-                            cursor: 'pointer'
-                          }}
-                          className="transition-all hover:brightness-95 active:scale-95"
-                          title="Send quick overdue test reminder to agent"
-                        >
-                          <Bell size={12} /> {isReminded ? 'Nudged ✓' : 'Nudge'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Harvest Completed Comprehensive Modal */}
@@ -1283,9 +781,9 @@ const Dashboard = () => {
             </div>
 
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
+              <button
                 type="button"
-                style={styles.saveBtn} 
+                style={styles.saveBtn}
                 onClick={() => setSelectedModalTank(null)}
               >
                 Close Details
@@ -1298,8 +796,8 @@ const Dashboard = () => {
       {/* Harvested Tanks Completed List Modal */}
       {showHarvestedModal && (
         <div style={styles.modalBackdrop} onClick={() => setShowHarvestedModal(false)}>
-          <div 
-            style={{ ...styles.modalCard, maxWidth: '960px' }} 
+          <div
+            style={{ ...styles.modalCard, maxWidth: '960px' }}
             onClick={e => e.stopPropagation()}
             className="animate-modal-in"
           >
@@ -1380,7 +878,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 filteredHarvestedTanks.map((tank, idx) => (
-                  <div 
+                  <div
                     key={tank.id || idx}
                     style={{
                       border: '1px solid #E2E8F0',
@@ -1462,12 +960,12 @@ const Dashboard = () => {
       {/* 4.5. ACTIVE TANKS DETAIL MODAL (Opens when clicking Active Tanks) */}
       {/* ========================================================= */}
       {showActiveTanksModal && (
-        <div 
+        <div
           className="animate-backdrop-in"
-          style={styles.modalBackdrop} 
+          style={styles.modalBackdrop}
           onClick={() => setShowActiveTanksModal(false)}
         >
-          <div 
+          <div
             className="animate-modal-in"
             style={{
               backgroundColor: '#FFFFFF',
@@ -1777,7 +1275,7 @@ const Dashboard = () => {
               </span>
               <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setShowActiveTanksModal(false)}
               >
                 Close View
@@ -1791,12 +1289,12 @@ const Dashboard = () => {
       {/* 4.7. AGENT OVERDUE TESTS MODAL (Clean, Calm & Non-Distracting) */}
       {/* ========================================================= */}
       {showAgentOverdueModal && (
-        <div 
+        <div
           className="animate-backdrop-in"
-          style={styles.modalBackdrop} 
+          style={styles.modalBackdrop}
           onClick={() => setShowAgentOverdueModal(false)}
         >
-          <div 
+          <div
             className="animate-modal-in"
             style={{
               backgroundColor: '#FFFFFF',
@@ -2140,7 +1638,7 @@ const Dashboard = () => {
               </span>
               <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setShowAgentOverdueModal(false)}
               >
                 Close
@@ -2154,12 +1652,12 @@ const Dashboard = () => {
       {/* 5. DUE & OVERDUE TESTS DETAIL MODAL */}
       {/* ========================================================= */}
       {showDueTestsModal && (
-        <div 
+        <div
           className="animate-backdrop-in"
           style={styles.modalBackdrop}
           onClick={() => setShowDueTestsModal(false)}
         >
-          <div 
+          <div
             className="animate-modal-in"
             style={{ ...styles.modalCard, maxWidth: '540px' }}
             onClick={(e) => e.stopPropagation()}
@@ -2170,16 +1668,16 @@ const Dashboard = () => {
                   MY PERSONAL FARMERS • WEEKLY TEST SCHEDULE (MON - SUN)
                 </div>
                 <h3 style={styles.modalTitle}>
-                  {dueModalFilter === 'OVERDUE' 
+                  {dueModalFilter === 'OVERDUE'
                     ? `My Farmers Overdue Tests (${displayedDueModalTanks.length} Tanks)`
-                    : dueModalFilter === 'DUE' 
-                    ? `My Farmers Due Tests (${displayedDueModalTanks.length} Tanks)`
-                    : `My Farmers Test Schedule (${displayedDueModalTanks.length} Tanks)`}
+                    : dueModalFilter === 'DUE'
+                      ? `My Farmers Due Tests (${displayedDueModalTanks.length} Tanks)`
+                      : `My Farmers Test Schedule (${displayedDueModalTanks.length} Tanks)`}
                 </h3>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 style={styles.modalCloseBtn}
                 onClick={() => setShowDueTestsModal(false)}
                 aria-label="Close"
@@ -2248,8 +1746,8 @@ const Dashboard = () => {
                     {dueModalFilter === 'OVERDUE' ? 'No overdue tests!' : 'All weekly tests are up to date!'}
                   </p>
                   <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    {dueModalFilter === 'OVERDUE' 
-                      ? 'None of your personal farmer tanks are overdue for routine tests.' 
+                    {dueModalFilter === 'OVERDUE'
+                      ? 'None of your personal farmer tanks are overdue for routine tests.'
                       : 'Great job! All personal farmer tanks under your direct supervision have completed routine tests.'}
                   </span>
                 </div>
@@ -2381,12 +1879,12 @@ const Dashboard = () => {
       {/* 5.5 MY ASSIGNED TANKS DETAIL MODAL (Opens from This Week's Work -> My Tanks) */}
       {/* ========================================================= */}
       {showMyTanksModal && (
-        <div 
+        <div
           className="animate-backdrop-in"
           style={styles.modalBackdrop}
           onClick={() => setShowMyTanksModal(false)}
         >
-          <div 
+          <div
             className="animate-modal-in"
             style={{
               backgroundColor: '#FFFFFF',
@@ -2430,8 +1928,8 @@ const Dashboard = () => {
                 </p>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 style={styles.modalCloseBtn}
                 onClick={() => setShowMyTanksModal(false)}
                 aria-label="Close"
@@ -2444,7 +1942,7 @@ const Dashboard = () => {
             <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                 <Search size={14} color="#64748B" style={{ flexShrink: 0 }} />
-                <input 
+                <input
                   type="text"
                   placeholder="Search farmer, village, or tank name..."
                   value={myTanksSearch}
@@ -2504,7 +2002,7 @@ const Dashboard = () => {
                   const borderLeftColor = isHarvest ? '#94A3B8' : (isDue ? '#F59E0B' : '#10B981');
 
                   return (
-                    <div 
+                    <div
                       key={item.tank.id || idx}
                       style={{
                         backgroundColor: '#FFFFFF',

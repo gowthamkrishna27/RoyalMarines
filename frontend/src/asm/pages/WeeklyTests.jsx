@@ -208,100 +208,7 @@ const WeeklyTests = () => {
 
   return (
     <>
-      <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
-        {/* Quick Summary Bar */}
-        <div style={styles.summaryBar}>
-          <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Monitored Tanks</span>
-            <span style={styles.summaryValue}>{totalAssignedTanks}</span>
-          </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Completed Audits</span>
-            <span style={{ ...styles.summaryValue, color: '#16A34A' }}>{totalCompletedTests}</span>
-          </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Due This Week</span>
-            <span style={{ ...styles.summaryValue, color: '#D97706' }}>{totalDueTests}</span>
-          </div>
-          <div style={styles.summaryDivider} />
-          <div style={styles.summaryItem}>
-            <span style={styles.summaryLabel}>Overdue Samples</span>
-            <span style={{ ...styles.summaryValue, color: '#DC2626' }}>{totalOverdueTests}</span>
-          </div>
-        </div>
-
-        {/* Weekly Test Progress Card */}
-        <div style={{ ...styles.mainCard, marginBottom: '20px', padding: '20px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', margin: 0 }}>Weekly Test Progress</h3>
-            </div>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', borderRadius: '8px', fontSize: '12px', fontWeight: '700' }}>
-              78% Completed
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            {/* Completed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
-                  <span style={{ fontWeight: '700', color: '#0F172A' }}>Completed</span>
-                </div>
-                <span style={{ fontWeight: '800', color: '#16A34A', fontSize: '13.5px' }}>78%</span>
-              </div>
-              <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: '78%', height: '100%', backgroundColor: '#16A34A', borderRadius: '4px' }} />
-              </div>
-            </div>
-
-            {/* Due */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0284C7' }} />
-                  <span style={{ fontWeight: '700', color: '#0F172A' }}>Due</span>
-                </div>
-                <span style={{ fontWeight: '800', color: '#0284C7', fontSize: '13.5px' }}>14%</span>
-              </div>
-              <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: '14%', height: '100%', backgroundColor: '#0284C7', borderRadius: '4px' }} />
-              </div>
-            </div>
-
-            {/* Overdue */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#DC2626' }} />
-                  <span style={{ fontWeight: '700', color: '#0F172A' }}>Overdue</span>
-                </div>
-                <span style={{ fontWeight: '800', color: '#DC2626', fontSize: '13.5px' }}>5%</span>
-              </div>
-              <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: '5%', height: '100%', backgroundColor: '#DC2626', borderRadius: '4px' }} />
-              </div>
-            </div>
-
-            {/* Scheduled */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#8B5CF6' }} />
-                  <span style={{ fontWeight: '700', color: '#0F172A' }}>Scheduled</span>
-                </div>
-                <span style={{ fontWeight: '800', color: '#8B5CF6', fontSize: '13.5px' }}>3%</span>
-              </div>
-              <div style={{ width: '100%', height: '8px', backgroundColor: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ width: '3%', height: '100%', backgroundColor: '#8B5CF6', borderRadius: '4px' }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <div style={{ padding: '16px clamp(12px, 2.5vw, 24px)', maxWidth: '1440px', margin: '0 auto', boxSizing: 'border-box' }}>
         {/* Main Content Card */}
         <div style={styles.mainCard}>
           {/* Filter Configuration Inputs */}
@@ -340,16 +247,16 @@ const WeeklyTests = () => {
             </div>
           </div>
 
-          {/* Tests Table */}
-          <div style={{ overflowX: 'auto' }}>
+          {/* Compact Tests Table (Zero horizontal scrolling) */}
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
-                  <th style={styles.th}>Technician / Auditor</th>
-                  <th style={styles.th}>Supervised Tanks</th>
-                  <th style={styles.th}>Completed Audits</th>
-                  <th style={styles.th}>Due This Week</th>
-                  <th style={styles.th}>Overdue</th>
+                  <th style={styles.th}>Technician</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Tanks</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Done</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Due</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Overdue</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
@@ -371,11 +278,11 @@ const WeeklyTests = () => {
                     >
                       <td style={styles.td}>
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={styles.agentName}>{agent.name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                            <span style={styles.agentName}>{agent.isMe ? 'Ravi Kumar' : agent.name}</span>
                             {agent.isMe && (
                               <span style={styles.inchargeTag}>
-                                <Award size={10} /> INCHARGE
+                                <Award size={9} /> INCHARGE
                               </span>
                             )}
                           </div>
@@ -383,19 +290,19 @@ const WeeklyTests = () => {
                         </div>
                       </td>
 
-                      <td style={styles.td}>
-                        <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>
-                          {agent.isMe ? `All ${agent.tanks} Tanks` : `${agent.tanks} Tanks`}
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                          {agent.tanks}
                         </span>
                       </td>
 
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
                         <span style={styles.completedPill}>
-                          <CheckCircle2 size={12} /> {agent.tests} Done
+                          <CheckCircle2 size={10} /> {agent.tests}
                         </span>
                       </td>
 
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
                         <span 
                           style={{ ...styles.duePill, cursor: !agent.isMe ? 'pointer' : 'default' }}
                           onClick={(e) => {
@@ -404,35 +311,38 @@ const WeeklyTests = () => {
                               setDueTestsModalAgent(agent);
                             }
                           }}
-                          className={!agent.isMe ? "transition-transform active:scale-95 hover:shadow-xs cursor-pointer" : ""}
+                          className={!agent.isMe ? "transition-transform active:scale-95 cursor-pointer" : ""}
                           title={!agent.isMe ? "Click to view due tests and remind agent" : ""}
                         >
-                          <Clock size={12} /> {agent.due} Due
+                          <Clock size={10} /> {agent.due}
                         </span>
                       </td>
 
-                      <td style={styles.td}>
-                        <span 
-                          style={{
-                            ...(agent.overdue > 0 ? styles.overduePill : styles.zeroOverduePill),
-                            cursor: !agent.isMe && agent.overdue > 0 ? 'pointer' : 'default'
-                          }}
-                          onClick={(e) => {
-                            if (!agent.isMe && agent.overdue > 0) {
-                              e.stopPropagation();
-                              setDueTestsModalAgent(agent);
-                            }
-                          }}
-                          className={!agent.isMe && agent.overdue > 0 ? "transition-transform active:scale-95 hover:shadow-xs cursor-pointer" : ""}
-                          title={!agent.isMe && agent.overdue > 0 ? "Click to view overdue tests and remind agent" : ""}
-                        >
-                          {agent.overdue > 0 && <AlertTriangle size={12} />}
-                          {agent.overdue} Overdue
-                        </span>
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
+                        {agent.overdue > 0 ? (
+                          <span 
+                            style={{
+                              ...styles.overduePill,
+                              cursor: !agent.isMe ? 'pointer' : 'default'
+                            }}
+                            onClick={(e) => {
+                              if (!agent.isMe) {
+                                e.stopPropagation();
+                                setDueTestsModalAgent(agent);
+                              }
+                            }}
+                            className={!agent.isMe ? "transition-transform active:scale-95 cursor-pointer" : ""}
+                            title={!agent.isMe ? "Click to view overdue tests and remind agent" : ""}
+                          >
+                            <AlertTriangle size={10} /> {agent.overdue}
+                          </span>
+                        ) : (
+                          <span style={styles.zeroOverduePill}>0</span>
+                        )}
                       </td>
 
                       <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           {!agent.isMe && (agent.due > 0 || agent.overdue > 0) && (
                             <button
                               type="button"
@@ -441,6 +351,7 @@ const WeeklyTests = () => {
                                 backgroundColor: '#FEF3C7',
                                 color: '#B45309',
                                 border: '1px solid #FDE68A',
+                                padding: '4px 6px',
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -449,8 +360,7 @@ const WeeklyTests = () => {
                               className="transition-all duration-150 active:scale-95 cursor-pointer hover:bg-amber-100"
                               title={`Remind ${agent.name} about due tests`}
                             >
-                              <Bell size={12} />
-                              <span>Remind</span>
+                              <Bell size={11} />
                             </button>
                           )}
 
@@ -471,8 +381,8 @@ const WeeklyTests = () => {
                             className="transition-all duration-150 active:scale-95 cursor-pointer hover:brightness-110"
                             title="View Test History"
                           >
-                            <Eye size={13} />
-                            <span>{agent.isMe ? 'View My Tests' : 'View History'}</span>
+                            <Eye size={11} />
+                            <span>{agent.isMe ? 'Mine' : 'History'}</span>
                           </button>
                         </div>
                       </td>
@@ -1418,29 +1328,30 @@ const styles = {
     backgroundColor: '#FFFFFF',
     borderRadius: '14px',
     border: '1px solid #E2E8F0',
-    padding: '20px',
+    padding: 'clamp(14px, 2.5vw, 20px)',
     boxShadow: '0 1px 4px rgba(0, 0, 0, 0.02)',
+    boxSizing: 'border-box',
   },
   filterGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '16px',
-    marginBottom: '20px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px',
+    marginBottom: '16px',
   },
   formLabel: {
     display: 'block',
-    fontSize: '12.5px',
+    fontSize: '12px',
     fontWeight: '700',
     color: '#334155',
-    marginBottom: '6px',
+    marginBottom: '5px',
   },
   formInput: {
     width: '100%',
-    padding: '9px 12px',
+    padding: '8px 10px',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
     borderRadius: '8px',
-    fontSize: '13px',
+    fontSize: '12.5px',
     color: '#0F172A',
     outline: 'none',
     boxSizing: 'border-box',
@@ -1448,19 +1359,19 @@ const styles = {
   searchBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
     borderRadius: '8px',
-    padding: '8px 14px',
+    padding: '7px 12px',
     flex: 1,
-    minWidth: '260px',
+    minWidth: '220px',
   },
   searchInput: {
     border: 'none',
     backgroundColor: 'transparent',
     outline: 'none',
-    fontSize: '13px',
+    fontSize: '12.5px',
     color: '#0F172A',
     width: '100%',
   },
@@ -1474,74 +1385,75 @@ const styles = {
     backgroundColor: '#F8FAFC',
   },
   th: {
-    padding: '12px 14px',
-    fontSize: '12px',
+    padding: '8px 6px',
+    fontSize: '10.5px',
     fontWeight: '700',
     color: '#475569',
     textTransform: 'uppercase',
-    letterSpacing: '0.4px',
+    letterSpacing: '0.3px',
+    whiteSpace: 'nowrap',
   },
   tr: {
     borderBottom: '1px solid #F1F5F9',
   },
   td: {
-    padding: '14px',
+    padding: '8px 6px',
     verticalAlign: 'middle',
   },
   agentAvatar: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     fontWeight: '800',
-    fontSize: '13px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   agentAvatarBig: {
-    width: '42px',
-    height: '42px',
-    borderRadius: '10px',
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     fontWeight: '800',
-    fontSize: '18px',
+    fontSize: '15px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   agentName: {
-    fontSize: '13.5px',
+    fontSize: '12.5px',
     fontWeight: '700',
     color: '#0F172A',
   },
   agentArea: {
-    fontSize: '11px',
+    fontSize: '10.5px',
     color: '#64748B',
   },
   inchargeTag: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '3px',
-    padding: '2px 6px',
+    gap: '2px',
+    padding: '1px 5px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     border: '1px solid #DBEAFE',
     borderRadius: '4px',
-    fontSize: '10px',
+    fontSize: '9px',
     fontWeight: '800',
     letterSpacing: '0.3px',
   },
   completedPill: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '3px 8px',
-    borderRadius: '10px',
-    fontSize: '11.5px',
+    gap: '3px',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: '700',
     backgroundColor: '#DCFCE7',
     color: '#15803D',
@@ -1549,10 +1461,10 @@ const styles = {
   duePill: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '3px 8px',
-    borderRadius: '10px',
-    fontSize: '11.5px',
+    gap: '3px',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: '700',
     backgroundColor: '#FEF3C7',
     color: '#D97706',
@@ -1560,29 +1472,29 @@ const styles = {
   overduePill: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '3px 8px',
-    borderRadius: '10px',
-    fontSize: '11.5px',
+    gap: '3px',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: '700',
     backgroundColor: '#FEE2E2',
     color: '#DC2626',
   },
   zeroOverduePill: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#94A3B8',
     fontWeight: '600',
   },
   viewHistoryBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '6px 12px',
-    borderRadius: '8px',
+    gap: '3px',
+    padding: '4px 8px',
+    borderRadius: '6px',
     backgroundColor: '#EFF6FF',
     border: '1px solid #DBEAFE',
     color: '#1A2FB8',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
   },

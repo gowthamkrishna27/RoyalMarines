@@ -31,9 +31,10 @@ const AsmRoutes = () => {
       <Route index element={<Dashboard />} />
       <Route path="dashboard" element={<Dashboard />} />
       <Route path="agents" element={<Agents />} />
+      <Route path="work" element={<Agents />} />
       <Route path="my-farmers" element={<MyFarmers />} />
       <Route path="my-tanks" element={<MyTanks />} />
-      <Route path="farmers" element={<Farmers />} />
+      <Route path="farmers" element={<MyFarmers />} />
       <Route path="farmers/:farmerId" element={<FarmerDetails />} />
       <Route path="add-farmer" element={<AddFarmer />} />
       <Route path="add-tanks" element={<AddTanks />} />
@@ -48,6 +49,8 @@ const AsmRoutes = () => {
       <Route path="verifications/:id" element={<RecordReview />} />
       <Route path="weekly-tests" element={<WeeklyTests />} />
       <Route path="reports" element={<Reports />} />
+      <Route path="reports/farmers" element={<Reports defaultView="FARMERS" />} />
+      <Route path="reports/agents" element={<Reports defaultView="AGENTS" />} />
       <Route path="export-data" element={<ExportData />} />
       <Route path="activity-log" element={<ActivityLog />} />
       <Route path="settings" element={<Settings />} />

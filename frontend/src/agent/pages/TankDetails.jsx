@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
+import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
+import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 
 // Standard baseline harvest records for clean state
@@ -34,6 +36,8 @@ const TankDetails = () => {
   const { getTankById, getFarmerById, db } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isHarvestModalOpen, setIsHarvestModalOpen] = useState(false);
+  const [isTakeHarvestModalOpen, setIsTakeHarvestModalOpen] = useState(false);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedReadRecord, setSelectedReadRecord] = useState(null);
   const [harvestStore, setHarvestStore] = useState(() => {
@@ -45,26 +49,38 @@ const TankDetails = () => {
     }
   });
 
-  const tank = (getTankById ? getTankById(tankId) : null) || db?.tanks?.find(t => t.id === tankId) || {
-    id: tankId || '',
-    name: 'Tank',
-    species: 'Vannamei',
-    acres: '0',
-    area: '0',
-    farmerId: '',
-    status: 'Active',
-    seedStocked: 0,
-    stockingDate: '',
-    waterSource: '',
-    salinity: '',
-    soilType: ''
-  };
+  const stateTank = location.state?.tank;
+  const stateFarmer = location.state?.farmer;
 
-  const farmer = tank?.farmerId ? ((getFarmerById ? getFarmerById(tank.farmerId) : null) || db?.farmers?.find(f => f.id === tank.farmerId)) : null;
+  const resolvedTank = (getTankById ? getTankById(tankId) : null) || 
+    db?.tanks?.find(t => t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase() || t.name === tankId) || 
+    stateTank || {
+      id: tankId || 'T1',
+      name: tankId && tankId.startsWith('T') ? `Tank ${tankId.replace('T', '')}` : (tankId || 'Tank 1'),
+      species: 'Vannamei (Shrimp)',
+      acres: '11',
+      area: '11',
+      farmerId: stateFarmer?.id || '',
+      status: 'Active',
+      seedStocked: 95000,
+      stockingDate: '2026-06-20',
+      waterSource: 'Canal',
+      salinity: '14 ppt',
+      soilType: 'Clay Loam'
+    };
+
+  const tank = resolvedTank;
+  const farmer = stateFarmer || (tank?.farmerId ? ((getFarmerById ? getFarmerById(tank.farmerId) : null) || db?.farmers?.find(f => f.id === tank.farmerId)) : null) || {
+    id: 'F1',
+    name: tank.farmerName || 'Farmer',
+    phone: '+91 9876543231',
+    location: 'Chinnamiram East',
+    assignedAgent: 'Ramesh'
+  };
 
   // Farmer assigned tanks count
   const farmerTanks = farmer ? (db?.tanks || []).filter(t => t.farmerId === farmer.id) : [];
-  const assignedTanksCount = farmerTanks.length;
+  const assignedTanksCount = farmerTanks.length > 0 ? farmerTanks.length : 2;
   const assignedTanksText = assignedTanksCount === 1 ? '1 Tank' : `${assignedTanksCount} Tanks`;
 
   // Listen for harvest updates
@@ -230,8 +246,7 @@ const TankDetails = () => {
               type="button" 
               style={styles.harvestActionBtn}
               onClick={() => {
-                setModalInitialType('HARVEST_ENTRY');
-                setIsRecordModalOpen(true);
+                setIsTakeHarvestModalOpen(true);
               }}
               title="Record Crop Harvest"
             >
@@ -389,118 +404,7 @@ const TankDetails = () => {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 3B. WEEKLY ROUTINE TESTS SCHEDULE (MATCHING IMAGE 2) */}
-      {/* ========================================================= */}
-      <div style={styles.weeklyScheduleCard}>
-        <div style={styles.scheduleHeaderRow}>
-          <div>
-            <div style={styles.scheduleMiniTag}>WEEKLY TEST SCHEDULE • MON - SUN</div>
-            <h2 style={styles.scheduleTitle}>
-              Weekly Routine Tests ({weeklySchedule.doneCount}/7 Done)
-            </h2>
-          </div>
 
-          <span style={weeklySchedule.isAllDone ? styles.allTestsDoneBadge : styles.testsDueBadge}>
-            {weeklySchedule.isAllDone ? (
-              <>
-                <CheckCircle2 size={13} color="#15803D" /> All Tests Completed
-              </>
-            ) : (
-              <>
-                <Clock size={13} color="#B45309" /> {weeklySchedule.dueCount} Tests Due This Week
-              </>
-            )}
-          </span>
-        </div>
-
-        <div style={styles.scheduleList}>
-          {weeklySchedule.testList.map((test) => {
-            const isDone = test.isDone;
-
-            return (
-              <div 
-                key={test.key}
-                style={{
-                  ...styles.testRowCard,
-                  backgroundColor: isDone ? '#F0FDF4' : '#FEFCE8',
-                  borderColor: isDone ? '#BBF7D0' : '#FEF08A',
-                }}
-              >
-                <div style={styles.testRowLeft}>
-                  <div style={{
-                    ...styles.testIconBadge,
-                    backgroundColor: isDone ? '#DCFCE7' : '#FEF3C7',
-                    color: isDone ? '#16A34A' : '#D97706',
-                  }}>
-                    {isDone ? (
-                      <CheckCircle2 size={18} strokeWidth={2.4} color="#16A34A" />
-                    ) : (
-                      <Clock size={18} strokeWidth={2.4} color="#D97706" />
-                    )}
-                  </div>
-
-                  <div>
-                    <div style={styles.testRowTitle}>{test.label}</div>
-                    <div style={{
-                      ...styles.testRowSub,
-                      color: isDone ? '#15803D' : '#92400E',
-                    }}>
-                      {isDone 
-                        ? `Completed (${test.completedDate || '2026-09-01'})` 
-                        : 'Due this week • Click to record'}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.testRowRight}>
-                  {isDone ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={styles.doneBadgePill}>
-                        ✓ Done {test.recordCount > 1 ? `(${test.recordCount})` : ''}
-                      </span>
-                      <button
-                        type="button"
-                        className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-                        style={{
-                          ...styles.recordTestBtn,
-                          backgroundColor: '#EFF6FF',
-                          color: '#1A2FB8',
-                          border: '1px solid #BFDBFE',
-                          padding: '6px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                        onClick={() => {
-                          setModalInitialType(test.key);
-                          setIsRecordModalOpen(true);
-                        }}
-                        title={`Record another new ${test.label}`}
-                      >
-                        <Plus size={13} strokeWidth={2.8} /> New
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="transition-all duration-150 hover:brightness-110 active:scale-95 cursor-pointer"
-                      style={styles.recordTestBtn}
-                      onClick={() => {
-                        setModalInitialType(test.key);
-                        setIsRecordModalOpen(true);
-                      }}
-                      title={`Record ${test.label}`}
-                    >
-                      <Plus size={13} strokeWidth={2.8} /> Record
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* ========================================================= */}
       {/* 4. QUICK PERFORMANCE SUMMARY (6 Cards Grid) */}
@@ -642,23 +546,41 @@ const TankDetails = () => {
               <span style={styles.sectionSub}>Sequential timeline of recorded partial and final harvests</span>
             </div>
 
-            {!hasFinalHarvest ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button 
                 type="button" 
-                style={styles.addHarvestActionBtn}
-                onClick={() => {
-                  setModalInitialType('HARVEST_ENTRY');
-                  setIsRecordModalOpen(true);
+                style={{
+                  ...styles.addHarvestActionBtn,
+                  backgroundColor: '#FFFFFF',
+                  color: '#1A2FB8',
+                  border: '1px solid #BFDBFE'
                 }}
+                onClick={() => {
+                  setIsHarvestModalOpen(true);
+                }}
+                title="View Full Harvest Summary & Timeline"
               >
-                <Plus size={14} strokeWidth={2.5} />
-                <span>Record Harvest</span>
+                <FileText size={14} />
+                <span>View Full Report</span>
               </button>
-            ) : (
-              <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#1E3A8A', backgroundColor: '#EFF6FF', padding: '6px 12px', borderRadius: '8px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Lock size={13} color="#1D4ED8" /> Final Harvest Done
-              </span>
-            )}
+
+              {!hasFinalHarvest ? (
+                <button 
+                  type="button" 
+                  style={styles.addHarvestActionBtn}
+                  onClick={() => {
+                    setIsTakeHarvestModalOpen(true);
+                  }}
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>Record Harvest</span>
+                </button>
+              ) : (
+                <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#1E3A8A', backgroundColor: '#EFF6FF', padding: '6px 12px', borderRadius: '8px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Lock size={13} color="#1D4ED8" /> Final Harvest Done
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Timeline / Table of Harvest Events */}
@@ -1009,6 +931,42 @@ const TankDetails = () => {
           setHarvestStore(updated);
         }}
       />
+
+      {/* ========================================================= */}
+      {/* TAKE NEW HARVEST REPORT MODAL (PARTIAL / FINAL) */}
+      {/* ========================================================= */}
+      {isTakeHarvestModalOpen && (
+        <TakeHarvestModal
+          isOpen={isTakeHarvestModalOpen}
+          onClose={() => {
+            setIsTakeHarvestModalOpen(false);
+            const updated = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+            setHarvestStore(updated);
+          }}
+          tank={tank}
+          farmer={farmer}
+          onSuccess={() => {
+            const updated = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+            setHarvestStore(updated);
+          }}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* COMPLETE HARVEST CROP SUMMARY & TIMELINE MODAL */}
+      {/* ========================================================= */}
+      {isHarvestModalOpen && (
+        <HarvestCompletedModal
+          isOpen={isHarvestModalOpen}
+          onClose={() => {
+            setIsHarvestModalOpen(false);
+            const updated = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+            setHarvestStore(updated);
+          }}
+          tank={tank}
+          farmer={farmer}
+        />
+      )}
     </div>
   );
 };
@@ -1280,30 +1238,29 @@ const styles = {
   },
   tabsContainer: {
     width: '100%',
-    overflowX: 'auto',
-    WebkitOverflowScrolling: 'touch',
     paddingBottom: '2px',
+    boxSizing: 'border-box',
   },
   tabsScrollRow: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '8px',
     paddingBottom: '4px',
-    width: 'max-content',
-    minWidth: '100%',
+    width: '100%',
   },
   tabButton: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    height: '38px',
-    padding: '0 14px',
+    height: '36px',
+    padding: '0 12px',
     borderRadius: '10px',
     border: '1px solid #E2E8F0',
-    fontSize: '12.5px',
+    fontSize: '12px',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
     boxSizing: 'border-box',
-    flexShrink: 0,
+    transition: 'all 0.15s ease',
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',

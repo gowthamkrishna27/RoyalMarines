@@ -18,6 +18,7 @@ const Agents = () => {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [agentModalTab, setAgentModalTab] = useState('FARMERS'); // 'FARMERS' | 'TANKS' | 'SUBMISSIONS'
   const [selectedFarmer, setSelectedFarmer] = useState(null);
+  const [selectedFarmerTankIndex, setSelectedFarmerTankIndex] = useState(0);
   const [selectedAgentTanks, setSelectedAgentTanks] = useState(null);
   const [agentTanksSearch, setAgentTanksSearch] = useState('');
   const [agentTanksFilter, setAgentTanksFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'DUE' | 'HARVESTED'
@@ -323,6 +324,8 @@ const Agents = () => {
     ];
   })() : [];
 
+  const activeFarmerTank = farmerTanks[selectedFarmerTankIndex] || farmerTanks[0];
+
   return (
     <>
       <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
@@ -393,17 +396,16 @@ const Agents = () => {
           </div>
 
           {/* Table */}
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
                   <th style={styles.th}>Technician</th>
-                  <th style={styles.th}>Contact</th>
-                  <th style={styles.th}>Locality</th>
-                  <th style={styles.th}>Assigned Farmers</th>
-                  <th style={styles.th}>Supervised Tanks</th>
-                  <th style={styles.th}>Tests Done</th>
-                  <th style={styles.th}>Test Dues</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Farmers</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Tanks</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Done</th>
+                  <th style={{ ...styles.th, textAlign: 'center' }}>Due</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -421,86 +423,55 @@ const Agents = () => {
                       }}
                       title={`Click to view all profile details of ${agent.name}`}
                     >
-                      <div style={{ ...styles.agentName, color: '#1A2FB8', fontWeight: '800' }}>
+                      <div style={{ fontSize: '13px', color: '#1A2FB8', fontWeight: '800' }}>
                         {agent.name}
                       </div>
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '13px' }}>
-                        <Phone size={13} color="#64748B" />
+                      <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                         <span>{agent.mobile}</span>
-                      </div>
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0F172A', fontSize: '13px', fontWeight: '500' }}>
-                        <MapPin size={13} color="#1A2FB8" />
+                        <span>•</span>
                         <span>{agent.locality}</span>
                       </div>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setAgentModalTab('FARMERS');
                         setSelectedAgent(agent);
                       }}
                       title={`Click to view all farmers assigned to ${agent.name}`}
                     >
-                      <span 
-                        style={{
-                          ...styles.countBadge,
-                          backgroundColor: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          color: '#1A2FB8',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-blue-100 active:scale-95 cursor-pointer"
-                      >
-                        <Users size={12} color="#1A2FB8" />
-                        <span>{agent.farmers} Farmers</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                        {agent.farmers}
                       </span>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setSelectedAgentTanks(agent);
                       }}
                       title={`Click to view all tanks supervised by ${agent.name}`}
                     >
-                      <span 
-                        style={{
-                          ...styles.countBadge,
-                          backgroundColor: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          color: '#0284C7',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-all hover:bg-sky-100 active:scale-95 cursor-pointer"
-                      >
-                        <Droplets size={12} color="#0284C7" />
-                        <span>{agent.tanks} Tanks</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284C7' }}>
+                        {agent.tanks}
                       </span>
                     </td>
 
                     <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
+                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
                       onClick={() => {
                         setAgentModalTab('SUBMISSIONS');
                         setSelectedAgent(agent);
                       }}
                       title={`Click to view field test logs by ${agent.name}`}
                     >
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                        {agent.tests} Tests
+                      <span style={styles.statusPill}>
+                        <CheckCircle2 size={10} /> {agent.tests}
                       </span>
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -511,29 +482,61 @@ const Agents = () => {
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          padding: '4px 10px',
-                          borderRadius: '7px',
+                          gap: '3px',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
                           backgroundColor: agent.overdueCount > 0 ? '#FEE2E2' : '#FEF3C7',
                           color: agent.overdueCount > 0 ? '#DC2626' : '#B45309',
-                          fontSize: '12px',
+                          fontSize: '11px',
                           fontWeight: '700',
                           border: agent.overdueCount > 0 ? '1px solid #FECACA' : '1px solid #FDE68A',
                           cursor: 'pointer'
                         }}
-                        className="transition-transform active:scale-95 hover:shadow-xs cursor-pointer"
+                        className="transition-transform active:scale-95 cursor-pointer"
                       >
-                        <Clock size={12} />
-                        <span>{agent.dueTests} {agent.dueTests === 1 ? 'Test Due' : 'Tests Due'}</span>
-                        <ChevronRight size={12} />
+                        <Clock size={10} />
+                        <span>{agent.dueTests} Due</span>
                       </button>
+                    </td>
+
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <a
+                          href={`tel:${agent.mobile}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '6px',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            border: '1px solid #CBD5E1'
+                          }}
+                          className="hover:bg-slate-200"
+                          title={`Call ${agent.name}`}
+                        >
+                          <Phone size={11} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgentModalTab('FARMERS');
+                            setSelectedAgent(agent);
+                          }}
+                          style={styles.viewPortfolioBtn}
+                        >
+                          Inspect
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
 
                 {filteredAgents.length === 0 && (
                   <tr>
-                    <td colSpan="7" style={styles.emptyTd}>
+                    <td colSpan="6" style={styles.emptyTd}>
                       No field technicians match your search criteria.
                     </td>
                   </tr>
@@ -1433,111 +1436,240 @@ const Agents = () => {
               </div>
             </div>
 
-            {/* Tanks Growth & Telemetry Cards List */}
-            <div style={{ marginTop: '18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  Pond-by-Pond Culture Growth & Telemetry ({farmerTanks.length} Tanks)
-                </h4>
+            {/* Tank Selector Buttons */}
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
+                  Select Pond / Tank ({farmerTanks.length})
+                </span>
+                {activeFarmerTank && (
+                  <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+                    Viewing: <strong>{activeFarmerTank.name || `Pond ${selectedFarmerTankIndex + 1}`}</strong>
+                  </span>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '520px', overflowY: 'auto' }}>
-                {farmerTanks.map((tank, idx) => (
-                  <div key={tank.id || idx} style={styles.tankGrowthCard}>
-                    {/* Tank Top Bar */}
-                    <div style={styles.tankCardHeader}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={styles.tankIconBox}>
-                          <Droplets size={16} color="#1A2FB8" />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
-                            {tank.name || `Pond ${idx + 1}`}
-                          </div>
-                          <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                            Size: {tank.size || '2.5 Acres'} • {tank.stocking || '100,000 PL'} Stocking
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedHarvestTank({
-                            ...tank,
-                            farmer: selectedFarmer?.name,
-                            farmerId: selectedFarmer?.id,
-                            locality: selectedFarmer?.locality,
-                            size: tank.size || '20 Acres'
-                          })}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            backgroundColor: '#FEF3C7',
-                            color: '#92400E',
-                            fontSize: '11.5px',
-                            fontWeight: '700',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            border: '1px solid #FDE68A',
-                            cursor: 'pointer'
-                          }}
-                          className="transition-transform active:scale-95 hover:brightness-95 cursor-pointer"
-                          title="View Full Harvest Records, Partial Cuts & Standing Crop"
-                        >
-                          <Scale size={12} color="#92400E" />
-                          <span>Harvest Report</span>
-                        </button>
-
-                        <span style={tank.isHarvested ? styles.harvestedTagBtn : styles.activeCultureTag}>
-                          <CheckCircle2 size={12} />
-                          <span>{tank.isHarvested ? 'Harvested' : 'Active Culture'}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Growth Metrics Grid */}
-                    <div style={styles.growthGrid}>
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>ABW (Body Wt)</span>
-                        <span style={{ ...styles.growthVal, color: '#1A2FB8' }}>{tank.abw}</span>
-                        <span style={styles.growthSub}>{tank.count}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Estimated Biomass</span>
-                        <span style={styles.growthVal}>{tank.biomass}</span>
-                        <span style={styles.growthSub}>Weekly Gain: {tank.weeklyGain}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Feed Ratio (FCR)</span>
-                        <span style={{ ...styles.growthVal, color: '#16A34A' }}>{tank.fcr}</span>
-                        <span style={styles.growthSub}>Daily Feed: {tank.feedRate}</span>
-                      </div>
-
-                      <div style={styles.growthMetricBox}>
-                        <span style={styles.growthLabel}>Water Quality (DO / pH)</span>
-                        <span style={styles.growthVal}>DO {tank.waterQuality?.do}</span>
-                        <span style={styles.growthSub}>pH {tank.waterQuality?.ph} • Sal {tank.waterQuality?.salinity}</span>
-                      </div>
-                    </div>
-
-                    {/* Tank Bottom Details */}
-                    <div style={styles.tankDetailsFooter}>
-                      <span>Feed: <b>{tank.feedBrand}</b></span>
-                      <span>•</span>
-                      <span>Ammonia: <b>{tank.waterQuality?.ammonia}</b></span>
-                      <span>•</span>
-                      <span>Alkalinity: <b>{tank.waterQuality?.alkalinity}</b></span>
-                      <span>•</span>
-                      <span>Survival: <b style={{ color: '#16A34A' }}>{tank.survival}</b></span>
-                    </div>
-                  </div>
-                ))}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                overflowX: 'auto',
+                paddingBottom: '4px',
+                scrollbarWidth: 'none',
+                WebkitOverflowScrolling: 'touch'
+              }}>
+                {farmerTanks.map((tank, idx) => {
+                  const isSelected = selectedFarmerTankIndex === idx;
+                  return (
+                    <button
+                      key={tank.id || idx}
+                      type="button"
+                      onClick={() => setSelectedFarmerTankIndex(idx)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        border: isSelected ? '1.5px solid #1A2FB8' : '1px solid #E2E8F0',
+                        backgroundColor: isSelected ? '#1A2FB8' : '#F8FAFC',
+                        color: isSelected ? '#FFFFFF' : '#334155',
+                        fontSize: '13px',
+                        fontWeight: isSelected ? '700' : '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 2px 8px rgba(26, 47, 184, 0.22)' : 'none'
+                      }}
+                      className="active:scale-95 cursor-pointer"
+                    >
+                      <Droplets size={14} color={isSelected ? '#FFFFFF' : '#1A2FB8'} />
+                      <span>{tank.name || `Pond ${idx + 1}`}</span>
+                      {tank.isHarvested ? (
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          backgroundColor: isSelected ? '#3B82F6' : '#E2E8F0',
+                          color: isSelected ? '#FFFFFF' : '#475569',
+                          marginLeft: '2px'
+                        }}>Harvested</span>
+                      ) : (
+                        <span style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: isSelected ? '#BBF7D0' : '#16A34A',
+                          marginLeft: '2px'
+                        }} />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Selected Tank Details Card */}
+            {activeFarmerTank && (
+              <div style={{ marginTop: '12px' }}>
+                <div style={styles.tankGrowthCard}>
+                  {/* Tank Top Bar */}
+                  <div style={styles.tankCardHeader}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={styles.tankIconBox}>
+                        <Droplets size={16} color="#1A2FB8" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                          {activeFarmerTank.name || `Pond ${selectedFarmerTankIndex + 1}`}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                          {activeFarmerTank.species || 'Vannamei (Shrimp)'} • Size: {activeFarmerTank.size || '2.5 Acres'} • Stocking: {activeFarmerTank.stocking || '100,000 PL'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        color: '#1A2FB8',
+                        backgroundColor: '#EFF6FF',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #DBEAFE'
+                      }}>
+                        Day {activeFarmerTank.doc || 65} DOC
+                      </span>
+                      <span style={activeFarmerTank.isHarvested ? styles.harvestedTagBtn : styles.activeCultureTag}>
+                        <CheckCircle2 size={12} />
+                        <span>{activeFarmerTank.isHarvested ? 'Harvested' : 'Active Culture'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Growth Metrics Grid */}
+                  <div style={styles.growthGrid}>
+                    <div style={styles.growthMetricBox}>
+                      <span style={styles.growthLabel}>ABW (Body Wt)</span>
+                      <span style={{ ...styles.growthVal, color: '#1A2FB8' }}>{activeFarmerTank.abw}</span>
+                      <span style={styles.growthSub}>{activeFarmerTank.count}</span>
+                    </div>
+
+                    <div style={styles.growthMetricBox}>
+                      <span style={styles.growthLabel}>Estimated Biomass</span>
+                      <span style={styles.growthVal}>{activeFarmerTank.biomass}</span>
+                      <span style={styles.growthSub}>Weekly Gain: {activeFarmerTank.weeklyGain}</span>
+                    </div>
+
+                    <div style={styles.growthMetricBox}>
+                      <span style={styles.growthLabel}>Feed Ratio (FCR)</span>
+                      <span style={{ ...styles.growthVal, color: '#16A34A' }}>{activeFarmerTank.fcr}</span>
+                      <span style={styles.growthSub}>Daily Feed: {activeFarmerTank.feedRate || '95 kg/day'}</span>
+                    </div>
+
+                    <div style={styles.growthMetricBox}>
+                      <span style={styles.growthLabel}>Water Quality (DO / pH)</span>
+                      <span style={styles.growthVal}>DO {activeFarmerTank.waterQuality?.do}</span>
+                      <span style={styles.growthSub}>pH {activeFarmerTank.waterQuality?.ph} • Sal {activeFarmerTank.waterQuality?.salinity}</span>
+                    </div>
+                  </div>
+
+                  {/* Telemetry & Feed Parameters */}
+                  <div style={{
+                    backgroundColor: '#F8FAFC',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    border: '1px solid #E2E8F0',
+                    marginTop: '4px'
+                  }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Fish size={14} color="#1A2FB8" /> Live Water Quality Parameters (Field Audit)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '6px', padding: '6px', textAlign: 'center', border: '1px solid #EDF2F7' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#64748B', display: 'block' }}>Dissolved O2</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block', marginTop: '2px' }}>{activeFarmerTank.waterQuality?.do || '5.4 ppm'}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '6px', padding: '6px', textAlign: 'center', border: '1px solid #EDF2F7' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#64748B', display: 'block' }}>pH Level</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block', marginTop: '2px' }}>{activeFarmerTank.waterQuality?.ph || '7.8'}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '6px', padding: '6px', textAlign: 'center', border: '1px solid #EDF2F7' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#64748B', display: 'block' }}>Salinity</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block', marginTop: '2px' }}>{activeFarmerTank.waterQuality?.salinity || '16 ppt'}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '6px', padding: '6px', textAlign: 'center', border: '1px solid #EDF2F7' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#64748B', display: 'block' }}>Ammonia (NH3)</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block', marginTop: '2px' }}>{activeFarmerTank.waterQuality?.ammonia || '0.08 ppm'}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#FFFFFF', borderRadius: '6px', padding: '6px', textAlign: 'center', border: '1px solid #EDF2F7' }}>
+                        <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#64748B', display: 'block' }}>Alkalinity</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block', marginTop: '2px' }}>{activeFarmerTank.waterQuality?.alkalinity || '130 ppm'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Bar with Harvest Button & Routine Schedule */}
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHarvestTank({
+                        ...activeFarmerTank,
+                        farmer: selectedFarmer?.name,
+                        farmerId: selectedFarmer?.id,
+                        locality: selectedFarmer?.locality || selectedFarmer?.village || selectedFarmer?.villageName,
+                        size: activeFarmerTank.size || '2.5 Acres'
+                      })}
+                      style={{
+                        flex: 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        backgroundColor: '#FFFBEB',
+                        color: '#92400E',
+                        border: '1px solid #FCD34D',
+                        padding: '10px 14px',
+                        borderRadius: '9px',
+                        fontSize: '12.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      className="transition-all hover:bg-amber-100 active:scale-95 cursor-pointer"
+                    >
+                      <Scale size={14} color="#B45309" />
+                      <span>{activeFarmerTank.isHarvested ? 'Harvest Report' : 'Harvest Pond'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRoutineTank({ tank: activeFarmerTank.rawTank || activeFarmerTank, farmer: selectedFarmer })}
+                      style={{
+                        flex: 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        backgroundColor: '#1A2FB8',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '10px 14px',
+                        borderRadius: '9px',
+                        fontSize: '12.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      className="transition-all hover:bg-blue-900 active:scale-95 cursor-pointer"
+                    >
+                      <Calendar size={14} />
+                      <span>Routine Schedule</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #F1F5F9', paddingTop: '16px' }}>
@@ -2047,7 +2179,6 @@ const styles = {
   },
   table: {
     width: '100%',
-    minWidth: '760px',
     borderCollapse: 'collapse',
     textAlign: 'left',
   },
@@ -2056,12 +2187,12 @@ const styles = {
     backgroundColor: '#F8FAFC',
   },
   th: {
-    padding: '12px 14px',
-    fontSize: '12px',
+    padding: '8px 6px',
+    fontSize: '10.5px',
     fontWeight: '700',
     color: '#475569',
     textTransform: 'uppercase',
-    letterSpacing: '0.4px',
+    letterSpacing: '0.3px',
     whiteSpace: 'nowrap',
   },
   tr: {
@@ -2069,49 +2200,48 @@ const styles = {
     transition: 'background-color 0.15s',
   },
   td: {
-    padding: '12px 14px',
+    padding: '8px 6px',
     verticalAlign: 'middle',
-    whiteSpace: 'nowrap',
   },
   agentAvatar: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     fontWeight: '800',
-    fontSize: '13px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   agentName: {
-    fontSize: '13.5px',
+    fontSize: '12.5px',
     fontWeight: '700',
     color: '#0F172A',
   },
   agentIdTag: {
-    fontSize: '11px',
+    fontSize: '10.5px',
     color: '#94A3B8',
     fontWeight: '500',
   },
   countBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '5px',
+    gap: '3px',
     backgroundColor: '#F8FAFC',
     border: '1px solid #E2E8F0',
-    padding: '4px 10px',
+    padding: '2px 6px',
     borderRadius: '6px',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     color: '#0F172A',
     whiteSpace: 'nowrap',
   },
   progressBar: {
-    width: '50px',
-    height: '6px',
+    width: '40px',
+    height: '5px',
     backgroundColor: '#E2E8F0',
     borderRadius: '3px',
     overflow: 'hidden',
@@ -2122,17 +2252,17 @@ const styles = {
     borderRadius: '3px',
   },
   complianceText: {
-    fontSize: '12.5px',
+    fontSize: '11.5px',
     fontWeight: '700',
     color: '#16A34A',
   },
   statusPill: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '4px 9px',
-    borderRadius: '12px',
-    fontSize: '11.5px',
+    gap: '3px',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontSize: '11px',
     fontWeight: '700',
     backgroundColor: '#DCFCE7',
     color: '#15803D',
@@ -2140,13 +2270,13 @@ const styles = {
   viewPortfolioBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '6px 12px',
+    gap: '3px',
+    padding: '4px 8px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
     border: '1px solid #BFDBFE',
     borderRadius: '6px',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
     whiteSpace: 'nowrap',

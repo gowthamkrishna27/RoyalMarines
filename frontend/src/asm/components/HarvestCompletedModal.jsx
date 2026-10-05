@@ -20,6 +20,17 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
   // Determine if the culture cycle is still active vs completely final harvested
   const isFinalHarvested = tank.status === 'Harvested' || tank.isHarvested === true;
 
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [harvestType, setHarvestType] = useState('Partial Harvest');
+  const [harvestDate, setHarvestDate] = useState(new Date().toISOString().split('T')[0]);
+  const [harvestDoc, setHarvestDoc] = useState(tank.doc || 72);
+  const [harvestAbw, setHarvestAbw] = useState(tank.abw ? parseFloat(tank.abw) : 24.5);
+  const [harvestBiomass, setHarvestBiomass] = useState('');
+  const [harvestFeed, setHarvestFeed] = useState('');
+  const [harvestBuyer, setHarvestBuyer] = useState('Royals Marine Export Unit 1');
+  const [harvestRemarks, setHarvestRemarks] = useState('');
+  const [localRecords, setLocalRecords] = useState(null);
+
   // Retrieve stored harvest records from localStorage if present
   const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
   let storedHarvests = [];
@@ -37,11 +48,12 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
   }
 
   // Build appropriate harvest records based on whether Final Harvest is completed or ongoing
-  let rawHarvests = [];
+  let rawHarvests = localRecords || [];
 
-  if (storedHarvests.length > 0) {
-    rawHarvests = storedHarvests;
-  } else if (isFinalHarvested) {
+  if (rawHarvests.length === 0) {
+    if (storedHarvests.length > 0) {
+      rawHarvests = storedHarvests;
+    } else if (isFinalHarvested) {
     // 1. Completed Cycle Seed (All Partial Harvests + Final Harvest)
     rawHarvests = [
       {
@@ -110,6 +122,7 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
         buyer: 'Royals Marine Local Procurement',
       }
     ];
+    }
   }
 
   // Parse Present Standing Crop Values (for active pond)
@@ -165,6 +178,59 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
   const overallSurvival = initialStock > 0 
     ? ((totalCropShrimp / initialStock) * 100).toFixed(1) 
     : presentSurvivalPct.toFixed(1);
+
+  const handleSaveHarvest = (e) => {
+    e.preventDefault();
+    if (!harvestBiomass || parseFloat(harvestBiomass) <= 0) {
+      alert('Please enter a valid harvest biomass in kg.');
+      return;
+    }
+
+    const abwNum = parseFloat(harvestAbw) || 24.5;
+    const biomassNum = parseFloat(harvestBiomass);
+    const feedNum = parseFloat(harvestFeed) || (biomassNum * 1.16);
+    const countPerKg = Math.round(1000 / abwNum);
+    const harvestedCount = Math.round(biomassNum * countPerKg);
+    const fcrVal = (feedNum / biomassNum).toFixed(2);
+    const isFinal = harvestType === 'Final Harvest';
+
+    const newRecord = {
+      id: `h-user-${Date.now()}`,
+      harvestType: harvestType,
+      displayTitle: isFinal ? 'Final Harvest' : `Partial Harvest`,
+      isFinal: isFinal,
+      date: harvestDate,
+      doc: parseInt(harvestDoc, 10) || 72,
+      abw: abwNum,
+      countPerKg: countPerKg,
+      harvestedNumber: harvestedCount,
+      harvestedBiomass: biomassNum,
+      feedConsumed: feedNum,
+      fcr: fcrVal,
+      remarks: harvestRemarks || (isFinal ? 'Final crop harvest completed' : 'Partial netting harvest'),
+      buyer: harvestBuyer || 'Royals Marine Export Unit 1'
+    };
+
+    try {
+      const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+      const existing = store[storeKey] || { harvests: rawHarvests };
+      const updatedHarvests = [...(existing.harvests || rawHarvests), newRecord];
+      store[storeKey] = {
+        ...existing,
+        harvests: updatedHarvests,
+        totalFeed: (parseFloat(existing.totalFeed || 0) + feedNum).toString()
+      };
+      localStorage.setItem('agent_harvest_store', JSON.stringify(store));
+      window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: store }));
+      setLocalRecords(updatedHarvests);
+      setShowAddForm(false);
+      setHarvestBiomass('');
+      setHarvestFeed('');
+      setHarvestRemarks('');
+    } catch (err) {
+      console.error('Error saving harvest record:', err);
+    }
+  };
 
   return createPortal(
     <div style={styles.modalBackdrop} onClick={onClose}>
@@ -362,10 +428,210 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                 {isFinalHarvested ? 'Complete Harvest Records Log' : `Partial Harvest Records Log (${processedHarvests.length})`}
               </h3>
             </div>
-            <span style={styles.verifiedTag}>
-              ✓ Weighment Logs
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(!showAddForm)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: showAddForm ? '#E2E8F0' : '#1A2FB8',
+                  color: showAddForm ? '#334155' : '#FFFFFF',
+                  border: 'none',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                className="transition-all active:scale-95 cursor-pointer"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span>{showAddForm ? 'Cancel Entry' : 'Enter Harvest'}</span>
+              </button>
+              <span style={styles.verifiedTag}>
+                ✓ Weighment Logs
+              </span>
+            </div>
           </div>
+
+          {/* Expandable Harvest Entry Form */}
+          {showAddForm && (
+            <form onSubmit={handleSaveHarvest} style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1.5px solid #DBEAFE',
+              padding: '16px',
+              marginTop: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
+                  Record New Harvest Entry
+                </span>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  Enter accurate weighment and feed data
+                </span>
+              </div>
+
+              {/* Harvest Type Radio / Toggle */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setHarvestType('Partial Harvest')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: harvestType === 'Partial Harvest' ? '1.5px solid #1A2FB8' : '1px solid #CBD5E1',
+                    backgroundColor: harvestType === 'Partial Harvest' ? '#EFF6FF' : '#FFFFFF',
+                    color: harvestType === 'Partial Harvest' ? '#1A2FB8' : '#475569',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Partial Harvest (Thinning)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHarvestType('Final Harvest')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: harvestType === 'Final Harvest' ? '1.5px solid #16A34A' : '1px solid #CBD5E1',
+                    backgroundColor: harvestType === 'Final Harvest' ? '#DCFCE7' : '#FFFFFF',
+                    color: harvestType === 'Final Harvest' ? '#15803D' : '#475569',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Final Harvest (Cycle Complete)
+                </button>
+              </div>
+
+              {/* Form Fields Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Harvest Date
+                  </label>
+                  <input
+                    type="date"
+                    value={harvestDate}
+                    onChange={(e) => setHarvestDate(e.target.value)}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Day of Culture (DOC)
+                  </label>
+                  <input
+                    type="number"
+                    value={harvestDoc}
+                    onChange={(e) => setHarvestDoc(e.target.value)}
+                    placeholder="e.g. 72"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Average Body Wt (ABW in grams)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={harvestAbw}
+                    onChange={(e) => setHarvestAbw(e.target.value)}
+                    placeholder="e.g. 24.5"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Harvested Biomass (kg)
+                  </label>
+                  <input
+                    type="number"
+                    value={harvestBiomass}
+                    onChange={(e) => setHarvestBiomass(e.target.value)}
+                    placeholder="e.g. 1200"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Feed Consumed (kg)
+                  </label>
+                  <input
+                    type="number"
+                    value={harvestFeed}
+                    onChange={(e) => setHarvestFeed(e.target.value)}
+                    placeholder="e.g. 1400"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                    Buyer / Export Processing Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={harvestBuyer}
+                    onChange={(e) => setHarvestBuyer(e.target.value)}
+                    placeholder="e.g. Royals Marine Export Unit 1"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                  Field Remarks / Notes
+                </label>
+                <input
+                  type="text"
+                  value={harvestRemarks}
+                  onChange={(e) => setHarvestRemarks(e.target.value)}
+                  placeholder="e.g. Selective netting targeting 40 count export batch"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', backgroundColor: '#FFFFFF', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', backgroundColor: '#1A2FB8', color: '#FFFFFF', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}
+                  className="transition-all hover:bg-blue-900 active:scale-95"
+                >
+                  Save Harvest Entry
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* Table Container */}
           <div style={{ overflowX: 'auto', marginTop: '12px' }}>
