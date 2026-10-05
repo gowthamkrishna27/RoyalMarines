@@ -44,13 +44,17 @@ app.get('/', (req, res) => {
     message: 'Royals Marine Food Private Limited - Aqua Feed Management API',
     status: 'ACTIVE',
     documentation: '/api/health',
-    databaseStudio: '/db-admin',
+    console: '/console',
   });
 });
 
-// Database Studio Web GUI routes
-app.get(['/db-admin', '/database', '/admin/db'], (req, res) => {
-  res.sendFile(path.join(publicDir, 'db-admin.html'));
+// Database Console Web GUI routes
+app.get('/db-admin', (req, res) => {
+  res.redirect('/console');
+});
+
+app.get(['/console', '/database', '/admin/db'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'console.html'));
 });
 
 // API Routes

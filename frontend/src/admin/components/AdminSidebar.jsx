@@ -33,7 +33,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
     {
       title: 'Administration',
       items: [
-        { name: 'Database', path: 'http://localhost:5000/db-admin', icon: <Database size={18} />, external: true },
+        { name: 'Console', path: 'http://localhost:5000/console', icon: <Database size={18} />, external: true },
         { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },
         { name: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> }
       ]

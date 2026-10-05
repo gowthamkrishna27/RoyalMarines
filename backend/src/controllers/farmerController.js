@@ -32,11 +32,11 @@ export const createFarmer = async (req, res) => {
     name,
     phone: phone || '',
     location: location || '',
-    waterSource: waterSource || 'Borewell',
-    acres: acres ? Number(acres) : 10,
+    waterSource: waterSource || null,
+    acres: acres != null && acres !== '' ? Number(acres) : null,
     agentId: agentId || null,
-    inchargeId: inchargeId || 'INC001',
-    assignedTo: assignedTo || (agentId ? 'Agent' : 'Incharge'),
+    inchargeId: inchargeId || null,
+    assignedTo: assignedTo || (agentId ? 'Agent' : inchargeId ? 'Incharge' : 'Unassigned'),
     assignedBy: req.user?.role || 'Admin',
   });
 

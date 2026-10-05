@@ -1,14 +1,4 @@
 import { query, isDbConnected } from '../config/database.js';
-import {
-  initialFarmers,
-  initialTanks,
-  initialSubmissions,
-  initialHarvests,
-  initialAgents,
-  initialIncharges,
-  initialRegions,
-  authUsers,
-} from './seedData.js';
 
 class DataStore {
   constructor() {
@@ -16,14 +6,14 @@ class DataStore {
   }
 
   reset() {
-    this.farmers = JSON.parse(JSON.stringify(initialFarmers));
-    this.tanks = JSON.parse(JSON.stringify(initialTanks));
-    this.submissions = JSON.parse(JSON.stringify(initialSubmissions));
-    this.harvests = JSON.parse(JSON.stringify(initialHarvests));
-    this.agents = JSON.parse(JSON.stringify(initialAgents));
-    this.incharges = JSON.parse(JSON.stringify(initialIncharges));
-    this.regions = JSON.parse(JSON.stringify(initialRegions));
-    this.users = JSON.parse(JSON.stringify(authUsers));
+    this.farmers = [];
+    this.tanks = [];
+    this.submissions = [];
+    this.harvests = [];
+    this.agents = [];
+    this.incharges = [];
+    this.regions = [];
+    this.users = [];
   }
 
   // --- Auth & Users ---
@@ -446,33 +436,14 @@ class DataStore {
   async createSubmission(data) {
     const id = data.id || `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
-    // Resolve geographic coordinates at the moment of submission
-    let latitude = data.latitude ?? data.lat ?? data.gps?.latitude ?? data.coordinates?.latitude ?? data.data?.gps?.latitude ?? data.data?.latitude ?? null;
-    let longitude = data.longitude ?? data.lng ?? data.gps?.longitude ?? data.coordinates?.longitude ?? data.data?.gps?.longitude ?? data.data?.longitude ?? null;
-    let locality = data.locality ?? data.gps?.locality ?? data.data?.gps?.locality ?? data.data?.locality ?? null;
-
-    // Fallback: If not provided by client, estimate from farmer's location cluster
-    if (latitude === null || longitude === null) {
-      const farmer = await this.findFarmerById(data.farmerId);
-      const loc = (farmer?.location || locality || '').toLowerCase();
-      if (loc.includes('chinnamiram')) {
-        latitude = 16.5449; longitude = 81.5212; locality = locality || 'Chinnamiram, Bhimavaram';
-      } else if (loc.includes('narasapuram')) {
-        latitude = 16.4410; longitude = 81.7010; locality = locality || 'Narasapuram, West Godavari';
-      } else if (loc.includes('kalla')) {
-        latitude = 16.5620; longitude = 81.4980; locality = locality || 'Kalla, West Godavari';
-      } else if (loc.includes('akuru')) {
-        latitude = 16.5120; longitude = 81.5830; locality = locality || 'Akuruvu Coastal Zone';
-      } else if (loc.includes('undi')) {
-        latitude = 16.5890; longitude = 81.4720; locality = locality || 'Undi Aqua Corridor';
-      } else {
-        latitude = 16.5449; longitude = 81.5212; locality = locality || 'Bhimavaram Aqua Zone';
-      }
-    }
+    // Resolve geographic coordinates at the moment of submission (actual GPS only, no fake coordinates)
+    const latitude = data.latitude ?? data.lat ?? data.gps?.latitude ?? data.coordinates?.latitude ?? data.data?.gps?.latitude ?? data.data?.latitude ?? null;
+    const longitude = data.longitude ?? data.lng ?? data.gps?.longitude ?? data.coordinates?.longitude ?? data.data?.gps?.longitude ?? data.data?.longitude ?? null;
+    const locality = data.locality ?? data.gps?.locality ?? data.data?.gps?.locality ?? data.data?.locality ?? null;
 
     const newSub = {
       id,
-      agentId: data.agentId || 'agent001',
+      agentId: data.agentId || null,
       farmerId: data.farmerId || '',
       tankId: data.tankId,
       testType: data.testType || 'Water Quality Test',
@@ -618,6 +589,7 @@ class DataStore {
         const [at] = await query("SELECT COUNT(*) as total FROM tanks WHERE status = 'ACTIVE'");
         const [pt] = await query("SELECT COUNT(*) as total FROM tanks WHERE test_status IN ('Due', 'Overdue')");
         const [hr] = await query('SELECT COALESCE(SUM(revenue), 0) as total FROM harvests');
+        const [fcrRes] = await query("SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) as avg_fcr FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0'");
         const [ac] = await query('SELECT COUNT(*) as total FROM agents');
         const [rc] = await query('SELECT COUNT(*) as total FROM regions');
 
@@ -627,7 +599,7 @@ class DataStore {
           activeTanks: at?.total || 0,
           pendingTests: pt?.total || 0,
           totalHarvestRevenue: Number(hr?.total || 0),
-          avgFcr: '1.16',
+          avgFcr: fcrRes?.avg_fcr ? String(fcrRes.avg_fcr) : '0.00',
           activeAgents: ac?.total || 0,
           regionsCount: rc?.total || 0,
         };
@@ -641,9 +613,10 @@ class DataStore {
     const activeTanks = this.tanks.filter((t) => t.status === 'ACTIVE').length;
     const pendingTests = this.tanks.filter((t) => t.testStatus === 'Due' || t.testStatus === 'Overdue').length;
     const totalHarvestRevenue = this.harvests.reduce((acc, h) => acc + (h.revenue || 0), 0);
-    const avgFcr = (
-      this.tanks.reduce((acc, t) => acc + (parseFloat(t.fcr) || 1.15), 0) / (totalTanks || 1)
-    ).toFixed(2);
+    const tanksWithFcr = this.tanks.filter((t) => t.fcr && !isNaN(parseFloat(t.fcr)) && parseFloat(t.fcr) > 0);
+    const avgFcr = tanksWithFcr.length > 0
+      ? (tanksWithFcr.reduce((acc, t) => acc + parseFloat(t.fcr), 0) / tanksWithFcr.length).toFixed(2)
+      : '0.00';
 
     return {
       totalFarmers,

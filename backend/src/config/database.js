@@ -4,9 +4,29 @@ import { config } from './env.js';
 let pool = null;
 let isConnected = false;
 
+export const resetPool = () => {
+  if (pool) {
+    try {
+      pool.end();
+    } catch {}
+    pool = null;
+  }
+};
+
 export const getPool = () => {
   if (!pool) {
-    pool = mysql.createPool(config.db);
+    pool = mysql.createPool({
+      host: process.env.DB_HOST || config.db.host,
+      port: parseInt(process.env.DB_PORT, 10) || config.db.port,
+      user: process.env.DB_USER || config.db.user,
+      password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : config.db.password,
+      database: process.env.DB_NAME || config.db.database,
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : config.db.ssl,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      connectTimeout: 10000,
+    });
   }
   return pool;
 };
@@ -26,6 +46,9 @@ export const query = async (sql, params = []) => {
       console.warn('[Database Reconnecting on dropped socket]:', err.message);
       const [retryResults] = await p.query(sql, cleanParams);
       return retryResults;
+    }
+    if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+      resetPool();
     }
     throw err;
   }

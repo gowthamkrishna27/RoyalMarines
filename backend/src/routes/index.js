@@ -28,6 +28,7 @@ apiRouter.use('/tanks', tankRoutes);
 apiRouter.use('/submissions', submissionRoutes);
 apiRouter.use('/harvests', harvestRoutes);
 apiRouter.use('/analytics', analyticsRoutes);
+apiRouter.use('/console', dbAdminRoutes);
 apiRouter.use('/db-admin', dbAdminRoutes);
 
 export default apiRouter;

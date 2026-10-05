@@ -17,15 +17,15 @@ export const createHarvest = async (req, res) => {
   }
 
   const q = Number(quantityKg);
-  const price = Number(pricePerKg) || 380;
+  const price = pricePerKg != null ? Number(pricePerKg) : 0;
   const revenue = q * price;
 
   const harvest = await store.createHarvest({
     tankId,
     farmerId: farmerId || '',
     quantityKg: q,
-    countPerKg: countPerKg ? Number(countPerKg) : 30,
-    quality: quality || 'A Grade',
+    countPerKg: countPerKg ? Number(countPerKg) : null,
+    quality: quality || null,
     pricePerKg: price,
     revenue,
   });

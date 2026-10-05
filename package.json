@@ -10,7 +10,10 @@
     "build": "npm --prefix frontend run build",
     "build:frontend": "npm --prefix frontend run build",
     "db:view": "npm --prefix backend run db:view --",
-    "db:studio": "node -e \"const { exec } = require('child_process'); exec(process.platform === 'win32' ? 'start http://localhost:5000/db-admin' : 'open http://localhost:5000/db-admin');\"",
+    "db:wipe": "npm --prefix backend run db:wipe --",
+    "db:reset": "npm --prefix backend run db:reset --",
+    "db:studio": "node -e \"const { exec } = require('child_process'); exec(process.platform === 'win32' ? 'start http://localhost:5000/console' : 'open http://localhost:5000/console');\"",
+    "console": "node -e \"const { exec } = require('child_process'); exec(process.platform === 'win32' ? 'start http://localhost:5000/console' : 'open http://localhost:5000/console');\"",
     "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
     "lint": "npm --prefix frontend run lint"
   },

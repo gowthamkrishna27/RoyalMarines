@@ -105,6 +105,31 @@ export const getTables = async (req, res) => {
 
     return sendSuccess(res, { tables, storage });
   } catch (err) {
+    const isConnErr = /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ER_ACCESS_DENIED/i.test(err.message || err.code);
+    const host = process.env.DB_HOST || 'unknown';
+    const limitMb = Number(process.env.DB_STORAGE_LIMIT_MB || 5120);
+
+    if (isConnErr) {
+      return res.status(200).json({
+        success: false,
+        connected: false,
+        message: `Database offline: Cannot connect to MySQL at "${host}". Please verify your Aiven cloud service is active or update backend/.env.`,
+        data: {
+          tables: [],
+          connected: false,
+          dbHost: host,
+          errorDetail: err.message,
+          storage: {
+            usedMb: 0,
+            limitMb,
+            availableMb: limitMb,
+            percentUsed: 0,
+            totalRows: 0,
+          },
+        },
+      });
+    }
+
     return sendError(res, `Failed to load tables: ${err.message}`, 500);
   }
 };
@@ -572,5 +597,161 @@ export const bulkDelete = async (req, res) => {
     return sendSuccess(res, { deletedCount: ids.length, table: tableName }, `${ids.length} rows deleted`);
   } catch (err) {
     return sendError(res, `Failed to bulk delete: ${err.message}`, 400);
+  }
+};
+
+/**
+ * 9. GET /api/console/dashboard
+ * Detailed real-time database dashboard statistics
+ */
+export const getDashboardMetrics = async (req, res) => {
+  try {
+    const isConn = await checkDatabaseConnection();
+    const host = process.env.DB_HOST || 'unknown';
+    const limitMb = Number(process.env.DB_STORAGE_LIMIT_MB || 5120);
+
+    if (!isConn.success) {
+      return res.status(200).json({
+        success: false,
+        connected: false,
+        message: `Database offline: Cannot connect to MySQL at "${host}".`,
+        data: {
+          connected: false,
+          dbHost: host,
+          error: isConn.error,
+          serverUptime: Math.floor(process.uptime()),
+          serverTime: new Date().toISOString(),
+          tables: [],
+          domainStats: {},
+          storage: { usedMb: 0, limitMb, availableMb: limitMb, percentUsed: 0 },
+        },
+      });
+    }
+
+    // 1. Fetch tables from information_schema
+    let tableInfo = [];
+    try {
+      tableInfo = await query(`
+        SELECT 
+          table_name AS name,
+          table_rows AS approx_rows,
+          ROUND(data_length / 1024, 2) AS data_kb,
+          ROUND(index_length / 1024, 2) AS index_kb,
+          ROUND((data_length + index_length) / 1024, 2) AS total_kb,
+          create_time AS created_at,
+          update_time AS updated_at
+        FROM information_schema.TABLES
+        WHERE table_schema = DATABASE()
+      `);
+    } catch {}
+
+    // 2. Live row counts and column stats for each allowed table
+    const tablePromises = ALLOWED_TABLES.map(async (name) => {
+      try {
+        const [cntRes] = await query(`SELECT COUNT(*) as c FROM \`${name}\``);
+        const meta = tableInfo.find((t) => t.name.toLowerCase() === name.toLowerCase()) || {};
+        const cols = await query(`SHOW COLUMNS FROM \`${name}\``);
+        const pkCol = cols.find((c) => c.Key === 'PRI')?.Field || 'id';
+
+        return {
+          name,
+          count: Number(cntRes?.c || 0),
+          dataKb: Number(meta.data_kb || 0),
+          indexKb: Number(meta.index_kb || 0),
+          totalKb: Number(meta.total_kb || 0),
+          columnCount: cols.length,
+          primaryKey: pkCol,
+          updatedAt: meta.updated_at || null,
+        };
+      } catch {
+        return null;
+      }
+    });
+
+    const tables = (await Promise.all(tablePromises)).filter(Boolean);
+    const totalRows = tables.reduce((sum, t) => sum + t.count, 0);
+
+    // 3. Domain Entity Breakdown
+    const domainStats = {
+      usersByRole: { admin: 0, asm: 0, agent: 0 },
+      farmersCount: 0,
+      tanksCount: 0,
+      activeTanks: 0,
+      submissionsCount: 0,
+      pendingSubmissions: 0,
+      verifiedSubmissions: 0,
+      flaggedSubmissions: 0,
+      harvestsCount: 0,
+      totalRevenue: 0,
+      regionsCount: 0,
+    };
+
+    try {
+      const userRoles = await query('SELECT role, COUNT(*) as c FROM users GROUP BY role');
+      userRoles.forEach((r) => {
+        const role = (r.role || '').toUpperCase();
+        if (role === 'ADMIN') domainStats.usersByRole.admin = Number(r.c);
+        else if (role === 'ASM' || role === 'INCHARGE') domainStats.usersByRole.asm += Number(r.c);
+        else if (role === 'AGENT') domainStats.usersByRole.agent += Number(r.c);
+      });
+
+      const [fc] = await query('SELECT COUNT(*) as c FROM farmers');
+      domainStats.farmersCount = Number(fc?.c || 0);
+
+      const [tc] = await query('SELECT COUNT(*) as total, SUM(CASE WHEN status = "ACTIVE" THEN 1 ELSE 0 END) as active FROM tanks');
+      domainStats.tanksCount = Number(tc?.total || 0);
+      domainStats.activeTanks = Number(tc?.active || 0);
+
+      const subStatus = await query('SELECT status, COUNT(*) as c FROM submissions GROUP BY status');
+      subStatus.forEach((s) => {
+        const st = (s.status || '').toUpperCase();
+        if (st === 'PENDING_VERIFICATION') domainStats.pendingSubmissions += Number(s.c);
+        else if (st === 'VERIFIED' || st === 'COMPLETED' || st === 'APPROVED') domainStats.verifiedSubmissions += Number(s.c);
+        else if (st === 'FLAGGED' || st === 'REJECTED') domainStats.flaggedSubmissions += Number(s.c);
+        domainStats.submissionsCount += Number(s.c);
+      });
+
+      const [hr] = await query('SELECT COUNT(*) as c, COALESCE(SUM(revenue), 0) as rev FROM harvests');
+      domainStats.harvestsCount = Number(hr?.c || 0);
+      domainStats.totalRevenue = Number(hr?.rev || 0);
+
+      const [rc] = await query('SELECT COUNT(*) as c FROM regions');
+      domainStats.regionsCount = Number(rc?.c || 0);
+    } catch (e) {
+      console.warn('[Domain stats partial error]', e.message);
+    }
+
+    // 4. Storage Calculation
+    const totalDataKb = tables.reduce((s, t) => s + t.dataKb, 0);
+    const totalIndexKb = tables.reduce((s, t) => s + t.indexKb, 0);
+    const usedMb = Number(((totalDataKb + totalIndexKb) / 1024).toFixed(2));
+    const availMb = Math.max(0, limitMb - usedMb);
+    const percentUsed = Number(((usedMb / limitMb) * 100).toFixed(2));
+
+    return sendSuccess(res, {
+      connected: true,
+      dbVersion: isConn.version || '8.4.8',
+      dbHost: host,
+      dbName: process.env.DB_NAME || 'defaultdb',
+      latency: isConn.latency || '—',
+      serverUptime: Math.floor(process.uptime()),
+      tables: tables.map((t) => ({
+        ...t,
+        percentOfTotalRows: totalRows > 0 ? Number(((t.count / totalRows) * 100).toFixed(1)) : 0,
+      })),
+      totalRows,
+      totalTables: tables.length,
+      storage: {
+        usedMb,
+        limitMb,
+        availableMb: availMb,
+        percentUsed: Math.max(0.1, percentUsed),
+        dataSizeKb: totalDataKb,
+        indexSizeKb: totalIndexKb,
+      },
+      domainStats,
+    });
+  } catch (err) {
+    return sendError(res, `Failed to load dashboard metrics: ${err.message}`, 500);
   }
 };

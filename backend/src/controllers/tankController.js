@@ -36,16 +36,16 @@ export const createTank = async (req, res) => {
   const newTank = await store.createTank({
     name,
     farmerId,
-    agentId: farmer.agentId,
-    inchargeId: farmer.inchargeId,
-    assignedTo: farmer.assignedTo,
-    size: size || '10 Acres',
-    abw: abw || '10g',
-    biomass: biomass || '600kg',
-    fcr: fcr || '1.15',
-    doc: doc ? Number(doc) : 30,
-    lastTest: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    nextTest: 'In 7 Days',
+    agentId: farmer.agentId || null,
+    inchargeId: farmer.inchargeId || null,
+    assignedTo: farmer.assignedTo || null,
+    size: size || null,
+    abw: abw || null,
+    biomass: biomass || null,
+    fcr: fcr || null,
+    doc: doc != null && doc !== '' ? Number(doc) : 0,
+    lastTest: null,
+    nextTest: null,
   });
 
   return sendSuccess(res, newTank, 'Tank created successfully', 201);
@@ -88,21 +88,21 @@ export const recordWaterParameters = async (req, res) => {
   const updatedTank = await store.updateTank(id, updates);
 
   const submission = await store.createSubmission({
-    agentId: tank.agentId || req.user?.id || 'agent001',
+    agentId: tank.agentId || req.user?.id || null,
     farmerId: tank.farmerId,
     tankId: tank.id,
     testType: 'Water & Biomass Analysis',
     data: {
       waterQuality: {
-        ph: ph || '7.8',
-        salinity: salinity || '15',
-        do: dissolvedOxygen || '5.2',
-        alkalinity: alkalinity || '120',
-        ammonia: ammonia || '0.02',
+        ...(ph ? { ph } : {}),
+        ...(salinity ? { salinity } : {}),
+        ...(dissolvedOxygen ? { do: dissolvedOxygen } : {}),
+        ...(alkalinity ? { alkalinity } : {}),
+        ...(ammonia ? { ammonia } : {}),
       },
-      abw: abw || tank.abw,
-      biomass: biomass || tank.biomass,
-      fcr: fcr || tank.fcr,
+      ...(abw ? { abw } : (tank.abw ? { abw: tank.abw } : {})),
+      ...(biomass ? { biomass } : (tank.biomass ? { biomass: tank.biomass } : {})),
+      ...(fcr ? { fcr } : (tank.fcr ? { fcr: tank.fcr } : {})),
     },
   });
 

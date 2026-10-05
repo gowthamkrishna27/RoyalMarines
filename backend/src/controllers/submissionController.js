@@ -32,7 +32,7 @@ export const createSubmission = async (req, res) => {
 
   const submission = await store.createSubmission({
     id: id || req.body.id,
-    agentId: req.user?.id || req.body.agentId || agentId || 'agent001',
+    agentId: req.user?.id || req.body.agentId || agentId || null,
     farmerId: farmerId || '',
     tankId,
     testType: testType || 'Water Quality Test',

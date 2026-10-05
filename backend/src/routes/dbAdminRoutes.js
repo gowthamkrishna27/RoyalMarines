@@ -8,9 +8,13 @@ import {
   executeQuery,
   getSchema,
   bulkDelete,
+  getDashboardMetrics,
 } from '../controllers/dbAdminController.js';
 
 const router = Router();
+
+// Detailed Dashboard overview
+router.get('/dashboard', getDashboardMetrics);
 
 // Table metadata and list
 router.get('/tables', getTables);

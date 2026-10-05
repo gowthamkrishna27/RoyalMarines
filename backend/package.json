@@ -8,6 +8,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db:view": "node scripts/viewTables.js",
+    "db:wipe": "node scripts/wipeDatabase.js",
+    "db:reset": "node scripts/wipeDatabase.js --reset",
+    "db:drop": "node scripts/wipeDatabase.js --drop",
     "test": "node --test"
   },
   "keywords": [

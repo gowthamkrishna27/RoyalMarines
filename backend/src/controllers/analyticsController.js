@@ -34,7 +34,7 @@ export const getAgents = async (req, res) => {
           activePonds: agent.active_ponds || assignedTanks.length,
           farmersCount: assignedFarmers.length,
           tanksCount: assignedTanks.length,
-          complianceRate: assignedTanks.length > 0 ? Math.round((completedTests / assignedTanks.length) * 100) : 100,
+          complianceRate: assignedTanks.length > 0 ? Math.round((completedTests / assignedTanks.length) * 100) : 0,
         };
       });
 
@@ -51,7 +51,7 @@ export const getAgents = async (req, res) => {
       ...agent,
       farmersCount: assignedFarmers.length,
       tanksCount: assignedTanks.length,
-      complianceRate: assignedTanks.length > 0 ? Math.round((completedTests / assignedTanks.length) * 100) : 100,
+      complianceRate: assignedTanks.length > 0 ? Math.round((completedTests / assignedTanks.length) * 100) : 0,
     };
   });
 
