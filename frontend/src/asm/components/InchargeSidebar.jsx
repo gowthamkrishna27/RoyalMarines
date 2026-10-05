@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, Users, Plus, Calendar, FileText, UserCheck, 
-  Settings, LogOut, Shield, ChevronRight, Layers, Eye
+  Settings, LogOut, Shield, ChevronRight, Layers, Eye, Scale
 } from 'lucide-react';
 import { logoutIncharge, getInchargeSession } from '../utils/inchargeAuth';
 import { getAsmBasePath } from '../utils/asmNavigation';
