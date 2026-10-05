@@ -8,32 +8,35 @@ import BackButton from '../../components/BackButton';
 
 const InchargeLogin = () => {
   const [identifier, setIdentifier] = useState('INC001');
-  const [password, setPassword] = useState('incharge123');
+  const [password, setPassword] = useState('1234');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!identifier || !password) {
-      setError('Please enter both ASM ID/Mobile and Password');
+    if (!identifier || password.length !== 4) {
+      setError('Please enter your ASM ID and 4-digit numeric PIN');
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const result = loginIncharge(identifier, password);
-      if (result.success) {
+    try {
+      const result = await loginIncharge(identifier, password);
+      if (result && result.success) {
         const target = location.pathname.includes('incharge') ? '/incharge/dashboard' : '/asm/dashboard';
         navigate(target);
       } else {
-        setError(result.error);
+        setError(result?.error || 'Invalid credentials');
         setLoading(false);
       }
-    }, 350);
+    } catch (err) {
+      setError('An error occurred during login. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,9 +80,11 @@ const InchargeLogin = () => {
             <Lock size={19} color="#94A3B8" style={{ flexShrink: 0 }} />
             <input
               type="password"
-              placeholder="Password / PIN"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="4-Digit Numeric PIN"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
               style={styles.inputField}
               required
             />

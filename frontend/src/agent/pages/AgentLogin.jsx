@@ -34,7 +34,7 @@ const AgentLogin = () => {
     }
   }, [navigate]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -45,15 +45,18 @@ const AgentLogin = () => {
 
     setLoading(true);
 
-    setTimeout(() => {
-      const result = login(agentId, pin);
-      if (result.success) {
+    try {
+      const result = await login(agentId, pin);
+      if (result && result.success) {
         navigate('/dashboard', { replace: true });
       } else {
-        setError(result.error || 'Invalid Agent ID or PIN');
+        setError(result?.error || 'Invalid Agent ID or PIN');
         setLoading(false);
       }
-    }, 350);
+    } catch (err) {
+      setError('An error occurred during login. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handlePinChange = (e) => {

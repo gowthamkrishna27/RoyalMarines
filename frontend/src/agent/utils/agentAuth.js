@@ -1,14 +1,21 @@
+/**
+ * Agent Authentication Module — Strict DB-Verified Credentials
+ * 
+ * All authentication is performed via the backend API which verifies
+ * credentials against the MySQL database using bcrypt.
+ * No hardcoded passwords. No client-side fallbacks.
+ */
+
 const AUTH_KEY = 'agent_auth_session';
-const PASSWORDS_KEY = 'agent_passwords_store';
+const TOKEN_KEY = 'auth_token';
 const PROFILES_KEY = 'agent_profiles_store';
+const PASSWORDS_KEY = 'agent_passwords_store';
 
-const initialUsers = [
-  { agentId: 'agent001', password: 'agent123', name: 'Ramesh', region: 'Bhimavaram', locality: 'Chinnamiram', asm: 'Rajesh' },
-  { agentId: 'agent002', password: 'agent123', name: 'Suresh', region: 'Narasapuram', locality: 'West Godavari', asm: 'Rajesh' },
-  { agentId: 'admin', password: 'admin', name: 'System Admin', region: 'Head Office', locality: 'Main Branch', asm: 'Rajesh' }
-];
-
-// Helper to get stored password overrides or fallback to initial user password
+/**
+ * Helper to get stored password overrides
+ * @param {string} agentId
+ * @returns {string|null}
+ */
 export const getStoredPassword = (agentId) => {
   try {
     const passwords = JSON.parse(localStorage.getItem(PASSWORDS_KEY) || '{}');
@@ -18,11 +25,15 @@ export const getStoredPassword = (agentId) => {
   } catch (e) {
     console.error(e);
   }
-  const user = initialUsers.find(u => u.agentId.toLowerCase() === (agentId || '').toLowerCase());
-  return user ? user.password : 'agent123';
+  return null;
 };
 
-// Helper to update & store password for an agentId
+/**
+ * Helper to update & store password for an agentId
+ * @param {string} agentId
+ * @param {string} newPassword
+ * @returns {boolean}
+ */
 export const updateStoredPassword = (agentId, newPassword) => {
   try {
     const id = agentId || 'agent001';
@@ -36,55 +47,81 @@ export const updateStoredPassword = (agentId, newPassword) => {
   }
 };
 
-// Helper to get stored profile overrides (e.g. updated name)
-export const getStoredProfile = (agentId) => {
-  try {
-    const profiles = JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}');
-    if (profiles && profiles[agentId]) {
-      return profiles[agentId];
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return null;
-};
-
-export const login = (agentId, password) => {
+/**
+ * Authenticate agent via backend API with DB-verified credentials.
+ * @param {string} agentId - Agent username, phone, or email
+ * @param {string} password - Password to verify against bcrypt hash in DB
+ * @returns {Promise<{success: boolean, session?: object, error?: string}>}
+ */
+export const login = async (agentId, password) => {
   const cleanId = (agentId || '').trim();
-  const user = initialUsers.find(u => u.agentId.toLowerCase() === cleanId.toLowerCase()) || initialUsers[0];
-  const actualAgentId = user ? user.agentId : cleanId;
-  const validPassword = getStoredPassword(actualAgentId);
-  
-  if (password === validPassword || password === '1234' || (cleanId && String(password).length >= 4)) {
-    const overrides = getStoredProfile(actualAgentId);
+  if (!cleanId || !password) {
+    return { success: false, error: 'Agent ID and password are required' };
+  }
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: cleanId, password: String(password) }),
+    });
+
+    const data = await res.json();
+
+    if (!data.success || !data.data?.token) {
+      return { success: false, error: data.message || 'Invalid credentials' };
+    }
+
+    const backendUser = data.data.user;
+    const token = data.data.token;
+
+    // Verify role is AGENT (or allow if no role check needed)
+    if (backendUser.role && backendUser.role.toUpperCase() !== 'AGENT') {
+      return { success: false, error: 'This account is not an Agent account. Please use the correct portal.' };
+    }
+
+    // Store JWT token
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem('auth_user', JSON.stringify(backendUser));
+
+    // Build session from DB user data
+    const overrides = getStoredProfile(backendUser.id || backendUser.username);
     const session = {
-      agentId: actualAgentId,
-      name: (overrides && overrides.name) ? overrides.name : user.name,
-      region: (overrides && overrides.region) ? overrides.region : user.region,
-      locality: (overrides && overrides.locality) ? overrides.locality : user.locality,
-      asm: (overrides && overrides.asm) ? overrides.asm : (user.asm || 'Rajesh'),
-      phone: (overrides && overrides.phone) ? overrides.phone : '9876543210',
-      photo: (overrides && overrides.photo) ? overrides.photo : null,
+      agentId: backendUser.id || backendUser.username,
+      id: backendUser.id,
+      name: overrides?.name || backendUser.name,
+      region: overrides?.region || backendUser.region || '',
+      locality: overrides?.locality || backendUser.locality || '',
+      asm: overrides?.asm || 'Rajesh',
+      phone: overrides?.phone || backendUser.phone || '',
+      photo: overrides?.photo || null,
+      role: 'AGENT',
       loginTime: new Date().toISOString(),
     };
+
     localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('agentProfileUpdated'));
     }
+
     return { success: true, session };
+  } catch (err) {
+    console.error('[Agent Auth] Login error:', err.message);
+    return { success: false, error: 'Unable to connect to server. Please check your network.' };
   }
-  
-  return { success: false, error: 'Invalid Agent ID or Password' };
 };
 
 export const logout = () => {
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('auth_user');
 };
 
 export const clearSession = logout;
 
 export const isAuthenticated = () => {
-  return !!localStorage.getItem(AUTH_KEY);
+  return !!localStorage.getItem(AUTH_KEY) && !!localStorage.getItem(TOKEN_KEY);
 };
 
 export const getSession = () => {
@@ -100,6 +137,19 @@ export const getSession = () => {
   } catch (e) {
     return null;
   }
+};
+
+// Helper to get stored profile overrides (e.g. updated name)
+export const getStoredProfile = (agentId) => {
+  try {
+    const profiles = JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}');
+    if (profiles && profiles[agentId]) {
+      return profiles[agentId];
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return null;
 };
 
 export const updateAgentProfile = (profileData) => {

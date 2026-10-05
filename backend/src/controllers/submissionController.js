@@ -10,7 +10,21 @@ export const getSubmissions = async (req, res) => {
 };
 
 export const createSubmission = async (req, res) => {
-  const { farmerId, tankId, testType, data, agentId, id, date, status } = req.body;
+  const { 
+    farmerId, 
+    tankId, 
+    testType, 
+    data, 
+    agentId, 
+    id, 
+    date, 
+    status,
+    latitude,
+    longitude,
+    locality,
+    gps,
+    coordinates
+  } = req.body;
 
   if (!tankId || !data) {
     return sendError(res, 'tankId and data are required', 400);
@@ -25,9 +39,12 @@ export const createSubmission = async (req, res) => {
     date: date || new Date().toISOString().split('T')[0],
     status: status || 'PENDING_VERIFICATION',
     data,
+    latitude: latitude ?? gps?.latitude ?? coordinates?.latitude ?? data?.gps?.latitude,
+    longitude: longitude ?? gps?.longitude ?? coordinates?.longitude ?? data?.gps?.longitude,
+    locality: locality ?? gps?.locality ?? coordinates?.locality ?? data?.gps?.locality,
   });
 
-  return sendSuccess(res, submission, 'Submission created successfully', 201);
+  return sendSuccess(res, submission, 'Submission created successfully with GPS coordinates', 201);
 };
 
 export const verifySubmission = async (req, res) => {

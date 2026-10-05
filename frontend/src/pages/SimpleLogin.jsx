@@ -1,20 +1,31 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import topnavlogo from '../assets/topnavlogo.png';
 import loginBg from '../assets/Serene Aquaculture Pond at Sunrise.png';
-import { login as loginAgent } from '../agent/utils/agentAuth';
-import { loginIncharge } from '../asm/utils/inchargeAuth';
+import { login as loginAgent, isAuthenticated } from '../agent/utils/agentAuth';
+import { loginIncharge, isInchargeAuthenticated } from '../asm/utils/inchargeAuth';
+import { isAdminAuthenticated } from '../admin/utils/adminAuth';
 
 const SimpleLogin = () => {
   const navigate = useNavigate();
 
-  const [identifier, setIdentifier] = useState('agent001');
-  const [pinBoxes, setPinBoxes] = useState(['1', '2', '3', '4']);
+  const [identifier, setIdentifier] = useState('');
+  const [pinBoxes, setPinBoxes] = useState(['', '', '', '']);
   const pinRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
   const [showPin, setShowPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isAdminAuthenticated()) {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (isInchargeAuthenticated()) {
+      navigate('/incharge/dashboard', { replace: true });
+    } else if (isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
 
   const handlePinChange = (val, index) => {
     const digit = val.replace(/[^0-9]/g, '').slice(-1);
@@ -74,63 +85,84 @@ const SimpleLogin = () => {
       return;
     }
 
-    if (fullPin.length < 4) {
-      setError('Please enter all 4 digits of your PIN');
+    if (fullPin.length < 4 || !/^\d{4}$/.test(fullPin)) {
+      setError('Please enter all 4 digits of your numeric PIN');
       return;
     }
 
     setLoading(true);
 
     try {
-      // 1. Authenticate with live backend API (Aiven MySQL)
-      let backendUser = null;
-      try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: cleanId, password: fullPin }),
-        });
-        const data = await res.json();
-        if (data.success && data.data?.token) {
-          localStorage.setItem('auth_token', data.data.token);
-          if (data.data.user) {
-            backendUser = data.data.user;
-            localStorage.setItem('auth_user', JSON.stringify(data.data.user));
-          }
-        }
-      } catch {
-        // graceful offline fallback
-      }
+      // Authenticate strictly via backend API (DB-verified credentials)
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: cleanId, password: fullPin }),
+      });
 
-      // 2. Automatically detect role from backend or ID prefix
-      const upper = cleanId.toUpperCase();
-      const isAsm =
-        backendUser?.role === 'ASM' ||
-        upper.startsWith('INC') ||
-        upper.startsWith('ASM') ||
-        cleanId === '9876543210';
+      const data = await res.json();
 
-      let success = false;
-      let targetRoute = '/dashboard';
-
-      if (isAsm) {
-        const res = loginIncharge(cleanId, fullPin);
-        success = res.success || !!backendUser;
-        targetRoute = '/asm/dashboard';
-      } else {
-        const res = loginAgent(cleanId, fullPin);
-        success = res.success || !!backendUser;
-        targetRoute = '/dashboard';
-      }
-
-      if (success) {
-        navigate(targetRoute, { replace: true });
-      } else {
-        setError('Invalid User ID or PIN. Please check and try again.');
+      if (!data.success || !data.data?.token || !data.data?.user) {
+        setError(data.message || 'Invalid User ID or PIN. Please check and try again.');
         setLoading(false);
+        return;
+      }
+
+      const backendUser = data.data.user;
+      const token = data.data.token;
+      const userRole = (backendUser.role || '').toUpperCase();
+
+      // Store JWT token globally
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_user', JSON.stringify(backendUser));
+
+      // Route based on verified DB role
+      if (userRole === 'ADMIN') {
+        // Store admin session
+        localStorage.setItem('admin_auth_session', JSON.stringify({
+          role: 'admin',
+          adminId: backendUser.id,
+          id: backendUser.id,
+          name: backendUser.name,
+          mobile: backendUser.phone || '',
+          email: backendUser.email || '',
+          loginTime: new Date().toISOString(),
+        }));
+        navigate('/admin/dashboard', { replace: true });
+      } else if (userRole === 'ASM' || userRole === 'INCHARGE') {
+        // Store incharge/ASM session
+        localStorage.setItem('incharge_auth_session', JSON.stringify({
+          inchargeId: backendUser.id,
+          id: backendUser.id,
+          name: backendUser.name,
+          region: backendUser.region || '',
+          mobile: backendUser.phone || '',
+          role: 'ASM',
+          loginTime: new Date().toISOString(),
+        }));
+        navigate('/asm/dashboard', { replace: true });
+      } else {
+        // Default: Agent
+        localStorage.setItem('agent_auth_session', JSON.stringify({
+          agentId: backendUser.id,
+          id: backendUser.id,
+          name: backendUser.name,
+          region: backendUser.region || '',
+          locality: backendUser.locality || '',
+          asm: 'Rajesh',
+          phone: backendUser.phone || '',
+          photo: null,
+          role: 'AGENT',
+          loginTime: new Date().toISOString(),
+        }));
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('agentProfileUpdated'));
+        }
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setError('Unable to connect to server. Please check your network and try again.');
       setLoading(false);
     }
   };
@@ -156,13 +188,17 @@ const SimpleLogin = () => {
                   setIdentifier(e.target.value);
                   setError('');
                 }}
-                placeholder="agent001"
+                placeholder="User ID or Mobile"
                 required
                 style={styles.input}
               />
             </div>
 
             {/* 4 PIN Boxes + 5th Eye Toggle Box */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#64748B', padding: '0 2px' }}>
+              <span>4-DIGIT PIN</span>
+              <span style={{ fontSize: '10px', color: '#94A3B8' }}>Default: 1234</span>
+            </div>
             <div style={styles.pinBoxesContainer}>
               {pinBoxes.map((digit, idx) => (
                 <input
@@ -213,11 +249,19 @@ const SimpleLogin = () => {
             {/* Login Button with Arrow */}
             <button type="submit" disabled={loading} style={styles.signInButton} className="transition-all hover:brightness-105 active:scale-[0.99]">
               <div style={styles.buttonContent}>
-                <span>{loading ? 'Logging In...' : 'Login'}</span>
+                <span>{loading ? 'Verifying...' : 'Login'}</span>
                 {!loading && <ArrowRight size={17} strokeWidth={2.4} />}
               </div>
             </button>
           </form>
+        </div>
+
+        {/* DB-verified badge */}
+        <div style={styles.securityBadge}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <span>Secure login — credentials verified against database</span>
         </div>
       </div>
     </div>
@@ -373,6 +417,16 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
+  },
+  securityBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginTop: '16px',
+    fontSize: '11.5px',
+    color: '#64748B',
+    fontWeight: '500',
+    opacity: 0.85,
   },
 };
 

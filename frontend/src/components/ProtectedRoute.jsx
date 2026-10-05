@@ -5,11 +5,18 @@ import { isInchargeAuthenticated } from '../incharge/utils/inchargeAuth';
 import { isAdminAuthenticated } from '../admin/utils/adminAuth';
 
 /**
+ * All protected routes require both a role session AND a valid JWT token.
+ * Without the auth_token in localStorage, users are redirected to login.
+ */
+
+const hasValidToken = () => !!localStorage.getItem('auth_token');
+
+/**
  * Route Guard for Admin Portal (/admin/*)
  * Only allows authenticated Super Admins / Executives
  */
 export const AdminProtectedRoute = ({ children }) => {
-  if (!isAdminAuthenticated()) {
+  if (!isAdminAuthenticated() || !hasValidToken()) {
     return <Navigate to="/admin-login" replace />;
   }
   return children;
@@ -20,7 +27,7 @@ export const AdminProtectedRoute = ({ children }) => {
  * Only allows authenticated Area Sales Managers / Incharges
  */
 export const AsmProtectedRoute = ({ children }) => {
-  if (!isInchargeAuthenticated()) {
+  if (!isInchargeAuthenticated() || !hasValidToken()) {
     return <Navigate to="/asm-login" replace />;
   }
   return children;
@@ -33,6 +40,9 @@ export const InchargeProtectedRoute = AsmProtectedRoute;
  * Allows authenticated Technicians, or higher roles (Incharge, Admin) reviewing field data
  */
 export const AgentProtectedRoute = ({ children }) => {
+  if (!hasValidToken()) {
+    return <Navigate to="/login" replace />;
+  }
   if (!isAuthenticated() && !isInchargeAuthenticated() && !isAdminAuthenticated()) {
     return <Navigate to="/login" replace />;
   }

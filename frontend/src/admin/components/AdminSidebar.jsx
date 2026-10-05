@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutGrid, Globe, Users, UserCheck, Tractor, 
-  ClipboardList, BarChart3, Download, History, Settings
+  ClipboardList, BarChart3, Download, History, Settings, Database
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
@@ -33,6 +33,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
     {
       title: 'Administration',
       items: [
+        { name: 'Database', path: 'http://localhost:5000/db-admin', icon: <Database size={18} />, external: true },
         { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },
         { name: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> }
       ]
@@ -54,36 +55,67 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
             )}
             <div style={styles.sectionItems}>
               {section.items.map((item, iIdx) => (
-                <NavLink
-                  key={iIdx}
-                  to={item.path}
-                  onClick={() => onNavigate && onNavigate()}
-                  style={({ isActive }) => ({
-                    ...styles.link,
-                    ...(isActive ? styles.activeLink : styles.inactiveLink)
-                  })}
-                >
-                  {({ isActive }) => (
-                    <>
-                      <span style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        color: isActive ? '#FFFFFF' : '#64748B',
-                        flexShrink: 0
-                      }}>
-                        {item.icon}
-                      </span>
-                      <span style={{ 
-                        fontSize: '13px', 
-                        fontWeight: isActive ? 600 : 500,
-                        color: isActive ? '#FFFFFF' : '#0F172A',
-                        letterSpacing: '-0.01em'
-                      }}>
-                        {item.name}
-                      </span>
-                    </>
-                  )}
-                </NavLink>
+                item.external ? (
+                  <a
+                    key={iIdx}
+                    href={item.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onNavigate && onNavigate()}
+                    style={{ ...styles.link, ...styles.inactiveLink, textDecoration: 'none' }}
+                  >
+                    <span style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      color: '#64748B',
+                      flexShrink: 0
+                    }}>
+                      {item.icon}
+                    </span>
+                    <span style={{ 
+                      fontSize: '13px', 
+                      fontWeight: 500, 
+                      color: '#0F172A',
+                      letterSpacing: '-0.01em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {item.name} <span style={{ fontSize: '11px', color: '#0284c7' }}>↗</span>
+                    </span>
+                  </a>
+                ) : (
+                  <NavLink
+                    key={iIdx}
+                    to={item.path}
+                    onClick={() => onNavigate && onNavigate()}
+                    style={({ isActive }) => ({
+                      ...styles.link,
+                      ...(isActive ? styles.activeLink : styles.inactiveLink)
+                    })}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          color: isActive ? '#FFFFFF' : '#64748B',
+                          flexShrink: 0
+                        }}>
+                          {item.icon}
+                        </span>
+                        <span style={{ 
+                          fontSize: '13px', 
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? '#FFFFFF' : '#0F172A',
+                          letterSpacing: '-0.01em'
+                        }}>
+                          {item.name}
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                )
               ))}
             </div>
           </div>

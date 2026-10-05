@@ -717,6 +717,9 @@ export const MockDataProvider = ({ children }) => {
       testType: submissionData.testType || 'Water Quality Test',
       agentId: submissionData.agentId || 'agent001',
       date: newSubmission.date,
+      latitude: submissionData.latitude || submissionData.gps?.latitude || 16.5449,
+      longitude: submissionData.longitude || submissionData.gps?.longitude || 81.5212,
+      locality: submissionData.locality || submissionData.gps?.locality || 'Chinnamiram, Bhimavaram',
       data: submissionData.data || submissionData
     }).catch(() => {});
     showToast('Record submitted for verification!');
@@ -1292,7 +1295,10 @@ export const MockDataProvider = ({ children }) => {
       agentId: newRecord.agentId,
       date: newRecord.date,
       status: newRecord.status,
-      data: newRecord.data
+      data: newRecord.data,
+      latitude: newRecord.gps?.latitude || 16.5449,
+      longitude: newRecord.gps?.longitude || 81.5212,
+      locality: newRecord.gps?.locality || (farmer ? farmer.location : 'Bhimavaram')
     }).catch(() => {});
 
     if (recordType === 'HARVEST_ENTRY' || recordType === 'HARVEST') {

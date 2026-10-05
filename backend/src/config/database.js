@@ -14,8 +14,21 @@ export const getPool = () => {
 export const query = async (sql, params = []) => {
   const p = getPool();
   const cleanParams = params.map((val) => (val === undefined ? null : val));
-  const [results] = await p.execute(sql, cleanParams);
-  return results;
+  try {
+    const [results] = await p.query(sql, cleanParams);
+    return results;
+  } catch (err) {
+    if (
+      err.code === 'ECONNRESET' ||
+      err.code === 'PROTOCOL_CONNECTION_LOST' ||
+      err.code === 'ETIMEDOUT'
+    ) {
+      console.warn('[Database Reconnecting on dropped socket]:', err.message);
+      const [retryResults] = await p.query(sql, cleanParams);
+      return retryResults;
+    }
+    throw err;
+  }
 };
 
 export const checkDatabaseConnection = async () => {

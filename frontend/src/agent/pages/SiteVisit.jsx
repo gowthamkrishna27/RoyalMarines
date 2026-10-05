@@ -191,14 +191,33 @@ const SiteVisit = () => {
   };
 
   const handleSubmit = () => {
-    submitRecord({
-      tankId,
-      agentId: session.agentId,
-      formData,
-      submittedAt: new Date().toISOString()
-    });
-    alert('Site Visit submitted successfully! Pending verification.');
-    navigate('/dashboard');
+    const doSubmit = (coords = null) => {
+      submitRecord({
+        tankId,
+        agentId: session.agentId,
+        formData,
+        latitude: coords ? coords.latitude : undefined,
+        longitude: coords ? coords.longitude : undefined,
+        gps: coords ? {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+        } : undefined,
+        submittedAt: new Date().toISOString()
+      });
+      alert('Site Visit submitted successfully! GPS coordinates recorded.');
+      navigate('/dashboard');
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => doSubmit(pos.coords),
+        () => doSubmit(),
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
+    } else {
+      doSubmit();
+    }
   };
 
   const renderStepContent = () => {

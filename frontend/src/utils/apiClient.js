@@ -1,9 +1,11 @@
 /**
  * High-performance API client for communicating with the Royals Marine backend API.
- * Uses native fetch with automatic base URL routing, JSON serialization, and error handling.
+ * Uses native fetch with JWT Bearer token authentication, automatic base URL routing,
+ * JSON serialization, and error handling.
  */
 
 const BASE_URL = '/api';
+const TOKEN_KEY = 'auth_token';
 
 class ApiClient {
   constructor(baseUrl = BASE_URL) {
@@ -16,29 +18,10 @@ class ApiClient {
       Accept: 'application/json',
     };
 
-    // Grab token/role from session if present
-    const agentSession = localStorage.getItem('agentSession');
-    const inchargeSession = localStorage.getItem('inchargeSession');
-    const adminSession = localStorage.getItem('adminSession');
-
-    if (adminSession) {
-      try {
-        const parsed = JSON.parse(adminSession);
-        headers['x-user-role'] = 'ADMIN';
-        headers['x-user-id'] = parsed.id || 'ADM001';
-      } catch {}
-    } else if (inchargeSession) {
-      try {
-        const parsed = JSON.parse(inchargeSession);
-        headers['x-user-role'] = 'ASM';
-        headers['x-user-id'] = parsed.id || 'INC001';
-      } catch {}
-    } else if (agentSession) {
-      try {
-        const parsed = JSON.parse(agentSession);
-        headers['x-user-role'] = 'AGENT';
-        headers['x-user-id'] = parsed.id || 'agent001';
-      } catch {}
+    // Attach JWT Bearer token if available
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     return headers;
@@ -60,6 +43,10 @@ class ApiClient {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        // If 401, clear auth state (session expired)
+        if (response.status === 401) {
+          this.clearAuth();
+        }
         throw new Error(data?.message || `HTTP error ${response.status}: ${response.statusText}`);
       }
 
@@ -93,6 +80,17 @@ class ApiClient {
 
   delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
+  }
+
+  /**
+   * Clear all authentication state from localStorage.
+   */
+  clearAuth() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('agent_auth_session');
+    localStorage.removeItem('incharge_auth_session');
+    localStorage.removeItem('admin_auth_session');
   }
 }
 

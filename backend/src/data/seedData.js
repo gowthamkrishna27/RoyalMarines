@@ -30,7 +30,12 @@ export const initialHarvests = [];
 
 export const authUsers = [
   { id: 'ADM001', name: 'Executive Administrator', role: 'ADMIN', username: 'ADM001', phone: '9999999999', password: 'admin123', email: 'admin@royalsmarine.com' },
-  { id: 'INC001', name: 'Ravi Kumar', role: 'ASM', username: 'INC001', phone: '9876543210', password: 'incharge123', email: 'incharge@royalsmarine.com', region: 'Bhimavaram' },
-  { id: 'agent001', name: 'Ramesh', role: 'AGENT', username: 'agent001', phone: '9000000001', password: 'agent123', locality: 'Chinnamiram' },
-  { id: 'agent002', name: 'Suresh', role: 'AGENT', username: 'agent002', phone: '9000000002', password: 'agent123', locality: 'Bhimavaram' },
+  { id: 'INC001', name: 'Ravi Kumar', role: 'ASM', username: 'INC001', phone: '9876543210', password: '1234', email: 'incharge@royalsmarine.com', region: 'Bhimavaram' },
+  { id: 'INC002', name: 'Srinivasa Rao', role: 'ASM', username: 'INC002', phone: '9876543211', password: '1234', email: 'srinivas@royalsmarine.com', region: 'Kakinada' },
+  { id: 'agent001', name: 'Ramesh', role: 'AGENT', username: 'agent001', phone: '9000000001', password: '1234', locality: 'Chinnamiram', region: 'Bhimavaram' },
+  { id: 'agent002', name: 'Suresh', role: 'AGENT', username: 'agent002', phone: '9000000002', password: '1234', locality: 'Bhimavaram', region: 'Bhimavaram' },
+  { id: 'agent003', name: 'Mahesh', role: 'AGENT', username: 'agent003', phone: '9000000003', password: '1234', locality: 'Akuruvu', region: 'Bhimavaram' },
+  { id: 'agent004', name: 'Ganesh', role: 'AGENT', username: 'agent004', phone: '9000000004', password: '1234', locality: 'Narasapuram', region: 'Narasapuram' },
+  { id: 'agent005', name: 'Nagesh', role: 'AGENT', username: 'agent005', phone: '9000000005', password: '1234', locality: 'Undi', region: 'Bhimavaram' },
+  { id: 'agent006', name: 'Kumar', role: 'AGENT', username: 'agent006', phone: '9000000006', password: '1234', locality: 'Kalla', region: 'Bhimavaram' },
 ];

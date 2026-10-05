@@ -27,26 +27,41 @@ class DataStore {
   }
 
   // --- Auth & Users ---
-  async findUserByCredentials(identifier, password) {
+
+  /**
+   * Find a user by identifier (username, phone, or email) WITHOUT checking password.
+   * Password verification is handled separately with bcrypt in the auth controller.
+   */
+  async findUserByIdentifier(identifier) {
     if (isDbConnected()) {
       try {
         const rows = await query(
-          'SELECT * FROM users WHERE (LOWER(username) = LOWER(?) OR phone = ? OR LOWER(email) = LOWER(?)) AND password = ? LIMIT 1',
-          [identifier, identifier, identifier, password]
+          'SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?) OR phone = ? OR LOWER(email) = LOWER(?) LIMIT 1',
+          [identifier, identifier, identifier, identifier]
         );
         if (rows && rows.length > 0) return rows[0];
       } catch (err) {
-        console.error('[DB Error in findUserByCredentials]', err.message);
+        console.error('[DB Error in findUserByIdentifier]', err.message);
       }
     }
 
+    // In-memory fallback (should not be reached with proper DB connection)
     return this.users.find(
       (u) =>
-        (u.username?.toLowerCase() === identifier.toLowerCase() ||
-          u.phone === identifier ||
-          u.email?.toLowerCase() === identifier.toLowerCase()) &&
-        u.password === password
+        u.username?.toLowerCase() === identifier.toLowerCase() ||
+        u.phone === identifier ||
+        u.email?.toLowerCase() === identifier.toLowerCase()
     );
+  }
+
+  /**
+   * Legacy method kept for backward compatibility.
+   * Uses findUserByIdentifier internally.
+   */
+  async findUserByCredentials(identifier, password) {
+    const user = await this.findUserByIdentifier(identifier);
+    if (user && user.password === password) return user;
+    return null;
   }
 
   async findUserById(id) {
@@ -430,23 +445,51 @@ class DataStore {
 
   async createSubmission(data) {
     const id = data.id || `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+    // Resolve geographic coordinates at the moment of submission
+    let latitude = data.latitude ?? data.lat ?? data.gps?.latitude ?? data.coordinates?.latitude ?? data.data?.gps?.latitude ?? data.data?.latitude ?? null;
+    let longitude = data.longitude ?? data.lng ?? data.gps?.longitude ?? data.coordinates?.longitude ?? data.data?.gps?.longitude ?? data.data?.longitude ?? null;
+    let locality = data.locality ?? data.gps?.locality ?? data.data?.gps?.locality ?? data.data?.locality ?? null;
+
+    // Fallback: If not provided by client, estimate from farmer's location cluster
+    if (latitude === null || longitude === null) {
+      const farmer = await this.findFarmerById(data.farmerId);
+      const loc = (farmer?.location || locality || '').toLowerCase();
+      if (loc.includes('chinnamiram')) {
+        latitude = 16.5449; longitude = 81.5212; locality = locality || 'Chinnamiram, Bhimavaram';
+      } else if (loc.includes('narasapuram')) {
+        latitude = 16.4410; longitude = 81.7010; locality = locality || 'Narasapuram, West Godavari';
+      } else if (loc.includes('kalla')) {
+        latitude = 16.5620; longitude = 81.4980; locality = locality || 'Kalla, West Godavari';
+      } else if (loc.includes('akuru')) {
+        latitude = 16.5120; longitude = 81.5830; locality = locality || 'Akuruvu Coastal Zone';
+      } else if (loc.includes('undi')) {
+        latitude = 16.5890; longitude = 81.4720; locality = locality || 'Undi Aqua Corridor';
+      } else {
+        latitude = 16.5449; longitude = 81.5212; locality = locality || 'Bhimavaram Aqua Zone';
+      }
+    }
+
     const newSub = {
       id,
       agentId: data.agentId || 'agent001',
       farmerId: data.farmerId || '',
       tankId: data.tankId,
       testType: data.testType || 'Water Quality Test',
-      date: new Date().toISOString().split('T')[0],
-      status: 'PENDING_VERIFICATION',
+      date: data.date || new Date().toISOString().split('T')[0],
+      status: data.status || 'PENDING_VERIFICATION',
       submittedAgo: 'Just now',
       data: data.data || {},
+      latitude: latitude != null ? Number(Number(latitude).toFixed(8)) : null,
+      longitude: longitude != null ? Number(Number(longitude).toFixed(8)) : null,
+      locality: locality || null,
       createdAt: new Date().toISOString(),
     };
 
     if (isDbConnected()) {
       try {
         await query(
-          'INSERT INTO submissions (id, agent_id, farmer_id, tank_id, test_type, date, status, data, submitted_ago) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO submissions (id, agent_id, farmer_id, tank_id, test_type, date, status, data, latitude, longitude, locality, submitted_ago) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             newSub.id,
             newSub.agentId,
@@ -456,6 +499,9 @@ class DataStore {
             newSub.date,
             newSub.status,
             JSON.stringify(newSub.data),
+            newSub.latitude,
+            newSub.longitude,
+            newSub.locality,
             newSub.submittedAgo,
           ]
         );

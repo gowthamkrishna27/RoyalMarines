@@ -17,6 +17,7 @@ ${blue}=====================================================${reset}
 ${green}  🌊 Royals Marine Aquafeed API Server Online        ${reset}
 ${blue}=====================================================${reset}
   ${cyan}Port:${reset}        http://localhost:${PORT}
+  ${cyan}DB Studio:${reset}   ${green}http://localhost:${PORT}/db-admin${reset}
   ${cyan}Health:${reset}      http://localhost:${PORT}/api/health
   ${cyan}Environment:${reset} ${config.nodeEnv}
   ${cyan}Database:${reset}    Aiven MySQL (${config.db.host})

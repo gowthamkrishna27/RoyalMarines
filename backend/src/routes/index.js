@@ -5,6 +5,7 @@ import tankRoutes from './tankRoutes.js';
 import submissionRoutes from './submissionRoutes.js';
 import harvestRoutes from './harvestRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
+import dbAdminRoutes from './dbAdminRoutes.js';
 import { sendSuccess } from '../utils/response.js';
 
 const apiRouter = Router();
@@ -27,5 +28,6 @@ apiRouter.use('/tanks', tankRoutes);
 apiRouter.use('/submissions', submissionRoutes);
 apiRouter.use('/harvests', harvestRoutes);
 apiRouter.use('/analytics', analyticsRoutes);
+apiRouter.use('/db-admin', dbAdminRoutes);
 
 export default apiRouter;

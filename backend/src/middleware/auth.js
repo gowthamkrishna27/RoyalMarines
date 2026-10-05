@@ -1,11 +1,35 @@
+import jwt from 'jsonwebtoken';
+import { config } from '../config/env.js';
 import { sendError } from '../utils/response.js';
 
+/**
+ * JWT-based authentication middleware.
+ * Verifies the Bearer token from the Authorization header using jsonwebtoken.
+ * Falls back to x-user-role / x-user-id headers for backward compatibility with apiClient.
+ */
 export const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
+
+  // 1. Try JWT Bearer token (primary auth method)
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret);
+      req.user = {
+        id: decoded.id,
+        role: decoded.role.toUpperCase(),
+        username: decoded.username,
+      };
+      return next();
+    } catch (err) {
+      // Token is invalid or expired - don't fall through, reject
+      return sendError(res, 'Session expired or invalid. Please log in again.', 401);
+    }
+  }
+
+  // 2. Fallback: x-user-role / x-user-id headers (backward compatibility)
   const roleHeader = req.headers['x-user-role'];
   const userIdHeader = req.headers['x-user-id'];
-
-  // Lightweight session-based / token-based header inspection
   if (roleHeader && userIdHeader) {
     req.user = {
       id: userIdHeader,
@@ -14,22 +38,7 @@ export const authenticate = (req, res, next) => {
     return next();
   }
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    // Simple demo bearer token decoding (e.g., token format: role:userId:timestamp)
-    try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const [role, id] = decoded.split(':');
-      if (role && id) {
-        req.user = { id, role: role.toUpperCase() };
-        return next();
-      }
-    } catch {
-      // fallback
-    }
-  }
-
-  // Allow guest access if no auth required, otherwise controller checks req.user
+  // 3. No auth provided
   req.user = null;
   next();
 };

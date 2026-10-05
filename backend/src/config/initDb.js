@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { getPool, query } from './database.js';
 import {
   initialFarmers,
@@ -119,11 +120,31 @@ export const initializeDatabaseSchema = async () => {
         date VARCHAR(50),
         status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
         data JSON,
+        latitude DECIMAL(10, 8),
+        longitude DECIMAL(11, 8),
+        locality VARCHAR(255),
         review_notes TEXT,
         submitted_ago VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure coordinates columns exist on existing table
+    try {
+      const existingCols = await query('DESCRIBE submissions');
+      const colNames = existingCols.map((c) => c.Field);
+      if (!colNames.includes('latitude')) {
+        await query('ALTER TABLE submissions ADD COLUMN latitude DECIMAL(10, 8) NULL AFTER data');
+      }
+      if (!colNames.includes('longitude')) {
+        await query('ALTER TABLE submissions ADD COLUMN longitude DECIMAL(11, 8) NULL AFTER latitude');
+      }
+      if (!colNames.includes('locality')) {
+        await query('ALTER TABLE submissions ADD COLUMN locality VARCHAR(255) NULL AFTER longitude');
+      }
+    } catch {
+      // Ignore if columns already added
+    }
 
     // 8. Harvests Table
     await query(`
@@ -143,14 +164,16 @@ export const initializeDatabaseSchema = async () => {
 
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified/created successfully');
 
-    // Seed users if empty
-    const usersCount = await query('SELECT COUNT(*) as count FROM users');
-    if (usersCount[0].count === 0) {
-      console.log('\x1b[33m[Database Seed]\x1b[0m Seeding default users...');
-      for (const u of authUsers) {
+    // Seed users if empty, or ensure all default authUsers exist
+    console.log('\x1b[33m[Database Seed]\x1b[0m Ensuring all default authUsers exist with hashed credentials...');
+    const SALT_ROUNDS = 10;
+    for (const u of authUsers) {
+      const existing = await query('SELECT id, password FROM users WHERE id = ? OR username = ? LIMIT 1', [u.id, u.username]);
+      if (!existing || existing.length === 0) {
+        const hashedPassword = await bcrypt.hash(u.password, SALT_ROUNDS);
         await query(
           'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [u.id, u.name, u.role, u.username, u.phone, u.email || null, u.password, u.locality || null, u.region || null]
+          [u.id, u.name, u.role, u.username, u.phone, u.email || null, hashedPassword, u.locality || null, u.region || null]
         );
       }
     }
@@ -190,6 +213,9 @@ export const initializeDatabaseSchema = async () => {
         );
       }
     }
+
+    // Synchronize all agents and incharges into users table
+    await syncAgentsAndInchargesToUsers();
 
     // Seed farmers if empty
     const farmersCount = await query('SELECT COUNT(*) as count FROM farmers');
@@ -422,5 +448,55 @@ export const initializeDatabaseSchema = async () => {
   } catch (error) {
     console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
     return false;
+  }
+};
+
+/**
+ * Synchronize all agents and incharges into the users table.
+ * Ensures agents and incharges are visible in the users table and can log in with 4-digit PIN '1234'.
+ */
+export const syncAgentsAndInchargesToUsers = async () => {
+  try {
+    const defaultPinHash = await bcrypt.hash('1234', 10);
+
+    // 1. Sync Agents -> Users
+    const agents = await query('SELECT * FROM agents');
+    for (const a of agents) {
+      const existing = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [a.id, a.id]);
+      if (!existing || existing.length === 0) {
+        const email = `${a.id.toLowerCase()}@royalsmarine.com`;
+        await query(
+          'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [a.id, a.name, 'AGENT', a.id, a.phone || null, email, defaultPinHash, a.locality || null, 'Bhimavaram']
+        );
+        console.log(`\x1b[32m[User Sync]\x1b[0m Added Agent ${a.id} (${a.name}) into users table.`);
+      } else {
+        await query(
+          'UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), locality = COALESCE(?, locality), role = ? WHERE id = ?',
+          [a.name, a.phone, a.locality, 'AGENT', a.id]
+        );
+      }
+    }
+
+    // 2. Sync Incharges -> Users
+    const incharges = await query('SELECT * FROM incharges');
+    for (const inc of incharges) {
+      const existing = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [inc.id, inc.id]);
+      if (!existing || existing.length === 0) {
+        const email = inc.email || `${inc.id.toLowerCase()}@royalsmarine.com`;
+        await query(
+          'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [inc.id, inc.name, 'ASM', inc.id, inc.phone || null, email, defaultPinHash, null, inc.region_id || 'Bhimavaram']
+        );
+        console.log(`\x1b[32m[User Sync]\x1b[0m Added Incharge ${inc.id} (${inc.name}) into users table.`);
+      } else {
+        await query(
+          'UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role = ? WHERE id = ?',
+          [inc.name, inc.phone, inc.email, 'ASM', inc.id]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('\x1b[31m[User Sync Error]\x1b[0m Failed syncing agents and incharges to users:', err.message);
   }
 };

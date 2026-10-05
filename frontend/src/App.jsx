@@ -41,8 +41,9 @@ function App() {
             {/* ========================================================= */}
             {/* 1. PUBLIC ENTRY & UNIFIED SIMPLE LOGIN                    */}
             {/* ========================================================= */}
-            <Route path="/" element={<Splash />} />
+            <Route path="/" element={<SimpleLogin />} />
             <Route path="/login" element={<SimpleLogin />} />
+            <Route path="/splash" element={<SimpleLogin />} />
             <Route path="/portal-selector" element={<PortalSelector />} />
 
             {/* ========================================================= */}

@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Database Studio | Royals Marine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Strictly Monochrome Light & Dark ===== */
+    :root[data-theme="dark"] {
+      --bg: #09090b;
+      --panel: #111113;
+      --surface: #18181b;
+      --hover: #1e1e23;
+      --active: #27272a;
+      --border: #27272a;
+      --border-subtle: #1c1c1f;
+      --text: #fafafa;
+      --text-sec: #a1a1aa;
+      --text-dim: #71717a;
+      --text-ghost: #52525b;
+      --btn-primary-bg: #fafafa;
+      --btn-primary-text: #09090b;
+      --btn-primary-hover: #e4e4e7;
+      --btn-sec-bg: #18181b;
+      --btn-sec-text: #fafafa;
+      --btn-sec-hover: #27272a;
+      --danger: #dc2626;
+      --danger-bg: #1c1012;
+      --success: #22c55e;
+      --success-bg: #0d1a13;
+      --warn: #eab308;
+      --modal-backdrop: rgba(0,0,0,0.8);
+      --scrollbar-thumb: #27272a;
+      --scrollbar-track: #111113;
+    }
+    :root[data-theme="light"] {
+      --bg: #ffffff;
+      --panel: #f8f8f9;
+      --surface: #f1f1f3;
+      --hover: #ebebee;
+      --active: #e2e2e6;
+      --border: #e2e2e6;
+      --border-subtle: #ededf0;
+      --text: #09090b;
+      --text-sec: #52525b;
+      --text-dim: #a1a1aa;
+      --text-ghost: #d4d4d8;
+      --btn-primary-bg: #09090b;
+      --btn-primary-text: #ffffff;
+      --btn-primary-hover: #27272a;
+      --btn-sec-bg: #ffffff;
+      --btn-sec-text: #09090b;
+      --btn-sec-hover: #f4f4f5;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --warn: #ca8a04;
+      --modal-backdrop: rgba(0,0,0,0.4);
+      --scrollbar-thumb: #d4d4d8;
+      --scrollbar-track: #f4f4f5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px; line-height: 1.5;
+      min-height: 100vh; display: flex; flex-direction: column;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+    /* ===== Header ===== */
+    header {
+      height: 44px; padding: 0 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border); background: var(--panel);
+      flex-shrink: 0;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
+    .brand-tag { font-size: 10px; font-weight: 600; color: var(--text-sec); background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .hdr-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-sec);
+      padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.12s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .hdr-btn:hover { background: var(--hover); color: var(--text); }
+    .hdr-btn.active { background: var(--active); color: var(--text); border-color: var(--text-dim); }
+
+    /* ===== App Body ===== */
+    .app-body { flex: 1; display: flex; height: calc(100vh - 44px); overflow: hidden; }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      width: 200px; border-right: 1px solid var(--border); background: var(--panel);
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .sidebar-section { padding: 10px 10px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+    .table-list { display: flex; flex-direction: column; gap: 1px; padding: 0 6px; overflow-y: auto; flex: 1; }
+    .table-nav-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 10px; border-radius: 5px; background: transparent; border: none;
+      color: var(--text-sec); font-size: 12px; font-family: inherit; cursor: pointer;
+      text-align: left; transition: all 0.1s;
+    }
+    .table-nav-btn:hover { background: var(--hover); color: var(--text); }
+    .table-nav-btn.active { background: var(--active); color: var(--text); font-weight: 600; }
+    .table-count { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); padding: 0 4px; border-radius: 3px; background: var(--bg); }
+
+    /* Storage Bar */
+    .sidebar-storage {
+      margin-top: auto; padding: 10px 12px; border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .storage-header { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 600; color: var(--text-sec); }
+    .storage-bar-track { width: 100%; height: 3px; background: var(--hover); border-radius: 2px; overflow: hidden; }
+    .storage-bar-fill { height: 100%; background: var(--text); width: 0.1%; border-radius: 2px; transition: width 0.3s ease; }
+    .storage-meta { display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+    /* ===== Content ===== */
+    .content { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+
+    /* Tabs */
+    .view-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--panel);
+      padding: 0 12px; flex-shrink: 0;
+    }
+    .view-tab {
+      padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--text-dim);
+      cursor: pointer; border: none; background: none; font-family: inherit;
+      border-bottom: 2px solid transparent; transition: all 0.12s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .view-tab:hover { color: var(--text-sec); }
+    .view-tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+    .tab-icon { font-size: 13px; }
+
+    /* Toolbar */
+    .toolbar {
+      padding: 7px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      background: var(--panel); flex-shrink: 0;
+    }
+    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 6px; }
+    .search-input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-size: 12px; padding: 5px 9px; border-radius: 5px; outline: none;
+      width: 200px; font-family: inherit; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--text-dim); }
+    .select-ctrl {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text-sec);
+      font-size: 11px; padding: 5px 8px; border-radius: 5px; outline: none;
+      font-family: inherit; cursor: pointer;
+    }
+    .btn {
+      padding: 5px 10px; border-radius: 5px; font-size: 11px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--border); background: var(--btn-sec-bg);
+      color: var(--btn-sec-text); font-family: inherit;
+      display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s;
+    }
+    .btn:hover { background: var(--btn-sec-hover); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: var(--btn-primary-text); }
+    .btn-primary:hover { background: var(--btn-primary-hover); border-color: var(--btn-primary-hover); }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger-bg); }
+
+    /* Bulk bar */
+    .bulk-bar {
+      display: none; padding: 6px 14px; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      align-items: center; gap: 10px; font-size: 12px; color: var(--text-sec);
+    }
+    .bulk-bar.show { display: flex; }
+
+    /* ===== Data Table ===== */
+    .table-wrapper { flex: 1; overflow: auto; }
+    .empty-state { padding: 60px 20px; text-align: center; color: var(--text-dim); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+    th {
+      position: sticky; top: 0; background: var(--panel);
+      padding: 6px 12px; border-bottom: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--text-sec);
+      text-transform: uppercase; letter-spacing: 0.04em; z-index: 10;
+      cursor: pointer; user-select: none; transition: color 0.1s;
+    }
+    th:hover { color: var(--text); }
+    th .sort-icon { margin-left: 3px; font-size: 10px; opacity: 0.5; }
+    th.sorted .sort-icon { opacity: 1; }
+    td {
+      padding: 5px 12px; border-bottom: 1px solid var(--border-subtle);
+      color: var(--text); max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+    }
+    tr:hover td { background: var(--hover); }
+    .cell-mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .cell-id { font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 11px; }
+    .cell-dim { color: var(--text-dim); }
+    .cell-null { color: var(--text-ghost); font-style: italic; font-size: 11px; }
+    .cell-btn {
+      padding: 2px 7px; border-radius: 3px; background: transparent;
+      border: 1px solid var(--border); color: var(--text-dim);
+      font-size: 10px; cursor: pointer; font-family: inherit; transition: all 0.1s;
+    }
+    .cell-btn:hover { background: var(--hover); color: var(--text); }
+    .cell-check { width: 16px; height: 16px; accent-color: var(--text); cursor: pointer; }
+
+    /* ===== Footer / Pagination ===== */
+    .table-footer {
+      height: 34px; padding: 0 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--border); background: var(--panel);
+      font-size: 11px; color: var(--text-sec); flex-shrink: 0;
+    }
+    .pager { display: flex; align-items: center; gap: 4px; }
+    .pager-btn {
+      padding: 2px 7px; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); border-radius: 3px; cursor: pointer; font-size: 11px;
+    }
+    .pager-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ===== SQL Console ===== */
+    .sql-console { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .sql-console.show { display: flex; }
+    .sql-editor-area { padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+    .sql-textarea {
+      width: 100%; min-height: 90px; max-height: 200px; resize: vertical;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      padding: 10px 12px; outline: none; line-height: 1.6;
+    }
+    .sql-textarea:focus { border-color: var(--text-dim); }
+    .sql-actions { display: flex; align-items: center; gap: 6px; }
+    .sql-result-area { flex: 1; overflow: auto; padding: 0; }
+    .sql-result-info {
+      padding: 8px 12px; font-size: 11px; color: var(--text-sec);
+      border-bottom: 1px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .sql-result-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); }
+    .sql-error { padding: 14px; color: var(--danger); font-size: 12px; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; }
+    .sql-history { padding: 6px 12px; font-size: 10px; color: var(--text-dim); display: flex; gap: 6px; flex-wrap: wrap; }
+    .sql-history-item {
+      background: var(--surface); border: 1px solid var(--border); padding: 2px 8px;
+      border-radius: 3px; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: var(--text-sec); transition: all 0.1s;
+    }
+    .sql-history-item:hover { background: var(--hover); color: var(--text); }
+
+    /* ===== Schema View ===== */
+    .schema-view { display: none; flex: 1; flex-direction: column; overflow: auto; padding: 16px; gap: 16px; }
+    .schema-view.show { display: flex; }
+    .schema-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .schema-card-header { padding: 10px 14px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+    .schema-card-body { padding: 0; }
+    .schema-row { display: flex; align-items: center; padding: 6px 14px; gap: 12px; border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
+    .schema-row:last-child { border-bottom: none; }
+    .schema-col-name { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 140px; }
+    .schema-col-type { color: var(--text-sec); font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 120px; }
+    .schema-badge {
+      display: inline-flex; padding: 1px 6px; border-radius: 3px;
+      font-size: 10px; font-weight: 600; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-sec);
+    }
+    .schema-badge.pk { color: var(--text); background: var(--active); }
+    .schema-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 12px 14px; }
+    .schema-stat { display: flex; flex-direction: column; gap: 2px; }
+    .schema-stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; }
+    .schema-stat-value { font-size: 14px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .schema-sql { padding: 12px 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; white-space: pre-wrap; color: var(--text-sec); line-height: 1.6; max-height: 200px; overflow: auto; }
+
+    /* ===== Row Detail Panel ===== */
+    .detail-panel {
+      display: none; width: 360px; border-left: 1px solid var(--border);
+      background: var(--panel); flex-direction: column; flex-shrink: 0;
+      overflow: hidden;
+    }
+    .detail-panel.open { display: flex; }
+    .detail-header {
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; font-weight: 600;
+    }
+    .detail-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .detail-field { display: flex; flex-direction: column; gap: 2px; }
+    .detail-label { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-value {
+      font-size: 12px; color: var(--text); padding: 6px 8px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; word-break: break-all;
+      cursor: pointer; transition: background 0.1s;
+    }
+    .detail-value:hover { background: var(--hover); }
+    .detail-actions { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+
+    /* ===== Modal ===== */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: var(--modal-backdrop);
+      display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      width: 100%; max-width: 540px; max-height: 85vh;
+      display: flex; flex-direction: column; box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+    }
+    .modal-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 13px; font-weight: 700; }
+    .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px; }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
+    .form-label { font-size: 11px; font-weight: 500; color: var(--text-sec); display: flex; justify-content: space-between; }
+    .form-input, .form-textarea {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 8px; color: var(--text);
+      font-size: 12px; font-family: inherit; outline: none;
+    }
+    .form-input:focus, .form-textarea:focus { border-color: var(--text-dim); }
+    .form-input:disabled { background: var(--hover); color: var(--text-dim); cursor: not-allowed; }
+    .form-textarea { font-family: 'JetBrains Mono', monospace; font-size: 11px; min-height: 60px; resize: vertical; }
+    .modal-footer { padding: 8px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+
+    /* ===== Toast ===== */
+    .toast {
+      position: fixed; bottom: 14px; right: 14px;
+      background: var(--panel); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 14px; border-radius: 5px; font-size: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      display: none; z-index: 300; max-width: 400px;
+      animation: slideUp 0.2s ease;
+    }
+    .toast.show { display: block; }
+    @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* ===== Quick Stats Dashboard ===== */
+    .stats-view { display: none; flex: 1; flex-direction: column; overflow: auto; padding: 16px; gap: 16px; }
+    .stats-view.show { display: flex; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .stat-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      padding: 14px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; }
+    .stat-value { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-sub { font-size: 11px; color: var(--text-sec); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <span>Royals Marine</span>
+      <span class="brand-tag">Database Studio</span>
+    </div>
+    <div class="header-actions">
+      <span style="font-size:11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;" id="connStatus">MySQL Connected</span>
+      <button class="hdr-btn" id="themeToggleBtn">☀ Light</button>
+      <a href="http://localhost:5173" target="_blank" class="hdr-btn" style="text-decoration:none;">App ↗</a>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="app-body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">Tables</div>
+      <div class="table-list" id="tableList">
+        <div style="padding:10px 8px;color:var(--text-dim);">Loading...</div>
+      </div>
+      <div class="sidebar-storage">
+        <div class="storage-header">
+          <span>Storage</span>
+          <span id="storageAvailableText" style="font-family:'JetBrains Mono',monospace;">—</span>
+        </div>
+        <div class="storage-bar-track"><div class="storage-bar-fill" id="storageBarFill"></div></div>
+        <div class="storage-meta">
+          <span id="storageUsedText">—</span>
+          <span id="storageTotalText">—</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+      <!-- View Tabs -->
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="table"><span class="tab-icon">⊞</span> Data</button>
+        <button class="view-tab" data-view="schema"><span class="tab-icon">⎔</span> Schema</button>
+        <button class="view-tab" data-view="sql"><span class="tab-icon">⌘</span> SQL Console</button>
+        <button class="view-tab" data-view="stats"><span class="tab-icon">◉</span> Dashboard</button>
+      </div>
+
+      <!-- ===== TABLE VIEW ===== -->
+      <div id="tableView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="searchInput" class="search-input" placeholder="Filter rows…" />
+            <select id="limitSelect" class="select-ctrl">
+              <option value="25" selected>25 rows</option>
+              <option value="50">50 rows</option>
+              <option value="100">100 rows</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn" id="exportCsvBtn">↓ CSV</button>
+            <button class="btn" id="exportJsonBtn">↓ JSON</button>
+            <button class="btn" id="refreshBtn">⟳ Refresh</button>
+            <button class="btn btn-primary" id="addBtn">+ New</button>
+          </div>
+        </div>
+
+        <!-- Bulk bar -->
+        <div class="bulk-bar" id="bulkBar">
+          <span id="bulkCount">0 selected</span>
+          <button class="btn btn-danger" id="bulkDeleteBtn">Delete selected</button>
+          <button class="btn" id="bulkClearBtn">Clear</button>
+        </div>
+
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <div class="table-wrapper" id="tableWrapper">
+            <div class="empty-state">Select a table to begin</div>
+          </div>
+          <!-- Detail Panel -->
+          <div class="detail-panel" id="detailPanel">
+            <div class="detail-header">
+              <span id="detailTitle">Row Detail</span>
+              <button class="modal-close" id="detailClose">&times;</button>
+            </div>
+            <div class="detail-body" id="detailBody"></div>
+            <div class="detail-actions">
+              <button class="btn" id="detailEditBtn" style="flex:1">Edit</button>
+              <button class="btn btn-danger" id="detailDeleteBtn">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-footer">
+          <div id="footerInfo">0 rows</div>
+          <div class="pager">
+            <button class="pager-btn" id="prevBtn">‹ Prev</button>
+            <span id="pageText" style="font-family:'JetBrains Mono',monospace;font-size:11px;">1 / 1</span>
+            <button class="pager-btn" id="nextBtn">Next ›</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SCHEMA VIEW ===== -->
+      <div class="schema-view" id="schemaView"></div>
+
+      <!-- ===== SQL CONSOLE ===== -->
+      <div class="sql-console" id="sqlConsole">
+        <div class="sql-editor-area">
+          <textarea id="sqlInput" class="sql-textarea" placeholder="SELECT * FROM users LIMIT 10;" spellcheck="false"></textarea>
+          <div class="sql-actions">
+            <button class="btn btn-primary" id="sqlRunBtn">▶ Run Query</button>
+            <button class="btn" id="sqlClearBtn">Clear</button>
+            <span id="sqlStatus" style="font-size:11px;color:var(--text-dim);margin-left:auto;font-family:'JetBrains Mono',monospace;"></span>
+          </div>
+          <div class="sql-history" id="sqlHistory"></div>
+        </div>
+        <div class="sql-result-area" id="sqlResultArea">
+          <div class="empty-state">Run a query to see results</div>
+        </div>
+      </div>
+
+      <!-- ===== STATS VIEW ===== -->
+      <div class="stats-view" id="statsView"></div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Edit Record</div>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button class="btn" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" id="modalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ===== Theme =====
+    const savedTheme = localStorage.getItem('rm_db_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const themeBtn = document.getElementById('themeToggleBtn');
+    const updateThemeBtn = () => {
+      const t = document.documentElement.getAttribute('data-theme');
+      themeBtn.textContent = t === 'dark' ? '☀ Light' : '☾ Dark';
+    };
+    updateThemeBtn();
+    themeBtn.onclick = () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('rm_db_theme', next);
+      updateThemeBtn();
+    };
+
+    // ===== State =====
+    const S = {
+      tables: [], currentTable: '', primaryKey: 'id', columns: [], rows: [],
+      page: 1, limit: 25, total: 0, totalPages: 1, search: '',
+      sortBy: '', sortDir: 'ASC',
+      modalMode: 'edit', selectedRow: null, selectedRowIdx: -1,
+      selectedIds: new Set(),
+      sqlHistory: JSON.parse(localStorage.getItem('rm_sql_history') || '[]'),
+      currentView: 'table',
+      detailRow: null,
+    };
+
+    // ===== DOM =====
+    const $ = id => document.getElementById(id);
+    const tableList = $('tableList');
+    const tableWrapper = $('tableWrapper');
+    const searchInput = $('searchInput');
+    const limitSelect = $('limitSelect');
+    const refreshBtn = $('refreshBtn');
+    const addBtn = $('addBtn');
+    const footerInfo = $('footerInfo');
+    const pageText = $('pageText');
+    const prevBtn = $('prevBtn');
+    const nextBtn = $('nextBtn');
+    const modalBackdrop = $('modalBackdrop');
+    const modalTitle = $('modalTitle');
+    const modalBody = $('modalBody');
+    const modalClose = $('modalClose');
+    const modalCancel = $('modalCancel');
+    const modalSave = $('modalSave');
+    const toast = $('toast');
+    const bulkBar = $('bulkBar');
+    const bulkCount = $('bulkCount');
+    const detailPanel = $('detailPanel');
+    const detailBody = $('detailBody');
+    const detailTitle = $('detailTitle');
+    const sqlInput = $('sqlInput');
+    const sqlResultArea = $('sqlResultArea');
+    const sqlStatus = $('sqlStatus');
+    const sqlHistoryEl = $('sqlHistory');
+
+    let toastTimer;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    const formatSize = (mb) => mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(2)} MB`;
+
+    // ===== View Switching =====
+    document.querySelectorAll('.view-tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        S.currentView = tab.dataset.view;
+        $('tableView').style.display = S.currentView === 'table' ? 'flex' : 'none';
+        $('schemaView').classList.toggle('show', S.currentView === 'schema');
+        $('sqlConsole').classList.toggle('show', S.currentView === 'sql');
+        $('statsView').classList.toggle('show', S.currentView === 'stats');
+        if (S.currentView === 'schema') loadSchema();
+        if (S.currentView === 'stats') loadStats();
+      };
+    });
+
+    // ===== Load Tables =====
+    async function loadTables() {
+      try {
+        const res = await (await fetch('/api/db-admin/tables')).json();
+        if (res.success && res.data?.tables) {
+          S.tables = res.data.tables;
+          renderTablesList();
+          updateStorage(res.data.storage);
+          if (!S.tables.find(t => t.name === S.currentTable)) {
+            S.currentTable = S.tables[0]?.name || '';
+          }
+          if (S.currentTable) loadData();
+        }
+      } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    function updateStorage(s) {
+      if (!s) return;
+      const used = s.usedMb || 0, limit = s.limitMb || 5120, avail = s.availableMb ?? (limit - used);
+      const pct = Math.min(100, Math.max(0.2, s.percentUsed || 0.1));
+      $('storageBarFill').style.width = `${pct}%`;
+      $('storageAvailableText').textContent = `${formatSize(avail)} free`;
+      $('storageUsedText').textContent = `${formatSize(used)} used`;
+      $('storageTotalText').textContent = `${formatSize(limit)} limit`;
+    }
+
+    function renderTablesList() {
+      tableList.innerHTML = '';
+      S.tables.forEach(t => {
+        const btn = document.createElement('button');
+        btn.className = `table-nav-btn ${t.name === S.currentTable ? 'active' : ''}`;
+        btn.innerHTML = `<span>${escHtml(t.name)}</span><span class="table-count">${t.count}</span>`;
+        btn.onclick = () => {
+          if (S.currentTable !== t.name) {
+            S.currentTable = t.name; S.page = 1; S.search = ''; S.sortBy = ''; S.sortDir = 'ASC';
+            searchInput.value = ''; S.selectedIds.clear(); updateBulkBar();
+            detailPanel.classList.remove('open'); S.detailRow = null;
+            renderTablesList(); loadData();
+            if (S.currentView === 'schema') loadSchema();
+          }
+        };
+        tableList.appendChild(btn);
+      });
+    }
+
+    // ===== Load Data =====
+    async function loadData() {
+      if (!S.currentTable) return;
+      try {
+        const params = new URLSearchParams({ page: S.page, limit: S.limit, search: S.search });
+        if (S.sortBy) { params.set('sortBy', S.sortBy); params.set('sortDir', S.sortDir); }
+        const res = await (await fetch(`/api/db-admin/tables/${S.currentTable}?${params}`)).json();
+        if (res.success && res.data) {
+          S.columns = res.data.columns || []; S.primaryKey = res.data.primaryKey || 'id';
+          S.rows = res.data.rows || []; S.total = res.data.total || 0;
+          S.totalPages = res.data.totalPages || 1;
+          renderTable(); updateFooter();
+        }
+      } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    // ===== Render Table =====
+    function renderTable() {
+      if (S.rows.length === 0) {
+        tableWrapper.innerHTML = `<div class="empty-state">No records in "${escHtml(S.currentTable)}"</div>`;
+        return;
+      }
+      let h = '<table><thead><tr>';
+      h += '<th style="width:36px;text-align:center;cursor:default;"><input type="checkbox" class="cell-check" id="selectAll" /></th>';
+      h += '<th style="width:60px;text-align:center;cursor:default;">Actions</th>';
+      S.columns.forEach(c => {
+        const isSorted = S.sortBy === c.field;
+        const arrow = isSorted ? (S.sortDir === 'ASC' ? '↑' : '↓') : '↕';
+        h += `<th class="${isSorted ? 'sorted' : ''}" data-col="${escHtml(c.field)}">${escHtml(c.field)}<span class="sort-icon">${arrow}</span></th>`;
+      });
+      h += '</tr></thead><tbody>';
+      S.rows.forEach((row, i) => {
+        const pk = row[S.primaryKey];
+        const checked = S.selectedIds.has(String(pk)) ? 'checked' : '';
+        h += `<tr data-idx="${i}" data-pk="${escHtml(String(pk))}">`;
+        h += `<td style="text-align:center;"><input type="checkbox" class="cell-check row-check" data-pk="${escHtml(String(pk))}" ${checked} /></td>`;
+        h += `<td style="text-align:center;white-space:nowrap;">
+          <button class="cell-btn" onclick="openEdit(${i})">Edit</button>
+          <button class="cell-btn" onclick="delRow(${i})">Del</button>
+        </td>`;
+        S.columns.forEach(c => {
+          h += `<td>${renderCell(row[c.field], c)}</td>`;
+        });
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      tableWrapper.innerHTML = h;
+
+      // Select all checkbox
+      $('selectAll').onclick = (e) => {
+        const checked = e.target.checked;
+        S.rows.forEach(r => {
+          const pk = String(r[S.primaryKey]);
+          if (checked) S.selectedIds.add(pk); else S.selectedIds.delete(pk);
+        });
+        tableWrapper.querySelectorAll('.row-check').forEach(cb => cb.checked = checked);
+        updateBulkBar();
+      };
+
+      // Individual checkboxes
+      tableWrapper.querySelectorAll('.row-check').forEach(cb => {
+        cb.onclick = (e) => {
+          e.stopPropagation();
+          const pk = cb.dataset.pk;
+          if (cb.checked) S.selectedIds.add(pk); else S.selectedIds.delete(pk);
+          updateBulkBar();
+        };
+      });
+
+      // Row click for detail panel
+      tableWrapper.querySelectorAll('tr[data-idx]').forEach(tr => {
+        tr.onclick = (e) => {
+          if (e.target.closest('.cell-btn') || e.target.closest('.cell-check')) return;
+          const idx = parseInt(tr.dataset.idx);
+          showDetail(idx);
+        };
+        tr.style.cursor = 'pointer';
+      });
+
+      // Column header sorting
+      tableWrapper.querySelectorAll('th[data-col]').forEach(th => {
+        th.onclick = () => {
+          const col = th.dataset.col;
+          if (S.sortBy === col) {
+            S.sortDir = S.sortDir === 'ASC' ? 'DESC' : 'ASC';
+          } else {
+            S.sortBy = col; S.sortDir = 'ASC';
+          }
+          loadData();
+        };
+      });
+    }
+
+    function renderCell(val, col) {
+      if (val === null || val === undefined) return '<span class="cell-null">NULL</span>';
+      if (col.field === 'password') return '<span class="cell-dim">••••••</span>';
+      if (col.isPrimary) return `<span class="cell-id">${escHtml(String(val))}</span>`;
+      if (typeof val === 'object') return `<span class="cell-mono">${escHtml(JSON.stringify(val))}</span>`;
+      return escHtml(String(val));
+    }
+
+    function updateFooter() {
+      const from = S.total === 0 ? 0 : (S.page - 1) * S.limit + 1;
+      const to = Math.min(S.page * S.limit, S.total);
+      footerInfo.textContent = `${from}–${to} of ${S.total} rows`;
+      pageText.textContent = `${S.page} / ${S.totalPages}`;
+      prevBtn.disabled = S.page <= 1;
+      nextBtn.disabled = S.page >= S.totalPages;
+    }
+
+    // ===== Bulk Operations =====
+    function updateBulkBar() {
+      const count = S.selectedIds.size;
+      bulkBar.classList.toggle('show', count > 0);
+      bulkCount.textContent = `${count} selected`;
+    }
+
+    $('bulkDeleteBtn').onclick = async () => {
+      if (S.selectedIds.size === 0) return;
+      if (!confirm(`Delete ${S.selectedIds.size} rows from "${S.currentTable}"?`)) return;
+      try {
+        const res = await (await fetch(`/api/db-admin/tables/${S.currentTable}/bulk-delete`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: Array.from(S.selectedIds) }),
+        })).json();
+        if (res.success) {
+          showToast(`Deleted ${S.selectedIds.size} rows`);
+          S.selectedIds.clear(); updateBulkBar(); loadTables();
+        } else showToast(res.message || 'Error');
+      } catch (e) { showToast('Error: ' + e.message); }
+    };
+    $('bulkClearBtn').onclick = () => { S.selectedIds.clear(); updateBulkBar(); renderTable(); };
+
+    // ===== Detail Panel =====
+    function showDetail(idx) {
+      const row = S.rows[idx];
+      if (!row) return;
+      S.detailRow = row; S.selectedRowIdx = idx;
+      detailTitle.textContent = `${S.currentTable} › ${row[S.primaryKey]}`;
+      detailBody.innerHTML = '';
+      S.columns.forEach(c => {
+        const val = row[c.field];
+        const div = document.createElement('div');
+        div.className = 'detail-field';
+        const displayVal = val === null || val === undefined ? 'NULL'
+          : c.field === 'password' ? '••••••••'
+          : typeof val === 'object' ? JSON.stringify(val, null, 2)
+          : String(val);
+        div.innerHTML = `
+          <div class="detail-label">${escHtml(c.field)}${c.isPrimary ? ' (PK)' : ''} <span style="color:var(--text-ghost);font-weight:400;">${escHtml(c.type)}</span></div>
+          <div class="detail-value" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent);showToast('Copied!')">${escHtml(displayVal)}</div>
+        `;
+        detailBody.appendChild(div);
+      });
+      detailPanel.classList.add('open');
+    }
+    $('detailClose').onclick = () => { detailPanel.classList.remove('open'); S.detailRow = null; };
+    $('detailEditBtn').onclick = () => { if (S.selectedRowIdx >= 0) openEdit(S.selectedRowIdx); };
+    $('detailDeleteBtn').onclick = () => { if (S.selectedRowIdx >= 0) delRow(S.selectedRowIdx); };
+
+    // ===== Edit / Create Modal =====
+    window.openEdit = (idx) => {
+      S.modalMode = 'edit'; S.selectedRow = S.rows[idx];
+      modalTitle.textContent = `Edit: ${S.selectedRow[S.primaryKey]}`;
+      renderForm(S.selectedRow); modalBackdrop.classList.add('open');
+    };
+
+    window.delRow = async (idx) => {
+      const row = S.rows[idx]; const pk = row[S.primaryKey];
+      if (!confirm(`Delete "${pk}" from ${S.currentTable}?`)) return;
+      const res = await (await fetch(`/api/db-admin/tables/${S.currentTable}/${encodeURIComponent(pk)}`, { method: 'DELETE' })).json();
+      if (res.success) { showToast(`Deleted ${pk}`); detailPanel.classList.remove('open'); loadTables(); }
+      else showToast(res.message || 'Delete failed');
+    };
+
+    addBtn.onclick = () => {
+      S.modalMode = 'create'; S.selectedRow = null;
+      modalTitle.textContent = `New ${S.currentTable}`;
+      renderForm({}); modalBackdrop.classList.add('open');
+    };
+
+    function renderForm(data) {
+      modalBody.innerHTML = '';
+      S.columns.forEach(c => {
+        const isPk = c.isPrimary; const val = data[c.field] ?? '';
+        const grp = document.createElement('div');
+        grp.className = 'form-group';
+        let input;
+        if (/json/i.test(c.type)) {
+          const v = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
+          input = `<textarea class="form-textarea" data-field="${c.field}">${escHtml(v)}</textarea>`;
+        } else if (c.field === 'password') {
+          input = `<input type="text" class="form-input" data-field="${c.field}" placeholder="Leave blank to keep, or enter new PIN" />`;
+        } else if (c.field === 'created_at' || c.field === 'updated_at') {
+          input = `<input type="text" class="form-input" data-field="${c.field}" value="${escHtml(String(val || ''))}" disabled />`;
+        } else {
+          const disabled = (isPk && S.modalMode === 'edit') ? 'disabled' : '';
+          const v = typeof val === 'object' ? JSON.stringify(val) : String(val);
+          input = `<input type="text" class="form-input" data-field="${c.field}" value="${escHtml(v)}" ${disabled} />`;
+        }
+        grp.innerHTML = `
+          <label class="form-label">
+            <span>${escHtml(c.field)}${isPk ? ' (PK)' : ''}</span>
+            <span style="font-family:'JetBrains Mono',monospace;color:var(--text-ghost);font-size:10px;">${escHtml(c.type)}</span>
+          </label>
+          ${input}
+        `;
+        modalBody.appendChild(grp);
+      });
+    }
+
+    modalSave.onclick = async () => {
+      const inputs = modalBody.querySelectorAll('[data-field]');
+      const payload = {};
+      inputs.forEach(inp => {
+        const f = inp.getAttribute('data-field');
+        const v = inp.value;
+        if (f === 'created_at' || f === 'updated_at') return;
+        if (f === 'password' && S.modalMode === 'edit' && !v.trim()) return;
+        const col = S.columns.find(c => c.field === f);
+        if (col && /json/i.test(col.type)) {
+          try { payload[f] = v ? JSON.parse(v) : null; } catch { payload[f] = v; }
+        } else {
+          payload[f] = v;
+        }
+      });
+      modalSave.disabled = true; modalSave.textContent = 'Saving…';
+      try {
+        let res;
+        if (S.modalMode === 'edit') {
+          const pk = S.selectedRow[S.primaryKey];
+          res = await (await fetch(`/api/db-admin/tables/${S.currentTable}/${encodeURIComponent(pk)}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          })).json();
+        } else {
+          res = await (await fetch(`/api/db-admin/tables/${S.currentTable}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          })).json();
+        }
+        if (res.success) {
+          showToast(res.message || 'Saved'); modalBackdrop.classList.remove('open');
+          await loadData(); loadTables();
+        } else showToast('Error: ' + (res.message || 'Save failed'));
+      } catch (e) { showToast('Error: ' + e.message); }
+      finally { modalSave.disabled = false; modalSave.textContent = 'Save'; }
+    };
+
+    modalClose.onclick = () => modalBackdrop.classList.remove('open');
+    modalCancel.onclick = () => modalBackdrop.classList.remove('open');
+
+    // ===== Search & Pagination =====
+    let debounce;
+    searchInput.oninput = (e) => { clearTimeout(debounce); debounce = setTimeout(() => { S.search = e.target.value.trim(); S.page = 1; loadData(); }, 250); };
+    limitSelect.onchange = (e) => { S.limit = parseInt(e.target.value, 10); S.page = 1; loadData(); };
+    prevBtn.onclick = () => { if (S.page > 1) { S.page--; loadData(); } };
+    nextBtn.onclick = () => { if (S.page < S.totalPages) { S.page++; loadData(); } };
+    refreshBtn.onclick = () => loadTables();
+
+    // ===== Export =====
+    $('exportCsvBtn').onclick = () => {
+      if (S.rows.length === 0) return showToast('No data to export');
+      const cols = S.columns.map(c => c.field);
+      let csv = cols.join(',') + '\n';
+      S.rows.forEach(r => {
+        csv += cols.map(c => {
+          let v = r[c]; if (v === null || v === undefined) v = '';
+          else if (typeof v === 'object') v = JSON.stringify(v);
+          v = String(v).replace(/"/g, '""');
+          return `"${v}"`;
+        }).join(',') + '\n';
+      });
+      downloadFile(csv, `${S.currentTable}.csv`, 'text/csv');
+    };
+
+    $('exportJsonBtn').onclick = () => {
+      if (S.rows.length === 0) return showToast('No data to export');
+      downloadFile(JSON.stringify(S.rows, null, 2), `${S.currentTable}.json`, 'application/json');
+    };
+
+    function downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${filename}`);
+    }
+
+    // ===== SQL Console =====
+    $('sqlRunBtn').onclick = () => runSQL();
+    $('sqlClearBtn').onclick = () => { sqlInput.value = ''; sqlResultArea.innerHTML = '<div class="empty-state">Run a query to see results</div>'; sqlStatus.textContent = ''; };
+
+    sqlInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSQL(); }
+    });
+
+    async function runSQL() {
+      const sql = sqlInput.value.trim();
+      if (!sql) return;
+      sqlStatus.textContent = 'Running…';
+      try {
+        const res = await (await fetch('/api/db-admin/query', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql }),
+        })).json();
+
+        if (!res.success) {
+          sqlResultArea.innerHTML = `<div class="sql-error">${escHtml(res.message)}</div>`;
+          sqlStatus.textContent = 'Error';
+          return;
+        }
+
+        addToSQLHistory(sql);
+        const d = res.data;
+        sqlStatus.textContent = d.duration || '';
+
+        if (d.type === 'resultset' && d.rows) {
+          let h = `<div class="sql-result-info">
+            <span class="sql-result-badge">${d.rowCount} rows</span>
+            <span>${d.duration}</span>
+          </div>`;
+          if (d.rows.length > 0) {
+            h += '<div style="overflow:auto;flex:1;"><table><thead><tr>';
+            d.columns.forEach(c => { h += `<th style="cursor:default;">${escHtml(c)}</th>`; });
+            h += '</tr></thead><tbody>';
+            d.rows.forEach(r => {
+              h += '<tr>';
+              d.columns.forEach(c => {
+                const v = r[c];
+                h += `<td>${v === null ? '<span class="cell-null">NULL</span>' : escHtml(typeof v === 'object' ? JSON.stringify(v) : String(v))}</td>`;
+              });
+              h += '</tr>';
+            });
+            h += '</tbody></table></div>';
+          } else {
+            h += '<div class="empty-state">Query returned 0 rows</div>';
+          }
+          sqlResultArea.innerHTML = h;
+        } else {
+          sqlResultArea.innerHTML = `<div class="sql-result-info">
+            <span class="sql-result-badge">${d.affectedRows} affected</span>
+            <span>${d.duration}</span>
+            ${d.insertId ? `<span>Insert ID: ${d.insertId}</span>` : ''}
+          </div><div class="empty-state" style="padding:30px;">Statement executed successfully</div>`;
+          loadTables(); // Refresh sidebar counts
+        }
+      } catch (e) {
+        sqlResultArea.innerHTML = `<div class="sql-error">${escHtml(e.message)}</div>`;
+        sqlStatus.textContent = 'Error';
+      }
+    }
+
+    function addToSQLHistory(sql) {
+      S.sqlHistory = S.sqlHistory.filter(s => s !== sql);
+      S.sqlHistory.unshift(sql);
+      if (S.sqlHistory.length > 15) S.sqlHistory.pop();
+      localStorage.setItem('rm_sql_history', JSON.stringify(S.sqlHistory));
+      renderSQLHistory();
+    }
+
+    function renderSQLHistory() {
+      sqlHistoryEl.innerHTML = '';
+      S.sqlHistory.slice(0, 8).forEach(s => {
+        const el = document.createElement('span');
+        el.className = 'sql-history-item';
+        el.textContent = s.length > 60 ? s.slice(0, 60) + '…' : s;
+        el.title = s;
+        el.onclick = () => { sqlInput.value = s; };
+        sqlHistoryEl.appendChild(el);
+      });
+    }
+    renderSQLHistory();
+
+    // ===== Schema View =====
+    async function loadSchema() {
+      if (!S.currentTable) return;
+      const view = $('schemaView');
+      view.innerHTML = '<div class="empty-state">Loading schema…</div>';
+      try {
+        const res = await (await fetch(`/api/db-admin/tables/${S.currentTable}/schema`)).json();
+        if (!res.success || !res.data) { view.innerHTML = '<div class="empty-state">Failed to load schema</div>'; return; }
+        const d = res.data;
+        let h = '';
+
+        // Stats card
+        h += `<div class="schema-card"><div class="schema-card-header">📊 Table Stats — ${escHtml(d.table)}</div>
+          <div class="schema-card-body"><div class="schema-stat-grid">
+            <div class="schema-stat"><div class="schema-stat-label">Rows</div><div class="schema-stat-value">${d.stats.row_count ?? '—'}</div></div>
+            <div class="schema-stat"><div class="schema-stat-label">Data Size</div><div class="schema-stat-value">${d.stats.data_size_kb ?? '—'} KB</div></div>
+            <div class="schema-stat"><div class="schema-stat-label">Index Size</div><div class="schema-stat-value">${d.stats.index_size_kb ?? '—'} KB</div></div>
+            <div class="schema-stat"><div class="schema-stat-label">Total Size</div><div class="schema-stat-value">${d.stats.total_size_kb ?? '—'} KB</div></div>
+            <div class="schema-stat"><div class="schema-stat-label">Primary Key</div><div class="schema-stat-value">${escHtml(d.primaryKey)}</div></div>
+            <div class="schema-stat"><div class="schema-stat-label">Columns</div><div class="schema-stat-value">${d.columns.length}</div></div>
+          </div></div></div>`;
+
+        // Columns card
+        h += `<div class="schema-card"><div class="schema-card-header">⎔ Columns</div><div class="schema-card-body">`;
+        d.columns.forEach(c => {
+          const badges = [];
+          if (c.isPrimary) badges.push('<span class="schema-badge pk">PK</span>');
+          if (!c.nullable) badges.push('<span class="schema-badge">NOT NULL</span>');
+          if (c.extra) badges.push(`<span class="schema-badge">${escHtml(c.extra)}</span>`);
+          if (c.defaultValue !== null && c.defaultValue !== undefined) badges.push(`<span class="schema-badge">= ${escHtml(String(c.defaultValue))}</span>`);
+          h += `<div class="schema-row">
+            <span class="schema-col-name">${escHtml(c.field)}</span>
+            <span class="schema-col-type">${escHtml(c.type)}</span>
+            <span>${badges.join(' ')}</span>
+          </div>`;
+        });
+        h += '</div></div>';
+
+        // Indexes card
+        if (d.indexes && d.indexes.length > 0) {
+          h += `<div class="schema-card"><div class="schema-card-header">⚡ Indexes</div><div class="schema-card-body">`;
+          d.indexes.forEach(ix => {
+            h += `<div class="schema-row">
+              <span class="schema-col-name">${escHtml(ix.name)}</span>
+              <span class="schema-col-type">${escHtml(ix.column)}</span>
+              <span>${ix.unique ? '<span class="schema-badge pk">UNIQUE</span>' : ''} <span class="schema-badge">${escHtml(ix.type)}</span></span>
+            </div>`;
+          });
+          h += '</div></div>';
+        }
+
+        // CREATE TABLE
+        if (d.createStatement) {
+          h += `<div class="schema-card"><div class="schema-card-header">📝 CREATE TABLE</div><div class="schema-card-body"><div class="schema-sql">${escHtml(d.createStatement)}</div></div></div>`;
+        }
+
+        view.innerHTML = h;
+      } catch (e) { view.innerHTML = `<div class="empty-state">Error: ${escHtml(e.message)}</div>`; }
+    }
+
+    // ===== Stats Dashboard =====
+    async function loadStats() {
+      const view = $('statsView');
+      view.innerHTML = '<div class="empty-state">Loading dashboard…</div>';
+      try {
+        const res = await (await fetch('/api/db-admin/tables')).json();
+        if (!res.success) { view.innerHTML = '<div class="empty-state">Failed to load</div>'; return; }
+        const tables = res.data.tables || [];
+        const storage = res.data.storage || {};
+        const totalRows = tables.reduce((s, t) => s + (t.count || 0), 0);
+
+        let h = `<div style="font-size:16px;font-weight:700;">Database Dashboard</div>
+          <div style="font-size:12px;color:var(--text-sec);margin-top:-10px;">Live overview of your MySQL instance</div>`;
+
+        // Stats grid
+        h += '<div class="stats-grid">';
+        h += `<div class="stat-card"><div class="stat-label">Total Tables</div><div class="stat-value">${tables.length}</div></div>`;
+        h += `<div class="stat-card"><div class="stat-label">Total Rows</div><div class="stat-value">${totalRows.toLocaleString()}</div></div>`;
+        h += `<div class="stat-card"><div class="stat-label">Storage Used</div><div class="stat-value">${formatSize(storage.usedMb || 0)}</div><div class="stat-sub">${(storage.percentUsed || 0).toFixed(2)}% of ${formatSize(storage.limitMb || 5120)}</div></div>`;
+        h += `<div class="stat-card"><div class="stat-label">Storage Available</div><div class="stat-value">${formatSize(storage.availableMb || 5120)}</div></div>`;
+        h += '</div>';
+
+        // Per-table breakdown
+        h += '<div class="schema-card" style="margin-top:4px;"><div class="schema-card-header">📊 Table Breakdown</div><div class="schema-card-body">';
+        tables.forEach(t => {
+          const pct = totalRows > 0 ? ((t.count / totalRows) * 100).toFixed(1) : '0.0';
+          h += `<div class="schema-row" style="cursor:pointer;" onclick="document.querySelector('.view-tab[data-view=table]').click();document.querySelectorAll('.table-nav-btn').forEach(b=>{if(b.textContent.includes('${t.name}'))b.click();})">
+            <span class="schema-col-name">${escHtml(t.name)}</span>
+            <span style="flex:1;padding:0 12px;">
+              <div style="background:var(--hover);border-radius:2px;height:4px;width:100%;overflow:hidden;">
+                <div style="background:var(--text);height:100%;width:${pct}%;border-radius:2px;"></div>
+              </div>
+            </span>
+            <span class="table-count">${t.count} rows</span>
+            <span style="font-size:10px;color:var(--text-dim);min-width:40px;text-align:right;">${pct}%</span>
+          </div>`;
+        });
+        h += '</div></div>';
+
+        view.innerHTML = h;
+      } catch (e) { view.innerHTML = `<div class="empty-state">Error: ${escHtml(e.message)}</div>`; }
+    }
+
+    // ===== Keyboard Shortcuts =====
+    document.addEventListener('keydown', (e) => {
+      // Escape closes modals and panels
+      if (e.key === 'Escape') {
+        if (modalBackdrop.classList.contains('open')) { modalBackdrop.classList.remove('open'); e.preventDefault(); }
+        else if (detailPanel.classList.contains('open')) { detailPanel.classList.remove('open'); e.preventDefault(); }
+      }
+      // Ctrl+Enter in modal saves
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && modalBackdrop.classList.contains('open')) {
+        e.preventDefault(); modalSave.click();
+      }
+      // Ctrl+K focuses search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault(); searchInput.focus();
+      }
+    });
+
+    // ===== Init =====
+    loadTables();
+  </script>
+</body>
+</html>

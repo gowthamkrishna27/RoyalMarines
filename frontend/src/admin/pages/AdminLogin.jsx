@@ -13,7 +13,7 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -23,15 +23,18 @@ const AdminLogin = () => {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const result = loginAdmin(identifier, password);
-      if (result.success) {
+    try {
+      const result = await loginAdmin(identifier, password);
+      if (result && result.success) {
         navigate('/admin/dashboard');
       } else {
-        setError(result.error);
+        setError(result?.error || 'Invalid credentials');
         setLoading(false);
       }
-    }, 400);
+    } catch (err) {
+      setError('An error occurred during login. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
