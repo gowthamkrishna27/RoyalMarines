@@ -4,7 +4,10 @@
  * JSON serialization, and error handling.
  */
 
-const BASE_URL = '/api';
+const rawApiUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || '';
+const BASE_URL = rawApiUrl
+  ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`)
+  : '/api';
 const TOKEN_KEY = 'auth_token';
 
 class ApiClient {
