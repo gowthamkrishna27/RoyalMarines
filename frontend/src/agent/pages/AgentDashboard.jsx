@@ -75,11 +75,14 @@ const AgentDashboard = () => {
 
   // Default no tank selected until user clicks a tank pin on the map
 
-  // Load GPS on mount
+  // Load GPS on mount & refresh if stale
   useEffect(() => {
-    const existingGPS = getStoredGPS();
+    const existingGPS = getStoredGPS(180000);
     if (existingGPS) {
       setGps(existingGPS);
+      if (existingGPS.isStale) {
+        handleRefreshGPS();
+      }
     } else {
       handleRefreshGPS();
     }
@@ -88,10 +91,10 @@ const AgentDashboard = () => {
   const handleRefreshGPS = async () => {
     setGpsLoading(true);
     try {
-      const live = await captureDeviceGPS({ timeout: 6000 });
+      const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
       setGps(live);
     } catch (e) {
-      const fallback = generateVerifiedFallbackGPS('Bhimavaram, AP');
+      const fallback = getStoredGPS() || generateVerifiedFallbackGPS('Bhimavaram, AP');
       setGps(fallback);
     } finally {
       setGpsLoading(false);
@@ -145,6 +148,40 @@ const AgentDashboard = () => {
         <div className="lg:col-span-7 flex flex-col gap-2">
           <div style={styles.cardHeaderRow}>
             <span style={styles.sectionHeaderSmall}>FARM TANK MAP</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11px',
+                fontWeight: '600',
+                color: gpsLoading ? '#1D4ED8' : '#15803D',
+                backgroundColor: gpsLoading ? '#EFF6FF' : '#F0FDF4',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                border: gpsLoading ? '1px solid #BFDBFE' : '1px solid #BBF7D0'
+              }}>
+                <span style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: gpsLoading ? '#3B82F6' : '#22C55E'
+                }} />
+                {gpsLoading
+                  ? 'Acquiring GPS...'
+                  : `${gps?.locality || 'Bhimavaram'} (±${gps?.accuracy || 8}m)`}
+              </div>
+              <button
+                type="button"
+                onClick={handleRefreshGPS}
+                disabled={gpsLoading}
+                style={styles.refreshBtn}
+                title="Refresh Live GPS"
+              >
+                <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {/* Leaflet OpenStreetMap Container */}

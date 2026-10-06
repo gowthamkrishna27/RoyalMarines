@@ -41,8 +41,10 @@ const RecordReview = () => {
         agentId: s.agentId || 'A001',
         submitted: s.submittedAgo || '15 mins ago',
         status: s.status || 'PENDING_VERIFICATION',
-        gpsLocality: s.gps?.locality || 'Bhimavaram Cluster',
-        gpsAccuracy: s.gps?.accuracy || 8,
+        gpsLocality: s.locality || s.gps?.locality || farmerLocationName || 'Bhimavaram Cluster',
+        gpsAccuracy: s.gpsAccuracy || s.gps?.accuracy || 8,
+        latitude: s.latitude != null ? Number(s.latitude) : (s.gps?.latitude != null ? Number(s.gps.latitude) : (s.gps?.lat != null ? Number(s.gps.lat) : 16.5449)),
+        longitude: s.longitude != null ? Number(s.longitude) : (s.gps?.longitude != null ? Number(s.gps.longitude) : (s.gps?.lng != null ? Number(s.gps.lng) : 81.5212)),
       });
     }
   }, [id, db, getFarmerById, getTankById, getAgentById]);
@@ -173,14 +175,24 @@ const RecordReview = () => {
               <div style={styles.gpsVerificationRow}>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                    {record.gps?.locality || 'Chinnamiram, Bhimavaram Cluster'}
+                    {record.gpsLocality || record.gps?.locality || 'Chinnamiram, Bhimavaram Cluster'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                    Coordinates: {record.gps?.lat || '16.5449° N'}, {record.gps?.lng || '81.5212° E'} • Accuracy: ±{record.gps?.accuracy || 4}m
+                    Coordinates: {Number(record.latitude || 16.5449).toFixed(6)}° N, {Number(record.longitude || 81.5212).toFixed(6)}° E • Accuracy: ±{record.gpsAccuracy || 8}m
                   </div>
                 </div>
-                <div style={{ fontSize: '11.5px', color: '#16A34A', fontWeight: '700' }}>
-                  ✓ Within Pond Boundary
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <a 
+                    href={`https://www.google.com/maps?q=${record.latitude || 16.5449},${record.longitude || 81.5212}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '11px', color: '#1A2FB8', fontWeight: '600', textDecoration: 'underline' }}
+                  >
+                    View Map ↗
+                  </a>
+                  <div style={{ fontSize: '11.5px', color: '#16A34A', fontWeight: '700' }}>
+                    ✓ Within Pond Boundary
+                  </div>
                 </div>
               </div>
             </div>
