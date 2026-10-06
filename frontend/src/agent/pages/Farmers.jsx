@@ -113,7 +113,7 @@ const Farmers = () => {
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'ALL' ? '#1A2FB8' : '#FFFFFF',
-            color: filterMode === 'ALL' ? '#FFFFFF' : '#334155',
+            color: filterMode === 'ALL' ? '#FFFFFF' : '#475569',
             borderColor: filterMode === 'ALL' ? '#1A2FB8' : '#E2E8F0',
             fontWeight: filterMode === 'ALL' ? '700' : '600',
           }}
@@ -127,8 +127,8 @@ const Farmers = () => {
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'DUE' ? '#D97706' : '#FFFFFF',
-            color: filterMode === 'DUE' ? '#FFFFFF' : '#334155',
-            borderColor: filterMode === 'DUE' ? '#D97706' : '#E2E8F0',
+            color: filterMode === 'DUE' ? '#FFFFFF' : '#D97706',
+            borderColor: filterMode === 'DUE' ? '#D97706' : '#FED7AA',
             fontWeight: filterMode === 'DUE' ? '700' : '600',
           }}
           onClick={() => setFilterMode('DUE')}
@@ -144,8 +144,8 @@ const Farmers = () => {
           style={{
             ...styles.tabBtn,
             backgroundColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#FFFFFF',
-            color: filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#334155',
-            borderColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#E2E8F0',
+            color: filterMode === 'UP_TO_DATE' ? '#FFFFFF' : '#16A34A',
+            borderColor: filterMode === 'UP_TO_DATE' ? '#16A34A' : '#BBF7D0',
             fontWeight: filterMode === 'UP_TO_DATE' ? '700' : '600',
           }}
           onClick={() => setFilterMode('UP_TO_DATE')}
@@ -274,10 +274,8 @@ const styles = {
   },
   filterTabs: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '8px',
-    overflowX: 'auto',
-    WebkitOverflowScrolling: 'touch',
-    scrollbarWidth: 'none',
     paddingBottom: '2px',
   },
   tabBtn: {

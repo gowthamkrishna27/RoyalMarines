@@ -16,7 +16,7 @@ const Settings = () => {
   return (
     <>
       <div style={{ padding: '24px 28px', maxWidth: '780px', margin: '0 auto' }}>
-        
+
         {/* Profile Card */}
         <div style={styles.card}>
           <div style={styles.cardHeader}>
@@ -26,10 +26,10 @@ const Settings = () => {
               </div>
               <div>
                 <h3 style={styles.cardTitle}>{session?.name || 'M. Srinivas'}</h3>
-                <span style={styles.cardSub}>Regional Cluster Incharge • Royals Marine</span>
+                <span style={styles.cardSub}></span>
               </div>
             </div>
-            <span style={styles.activeBadge}>Active Session</span>
+            <span style={styles.activeBadge}>Active</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '20px' }}>
@@ -72,22 +72,21 @@ const Settings = () => {
           <div style={styles.cardHeader}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Lock size={18} color="#DC2626" />
-              <h3 style={styles.cardTitle}>Account Security & Session</h3>
+              <h3 style={styles.cardTitle}>Account Security</h3>
             </div>
           </div>
 
           <p style={{ fontSize: '13px', color: '#64748B', margin: '14px 0 20px 0' }}>
-            Logging out will terminate this incharge audit session on this device.
           </p>
 
-          <button 
+          <button
             type="button"
             onClick={handleLogout}
             style={styles.logoutBtn}
             className="transition-all duration-150 hover:bg-rose-100 active:scale-98 cursor-pointer"
           >
             <LogOut size={16} />
-            <span>Terminate Session & Logout</span>
+            <span>Logout</span>
           </button>
         </div>
 

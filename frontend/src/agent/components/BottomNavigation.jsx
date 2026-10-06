@@ -9,23 +9,105 @@ const BottomNavigation = () => {
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
   const navItems = [
-    { label: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician', '/agent', '/agent/dashboard', '/'] },
-    { label: 'Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer', '/agent/farmers'] },
-    { label: 'Record', isAction: true, icon: Plus },
-    { label: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history', '/agent/tests', '/agent/history', '/weekly-tests'] },
-    { label: 'Reports', path: '/reports', icon: FileText, match: ['/reports', '/agent/reports'] },
+    { 
+      label: 'Home', 
+      path: '/dashboard', 
+      icon: Home, 
+      exactMatch: [
+        '/dashboard', 
+        '/technician', 
+        '/technician/dashboard', 
+        '/agent', 
+        '/agent/dashboard', 
+        '/', 
+        '/home'
+      ],
+      matchPrefixes: [
+        '/dashboard/', 
+        '/technician/dashboard/', 
+        '/agent/dashboard/'
+      ] 
+    },
+    { 
+      label: 'Farmers', 
+      path: '/farmers', 
+      icon: Users, 
+      exactMatch: [
+        '/farmers', 
+        '/technician/farmers', 
+        '/add-farmer', 
+        '/agent/farmers'
+      ],
+      matchPrefixes: [
+        '/farmers/', 
+        '/technician/farmers/', 
+        '/agent/farmers/'
+      ] 
+    },
+    { 
+      label: 'Record', 
+      isAction: true, 
+      icon: Plus 
+    },
+    { 
+      label: 'History', 
+      path: '/tests', 
+      icon: Clock, 
+      exactMatch: [
+        '/tests', 
+        '/history', 
+        '/agent/tests', 
+        '/agent/history', 
+        '/technician/tests', 
+        '/technician/history', 
+        '/weekly-tests'
+      ],
+      matchPrefixes: [
+        '/tests/', 
+        '/history/', 
+        '/agent/tests/', 
+        '/agent/history/', 
+        '/technician/tests/', 
+        '/technician/history/', 
+        '/weekly-tests/'
+      ] 
+    },
+    { 
+      label: 'Reports', 
+      path: '/reports', 
+      icon: FileText, 
+      exactMatch: [
+        '/reports', 
+        '/agent/reports', 
+        '/technician/reports', 
+        '/analytics', 
+        '/my-analytics'
+      ],
+      matchPrefixes: [
+        '/reports/', 
+        '/agent/reports/', 
+        '/technician/reports/', 
+        '/analytics/', 
+        '/my-analytics/'
+      ] 
+    },
   ];
 
   const isActive = (item) => {
-    if (!item.match) return false;
-    const current = location.pathname.toLowerCase();
-    if (item.label === 'Home' && (current === '' || current === '/' || current === '/agent' || current === '/agent/')) {
+    if (item.isAction) return false;
+    const current = (location.pathname || '').toLowerCase();
+    
+    // 1. Direct exact matches
+    if (item.exactMatch && item.exactMatch.some(p => current === p.toLowerCase())) {
       return true;
     }
-    return item.match.some(p => {
-      const target = p.toLowerCase();
-      return current === target || current.startsWith(target + '/');
-    });
+
+    // 2. Sub-route prefix matches
+    if (item.matchPrefixes && item.matchPrefixes.some(p => current.startsWith(p.toLowerCase()))) {
+      return true;
+    }
+
+    return false;
   };
 
   return (
