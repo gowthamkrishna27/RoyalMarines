@@ -1,41 +1,25 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutGrid, Globe, Users, UserCheck, Tractor, 
+import {
+  LayoutGrid, Globe, Users, UserCheck, Tractor,
   ClipboardList, BarChart3, Download, History, Settings, Database
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
   const navSections = [
     {
-      title: null,
+      title: 'ENTERPRISE ADMIN PORTAL',
       items: [
-        { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={18} /> }
-      ]
-    },
-    {
-      title: 'Operations',
-      items: [
-        { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={18} /> },
-        { name: 'ASMs', path: '/admin/incharges', icon: <Users size={18} /> },
-        { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={18} /> },
-        { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={18} /> },
-        { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={18} /> }
-      ]
-    },
-    {
-      title: 'Analytics',
-      items: [
-        { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={18} /> },
-        { name: 'Export Center', path: '/admin/export-center', icon: <Download size={18} /> }
-      ]
-    },
-    {
-      title: 'Administration',
-      items: [
-        { name: 'Console', path: 'http://localhost:5000/console', icon: <Database size={18} />, external: true },
-        { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={18} /> },
-        { name: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> }
+        { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={20} /> },
+        { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={20} /> },
+        { name: 'ASMs', path: '/admin/incharges', icon: <Users size={20} /> },
+        { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={20} /> },
+        { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={20} /> },
+        { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={20} /> },
+        { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={20} /> },
+        { name: 'Export Center', path: '/admin/export-center', icon: <Download size={20} /> },
+        { name: 'Audit Logs', path: '/admin/activity-log', icon: <History size={20} /> },
+        { name: 'System Settings', path: '/admin/settings', icon: <Settings size={20} /> }
       ]
     }
   ];
@@ -49,73 +33,45 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
         {navSections.map((section, sIdx) => (
           <div key={sIdx} style={styles.sectionGroup}>
             {section.title && (
-              <div style={styles.sectionTitle}>
-                {section.title}
+              <div style={styles.sectionTitleWrapper}>
+                <div style={styles.sectionTitle}>
+                  {section.title}
+                </div>
+                <div style={styles.separator} />
               </div>
             )}
             <div style={styles.sectionItems}>
               {section.items.map((item, iIdx) => (
-                item.external ? (
-                  <a
-                    key={iIdx}
-                    href={item.path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => onNavigate && onNavigate()}
-                    style={{ ...styles.link, ...styles.inactiveLink, textDecoration: 'none' }}
-                  >
-                    <span style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      color: '#64748B',
-                      flexShrink: 0
-                    }}>
-                      {item.icon}
-                    </span>
-                    <span style={{ 
-                      fontSize: '13px', 
-                      fontWeight: 500, 
-                      color: '#0F172A',
-                      letterSpacing: '-0.01em',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      {item.name} <span style={{ fontSize: '11px', color: '#0284c7' }}>↗</span>
-                    </span>
-                  </a>
-                ) : (
-                  <NavLink
-                    key={iIdx}
-                    to={item.path}
-                    onClick={() => onNavigate && onNavigate()}
-                    style={({ isActive }) => ({
-                      ...styles.link,
-                      ...(isActive ? styles.activeLink : styles.inactiveLink)
-                    })}
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          color: isActive ? '#FFFFFF' : '#64748B',
-                          flexShrink: 0
-                        }}>
-                          {item.icon}
-                        </span>
-                        <span style={{ 
-                          fontSize: '13px', 
-                          fontWeight: isActive ? 600 : 500,
-                          color: isActive ? '#FFFFFF' : '#0F172A',
-                          letterSpacing: '-0.01em'
-                        }}>
-                          {item.name}
-                        </span>
-                      </>
-                    )}
-                  </NavLink>
-                )
+                <NavLink
+                  key={iIdx}
+                  to={item.path}
+                  onClick={() => onNavigate && onNavigate()}
+                  style={({ isActive }) => ({
+                    ...styles.link,
+                    ...(isActive ? styles.activeLink : styles.inactiveLink)
+                  })}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: isActive ? '#FFFFFF' : '#475569',
+                        flexShrink: 0
+                      }}>
+                        {item.icon}
+                      </span>
+                      <span style={{
+                        fontSize: '14.5px',
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive ? '#FFFFFF' : '#1E293B',
+                        letterSpacing: '-0.01em'
+                      }}>
+                        {item.name}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
               ))}
             </div>
           </div>
@@ -158,27 +114,37 @@ const styles = {
   sectionGroup: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px'
+    gap: '8px'
+  },
+  sectionTitleWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '8px 10px 4px'
   },
   sectionTitle: {
-    fontSize: '11px',
+    fontSize: '12px',
     fontWeight: 700,
     color: '#94A3B8',
-    letterSpacing: '0.6px',
+    letterSpacing: '0.8px',
     textTransform: 'uppercase',
-    padding: '4px 10px 4px',
+    marginBottom: '16px'
+  },
+  separator: {
+    height: '1px',
+    backgroundColor: '#F1F5F9',
+    width: '100%'
   },
   sectionItems: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '3px'
+    gap: '6px'
   },
   link: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    padding: '8px 12px',
-    borderRadius: '10px',
+    gap: '14px',
+    padding: '12px 16px',
+    borderRadius: '12px',
     textDecoration: 'none',
     transition: 'all 0.15s ease-in-out',
     cursor: 'pointer'
@@ -186,11 +152,11 @@ const styles = {
   activeLink: {
     backgroundColor: '#2563EB',
     color: '#FFFFFF',
-    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.15)'
   },
   inactiveLink: {
     backgroundColor: 'transparent',
-    color: '#0F172A',
+    color: '#1E293B',
   }
 };
 
