@@ -403,9 +403,12 @@ const Dashboard = () => {
   ];
 
   useEffect(() => {
-    const existingGPS = getStoredGPS();
+    const existingGPS = getStoredGPS(180000);
     if (existingGPS) {
       setGps(existingGPS);
+      if (existingGPS.isStale) {
+        handleRefreshGPS();
+      }
     } else {
       handleRefreshGPS();
     }
@@ -414,10 +417,10 @@ const Dashboard = () => {
   const handleRefreshGPS = async () => {
     setGpsLoading(true);
     try {
-      const live = await captureDeviceGPS({ timeout: 6000 });
+      const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
       setGps(live);
     } catch (e) {
-      const fallback = generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
+      const fallback = getStoredGPS() || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
       setGps(fallback);
     } finally {
       setGpsLoading(false);

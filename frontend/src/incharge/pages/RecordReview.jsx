@@ -40,9 +40,9 @@ const RecordReview = () => {
         submitted: s.submittedAgo || '15 mins ago',
         status: s.status || 'PENDING_VERIFICATION',
         gpsLocality: s.locality || s.gps?.locality || farmerLocationName || 'Bhimavaram Cluster',
-        gpsAccuracy: s.gps?.accuracy || 4,
-        latitude: s.latitude != null ? Number(s.latitude) : (s.gps?.lat || 16.5449),
-        longitude: s.longitude != null ? Number(s.longitude) : (s.gps?.lng || 81.5212),
+        gpsAccuracy: s.gpsAccuracy || s.gps?.accuracy || 8,
+        latitude: s.latitude != null ? Number(s.latitude) : (s.gps?.latitude != null ? Number(s.gps.latitude) : (s.gps?.lat != null ? Number(s.gps.lat) : 16.5449)),
+        longitude: s.longitude != null ? Number(s.longitude) : (s.gps?.longitude != null ? Number(s.gps.longitude) : (s.gps?.lng != null ? Number(s.gps.lng) : 81.5212)),
       });
     }
   }, [id, db, getFarmerById, getTankById, getAgentById]);

@@ -101,9 +101,12 @@ const QuickRecordModal = ({
   // Load GPS
   useEffect(() => {
     if (!isOpen) return;
-    const stored = getStoredGPS();
+    const stored = getStoredGPS(180000);
     if (stored) {
       setGpsData(stored);
+      if (stored.isStale) {
+        refreshGPS();
+      }
     } else {
       refreshGPS();
     }
@@ -112,10 +115,10 @@ const QuickRecordModal = ({
   const refreshGPS = async () => {
     setGpsLoading(true);
     try {
-      const live = await captureDeviceGPS({ timeout: 6000 });
+      const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
       setGpsData(live);
     } catch {
-      const fallback = generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
+      const fallback = getStoredGPS() || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
       setGpsData(fallback);
     } finally {
       setGpsLoading(false);
@@ -489,19 +492,21 @@ const QuickRecordModal = ({
           {/* GPS Verified Status Pill */}
           <div style={styles.gpsRow}>
             <div style={styles.gpsBadge}>
-              <span style={styles.gpsDot} />
+              <span style={{ ...styles.gpsDot, backgroundColor: gpsLoading ? '#3B82F6' : '#16A34A' }} />
               <span style={styles.gpsText}>
-                {gpsData?.locality || 'Chinnamiram, Bhimavaram'} • Verified GPS
+                {gpsLoading
+                  ? 'Acquiring high-accuracy GPS...'
+                  : `${gpsData?.locality || 'Chinnamiram, Bhimavaram'} • ±${gpsData?.accuracy || 8}m GPS`}
               </span>
             </div>
             <button
               type="button"
               onClick={refreshGPS}
               style={styles.gpsRefreshBtn}
-              title="Refresh GPS"
+              title="Refresh high-accuracy GPS"
               disabled={gpsLoading}
             >
-              <RefreshCw size={12} color="#64748B" className={gpsLoading ? 'spin-animation' : ''} />
+              <RefreshCw size={12} color={gpsLoading ? '#3B82F6' : '#64748B'} className={gpsLoading ? 'spin-animation' : ''} />
             </button>
           </div>
 

@@ -34,19 +34,27 @@ const AddFarmer = () => {
   const [tanksData, setTanksData] = useState([]);
 
   useEffect(() => {
-    const cached = getStoredGPS();
+    const cached = getStoredGPS(180000);
     if (cached) {
       setGpsData(cached);
+      if (cached.isStale) {
+        handleCaptureGPS();
+      }
+    } else {
+      handleCaptureGPS();
     }
   }, []);
 
   const handleCaptureGPS = async () => {
     setGpsLoading(true);
     try {
-      const live = await captureDeviceGPS({ timeout: 8000 });
+      const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
       setGpsData(live);
+      if (live.locality && !farmerForm.village) {
+        setFarmerForm(prev => ({ ...prev, village: live.locality.split(',')[0].trim() }));
+      }
     } catch (err) {
-      const fallback = generateVerifiedFallbackGPS(farmerForm.village || farmerForm.mandal || 'Chinnamiram, Bhimavaram');
+      const fallback = getStoredGPS() || generateVerifiedFallbackGPS(farmerForm.village || farmerForm.mandal || 'Chinnamiram, Bhimavaram');
       setGpsData(fallback);
     } finally {
       setGpsLoading(false);

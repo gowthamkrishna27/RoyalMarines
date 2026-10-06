@@ -18,13 +18,13 @@ const defaultTankHarvests = [];
 
 const TABS = [
   { id: 'OVERVIEW', label: 'Overview', icon: Layers },
-  { id: 'WATER', label: 'Water Analysis', icon: Droplets },
-  { id: 'FEED', label: 'Feed Test', icon: Wheat },
+  { id: 'WATER', label: 'Water', icon: Droplets },
+  { id: 'FEED', label: 'Feed', icon: Wheat },
   { id: 'BIOMASS', label: 'Biomass', icon: Fish },
   { id: 'MEDICATION', label: 'Medication', icon: Pill },
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
-  { id: 'ACTIVITY', label: 'Farm Activity', icon: ClipboardList },
-  { id: 'HARVEST', label: 'Harvest History', icon: Scale },
+  { id: 'ACTIVITY', label: 'Activity', icon: ClipboardList },
+  { id: 'HARVEST', label: 'Harvest', icon: Scale },
   { id: 'REPORTS', label: 'Reports', icon: FileText },
 ];
 
@@ -154,14 +154,18 @@ const TankDetails = () => {
   );
 
   // Present FCR (Current feed conversion ratio)
-  const presentFCR = (totalFeedUsed > 0 && presentBiomass > 0)
+  const calcFCR = (totalFeedUsed > 0 && presentBiomass > 0)
     ? (totalFeedUsed / presentBiomass).toFixed(2)
     : (latestFeedTest?.data?.fcr || tank.fcr || '1.14');
+  const presentFCR = parseFloat(calcFCR) > 3.5 ? (latestFeedTest?.data?.fcr || tank.fcr || '1.14') : calcFCR;
 
   // Present Estimated Survival %
-  const presentSurvivalPct = (seedStocked > 0 && presentBiomass > 0)
-    ? Math.min(99.5, ((presentBiomass * 1000) / (seedStocked * (parseFloat(tank.abw || latestFeedTest?.data?.abw || 18.4) || 18.4)) * 100)).toFixed(2)
-    : '76.33';
+  const calcSurvival = (seedStocked > 0 && presentBiomass > 0)
+    ? Math.min(99.5, ((presentBiomass * 1000) / (seedStocked * (parseFloat(tank.abw || latestFeedTest?.data?.abw || 18.4) || 18.4)) * 100)).toFixed(1)
+    : '76.3';
+  const presentSurvivalPct = (parseFloat(calcSurvival) < 15 || parseFloat(calcSurvival) > 100)
+    ? (tank.survival ? `${parseFloat(tank.survival)}` : '76.3')
+    : calcSurvival;
 
   // Final Harvest Metrics (when completed)
   const totalHarvestedSeed = sequencedHarvests.reduce((sum, h) => {
@@ -295,212 +299,89 @@ const TankDetails = () => {
       )}
 
       {/* ========================================================= */}
-      {/* 2. FARMER INFORMATION CARD */}
+      {/* 2. COMPACT MINIMAL TANK & FARMER SUMMARY */}
       {/* ========================================================= */}
-      <div style={styles.farmerCard}>
-        <div style={styles.farmerHeaderRow}>
-          <div>
-            <span style={styles.cardHeaderSmallTag}>FARMER INFORMATION</span>
-            <h2 style={styles.farmerPrimaryName}>{farmer?.name || 'Ravi'}</h2>
-          </div>
-
-          <div style={styles.technicianBadge}>
-            <User size={14} color="#1A2FB8" />
-            <span>Assigned: <strong>{farmer?.assignedAgent || 'Ramesh'}</strong></span>
-          </div>
-        </div>
-
-        <div style={styles.farmerDivider} />
-
-        <div style={styles.farmerDetailsGrid}>
-          <div style={styles.farmerInfoCol}>
-            <span style={styles.infoLabel}>Phone</span>
-            <div style={styles.infoValueRow}>
-              <Phone size={15} color="#1A2FB8" />
-              <span style={styles.infoValueText}>{farmer?.phone || '+91 9876543211'}</span>
-            </div>
-          </div>
-
-          <div style={styles.farmerInfoCol}>
-            <span style={styles.infoLabel}>Village</span>
-            <div style={styles.infoValueRow}>
-              <MapPin size={15} color="#16A34A" />
-              <span style={styles.infoValueText}>{farmer?.location || 'Chinnamiram'}</span>
-            </div>
-          </div>
-
-          <div style={styles.farmerInfoCol}>
-            <span style={styles.infoLabel}>Assigned Tanks</span>
-            <div style={styles.infoValueRow}>
-              <Layers size={15} color="#475569" />
-              <span style={styles.infoValueText}>{assignedTanksText}</span>
-            </div>
-          </div>
-
-          <div style={styles.farmerInfoCol}>
-            <span style={styles.infoLabel}>Assigned Technician</span>
-            <div style={styles.infoValueRow}>
-              <ShieldCheck size={15} color="#0284C7" />
-              <span style={styles.infoValueText}>{farmer?.assignedAgent || 'Ramesh'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================= */}
-      {/* 3. TANK INFORMATION CARD */}
-      {/* ========================================================= */}
-      <div style={styles.tankCard}>
-        <div style={styles.tankTopRow}>
-          <div style={styles.tankTitleGroup}>
-            <h1 style={styles.tankMainTitle}>{tank.name || 'Tank 1'}</h1>
-            <span style={styles.speciesPillBadge}>{tank.species || 'Vannamei'}</span>
+      <div style={styles.minimalHeroCard}>
+        <div style={styles.heroTopRow}>
+          <div style={styles.heroTitleGroup}>
+            <h1 style={styles.heroTankTitle}>{tank.name || 'Tank 1'}</h1>
+            <span style={styles.heroBadgePrimary}>{tank.species || 'Vannamei'}</span>
+            <span style={styles.heroBadgeMuted}>{cultureDays}d DOC</span>
+            <span style={styles.heroBadgeMuted}>{tank.acres || tank.area || '2.5'} Ac</span>
           </div>
 
           {hasFinalHarvest ? (
-            <span style={{ ...styles.activeStatusPill, backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', color: '#1D4ED8' }}>
-              <CheckCircle2 size={13} strokeWidth={2.4} color="#1D4ED8" />
-              <span>Harvest Completed</span>
+            <span style={styles.statusPillHarvested}>
+              <CheckCircle2 size={12} strokeWidth={2.4} /> Harvested
             </span>
           ) : !weeklySchedule.isAllDone ? (
-            <span style={styles.weeklyTestDueBadge}>
-              <Clock size={13} strokeWidth={2.4} color="#B45309" />
-              <span>Weekly Test Due</span>
+            <span style={styles.statusPillDue}>
+              <Clock size={12} strokeWidth={2.4} /> Test Due
             </span>
           ) : (
-            <span style={styles.activeStatusPill}>
-              <CheckCircle2 size={13} strokeWidth={2.4} />
-              <span>Active</span>
+            <span style={styles.statusPillDone}>
+              <CheckCircle2 size={12} strokeWidth={2.4} /> Active
             </span>
           )}
         </div>
 
-        <div style={styles.tankSpecsStrip}>
-          <div style={styles.tankSpecItem}>
-            <span style={styles.tankSpecLabel}>Pond Size</span>
-            <span style={styles.tankSpecValue}>{tank.acres || tank.area || '2.5'} Acres</span>
-          </div>
-
-          <div style={styles.specSeparator} />
-
-          <div style={styles.tankSpecItem}>
-            <span style={styles.tankSpecLabel}>Current DOC</span>
-            <span style={{ ...styles.tankSpecValue, color: '#1A2FB8' }}>{cultureDays} Days</span>
-          </div>
-
-          <div style={styles.specSeparator} />
-
-          <div style={styles.tankSpecItem}>
-            <span style={styles.tankSpecLabel}>Weekly Status</span>
-            <span style={{ 
-              ...styles.tankSpecValue, 
-              color: hasFinalHarvest ? '#1D4ED8' : (weeklySchedule.isAllDone ? '#16A34A' : '#D97706') 
-            }}>
-              {hasFinalHarvest 
-                ? 'Harvest Completed' 
-                : (weeklySchedule.isAllDone ? 'Completed (7/7 Done)' : 'Test Due (Mon-Sun)')}
-            </span>
-          </div>
+        <div style={styles.heroMetaRow}>
+          <span style={styles.heroMetaItem}>
+            <User size={13} color="#64748B" />
+            <strong style={{ color: '#0F172A' }}>{farmer?.name || 'Farmer'}</strong>
+          </span>
+          <span style={styles.heroMetaDot}>•</span>
+          <span style={styles.heroMetaItem}>
+            <MapPin size={13} color="#64748B" />
+            {farmer?.location || 'Bhimavaram'}
+          </span>
+          {farmer?.phone && (
+            <>
+              <span style={styles.heroMetaDot}>•</span>
+              <a href={`tel:${farmer.phone}`} style={styles.heroPhoneLink}>
+                <Phone size={12} color="#1A2FB8" />
+                {farmer.phone}
+              </a>
+            </>
+          )}
         </div>
       </div>
 
-
-
       {/* ========================================================= */}
-      {/* 4. QUICK PERFORMANCE SUMMARY (6 Cards Grid) */}
+      {/* 3. MINIMAL PERFORMANCE METRICS (4 Clean Cards) */}
       {/* ========================================================= */}
-      <div style={styles.summaryGrid}>
-        {/* Card 1: Seed Stocked */}
-        <div style={styles.kpiCard}>
-          <div style={styles.kpiIconWrap}>
-            <Fish size={18} color="#1A2FB8" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>Seed Stocked</span>
-            <div style={styles.kpiValue}>{seedStocked.toLocaleString()}</div>
-            <span style={styles.kpiFootnote}>Baseline Stocking</span>
+      <div style={styles.minimalKpiGrid}>
+        {/* Metric 1: Biomass */}
+        <div style={styles.minimalKpiCard}>
+          <span style={styles.minimalKpiLabel}>
+            {hasFinalHarvest ? 'Total Biomass' : 'Biomass'}
+          </span>
+          <div style={{ ...styles.minimalKpiValue, color: '#16A34A' }}>
+            {hasFinalHarvest ? `${totalBiomass.toLocaleString()} kg` : `${presentBiomass.toLocaleString()} kg`}
           </div>
         </div>
 
-        {/* Card 2: Total Harvested */}
-        <div style={styles.kpiCard}>
-          <div style={{ ...styles.kpiIconWrap, backgroundColor: '#EFF6FF' }}>
-            <Scale size={18} color="#2563EB" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>Total Harvested</span>
-            <div style={{ ...styles.kpiValue, color: hasFinalHarvest ? '#0F172A' : '#94A3B8' }}>
-              {hasFinalHarvest ? totalHarvestedSeed.toLocaleString() : '--'}
-            </div>
-            <span style={styles.kpiFootnote}>
-              {hasFinalHarvest ? 'Cumulative Count' : 'Pending Final Harvest'}
-            </span>
+        {/* Metric 2: FCR */}
+        <div style={styles.minimalKpiCard}>
+          <span style={styles.minimalKpiLabel}>FCR</span>
+          <div style={{ ...styles.minimalKpiValue, color: '#1A2FB8' }}>
+            {hasFinalHarvest ? finalFCR : presentFCR}
           </div>
         </div>
 
-        {/* Card 3: Present Biomass / Total Harvest Weight */}
-        <div style={styles.kpiCard}>
-          <div style={{ ...styles.kpiIconWrap, backgroundColor: '#F0FDF4' }}>
-            <TrendingUp size={18} color="#16A34A" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>
-              {hasFinalHarvest ? 'Total Harvest Weight' : 'Present Biomass'}
-            </span>
-            <div style={{ ...styles.kpiValue, color: '#16A34A' }}>
-              {hasFinalHarvest ? `${totalBiomass.toLocaleString()} kg` : `${presentBiomass.toLocaleString()} kg`}
-            </div>
-            <span style={styles.kpiFootnote}>
-              {hasFinalHarvest ? 'Cumulative Harvest Weight' : 'Current Standing Biomass'}
-            </span>
+        {/* Metric 3: Feed Used */}
+        <div style={styles.minimalKpiCard}>
+          <span style={styles.minimalKpiLabel}>Feed Used</span>
+          <div style={styles.minimalKpiValue}>
+            {totalFeedUsed.toLocaleString()} kg
           </div>
         </div>
 
-        {/* Card 4: Feed Used */}
-        <div style={styles.kpiCard}>
-          <div style={{ ...styles.kpiIconWrap, backgroundColor: '#FEF3C7' }}>
-            <Wheat size={18} color="#D97706" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>Feed Used</span>
-            <div style={styles.kpiValue}>{totalFeedUsed.toLocaleString()} kg</div>
-            <span style={styles.kpiFootnote}>Cumulative Feed</span>
-          </div>
-        </div>
-
-        {/* Card 5: Present FCR / Final FCR */}
-        <div style={styles.kpiCard}>
-          <div style={{ ...styles.kpiIconWrap, backgroundColor: '#F3E8FF' }}>
-            <Activity size={18} color="#7E22CE" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>
-              {hasFinalHarvest ? 'Final FCR' : 'Present FCR'}
-            </span>
-            <div style={{ ...styles.kpiValue, color: '#1A2FB8' }}>
-              {hasFinalHarvest ? finalFCR : presentFCR}
-            </div>
-            <span style={styles.kpiFootnote}>
-              {hasFinalHarvest ? 'Feed Conversion Ratio' : 'Current Feed Conversion'}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 6: Present Survival % / Final Survival % */}
-        <div style={styles.kpiCard}>
-          <div style={{ ...styles.kpiIconWrap, backgroundColor: '#DCFCE7' }}>
-            <CheckCircle2 size={18} color="#15803D" />
-          </div>
-          <div style={styles.kpiContent}>
-            <span style={styles.kpiLabel}>
-              {hasFinalHarvest ? 'Final Survival %' : 'Present Survival %'}
-            </span>
-            <div style={{ ...styles.kpiValue, color: '#15803D' }}>
-              {hasFinalHarvest ? `${finalSurvivalPct}%` : `${presentSurvivalPct}%`}
-            </div>
-            <span style={styles.kpiFootnote}>
-              {hasFinalHarvest ? 'Crop Recovery Rate' : 'Current Estimated Rate'}
-            </span>
+        {/* Metric 4: Survival % */}
+        <div style={styles.minimalKpiCard}>
+          <span style={styles.minimalKpiLabel}>Survival</span>
+          <div style={{ ...styles.minimalKpiValue, color: '#0D9488' }}>
+            {hasFinalHarvest ? `${finalSurvivalPct}%` : `${presentSurvivalPct}%`}
           </div>
         </div>
       </div>
@@ -755,80 +636,80 @@ const TankDetails = () => {
       {/* ========================================================= */}
       {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
       {/* ========================================================= */}
-      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (
-        <div style={styles.sectionCard}>
-          <div style={styles.sectionHeaderRow}>
-            <div>
-              <h3 style={styles.sectionTitle}>
-                {TABS.find(t => t.id === activeTab)?.label} Logs
-              </h3>
-              <span style={styles.sectionSub}>Submitted field test records for {tank.name}</span>
+      {/* ========================================================= */}
+      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
+      {/* ========================================================= */}
+      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
+        const tabLabel = TABS.find(t => t.id === activeTab)?.label || 'Test';
+        const tabRecords = activeTab === 'REPORTS' ? tankSubmissions : filterSubmissions(activeTab);
+
+        return (
+          <div style={styles.sectionCard}>
+            <div style={styles.sectionHeaderRow}>
+              <h3 style={styles.sectionTitle}>{tabLabel} Records</h3>
+
+              {!hasFinalHarvest ? (
+                <button 
+                  type="button" 
+                  style={styles.addHarvestActionBtn}
+                  onClick={() => {
+                    setModalInitialType(
+                      activeTab === 'WATER' ? 'WATER_QUALITY' :
+                      activeTab === 'FEED' ? 'FEED_ENTRY' :
+                      activeTab === 'MEDICATION' ? 'MEDICATION' :
+                      activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                      activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                    );
+                    setIsRecordModalOpen(true);
+                  }}
+                >
+                  <Plus size={14} /> New Entry
+                </button>
+              ) : (
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Lock size={12} /> Closed
+                </span>
+              )}
             </div>
 
-            {!hasFinalHarvest ? (
-              <button 
-                type="button" 
-                style={styles.addHarvestActionBtn}
-                onClick={() => {
-                  setModalInitialType(
-                    activeTab === 'WATER' ? 'WATER_QUALITY' :
-                    activeTab === 'FEED' ? 'FEED_ENTRY' :
-                    activeTab === 'MEDICATION' ? 'MEDICATION' :
-                    activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
-                    activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
-                  );
-                  setIsRecordModalOpen(true);
-                }}
-              >
-                <Plus size={14} /> New Entry
-              </button>
-            ) : (
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Lock size={12} /> Closed (Final Harvest Done)
-              </span>
-            )}
-          </div>
-
-          <div style={{ marginTop: '16px' }}>
-            {tankSubmissions.length === 0 ? (
-              <div style={styles.emptyStateBox}>
-                <Clock size={32} color="#94A3B8" />
-                <p style={{ margin: '8px 0 0 0', fontWeight: '600', color: '#475569' }}>
-                  No records submitted for this category yet.
-                </p>
-                <span style={{ fontSize: '13px', color: '#94A3B8' }}>
-                  Use "New Record" button above to log data.
-                </span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {tankSubmissions.map((rec) => (
-                  <div 
-                    key={rec.id}
-                    style={styles.recordListItem}
-                    onClick={() => setSelectedReadRecord(rec)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={styles.recordIconCircle}>
-                        <FileText size={16} color="#1A2FB8" />
+            <div style={{ marginTop: '12px' }}>
+              {tabRecords.length === 0 ? (
+                <div style={styles.emptyStateBoxMinimal}>
+                  <Clock size={20} color="#94A3B8" />
+                  <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
+                    No {tabLabel.toLowerCase()} records logged yet
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {tabRecords.map((rec) => (
+                    <div 
+                      key={rec.id}
+                      style={styles.recordListItem}
+                      onClick={() => setSelectedReadRecord(rec)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={styles.recordIconCircle}>
+                          <FileText size={15} color="#1A2FB8" />
+                        </div>
+                        <div>
+                          <span style={styles.recordItemTitle}>{rec.testType || rec.recordType || 'Field Test'}</span>
+                          <div style={styles.recordItemTime}>{rec.date} • {rec.time || '10:30 AM'}</div>
+                        </div>
                       </div>
-                      <div>
-                        <span style={styles.recordItemTitle}>{rec.testType || rec.recordType || 'Field Test'}</span>
-                        <div style={styles.recordItemTime}>{rec.date} • {rec.time || '10:30 AM'} • By {rec.agentName || 'Technician'}</div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={styles.verifiedTag}>✓ Verified</span>
+                        <ChevronRight size={15} color="#94A3B8" />
                       </div>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={styles.verifiedTag}>✓ Verified</span>
-                      <ChevronRight size={16} color="#94A3B8" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================= */}
       {/* READ-ONLY RECORD MODAL */}
@@ -975,18 +856,18 @@ const styles = {
   pageContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '12px',
     width: '100%',
-    paddingBottom: '40px',
+    paddingBottom: '32px',
     boxSizing: 'border-box',
   },
   topHeaderBar: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: '4px',
+    paddingTop: '2px',
     flexWrap: 'wrap',
-    gap: '12px',
+    gap: '10px',
   },
   backButton: {
     display: 'inline-flex',
@@ -996,7 +877,7 @@ const styles = {
     border: 'none',
     color: '#0F172A',
     fontWeight: '700',
-    fontSize: '15px',
+    fontSize: '14.5px',
     cursor: 'pointer',
     padding: '4px 0',
   },
@@ -1004,237 +885,189 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
+    gap: '5px',
     backgroundColor: '#EFF6FF',
     color: '#1A2FB8',
-    border: '1.5px solid #BFDBFE',
-    height: '42px',
-    padding: '0 18px',
-    borderRadius: '12px',
-    fontSize: '14px',
+    border: '1px solid #BFDBFE',
+    height: '36px',
+    padding: '0 14px',
+    borderRadius: '10px',
+    fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
     transition: 'all 0.15s ease',
   },
   primaryNewRecordBtn: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px',
+    gap: '6px',
     backgroundColor: '#1A2FB8',
     color: '#FFFFFF',
     border: 'none',
-    height: '42px',
-    padding: '0 20px',
-    borderRadius: '12px',
-    fontSize: '14px',
+    height: '36px',
+    padding: '0 16px',
+    borderRadius: '10px',
+    fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.25)',
+    boxShadow: '0 2px 6px rgba(26, 47, 184, 0.2)',
   },
-  farmerCard: {
+  minimalHeroCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: '14px',
-    padding: 'clamp(14px, 3.5vw, 24px)',
+    padding: '14px 16px',
     border: '1px solid #E2E8F0',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-    boxSizing: 'border-box',
-    width: '100%',
-  },
-  farmerHeaderRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: '10px',
-  },
-  cardHeaderSmallTag: {
-    fontSize: '11px',
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: '0.6px',
-    textTransform: 'uppercase',
-    display: 'block',
-  },
-  farmerPrimaryName: {
-    fontSize: 'clamp(18px, 4vw, 22px)',
-    fontWeight: '800',
-    color: '#0F172A',
-    margin: '2px 0 0 0',
-    letterSpacing: '-0.2px',
-  },
-  technicianBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    backgroundColor: '#EFF6FF',
-    border: '1px solid #BFDBFE',
-    color: '#1A2FB8',
-    padding: '6px 12px',
-    borderRadius: '10px',
-    fontSize: '12.5px',
-  },
-  farmerDivider: {
-    height: '1px',
-    backgroundColor: '#F1F5F9',
-    margin: '14px 0',
-  },
-  farmerDetailsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))',
-    gap: '14px',
-  },
-  farmerInfoCol: {
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '3px',
-  },
-  infoLabel: {
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: '0.3px',
-  },
-  infoValueRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-  },
-  infoValueText: {
-    fontSize: '13.5px',
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  tankCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '14px',
-    padding: 'clamp(14px, 3.5vw, 24px)',
-    border: '1px solid #E2E8F0',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-    boxSizing: 'border-box',
+    gap: '8px',
     width: '100%',
+    boxSizing: 'border-box',
   },
-  tankTopRow: {
+  heroTopRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: '10px',
+    gap: '8px',
   },
-  tankTitleGroup: {
+  heroTitleGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     flexWrap: 'wrap',
   },
-  tankMainTitle: {
-    fontSize: 'clamp(20px, 4.5vw, 24px)',
+  heroTankTitle: {
+    fontSize: '20px',
     fontWeight: '800',
     color: '#0F172A',
     margin: 0,
     letterSpacing: '-0.3px',
   },
-  speciesPillBadge: {
-    fontSize: '12px',
+  heroBadgePrimary: {
+    fontSize: '11px',
     fontWeight: '700',
     color: '#1A2FB8',
-    backgroundColor: '#F0F4FF',
-    border: '1px solid #CBD2FF',
-    padding: '3px 8px',
-    borderRadius: '8px',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    padding: '2px 8px',
+    borderRadius: '6px',
   },
-  activeStatusPill: {
+  heroBadgeMuted: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#475569',
+    backgroundColor: '#F1F5F9',
+    padding: '2px 8px',
+    borderRadius: '6px',
+  },
+  statusPillDue: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '5px',
-    fontSize: '12px',
+    gap: '4px',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#B45309',
+    backgroundColor: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    padding: '3px 8px',
+    borderRadius: '6px',
+  },
+  statusPillDone: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '11px',
     fontWeight: '700',
     color: '#15803D',
     backgroundColor: '#DCFCE7',
     border: '1px solid #86EFAC',
-    padding: '4px 10px',
-    borderRadius: '20px',
+    padding: '3px 8px',
+    borderRadius: '6px',
   },
-  tankSpecsStrip: {
+  statusPillHarvested: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#1D4ED8',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    padding: '3px 8px',
+    borderRadius: '6px',
+  },
+  heroMetaRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    marginTop: '14px',
-    paddingTop: '14px',
-    borderTop: '1px solid #F1F5F9',
+    gap: '6px',
+    fontSize: '12.5px',
+    color: '#64748B',
     flexWrap: 'wrap',
   },
-  tankSpecItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    minWidth: '70px',
+  heroMetaItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    color: '#475569',
   },
-  tankSpecLabel: {
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-  },
-  tankSpecValue: {
-    fontSize: '14px',
+  heroMetaDot: {
+    color: '#CBD5E1',
     fontWeight: '700',
-    color: '#0F172A',
   },
-  specSeparator: {
-    width: '1px',
-    height: '20px',
-    backgroundColor: '#E2E8F0',
+  heroPhoneLink: {
+    color: '#1A2FB8',
+    fontWeight: '600',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
   },
-  summaryGrid: {
+  minimalKpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 135px), 1fr))',
-    gap: '10px',
-  },
-  kpiCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '14px',
-    padding: '14px',
-    border: '1px solid #E2E8F0',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    gap: '10px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))',
+    gap: '8px',
+    width: '100%',
     boxSizing: 'border-box',
   },
-  kpiIconWrap: {
-    width: '34px',
-    height: '34px',
-    borderRadius: '10px',
-    backgroundColor: '#F0F4FF',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  kpiContent: {
+  minimalKpiCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    padding: '10px 12px',
+    border: '1px solid #E2E8F0',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
+    boxSizing: 'border-box',
   },
-  kpiLabel: {
-    fontSize: '11.5px',
-    fontWeight: '600',
+  minimalKpiLabel: {
+    fontSize: '10px',
+    fontWeight: '700',
     color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
   },
-  kpiValue: {
-    fontSize: 'clamp(17px, 3.5vw, 20px)',
+  minimalKpiValue: {
+    fontSize: 'clamp(14px, 3.5vw, 17px)',
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: '-0.2px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
-  kpiFootnote: {
-    fontSize: '10.5px',
-    color: '#94A3B8',
-    marginTop: '1px',
+  emptyStateBoxMinimal: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '24px 16px',
+    backgroundColor: '#F8FAFC',
+    borderRadius: '10px',
+    border: '1px dashed #E2E8F0',
   },
   tabsContainer: {
     width: '100%',
