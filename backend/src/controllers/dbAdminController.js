@@ -10,7 +10,6 @@ const ALLOWED_TABLES = [
   'users',
   'regions',
   'incharges',
-  'technicians',
   'farmers',
   'farmer_assignments',
   'ponds',

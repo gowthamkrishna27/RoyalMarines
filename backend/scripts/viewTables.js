@@ -21,7 +21,7 @@ async function main() {
   } else {
     // Sanitize table name against injection
     const allowed = [
-      'roles', 'users', 'regions', 'incharges', 'technicians',
+      'roles', 'users', 'regions', 'incharges',
       'farmers', 'farmer_assignments', 'ponds', 'culture_cycles',
       'field_visits', 'water_quality_records', 'biomass_records',
       'health_records', 'feed_products', 'feed_records',
