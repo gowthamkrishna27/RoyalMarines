@@ -529,7 +529,7 @@ export const getFarmers = () => {
 export const getFarmersByAgent = (agentId) => getFarmers().filter(f => f.agentId === agentId);
 export const getFarmersByIncharge = (inchargeId) => {
   const incharge = getInchargeById(inchargeId);
-  const incName = incharge ? incharge.name.split(' ')[0] : '';
+  const incName = incharge ? (incharge.name || '').split(' ')[0] : '';
   const agents = getAgentsByIncharge(inchargeId);
   const agentIds = agents.map(a => a.id);
   return getFarmers()

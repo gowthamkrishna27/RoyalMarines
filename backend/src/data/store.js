@@ -26,10 +26,14 @@ class DataStore {
     if (isDbConnected()) {
       try {
         const rows = await query(
-          'SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?) OR phone = ? OR LOWER(email) = LOWER(?) LIMIT 1',
+          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) OR u.phone = ? OR LOWER(u.email) = LOWER(?) LIMIT 1',
           [identifier, identifier, identifier, identifier]
         );
-        if (rows && rows.length > 0) return rows[0];
+        if (rows && rows.length > 0) {
+          const user = rows[0];
+          user.password = user.password_hash; // Map for backward compatibility
+          return user;
+        }
       } catch (err) {
         console.error('[DB Error in findUserByIdentifier]', err.message);
       }
@@ -57,8 +61,12 @@ class DataStore {
   async findUserById(id) {
     if (isDbConnected()) {
       try {
-        const rows = await query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
-        if (rows && rows.length > 0) return rows[0];
+        const rows = await query('SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? LIMIT 1', [id]);
+        if (rows && rows.length > 0) {
+          const user = rows[0];
+          user.password = user.password_hash;
+          return user;
+        }
       } catch (err) {
         console.error('[DB Error in findUserById]', err.message);
       }

@@ -13,8 +13,28 @@ import {
 
 const Regions = () => {
   const navigate = useNavigate();
-  const regions = getRegions();
+  const [regions, setRegions] = useState([]);
   const allIncharges = getIncharges();
+
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const response = await fetch('/api/analytics/regions');
+        const data = await response.json();
+        if (data.success && data.data) {
+          const dbRegions = data.data.map(r => ({
+            id: r.code || r.id,
+            name: r.name,
+            localities: []
+          }));
+          setRegions(dbRegions);
+        }
+      } catch (error) {
+        console.error('Failed to fetch regions from DB:', error);
+      }
+    };
+    fetchRegions();
+  }, []);
 
   // Normalizer for legacy records in localStorage
   const normalizeFarmerData = (list) => {

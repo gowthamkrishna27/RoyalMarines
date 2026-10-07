@@ -45,13 +45,13 @@ const FieldData = () => {
   };
 
   const availableIncharges = useMemo(() => {
-    return incharges.map(i => i.name.split(' (')[0]);
+    return incharges.map(i => (i.name || '').split(' (')[0]);
   }, [incharges]);
 
   const availableAgents = useMemo(() => {
     let filtered = allAgents;
     if (filters.incharge) filtered = filtered.filter(a => a.incharge === filters.incharge);
-    return filtered.map(a => a.name.split(' (')[0]);
+    return filtered.map(a => (a.name || '').split(' (')[0]);
   }, [filters.incharge, allAgents]);
 
   const availableFarmers = useMemo(() => {
@@ -84,7 +84,7 @@ const FieldData = () => {
   });
 
   // Re-inject dummy logic if a specific agent is selected
-  const selectedAgentObj = allAgents.find(a => a.name.split(' (')[0] === filters.agent);
+  const selectedAgentObj = allAgents.find(a => (a.name || '').split(' (')[0] === filters.agent);
   if (selectedAgentObj && selectedAgentObj.tests) {
     const expectedTests = selectedAgentObj.tests;
     const currentCompleted = filteredSubmissions.filter(s => s.status === 'COMPLETED').length;
@@ -93,11 +93,11 @@ const FieldData = () => {
       const needed = expectedTests - currentCompleted;
       const testTypes = ['Water Analysis', 'Feed Test', 'Medication', 'Disease Observation'];
       const farmerNames = ['Ashok', 'Ravi', 'Kumar', 'Siva', 'Ganesh'];
-      const formattedAgentId = `agent${selectedAgentObj.id.split('-').pop().padStart(3, '0')}`;
+      const formattedAgentId = `agent${(selectedAgentObj.id || '').split('-').pop().padStart(3, '0')}`;
 
       for (let i = 0; i < needed; i++) {
         const dummySub = {
-          id: `SUB-GEN-${selectedAgentObj.id.split('-').pop()}-${i}`,
+          id: `SUB-GEN-${(selectedAgentObj.id || '').split('-').pop()}-${i}`,
           agentId: formattedAgentId,
           farmerId: filters.farmer || farmerNames[i % 5],
           tankId: filters.tank || `Tank ${(i % 10) + 1}`,
