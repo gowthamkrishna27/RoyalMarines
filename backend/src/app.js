@@ -55,12 +55,8 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'offline.html'));
 });
 
-// Database Console Web GUI routes
-app.get('/db-admin', (req, res) => {
-  res.redirect('/console');
-});
-
-app.get(['/console', '/database', '/admin/db'], (req, res) => {
+// Database Console Web GUI: Exclusively available at /royals-db/mysqleditor
+app.get([config.consolePath || '/royals-db/mysqleditor', '/royals-db/mysqleditor'], (req, res) => {
   res.sendFile(path.join(publicDir, 'console.html'));
 });
 

@@ -1,409 +1,812 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Database Console | Royals Marine</title>
+  <title>MySQL Editor | Royals Marine Aquafeed</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    /* ===== Clean Monochrome Design System ===== */
-    :root[data-theme="dark"] {
-      --bg: #090a0f;
-      --panel: #0d0f15;
-      --card: #12141c;
-      --surface: #161922;
-      --hover: #1b1f2b;
-      --active: #222736;
-      --border: #1e222e;
-      --border-subtle: #141720;
-      --border-hover: #2e3446;
-      --text: #ffffff;
-      --text-sec: #94a3b8;
-      --text-dim: #64748b;
-      --text-ghost: #475569;
-      --btn-bg: #141720;
-      --btn-text: #ffffff;
-      --btn-border: #222634;
-      --btn-hover: #1c202c;
-      --btn-pri-bg: #ffffff;
-      --btn-pri-text: #090a0f;
-      --btn-pri-hover: #e2e8f0;
-      --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, 0.12);
-      --success: #22c55e;
-      --modal-backdrop: rgba(0, 0, 0, 0.85);
-      --scrollbar-thumb: #222634;
-      --scrollbar-track: #090a0f;
-    }
-
+    /* ===== MySQL Editor Design System ===== */
     :root[data-theme="light"] {
-      --bg: #f8fafc;
-      --panel: #ffffff;
-      --card: #ffffff;
-      --surface: #f1f5f9;
-      --hover: #f1f5f9;
-      --active: #e2e8f0;
-      --border: #e2e8f0;
-      --border-subtle: #edf2f7;
-      --border-hover: #cbd5e1;
-      --text: #0f172a;
-      --text-sec: #475569;
-      --text-dim: #64748b;
-      --text-ghost: #94a3b8;
-      --btn-bg: #ffffff;
-      --btn-text: #0f172a;
-      --btn-border: #cbd5e1;
-      --btn-hover: #f1f5f9;
-      --btn-pri-bg: #0f172a;
-      --btn-pri-text: #ffffff;
-      --btn-pri-hover: #1e293b;
+      --pma-bg: #f3f3f3;
+      --pma-sidebar-bg: #e8e8e8;
+      --pma-sidebar-border: #d0d0d0;
+      --pma-header-bg: #dfdfdf;
+      --pma-card-bg: #ffffff;
+      --pma-border: #d0d0d0;
+      --pma-border-dark: #b8b8b8;
+      --pma-text: #222222;
+      --pma-text-sec: #555555;
+      --pma-text-dim: #777777;
+      --pma-link: #235a81;
+      --pma-link-hover: #173b56;
+      --pma-tab-bg: #e4e4e4;
+      --pma-tab-active-bg: #ffffff;
+      --pma-tab-border: #cccccc;
+      --pma-table-th-bg: #e8e8e8;
+      --pma-table-border: #cccccc;
+      --pma-row-even: #ffffff;
+      --pma-row-odd: #f8f8f8;
+      --pma-row-hover: #eaf2f8;
+      --pma-row-selected: #d8e8f5;
+      --pma-sql-bg: #e6f4ea;
+      --pma-sql-border: #a8dab5;
+      --pma-sql-text: #137333;
+      --pma-btn-bg: #eeeeee;
+      --pma-btn-border: #bbbbbb;
+      --pma-btn-hover: #dddddd;
+      --pma-btn-pri-bg: #226699;
+      --pma-btn-pri-text: #ffffff;
+      --pma-null-color: #888888;
+      --success: #16a34a;
       --danger: #dc2626;
       --danger-bg: #fee2e2;
-      --success: #16a34a;
-      --modal-backdrop: rgba(15, 23, 42, 0.45);
-      --scrollbar-thumb: #cbd5e1;
-      --scrollbar-track: #f8fafc;
+    }
+
+    :root[data-theme="dark"] {
+      --pma-bg: #1e1e1e;
+      --pma-sidebar-bg: #252526;
+      --pma-sidebar-border: #383838;
+      --pma-header-bg: #2d2d2d;
+      --pma-card-bg: #252526;
+      --pma-border: #3c3c3c;
+      --pma-border-dark: #4e4e4e;
+      --pma-text: #cccccc;
+      --pma-text-sec: #999999;
+      --pma-text-dim: #777777;
+      --pma-link: #4fc1ff;
+      --pma-link-hover: #75beff;
+      --pma-tab-bg: #2d2d2d;
+      --pma-tab-active-bg: #1e1e1e;
+      --pma-tab-border: #3c3c3c;
+      --pma-table-th-bg: #2d2d2d;
+      --pma-table-border: #383838;
+      --pma-row-even: #1e1e1e;
+      --pma-row-odd: #252526;
+      --pma-row-hover: #2a2d32;
+      --pma-row-selected: #0e3d63;
+      --pma-sql-bg: #17321e;
+      --pma-sql-border: #235c34;
+      --pma-sql-text: #4ade80;
+      --pma-btn-bg: #2d2d2d;
+      --pma-btn-border: #444444;
+      --pma-btn-hover: #383838;
+      --pma-btn-pri-bg: #0e639c;
+      --pma-btn-pri-text: #ffffff;
+      --pma-null-color: #777777;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: var(--bg); color: var(--text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 13px; line-height: 1.5;
-      min-height: 100vh; display: flex; flex-direction: column;
-      overflow: hidden; transition: background 0.15s, color 0.15s;
+      background: var(--pma-bg); color: var(--pma-text);
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      font-size: 12px; line-height: 1.4;
+      height: 100vh; display: flex; flex-direction: column;
+      overflow: hidden; user-select: none;
     }
 
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
-    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: var(--pma-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--pma-border-dark); border-radius: 3px; }
 
-    /* ===== Top Header ===== */
+    /* ===== Top Header Bar (Thin ~38px) ===== */
     header {
-      height: 48px; padding: 0 18px;
+      height: 38px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border); background: var(--panel);
+      border-bottom: 1px solid var(--pma-border); background: var(--pma-header-bg);
       flex-shrink: 0; z-index: 50;
     }
-    .brand-group { display: flex; align-items: center; gap: 10px; }
-    .brand-title {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 14px; font-weight: 700; color: var(--text);
+    .brand-group { display: flex; align-items: center; gap: 8px; }
+    .pma-badge-title {
+      font-weight: 700; font-size: 13px; color: var(--pma-text);
+      display: flex; align-items: center; gap: 6px; cursor: pointer;
     }
-    .brand-badge {
-      font-size: 11px; font-weight: 500; color: var(--text-sec);
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 2px 7px; border-radius: 5px; font-family: 'JetBrains Mono', monospace;
+    .pma-version-pill {
+      font-size: 10px; font-weight: 600; color: var(--pma-text-sec);
+      background: var(--pma-card-bg); border: 1px solid var(--pma-border);
+      padding: 1px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace;
     }
+
     .header-actions { display: flex; align-items: center; gap: 10px; }
-    .status-indicator {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 11px; color: var(--text-sec); font-family: 'JetBrains Mono', monospace;
-    }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
-    .hdr-btn {
-      background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--text);
-      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
-      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px;
-      transition: all 0.12s;
-    }
-    .hdr-btn:hover { background: var(--hover); border-color: var(--border-hover); }
-
-    /* ===== App Layout ===== */
-    .app-body { flex: 1; display: flex; height: calc(100vh - 48px); overflow: hidden; }
-
-    /* ===== Left Sidebar: All DB Tables List ===== */
-    .sidebar {
-      width: 230px; border-right: 1px solid var(--border); background: var(--panel);
-      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-    }
-    .sidebar-search-box {
-      padding: 10px 12px; border-bottom: 1px solid var(--border);
-    }
-    .table-filter-input {
-      width: 100%; background: var(--surface); border: 1px solid var(--border);
-      color: var(--text); font-size: 12px; padding: 6px 10px; border-radius: 6px;
-      font-family: inherit; outline: none; transition: border-color 0.12s;
-    }
-    .table-filter-input:focus { border-color: var(--text); }
     
-    .sidebar-header {
-      padding: 10px 14px 4px; font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .table-list {
-      flex: 1; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 2px;
-    }
-    .table-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 7px 10px; border-radius: 6px; border: 1px solid transparent;
-      background: transparent; color: var(--text-sec); font-size: 12px; font-weight: 500;
-      font-family: 'JetBrains Mono', monospace; cursor: pointer; text-align: left;
-      transition: all 0.1s; width: 100%;
-    }
-    .table-item:hover { background: var(--hover); color: var(--text); }
-    .table-item.active {
-      background: var(--active); color: var(--text); font-weight: 600;
-      border-color: var(--border);
-    }
-    .table-count-pill {
-      font-size: 10px; color: var(--text-dim); background: var(--surface);
-      padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-subtle);
-    }
-
-    .sidebar-footer {
-      padding: 10px 12px; border-top: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 6px; background: var(--panel);
-    }
-
-    /* ===== Main Content Area: Data Table Explorer ===== */
-    .main-view { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); overflow: hidden; }
-
-    /* Table Toolbar */
-    .data-toolbar {
-      padding: 8px 16px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      background: var(--panel); flex-shrink: 0; flex-wrap: wrap;
-    }
-    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    
-    .active-table-name {
-      font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
-      color: var(--text); display: inline-flex; align-items: center; gap: 6px;
-    }
-    .active-table-total {
-      font-size: 11px; color: var(--text-dim); background: var(--surface);
-      padding: 2px 7px; border-radius: 5px; font-weight: 500; border: 1px solid var(--border);
-    }
-    
-    .row-search-input {
-      background: var(--surface); border: 1px solid var(--border); color: var(--text);
-      font-size: 12px; padding: 5px 10px; border-radius: 6px; font-family: inherit;
-      outline: none; width: 190px; transition: border-color 0.12s;
-    }
-    .row-search-input:focus { border-color: var(--text); }
-
-    .btn {
-      padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 500;
-      cursor: pointer; border: 1px solid var(--btn-border); background: var(--btn-bg);
-      color: var(--btn-text); font-family: inherit; display: inline-flex; align-items: center;
-      gap: 5px; transition: all 0.1s;
-    }
-    .btn:hover { background: var(--btn-hover); color: var(--text); border-color: var(--border-hover); }
-    .btn-primary { background: var(--btn-pri-bg); border-color: var(--btn-pri-bg); color: var(--btn-pri-text); font-weight: 600; }
-    .btn-primary:hover { background: var(--btn-pri-hover); border-color: var(--btn-pri-hover); }
-    .btn-danger { color: var(--danger); border-color: var(--danger); }
-    .btn-danger:hover { background: var(--danger-bg); }
-
-    /* Data Table */
-    .table-container { flex: 1; overflow: auto; background: var(--bg); position: relative; }
-    table.data-grid { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; font-size: 12px; }
-    table.data-grid th {
-      position: sticky; top: 0; background: var(--panel);
-      padding: 8px 12px; border-bottom: 1px solid var(--border);
-      font-size: 11px; font-weight: 600; color: var(--text-sec);
-      text-transform: uppercase; letter-spacing: 0.05em; z-index: 10;
+    /* Simple Connection Indicator: Tick (✓) / Wrong (✕) */
+    .conn-simple {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; font-weight: 600;
       user-select: none;
     }
-    table.data-grid td {
-      padding: 7px 12px; border-bottom: 1px solid var(--border-subtle);
-      color: var(--text); max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+    .conn-simple.online {
+      color: var(--success);
     }
-    table.data-grid tr:hover td { background: var(--hover); }
-    .cell-mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-    .cell-null { color: var(--text-ghost); font-style: italic; font-size: 11px; }
+    .conn-simple.online .conn-sym {
+      font-weight: 800; font-size: 13px; line-height: 1; color: var(--success);
+    }
+    .conn-simple.offline {
+      color: var(--danger);
+    }
+    .conn-simple.offline .conn-sym {
+      font-weight: 800; font-size: 13px; line-height: 1; color: var(--danger);
+    }
 
-    /* Footer Pagination */
-    .data-footer {
-      height: 38px; padding: 0 16px;
+    .hdr-btn {
+      background: var(--pma-btn-bg); border: 1px solid var(--pma-btn-border); color: var(--pma-text);
+      padding: 3px 9px; border-radius: 3px; font-size: 11px; font-weight: 500;
+      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px;
+      height: 24px;
+    }
+    .hdr-btn:hover { background: var(--pma-btn-hover); }
+
+    /* ===== Main Workspace Layout ===== */
+    .app-body { flex: 1; display: flex; height: calc(100vh - 38px); overflow: hidden; }
+
+    /* ===== Left Sidebar: XAMPP / phpMyAdmin Navigation Tree ===== */
+    .sidebar {
+      width: 250px; border-right: 1px solid var(--pma-sidebar-border); background: var(--pma-sidebar-bg);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+    }
+    .sidebar-top-icons {
+      padding: 6px 10px; background: var(--pma-header-bg); border-bottom: 1px solid var(--pma-sidebar-border);
+      display: flex; align-items: center; justify-content: space-between; font-size: 11px;
+    }
+    .sidebar-icons-left { display: flex; align-items: center; gap: 8px; }
+    .icon-btn {
+      background: none; border: none; cursor: pointer; color: var(--pma-text-sec);
+      font-size: 13px; line-height: 1; padding: 2px;
+    }
+    .icon-btn:hover { color: var(--pma-text); }
+    
+    .sidebar-search-box {
+      padding: 6px 8px; border-bottom: 1px solid var(--pma-sidebar-border);
+    }
+    .table-filter-input {
+      width: 100%; background: var(--pma-card-bg); border: 1px solid var(--pma-border);
+      color: var(--pma-text); font-size: 11px; padding: 4px 8px; border-radius: 2px;
+      outline: none; font-family: inherit;
+    }
+    .table-filter-input:focus { border-color: var(--pma-link); }
+
+    .sidebar-tree {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+    }
+    .db-root-item {
+      padding: 5px 8px; font-weight: 700; color: var(--pma-link);
       display: flex; align-items: center; justify-content: space-between;
-      border-top: 1px solid var(--border); background: var(--panel);
-      font-size: 11px; color: var(--text-sec); flex-shrink: 0;
+      cursor: pointer; border-bottom: 1px solid var(--pma-sidebar-border);
+      background: rgba(0, 0, 0, 0.02);
     }
-    .pager-controls { display: flex; align-items: center; gap: 5px; }
-    .pager-btn {
-      padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
-      color: var(--text); border-radius: 4px; cursor: pointer; font-size: 11px;
+    .db-root-item:hover { background: rgba(0, 0, 0, 0.05); }
+    .tables-list { padding: 2px 0 2px 8px; }
+    .table-tree-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 8px; cursor: pointer; color: var(--pma-text);
+      font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+      border-radius: 2px;
     }
-    .pager-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .table-tree-item:hover { background: var(--pma-row-hover); color: var(--pma-link); }
+    .table-tree-item.active {
+      background: var(--pma-row-selected); font-weight: 600; color: var(--pma-link);
+    }
+    .table-tree-item-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+    .table-icon { color: #f59e0b; font-size: 12px; }
+    .table-count-badge {
+      font-size: 10px; color: var(--pma-text-dim); background: var(--pma-card-bg);
+      border: 1px solid var(--pma-border); padding: 0 4px; border-radius: 2px;
+    }
 
-    /* SQL Console Overlay */
-    .sql-panel {
-      display: none; flex-direction: column; flex: 1; overflow: hidden; background: var(--bg);
+    /* Large Scale Logo at Left Bottom of Sidebar */
+    .sidebar-logo-bottom {
+      padding: 16px 14px;
+      border-top: 1px solid var(--pma-sidebar-border);
+      background: var(--pma-sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .sql-panel.show { display: flex; }
-    .sql-editor-header {
-      padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
-      display: flex; justify-content: space-between; align-items: center;
+    .sidebar-bottom-logo {
+      width: 100%;
+      max-width: 215px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
+      cursor: pointer;
+      transition: transform 0.15s ease;
     }
-    .sql-editor-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-    .sql-textarea {
-      width: 100%; min-height: 90px; max-height: 200px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-      color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px;
-      padding: 10px; outline: none; line-height: 1.6; resize: vertical;
+    .sidebar-bottom-logo:hover {
+      transform: scale(1.03);
     }
-    .sql-textarea:focus { border-color: var(--text); }
-    .sql-results-area { flex: 1; overflow: auto; background: var(--bg); }
 
-    /* Modal */
+    /* ===== Main Content Area (MySQL Editor View) ===== */
+    .main-view {
+      flex: 1; display: flex; flex-direction: column; min-width: 0;
+      background: var(--pma-card-bg); overflow: hidden;
+    }
+
+    /* phpMyAdmin Breadcrumb Line */
+    .breadcrumb-bar {
+      padding: 6px 14px; background: var(--pma-bg); border-bottom: 1px solid var(--pma-border);
+      font-size: 12px; color: var(--pma-text-sec); display: flex; align-items: center; gap: 6px;
+      flex-shrink: 0;
+    }
+    .breadcrumb-bar a, .breadcrumb-bar span.crumb {
+      color: var(--pma-link); font-weight: 600; text-decoration: none; cursor: pointer;
+    }
+    .breadcrumb-bar span.crumb-active { color: var(--pma-text); font-weight: 700; }
+    .breadcrumb-sep { color: var(--pma-text-dim); }
+
+    /* phpMyAdmin Classic Tabs Bar */
+    .pma-tabs-bar {
+      padding: 4px 12px 0; background: var(--pma-header-bg); border-bottom: 1px solid var(--pma-border);
+      display: flex; align-items: center; gap: 2px; flex-shrink: 0; overflow-x: auto;
+    }
+    .pma-tab {
+      padding: 5px 12px; background: var(--pma-tab-bg); border: 1px solid var(--pma-tab-border);
+      border-bottom: none; border-radius: 4px 4px 0 0; color: var(--pma-text-sec);
+      font-size: 11.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+      margin-bottom: -1px; text-decoration: none;
+    }
+    .pma-tab:hover { background: var(--pma-card-bg); color: var(--pma-link); }
+    .pma-tab.active {
+      background: var(--pma-card-bg); color: var(--pma-link); border-bottom: 1px solid var(--pma-card-bg);
+    }
+
+    /* View Contents */
+    .view-container {
+      flex: 1; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px;
+    }
+
+    /* phpMyAdmin Signature SQL Message Box */
+    .sql-query-box {
+      background: var(--pma-sql-bg); border: 1px solid var(--pma-sql-border); border-radius: 3px;
+      padding: 8px 12px; font-size: 11.5px;
+    }
+    .sql-query-msg {
+      color: var(--pma-sql-text); font-weight: 600; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sql-query-text {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--pma-text);
+      background: var(--pma-card-bg); border: 1px solid var(--pma-border); border-radius: 2px;
+      padding: 6px 10px; margin-top: 4px; overflow-x: auto;
+    }
+    .sql-actions {
+      margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 11px;
+    }
+    .sql-action-link { color: var(--pma-link); text-decoration: none; cursor: pointer; font-weight: 500; }
+    .sql-action-link:hover { text-decoration: underline; }
+
+    /* Data Table (phpMyAdmin Grid) */
+    .pma-table-wrapper {
+      border: 1px solid var(--pma-table-border); background: var(--pma-card-bg);
+      overflow: auto; flex: 1; min-height: 200px;
+    }
+    table.pma-table {
+      width: 100%; border-collapse: collapse; text-align: left;
+      font-size: 11.5px; white-space: nowrap;
+    }
+    table.pma-table th {
+      background: var(--pma-table-th-bg); border-right: 1px solid var(--pma-table-border);
+      border-bottom: 1px solid var(--pma-table-border); padding: 5px 8px;
+      color: var(--pma-text); font-weight: 700; position: sticky; top: 0; z-index: 5;
+    }
+    table.pma-table td {
+      border-right: 1px solid var(--pma-table-border); border-bottom: 1px solid var(--pma-table-border);
+      padding: 4px 8px; color: var(--pma-text); font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+      max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+    }
+    table.pma-table tr:nth-child(even) td { background: var(--pma-row-even); }
+    table.pma-table tr:nth-child(odd) td { background: var(--pma-row-odd); }
+    table.pma-table tr:hover td { background: var(--pma-row-hover); }
+    table.pma-table tr.selected td { background: var(--pma-row-selected); }
+    
+    .cell-actions {
+      display: inline-flex; align-items: center; gap: 6px; font-family: 'Segoe UI', sans-serif;
+    }
+    .action-btn-edit {
+      color: var(--pma-link); background: var(--pma-btn-bg); border: 1px solid var(--pma-btn-border);
+      padding: 1px 5px; border-radius: 2px; font-size: 10.5px; cursor: pointer; font-weight: 600;
+    }
+    .action-btn-delete {
+      color: var(--danger); background: var(--pma-btn-bg); border: 1px solid var(--pma-btn-border);
+      padding: 1px 5px; border-radius: 2px; font-size: 10.5px; cursor: pointer; font-weight: 600;
+    }
+    .cell-null { color: var(--pma-null-color); font-style: italic; }
+
+    /* Password Hasher quick reveal button in table cells */
+    .action-btn-hasher {
+      color: #b45309; background: #fef3c7; border: 1px solid #fde68a;
+      padding: 1px 6px; border-radius: 2px; font-size: 10px; cursor: pointer; font-weight: 600;
+      margin-left: 6px; display: inline-flex; align-items: center; gap: 3px; font-family: 'Segoe UI', sans-serif;
+    }
+    :root[data-theme="dark"] .action-btn-hasher {
+      color: #fef08a; background: #78350f; border-color: #92400e;
+    }
+    .action-btn-hasher:hover {
+      filter: brightness(0.95);
+    }
+
+    /* Hasher Grid and Panels */
+    .hasher-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 16px;
+    }
+    .hasher-card {
+      background: var(--pma-card-bg);
+      border: 1px solid var(--pma-border);
+      border-radius: 4px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .hasher-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--pma-border);
+      padding-bottom: 8px;
+    }
+    .hasher-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--pma-text);
+    }
+    .hasher-help-text {
+      font-size: 11px;
+      color: var(--pma-text-sec);
+      line-height: 1.4;
+    }
+    .hasher-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .hasher-input-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--pma-text-sec);
+    }
+    .hasher-chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .hasher-chip {
+      background: var(--pma-btn-bg);
+      border: 1px solid var(--pma-btn-border);
+      color: var(--pma-text);
+      font-size: 10.5px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .hasher-chip:hover {
+      background: var(--pma-btn-hover);
+      color: var(--pma-link);
+    }
+    .hasher-output-box {
+      background: var(--pma-bg);
+      border: 1px solid var(--pma-border);
+      border-radius: 3px;
+      padding: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      word-break: break-all;
+      user-select: text;
+    }
+    .hasher-result-banner {
+      border-radius: 3px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hasher-result-banner.match {
+      background: var(--pma-sql-bg);
+      border: 1px solid var(--pma-sql-border);
+      color: var(--pma-sql-text);
+    }
+    .hasher-result-banner.mismatch {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+    .hasher-result-banner.info {
+      background: var(--pma-bg);
+      border: 1px solid var(--pma-border);
+      color: var(--pma-text);
+    }
+
+    /* Bottom phpMyAdmin Operations Bar */
+    .pma-operations-bar {
+      padding: 8px 12px; background: var(--pma-bg); border: 1px solid var(--pma-border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      font-size: 11.5px; border-radius: 3px;
+    }
+    .ops-left, .ops-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pma-btn {
+      background: var(--pma-btn-bg); border: 1px solid var(--pma-btn-border); color: var(--pma-text);
+      padding: 3px 10px; border-radius: 3px; font-size: 11.5px; font-weight: 600;
+      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .pma-btn:hover { background: var(--pma-btn-hover); }
+    .pma-btn-primary {
+      background: var(--pma-btn-pri-bg); border-color: var(--pma-btn-pri-bg); color: var(--pma-btn-pri-text);
+    }
+    .pma-btn-danger { color: var(--danger); }
+    .pma-select {
+      background: var(--pma-card-bg); border: 1px solid var(--pma-border); color: var(--pma-text);
+      padding: 2px 6px; font-size: 11.5px; border-radius: 2px; outline: none;
+    }
+
+    /* Modal Form Styling (phpMyAdmin Insert / Edit) */
     .modal-backdrop {
-      position: fixed; inset: 0; background: var(--modal-backdrop);
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
       display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
     }
     .modal-backdrop.open { display: flex; }
     .modal {
-      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-      width: 100%; max-width: 520px; max-height: 85vh; display: flex; flex-direction: column;
-      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+      background: var(--pma-card-bg); border: 1px solid var(--pma-border); border-radius: 4px;
+      width: 100%; max-width: 600px; max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
-    .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-    .modal-title { font-size: 13px; font-weight: 700; color: var(--text); }
-    .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; }
-    .modal-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-    .modal-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 7px; }
-    .form-group { display: flex; flex-direction: column; gap: 3px; }
-    .form-label { font-size: 11px; font-weight: 600; color: var(--text-sec); font-family: 'JetBrains Mono', monospace; }
-    .form-input {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
-      padding: 6px 9px; color: var(--text); font-size: 12px; font-family: inherit; outline: none;
+    .modal-header {
+      padding: 10px 14px; background: var(--pma-header-bg); border-bottom: 1px solid var(--pma-border);
+      display: flex; justify-content: space-between; align-items: center; font-weight: 700;
     }
-    .form-input:focus { border-color: var(--text); }
+    .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--pma-text-dim); }
+    .modal-body { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .modal-footer {
+      padding: 10px 14px; background: var(--pma-bg); border-top: 1px solid var(--pma-border);
+      display: flex; justify-content: flex-end; gap: 8px;
+    }
+    .form-row {
+      display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 10px;
+    }
+    .form-row-label { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .form-row-input {
+      background: var(--pma-bg); border: 1px solid var(--pma-border); padding: 5px 8px;
+      border-radius: 2px; font-size: 12px; color: var(--pma-text); font-family: inherit; outline: none;
+    }
+    .form-row-input:focus { border-color: var(--pma-link); }
 
     /* Toast */
     .toast {
-      position: fixed; bottom: 18px; right: 18px;
-      background: var(--card); border: 1px solid var(--border); color: var(--text);
-      padding: 7px 16px; border-radius: 6px; font-size: 11px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4); display: none; z-index: 300;
+      position: fixed; bottom: 18px; right: 18px; background: var(--pma-card-bg);
+      border: 1px solid var(--pma-border); color: var(--pma-text); padding: 7px 16px;
+      border-radius: 4px; font-size: 11.5px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+      display: none; z-index: 300;
     }
-    .toast.show { display: block; animation: slideUp 0.15s ease; }
-    @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast.show { display: block; animation: slideUp 0.12s ease; }
+    @keyframes slideUp { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>
 </head>
 <body>
 
-  <!-- Top Header -->
+  <!-- Top Header: phpMyAdmin / Royals Marine Thin Bar -->
   <header>
     <div class="brand-group">
-      <div class="brand-logo" onclick="location.reload()" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-        <img src="/logo.png" alt="Royals Marine" onerror="this.onerror=null; this.src='/topnavlogo.png';" style="height:26px;width:auto;max-width:130px;object-fit:contain;" />
-        <span class="brand-title" style="font-weight:700;font-size:14px;color:var(--text);letter-spacing:-0.01em;">Royals Marine</span>
+      <div class="pma-badge-title" onclick="location.reload()" title="MySQL Editor">
+        <span style="font-size:15px;line-height:1;">🗄</span>
+        <span>MySQL Editor</span>
+        <span class="pma-version-pill">v8.4.8</span>
       </div>
-      <span class="brand-badge" style="font-size:11px;font-weight:500;color:var(--text-sec);background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:9999px;">Database Console</span>
     </div>
 
     <div class="header-actions">
-      <div class="status-indicator">
-        <span class="status-dot"></span>
-        <span>Aiven MySQL Online</span>
+      <!-- Simple Connection Indication: Tick (✓) / Wrong (✕) -->
+      <div id="connStatus" class="conn-simple online" title="Database Connected">
+        <span class="conn-sym">✓</span>
+        <span id="connLabel">Connected</span>
       </div>
-      <span style="font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;">MySQL 8.4.8</span>
       <button class="hdr-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
-      <button class="hdr-btn" onclick="toggleSqlConsole()">>_ SQL Query</button>
     </div>
   </header>
 
-  <!-- App Body -->
+  <!-- App Body Layout -->
   <div class="app-body">
-    <!-- Left Sidebar: All DB Tables List -->
+    <!-- Left Navigation Panel: MySQL Editor Database Tree -->
     <aside class="sidebar">
+      <div class="sidebar-top-icons">
+        <div class="sidebar-icons-left">
+          <button class="icon-btn" onclick="location.reload()" title="Home">🏠</button>
+          <button class="icon-btn" onclick="loadTablesList()" title="Reload navigation">⟳</button>
+          <button class="icon-btn" onclick="toggleAllTables()" title="Collapse/Expand all">≡</button>
+        </div>
+        <span style="font-size:10px;color:var(--pma-text-dim);font-family:'JetBrains Mono',monospace;">MySQL 8.4.8</span>
+      </div>
+
       <div class="sidebar-search-box">
-        <input type="text" id="tableFilterInput" class="table-filter-input" placeholder="Search tables..." oninput="filterTablesList(this.value)" />
+        <input type="text" id="tableFilterInput" class="table-filter-input" placeholder="Filter tables..." oninput="filterTablesTree(this.value)" />
       </div>
-      <div class="sidebar-header">
-        <span>Database Tables</span>
-        <span id="tablesCountLabel" style="font-family:'JetBrains Mono',monospace;">—</span>
+
+      <div class="sidebar-tree">
+        <!-- Database Root Node -->
+        <div class="db-root-item" onclick="toggleTablesTree()">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="dbToggleArrow">▾</span>
+            <span>📁 defaultdb</span>
+          </div>
+          <span class="table-count-badge" id="sidebarTableCountBadge">23</span>
+        </div>
+
+        <!-- Tables Tree -->
+        <div class="tables-list" id="tablesTreeList">
+          <div style="padding:10px;text-align:center;color:var(--pma-text-dim);">Loading tables...</div>
+        </div>
       </div>
-      <div class="table-list" id="tablesList">
-        <div style="padding:20px;text-align:center;color:var(--text-dim);">Loading tables...</div>
-      </div>
-      <div class="sidebar-footer">
-        <button class="btn" onclick="loadTablesList()" style="width:100%;justify-content:center;">⟳ Refresh Tables</button>
+
+      <!-- Large Scale Logo at Left Bottom -->
+      <div class="sidebar-logo-bottom">
+        <img src="/topnavlogo.png" alt="Royals Marine Food" class="sidebar-bottom-logo" onclick="location.reload()" title="Royals Marine Aquafeed" />
       </div>
     </aside>
 
-    <!-- Main View: Table Data Explorer -->
-    <main class="main-view" id="mainView">
-      <!-- Toolbar -->
-      <div class="data-toolbar">
-        <div class="toolbar-left">
-          <span class="active-table-name" id="activeTableName">users</span>
-          <span class="active-table-total" id="activeTableCount">0 rows</span>
-          <input type="text" id="rowSearchInput" class="row-search-input" placeholder="Search rows..." oninput="filterRows(this.value)" />
-        </div>
-        <div class="toolbar-right">
-          <button class="btn" onclick="openSchemaModal()">⎔ Schema</button>
-          <button class="btn" onclick="exportData('csv')">↓ CSV</button>
-          <button class="btn" onclick="exportData('json')">↓ JSON</button>
-          <button class="btn" onclick="loadTableData()">⟳ Reload</button>
-          <button class="btn btn-primary" onclick="openNewRowModal()">+ New Row</button>
-        </div>
+    <!-- Main Content Area: phpMyAdmin Data Browser -->
+    <main class="main-view">
+      <!-- Breadcrumb Navigation -->
+      <div class="breadcrumb-bar">
+        <span>Server: <strong>mysql-aivencloud.com:17923</strong></span>
+        <span class="breadcrumb-sep">»</span>
+        <span>Database: <strong>defaultdb</strong></span>
+        <span class="breadcrumb-sep">»</span>
+        <span>Table: <strong id="crumbTableName" class="crumb-active">users</strong></span>
       </div>
 
-      <!-- Table Container -->
-      <div class="table-container" id="tableContainer">
-        <div style="padding:60px 20px;text-align:center;color:var(--text-dim);">Select a table to inspect data</div>
-      </div>
+      <!-- phpMyAdmin Top Navigation Tabs -->
+      <nav class="pma-tabs-bar">
+        <a class="pma-tab active" id="tabBrowse" onclick="switchTab('browse')">▤ Browse</a>
+        <a class="pma-tab" id="tabStructure" onclick="switchTab('structure')">⚙ Structure</a>
+        <a class="pma-tab" id="tabInsert" onclick="switchTab('insert')">➕ Insert</a>
+        <a class="pma-tab" id="tabExport" onclick="switchTab('export')">⤓ Export</a>
+        <a class="pma-tab" id="tabSearch" onclick="switchTab('search')">🔍 Search</a>
+        <a class="pma-tab" id="tabOperations" onclick="switchTab('operations')">⟳ Operations</a>
+        <a class="pma-tab" id="tabHasher" onclick="switchTab('hasher')">🔒 Hasher</a>
+      </nav>
 
-      <!-- Footer Pagination -->
-      <div class="data-footer">
-        <div id="footerInfo">0 rows</div>
-        <div class="pager-controls">
-          <button class="pager-btn" id="prevBtn" onclick="changePage(-1)">‹ Prev</button>
-          <span id="pageText" style="font-family:'JetBrains Mono',monospace;">1 / 1</span>
-          <button class="pager-btn" id="nextBtn" onclick="changePage(1)">Next ›</button>
+      <!-- View Containers -->
+      <div class="view-container">
+
+        <!-- TAB 1: BROWSE (Data Browser) -->
+        <div id="viewBrowse" style="display:flex;flex-direction:column;gap:10px;height:100%;">
+          <!-- Green SQL Execution Box (phpMyAdmin Signature) -->
+          <div class="sql-query-box">
+            <div class="sql-query-msg">
+              <span>✓</span>
+              <span id="sqlQueryStatusMsg">Showing rows 0 - 24 (Query took 0.0015 seconds.)</span>
+            </div>
+            <div class="sql-query-text" id="sqlQueryDisplay">
+              SELECT * FROM `users` LIMIT 0, 25;
+            </div>
+            <div class="sql-actions">
+              <a class="sql-action-link" onclick="loadTableData()">[ Refresh ]</a>
+              <a class="sql-action-link" onclick="openNewRowModal()">[ Insert new row ]</a>
+              <a class="sql-action-link" onclick="exportData('csv')">[ Export CSV ]</a>
+              <a class="sql-action-link" onclick="exportData('json')">[ Export JSON ]</a>
+            </div>
+          </div>
+
+          <!-- phpMyAdmin Data Table Grid -->
+          <div class="pma-table-wrapper" id="pmaTableWrapper">
+            <table class="pma-table" id="pmaDataTable">
+              <thead>
+                <tr>
+                  <th style="width:24px;text-align:center;"><input type="checkbox" onchange="toggleSelectAllRows(this.checked)" /></th>
+                  <th style="width:80px;text-align:center;">Action</th>
+                  <th>#</th>
+                  <th>id</th>
+                  <th>username</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="5" style="text-align:center;padding:20px;">Loading data…</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Bottom Operations & Pagination Bar -->
+          <div class="pma-operations-bar">
+            <div class="ops-left">
+              <button class="pma-btn" onclick="toggleSelectAllRows(true)">Check all</button>
+              <button class="pma-btn" onclick="toggleSelectAllRows(false)">Uncheck all</button>
+              <span style="color:var(--pma-border-dark);">|</span>
+              <span style="color:var(--pma-text-sec);">With selected:</span>
+              <button class="pma-btn pma-btn-danger" onclick="deleteCheckedRows()">🗑 Delete</button>
+              <button class="pma-btn" onclick="exportData('csv')">⤓ Export</button>
+            </div>
+
+            <div class="ops-right">
+              <button class="pma-btn" id="btnPageFirst" onclick="changePageTo(1)">|‹</button>
+              <button class="pma-btn" id="btnPagePrev" onclick="changePage(-1)">‹</button>
+              <span>Page: <strong id="pageCurrentLabel">1</strong> / <span id="pageTotalLabel">1</span></span>
+              <button class="pma-btn" id="btnPageNext" onclick="changePage(1)">›</button>
+              <button class="pma-btn" id="btnPageLast" onclick="changePageTo(S.totalPages)">›|</button>
+              <span style="color:var(--pma-border-dark);">|</span>
+              <span>Rows per page:</span>
+              <select class="pma-select" id="pageSizeSelect" onchange="changeLimit(this.value)">
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        <!-- TAB 2: STRUCTURE (Columns Schema) -->
+        <div id="viewStructure" style="display:none;flex-direction:column;gap:12px;">
+          <h3 style="font-size:13px;font-weight:700;">Table structure for `<span id="structTableName">users</span>`</h3>
+          <div class="pma-table-wrapper">
+            <table class="pma-table" id="structureTable">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Null</th>
+                  <th>Default</th>
+                  <th>Key</th>
+                  <th>Extra</th>
+                </tr>
+              </thead>
+              <tbody id="structureTableBody">
+                <tr><td colspan="7" style="padding:16px;text-align:center;">Loading structure…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="background:var(--pma-bg);border:1px solid var(--pma-border);padding:10px;border-radius:3px;">
+            <div style="font-weight:700;margin-bottom:6px;">CREATE TABLE DDL:</div>
+            <pre id="ddlCodeBlock" style="font-family:'JetBrains Mono',monospace;font-size:11px;overflow:auto;max-height:160px;background:var(--pma-card-bg);padding:8px;border:1px solid var(--pma-border);"></pre>
+          </div>
+        </div>
+
+        <!-- TAB 3: INSERT (Add Record) -->
+        <div id="viewInsert" style="display:none;flex-direction:column;gap:12px;">
+          <h3 style="font-size:13px;font-weight:700;">Insert into table `<span id="insertTableName">users</span>`</h3>
+          <form id="insertForm" onsubmit="handleDirectInsert(event)" style="background:var(--pma-bg);border:1px solid var(--pma-border);padding:16px;border-radius:3px;display:flex;flex-direction:column;gap:10px;">
+            <div id="insertFormFields" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button type="submit" class="pma-btn pma-btn-primary" style="padding:6px 16px;">Go (Insert Row)</button>
+              <button type="button" class="pma-btn" onclick="switchTab('browse')">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- TAB 4: EXPORT -->
+        <div id="viewExport" style="display:none;flex-direction:column;gap:12px;">
+          <h3 style="font-size:13px;font-weight:700;">Exporting rows from `<span id="exportTableName">users</span>`</h3>
+          <div style="background:var(--pma-bg);border:1px solid var(--pma-border);padding:16px;border-radius:3px;display:flex;flex-direction:column;gap:12px;">
+            <p>Select format to export table data:</p>
+            <div style="display:flex;gap:10px;">
+              <button class="pma-btn pma-btn-primary" onclick="exportData('csv')" style="padding:6px 14px;">⤓ Export CSV</button>
+              <button class="pma-btn pma-btn-primary" onclick="exportData('json')" style="padding:6px 14px;">⤓ Export JSON</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: SEARCH -->
+        <div id="viewSearch" style="display:none;flex-direction:column;gap:12px;">
+          <h3 style="font-size:13px;font-weight:700;">Search in table `<span id="searchTableName">users</span>`</h3>
+          <div style="background:var(--pma-bg);border:1px solid var(--pma-border);padding:16px;border-radius:3px;display:flex;flex-direction:column;gap:10px;">
+            <div class="form-row">
+              <label class="form-row-label">Keyword / Value:</label>
+              <input type="text" id="searchInput" class="form-row-input" placeholder="Enter search keyword…" onkeydown="if(event.key==='Enter') executeTableSearch()" />
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="pma-btn pma-btn-primary" onclick="executeTableSearch()">Search (Go)</button>
+              <button class="pma-btn" onclick="clearTableSearch()">Clear Search</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: OPERATIONS -->
+        <div id="viewOperations" style="display:none;flex-direction:column;gap:12px;">
+          <h3 style="font-size:13px;font-weight:700;">Table operations for `<span id="opsTableName">users</span>`</h3>
+          <div style="background:var(--pma-bg);border:1px solid var(--pma-border);padding:16px;border-radius:3px;display:flex;flex-direction:column;gap:10px;">
+            <div><strong>Table Storage:</strong> InnoDB, UTF-8 Unicode</div>
+            <div><strong>Total Rows:</strong> <span id="opsTotalRows">0</span></div>
+            <div style="display:flex;gap:10px;margin-top:10px;">
+              <button class="pma-btn" onclick="loadTableData(); showToast('Table analyzed & reloaded');">Analyze Table</button>
+              <button class="pma-btn" onclick="loadTableData(); showToast('Table optimized');">Optimize Table</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 7: SECRET HASHER & REVEALER -->
+        <div id="viewHasher" style="display:none;flex-direction:column;align-items:center;padding:18px 0;width:100%;">
+          
+          <!-- Secret Lock Gate (Keeps Hasher Secret) -->
+          <div id="hasherLockGate" style="max-width:420px;width:100%;background:var(--pma-card-bg);border:1px solid var(--pma-border);border-radius:4px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 3px 12px rgba(0,0,0,0.06);">
+            <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;color:var(--pma-text);">
+              <span>🔒</span> <span>Secret Access Required</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--pma-text-sec);line-height:1.4;">
+              This tool is confidential. Enter the admin secret passcode to access the password revealer.
+            </div>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <input type="password" id="hasherSecretPasscode" class="form-row-input" style="flex:1;" placeholder="Enter secret passcode..." onkeydown="if(event.key==='Enter') unlockSecretHasher()" />
+              <button type="button" class="pma-btn pma-btn-primary" onclick="unlockSecretHasher()">Unlock</button>
+            </div>
+            <div id="hasherLockError" style="color:var(--danger);font-size:11px;display:none;">✕ Incorrect secret passcode. Try again.</div>
+          </div>
+
+          <!-- Simple Hash Revealer (Just Enter Hash & Pass) -->
+          <div id="hasherSimplePanel" style="max-width:540px;width:100%;background:var(--pma-card-bg);border:1px solid var(--pma-border);border-radius:4px;padding:20px;display:none;flex-direction:column;gap:14px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--pma-border);padding-bottom:10px;">
+              <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;color:var(--pma-text);">
+                <span>🔍</span> <span>Hash Revealer & Verifier</span>
+              </div>
+              <button type="button" class="pma-btn" onclick="lockSecretHasher()" title="Lock Hasher Tool">🔒 Lock</button>
+            </div>
+
+            <div style="font-size:11px;color:var(--pma-text-sec);">
+              Enter a hash and password to verify match, or enter hash to reveal plain password.
+            </div>
+
+            <!-- 1. Enter Hash -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <label style="font-size:11px;font-weight:600;color:var(--pma-text-sec);">Enter Hash:</label>
+              <textarea id="simpleHashInput" class="form-row-input" rows="2" style="font-family:'JetBrains Mono',monospace;font-size:11.5px;resize:vertical;" placeholder="Paste $2b$10$... bcrypt hash or SHA-256"></textarea>
+            </div>
+
+            <!-- 2. Enter Pass -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <label style="font-size:11px;font-weight:600;color:var(--pma-text-sec);">Enter Password / PIN:</label>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input type="password" id="simplePassInput" class="form-row-input" style="flex:1;" placeholder="Enter password to verify (or leave empty to auto-reveal)" onkeydown="if(event.key==='Enter') runSimpleHashCheck()" />
+                <button type="button" class="pma-btn" id="btnTogglePass" onclick="togglePassVisibility()" title="Show/Hide Password">👁 Show</button>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap;">
+              <button type="button" class="pma-btn pma-btn-primary" style="padding:6px 16px;font-size:11.5px;" onclick="runSimpleHashCheck()">
+                ⚡ Check / Reveal
+              </button>
+              <button type="button" class="pma-btn" style="padding:6px 12px;font-size:11.5px;" onclick="generateSimpleHash()" title="Generate bcrypt hash for entered password">
+                🔑 Hash Password
+              </button>
+              <button type="button" class="pma-btn" onclick="clearSimpleHasher()">
+                Clear
+              </button>
+            </div>
+
+            <!-- Result Box -->
+            <div id="simpleResultBox" style="display:none;border-radius:3px;padding:12px;font-size:11.5px;flex-direction:column;gap:5px;"></div>
+          </div>
+
+        </div>
+
       </div>
     </main>
-
-    <!-- SQL Console View -->
-    <div class="sql-panel" id="sqlPanel">
-      <div class="sql-editor-header">
-        <span style="font-weight:700;font-size:12px;font-family:'JetBrains Mono',monospace;">SQL Query Console</span>
-        <button class="btn" onclick="toggleSqlConsole()">← Back to Tables</button>
-      </div>
-      <div class="sql-editor-body">
-        <textarea id="sqlInput" class="sql-textarea" placeholder="SELECT * FROM users LIMIT 25;" spellcheck="false"></textarea>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" onclick="runSqlQuery()">▶ Execute</button>
-          <button class="btn" onclick="document.getElementById('sqlInput').value=''">Clear</button>
-        </div>
-      </div>
-      <div class="sql-results-area" id="sqlResultsArea">
-        <div style="padding:40px;text-align:center;color:var(--text-dim);">Run a query to inspect records</div>
-      </div>
-    </div>
   </div>
 
   <!-- Row Edit / Insert Modal -->
   <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title" id="modalTitle">Insert Row</div>
+        <span id="modalTitle">Edit Row</span>
         <button class="modal-close" onclick="closeModal()">&times;</button>
       </div>
       <div class="modal-body" id="modalBody"></div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" id="btnModalSave" onclick="saveRowRecord()">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Schema Modal -->
-  <div class="modal-backdrop" id="schemaModalBackdrop">
-    <div class="modal" style="max-width:620px;">
-      <div class="modal-header">
-        <div class="modal-title" id="schemaModalTitle">Table Schema</div>
-        <button class="modal-close" onclick="closeSchemaModal()">&times;</button>
-      </div>
-      <div class="modal-body" id="schemaModalBody"></div>
-      <div class="modal-footer">
-        <button class="btn" onclick="closeSchemaModal()">Close</button>
+        <button class="pma-btn" onclick="closeModal()">Cancel</button>
+        <button class="pma-btn pma-btn-primary" id="btnModalSave" onclick="saveRowRecord()">Save (Go)</button>
       </div>
     </div>
   </div>
@@ -412,10 +815,11 @@
   <div class="toast" id="toast">Notification</div>
 
   <script>
-    // State Store
+    // ===== Application State =====
     const S = {
       tables: [],
       currentTable: 'users',
+      activeTab: 'browse',
       tableRows: [],
       tableCols: [],
       primaryKey: 'id',
@@ -424,23 +828,25 @@
       totalRows: 0,
       totalPages: 1,
       search: '',
-      modalMode: 'insert',
+      modalMode: 'edit',
       editingRow: null,
+      selectedRows: new Set(),
+      tableSchema: null,
     };
 
     const $ = id => document.getElementById(id);
 
-    // Theme Toggle
+    // Theme Management
     function toggleTheme() {
-      const current = document.documentElement.getAttribute('data-theme') || 'dark';
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('rm_console_theme', next);
-      $('themeBtn').textContent = next === 'dark' ? '☀ Light' : '☾ Dark';
+      const cur = document.documentElement.getAttribute('data-theme') || 'light';
+      const nxt = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', nxt);
+      localStorage.setItem('pma_theme', nxt);
+      $('themeBtn').textContent = nxt === 'light' ? '☾ Dark' : '☀ Light';
     }
-    const savedTheme = localStorage.getItem('rm_console_theme') || 'dark';
+    const savedTheme = localStorage.getItem('pma_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
-    if ($('themeBtn')) $('themeBtn').textContent = savedTheme === 'dark' ? '☀ Light' : '☾ Dark';
+    if ($('themeBtn')) $('themeBtn').textContent = savedTheme === 'light' ? '☾ Dark' : '☀ Light';
 
     let toastTimeout;
     function showToast(msg) {
@@ -458,95 +864,149 @@
       return d.innerHTML;
     }
 
-    function toggleSqlConsole() {
-      const sqlP = $('sqlPanel');
-      const isShowing = sqlP.classList.contains('show');
-      sqlP.classList.toggle('show', !isShowing);
-      $('mainView').style.display = isShowing ? 'flex' : 'none';
-      if (!isShowing) $('sqlInput').focus();
+    // Simple Connection Status Indicator (Tick / Wrong)
+    function setConnectionStatus(online, label) {
+      const el = $('connStatus');
+      if (!el) return;
+      const sym = el.querySelector('.conn-sym');
+      const lbl = $('connLabel');
+      if (online) {
+        el.className = 'conn-simple online';
+        if (sym) sym.textContent = '✓';
+        if (lbl) lbl.textContent = label || 'Connected';
+      } else {
+        el.className = 'conn-simple offline';
+        if (sym) sym.textContent = '✕';
+        if (lbl) lbl.textContent = label || 'Offline';
+      }
     }
 
-    // ===== 1. Load All Database Tables =====
+    // Tab Switching (Browse, Structure, Insert, Export, Search, Operations, Hasher)
+    function switchTab(tab) {
+      S.activeTab = tab;
+      const tabs = ['browse', 'structure', 'insert', 'export', 'search', 'operations', 'hasher'];
+      tabs.forEach(t => {
+        const tabBtn = $(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        const viewDiv = $(`view${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (tabBtn) tabBtn.classList.toggle('active', t === tab);
+        if (viewDiv) viewDiv.style.display = (t === tab) ? 'flex' : 'none';
+      });
+
+      if (tab === 'structure') loadStructureView();
+      if (tab === 'insert') renderInsertTabView();
+      if (tab === 'browse') loadTableData();
+      if (tab === 'hasher') checkHasherAccess();
+    }
+
+    // ===== 1. Load Tables List (Sidebar Tree) =====
     async function loadTablesList() {
-      const listEl = $('tablesList');
+      const listEl = $('tablesTreeList');
       try {
         const res = await (await fetch('/api/console/tables')).json();
         if (res.success && res.data?.tables) {
+          setConnectionStatus(true, 'Connected');
           S.tables = res.data.tables;
-          $('tablesCountLabel').textContent = `${S.tables.length} tables`;
-          renderTablesList(S.tables);
+          $('sidebarTableCountBadge').textContent = S.tables.length;
+          renderTablesTree(S.tables);
 
-          // Select first table if current is not in list
           if (!S.tables.find(t => t.name === S.currentTable)) {
             S.currentTable = S.tables[0]?.name || 'users';
           }
           selectTable(S.currentTable);
         } else {
-          listEl.innerHTML = '<div style="padding:16px;color:var(--danger);">Error loading tables</div>';
+          setConnectionStatus(false, 'Offline');
+          listEl.innerHTML = '<div style="padding:10px;color:var(--danger);">Error loading tables</div>';
         }
-      } catch (e) {
-        listEl.innerHTML = '<div style="padding:16px;color:var(--danger);">Failed to connect to database</div>';
+      } catch (err) {
+        setConnectionStatus(false, 'Offline: Connection failed');
+        listEl.innerHTML = '<div style="padding:10px;color:var(--danger);">Failed to connect to database</div>';
       }
     }
 
-    function renderTablesList(tables) {
-      const listEl = $('tablesList');
+    function renderTablesTree(tables) {
+      const listEl = $('tablesTreeList');
       if (!tables || tables.length === 0) {
-        listEl.innerHTML = '<div style="padding:16px;color:var(--text-dim);">No matching tables</div>';
+        listEl.innerHTML = '<div style="padding:8px 12px;color:var(--pma-text-dim);">No tables found</div>';
         return;
       }
-      listEl.innerHTML = tables.map(t => `
-        <button class="table-item ${t.name === S.currentTable ? 'active' : ''}" onclick="selectTable('${esc(t.name)}')">
-          <span>${esc(t.name)}</span>
-          <span class="table-count-pill">${t.count}</span>
-        </button>
-      `).join('');
+
+      listEl.innerHTML = tables.map(t => {
+        const isActive = t.name === S.currentTable;
+        return `
+          <div class="table-tree-item ${isActive ? 'active' : ''}" id="pma-node-${esc(t.name)}" onclick="selectTable('${esc(t.name)}')" title="${t.name} (${t.count} rows)">
+            <div class="table-tree-item-left">
+              <span class="table-icon">▤</span>
+              <span>${esc(t.name)}</span>
+            </div>
+            <span class="table-count-badge">${t.count}</span>
+          </div>
+        `;
+      }).join('');
     }
 
-    function filterTablesList(query) {
-      const q = (query || '').toLowerCase().trim();
+    function filterTablesTree(val) {
+      const q = (val || '').toLowerCase().trim();
       const filtered = S.tables.filter(t => t.name.toLowerCase().includes(q));
-      renderTablesList(filtered);
+      renderTablesTree(filtered);
+    }
+
+    function toggleTablesTree() {
+      const listEl = $('tablesTreeList');
+      const arrow = $('dbToggleArrow');
+      const isHidden = listEl.style.display === 'none';
+      listEl.style.display = isHidden ? 'block' : 'none';
+      arrow.textContent = isHidden ? '▾' : '▸';
+    }
+
+    function toggleAllTables() {
+      toggleTablesTree();
     }
 
     function selectTable(tableName) {
       S.currentTable = tableName;
       S.page = 1;
       S.search = '';
-      if ($('rowSearchInput')) $('rowSearchInput').value = '';
+      S.selectedRows.clear();
 
-      // Highlight in sidebar
-      document.querySelectorAll('.table-item').forEach(el => {
-        const nameSpan = el.querySelector('span');
-        if (nameSpan && nameSpan.textContent === tableName) {
-          el.classList.add('active');
-        } else {
-          el.classList.remove('active');
-        }
+      // Update breadcrumbs and titles
+      $('crumbTableName').textContent = tableName;
+      ['structTableName', 'insertTableName', 'exportTableName', 'searchTableName', 'opsTableName'].forEach(id => {
+        if ($(id)) $(id).textContent = tableName;
       });
 
-      // Switch to main view if in SQL mode
-      $('sqlPanel').classList.remove('show');
-      $('mainView').style.display = 'flex';
+      // Highlight active node in sidebar
+      document.querySelectorAll('.table-tree-item').forEach(el => el.classList.remove('active'));
+      const activeEl = $(`pma-node-${tableName}`);
+      if (activeEl) activeEl.classList.add('active');
 
-      $('activeTableName').textContent = tableName;
-      loadTableData();
+      if (S.activeTab === 'structure') {
+        loadStructureView();
+      } else if (S.activeTab === 'insert') {
+        renderInsertTabView();
+      } else {
+        switchTab('browse');
+      }
     }
 
-    // ===== 2. Load Table Records =====
+    // ===== 2. Load Table Records (Browse Tab) =====
     async function loadTableData() {
-      const container = $('tableContainer');
-      container.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--text-dim);">Fetching records…</div>';
+      const startTime = performance.now();
+      const offset = (S.page - 1) * S.limit;
+
+      $('sqlQueryDisplay').textContent = `SELECT * FROM \`${S.currentTable}\`${S.search ? ` WHERE ... [filter: "${S.search}"]` : ''} LIMIT ${offset}, ${S.limit};`;
 
       try {
         const url = `/api/console/tables/${S.currentTable}?page=${S.page}&limit=${S.limit}&search=${encodeURIComponent(S.search)}`;
         const res = await (await fetch(url)).json();
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(4);
 
         if (!res.success || !res.data) {
-          container.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--danger);">${esc(res.message || 'Error loading records')}</div>`;
+          setConnectionStatus(false, 'Offline');
+          $('pmaTableWrapper').innerHTML = `<div style="padding:30px;color:var(--danger);">${esc(res.message || 'Error loading records')}</div>`;
           return;
         }
 
+        setConnectionStatus(true, 'Connected');
         const d = res.data;
         S.tableRows = d.rows || [];
         S.tableCols = d.columns || [];
@@ -554,64 +1014,110 @@
         S.totalRows = d.total || 0;
         S.totalPages = Math.max(1, Math.ceil(S.totalRows / S.limit));
 
-        $('activeTableCount').textContent = `${S.totalRows.toLocaleString()} rows`;
-        $('footerInfo').textContent = `Showing ${S.tableRows.length} of ${S.totalRows.toLocaleString()} rows in \`${S.currentTable}\``;
-        $('pageText').textContent = `${S.page} / ${S.totalPages}`;
-        $('prevBtn').disabled = S.page <= 1;
-        $('nextBtn').disabled = S.page >= S.totalPages;
+        $('opsTotalRows').textContent = S.totalRows;
+        $('sqlQueryStatusMsg').textContent = `Showing rows ${offset} - ${Math.min(offset + S.limit, S.totalRows)} (${S.totalRows} total, Query took ${elapsed} seconds.)`;
+        $('pageCurrentLabel').textContent = S.page;
+        $('pageTotalLabel').textContent = S.totalPages;
 
-        if (S.tableRows.length === 0) {
-          container.innerHTML = `
-            <div style="padding:60px 20px;text-align:center;color:var(--text-dim);">
-              <div style="margin-bottom:10px;">No rows found in \`${esc(S.currentTable)}\`</div>
-              <button class="btn btn-primary" onclick="openNewRowModal()">+ Insert First Row</button>
-            </div>
-          `;
-          return;
-        }
+        $('btnPageFirst').disabled = S.page <= 1;
+        $('btnPagePrev').disabled = S.page <= 1;
+        $('btnPageNext').disabled = S.page >= S.totalPages;
+        $('btnPageLast').disabled = S.page >= S.totalPages;
 
-        // Render Data Table Grid
-        let html = '<table class="data-grid"><thead><tr>';
-        html += '<th style="width:36px;">#</th>';
-        S.tableCols.forEach(col => {
-          const colName = typeof col === 'object' ? col.field : col;
-          const isPk = colName === S.primaryKey;
-          html += `<th>${esc(colName)}${isPk ? ' 🔑' : ''}</th>`;
-        });
-        html += '<th style="text-align:right;width:100px;">Actions</th></tr></thead><tbody>';
-
-        S.tableRows.forEach((row, i) => {
-          const pkVal = row[S.primaryKey];
-          html += '<tr>';
-          html += `<td style="color:var(--text-dim);">${(S.page - 1) * S.limit + i + 1}</td>`;
-          S.tableCols.forEach(col => {
-            const colName = typeof col === 'object' ? col.field : col;
-            const val = row[colName];
-            if (val === null || val === undefined) {
-              html += '<td class="cell-null">NULL</td>';
-            } else if (typeof val === 'object') {
-              html += `<td class="cell-mono" title="${esc(JSON.stringify(val))}">${esc(JSON.stringify(val))}</td>`;
-            } else {
-              html += `<td class="cell-mono" title="${esc(val)}">${esc(val)}</td>`;
-            }
-          });
-          html += `
-            <td style="text-align:right;">
-              <button class="btn" style="padding:2px 6px;font-size:10px;" onclick="openEditRowModal(${i})">Edit</button>
-              <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="deleteRow('${esc(pkVal)}')">Del</button>
-            </td>
-          `;
-          html += '</tr>';
-        });
-
-        html += '</tbody></table>';
-        container.innerHTML = html;
+        renderDataTable();
 
       } catch (err) {
-        container.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--danger);">${esc(err.message)}</div>`;
+        setConnectionStatus(false, 'Offline');
+        $('pmaTableWrapper').innerHTML = `<div style="padding:30px;color:var(--danger);">${esc(err.message)}</div>`;
       }
     }
 
+    function renderDataTable() {
+      const wrapper = $('pmaTableWrapper');
+      if (S.tableRows.length === 0) {
+        wrapper.innerHTML = `
+          <div style="padding:40px;text-align:center;color:var(--pma-text-dim);">
+            <div style="font-size:13px;margin-bottom:8px;">MySQL returned an empty result set (i.e. zero rows) in \`${esc(S.currentTable)}\`.</div>
+            <button class="pma-btn pma-btn-primary" onclick="openNewRowModal()">➕ Insert a new row</button>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<table class="pma-table" id="pmaDataTable"><thead><tr>';
+      html += '<th style="width:26px;text-align:center;"><input type="checkbox" onchange="toggleSelectAllRows(this.checked)" /></th>';
+      html += '<th style="width:110px;text-align:center;">Action</th>';
+      html += '<th style="width:36px;text-align:center;">#</th>';
+
+      S.tableCols.forEach(col => {
+        const colName = typeof col === 'object' ? col.field : col;
+        const isPri = typeof col === 'object' && col.isPrimary;
+        html += `<th>${esc(colName)} ${isPri ? '<span style="color:#eab308;" title="Primary Key">🔑</span>' : ''}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      S.tableRows.forEach((row, rowIdx) => {
+        const rowNum = (S.page - 1) * S.limit + rowIdx + 1;
+        const pkVal = row[S.primaryKey];
+        const isChecked = S.selectedRows.has(pkVal);
+
+        html += `<tr id="pma-row-${rowIdx}" class="${isChecked ? 'selected' : ''}">`;
+        html += `<td style="text-align:center;"><input type="checkbox" onchange="toggleRowCheck('${esc(pkVal)}', this.checked, ${rowIdx})" ${isChecked ? 'checked' : ''} /></td>`;
+        html += `
+          <td style="text-align:center;">
+            <div class="cell-actions">
+              <button class="action-btn-edit" onclick="openEditRow(${rowIdx})">✏ Edit</button>
+              <button class="action-btn-delete" onclick="deleteSingleRow('${esc(pkVal)}')">🗑 Delete</button>
+            </div>
+          </td>
+        `;
+        html += `<td style="text-align:center;color:var(--pma-text-dim);">${rowNum}</td>`;
+
+        S.tableCols.forEach(col => {
+          const colName = typeof col === 'object' ? col.field : col;
+          const val = row[colName];
+          const isNull = (val === null || val === undefined);
+          const isPassField = /password|pin/i.test(colName) || (typeof val === 'string' && val.startsWith('$2'));
+
+          let displayVal;
+          if (isNull) {
+            displayVal = '<span class="cell-null">NULL</span>';
+          } else if (isPassField && typeof val === 'string' && val.length > 15) {
+            const shortHash = val.length > 22 ? (val.substring(0, 10) + '…' + val.substring(val.length - 6)) : val;
+            displayVal = `<span title="${esc(val)}" style="font-family:'JetBrains Mono',monospace;">${esc(shortHash)}</span>`;
+          } else {
+            displayVal = esc(typeof val === 'object' ? JSON.stringify(val) : String(val));
+          }
+          html += `<td>${displayVal}</td>`;
+        });
+
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      wrapper.innerHTML = html;
+    }
+
+    // Row Checkbox Selection
+    function toggleRowCheck(pkVal, checked, rowIdx) {
+      if (checked) S.selectedRows.add(pkVal);
+      else S.selectedRows.delete(pkVal);
+      const r = $(`pma-row-${rowIdx}`);
+      if (r) r.classList.toggle('selected', checked);
+    }
+
+    function toggleSelectAllRows(checked) {
+      S.tableRows.forEach((r, idx) => {
+        const pk = r[S.primaryKey];
+        if (checked) S.selectedRows.add(pk);
+        else S.selectedRows.delete(pk);
+        const rowEl = $(`pma-row-${idx}`);
+        if (rowEl) rowEl.classList.toggle('selected', checked);
+      });
+      document.querySelectorAll('#pmaDataTable input[type="checkbox"]').forEach(cb => cb.checked = checked);
+    }
+
+    // Pagination
     function changePage(delta) {
       const next = S.page + delta;
       if (next >= 1 && next <= S.totalPages) {
@@ -620,52 +1126,132 @@
       }
     }
 
-    function filterRows(val) {
-      S.search = val.trim();
+    function changePageTo(p) {
+      if (p >= 1 && p <= S.totalPages) {
+        S.page = p;
+        loadTableData();
+      }
+    }
+
+    function changeLimit(lim) {
+      S.limit = parseInt(lim, 10) || 25;
       S.page = 1;
       loadTableData();
     }
 
-    // ===== 3. Insert / Edit Row Modals =====
-    function openNewRowModal() {
-      S.modalMode = 'insert';
-      $('modalTitle').textContent = `Insert Into \`${S.currentTable}\``;
-      $('btnModalSave').textContent = 'Insert Record';
+    // ===== 3. TAB: STRUCTURE =====
+    async function loadStructureView() {
+      const tbody = $('structureTableBody');
+      tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;text-align:center;">Loading schema…</td></tr>';
 
-      const body = $('modalBody');
-      body.innerHTML = S.tableCols.map(col => {
+      try {
+        const res = await (await fetch(`/api/console/tables/${S.currentTable}/schema`)).json();
+        if (res.success && res.data) {
+          S.tableSchema = res.data;
+          const cols = res.data.columns || [];
+          $('ddlCodeBlock').textContent = res.data.createTableSql || '-- CREATE TABLE not available';
+
+          tbody.innerHTML = cols.map((c, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td style="font-weight:700;color:var(--pma-link);">${esc(c.field)}</td>
+              <td>${esc(c.type)}</td>
+              <td>${c.nullable ? 'Yes' : 'No'}</td>
+              <td>${esc(c.defaultValue ?? 'None')}</td>
+              <td>${c.isPrimary ? 'PRIMARY 🔑' : (c.extra || '—')}</td>
+              <td>${esc(c.extra || '—')}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);padding:14px;">${esc(err.message)}</td></tr>`;
+      }
+    }
+
+    // ===== 4. TAB: INSERT =====
+    function renderInsertTabView() {
+      const container = $('insertFormFields');
+      const cols = S.tableCols.length > 0 ? S.tableCols : [{ field: 'name', type: 'varchar(100)' }];
+      let html = '';
+
+      cols.forEach(col => {
         const name = typeof col === 'object' ? col.field : col;
-        const isPk = name === S.primaryKey;
-        return `
-          <div class="form-group">
-            <label class="form-label">${esc(name)} ${isPk ? '(Primary Key)' : ''}</label>
-            <input type="text" class="form-input" id="field_${name}" placeholder="${isPk ? 'e.g. ID001' : ''}" />
+        const type = typeof col === 'object' ? col.type : '';
+        const isPri = typeof col === 'object' && col.isPrimary;
+
+        html += `
+          <div class="form-row">
+            <label class="form-row-label">
+              ${esc(name)}
+              <span style="font-weight:400;color:var(--pma-text-dim);font-size:10px;">(${esc(type)})</span>
+              ${isPri ? '<span style="color:#eab308;">[PRI]</span>' : ''}
+            </label>
+            <input type="text" class="form-row-input" id="tab_insert_${esc(name)}" placeholder="Value or leave blank for NULL" />
           </div>
         `;
-      }).join('');
+      });
 
+      container.innerHTML = html;
+    }
+
+    async function handleDirectInsert(e) {
+      e.preventDefault();
+      const data = {};
+      S.tableCols.forEach(col => {
+        const name = typeof col === 'object' ? col.field : col;
+        const el = $(`tab_insert_${name}`);
+        if (!el) return;
+        const val = el.value.trim();
+        if (val === '' || val.toUpperCase() === 'NULL') {
+          data[name] = null;
+        } else {
+          try {
+            if ((val.startsWith('{') && val.endsWith('}')) || (val.startsWith('[') && val.endsWith(']'))) {
+              data[name] = JSON.parse(val);
+            } else {
+              data[name] = val;
+            }
+          } catch {
+            data[name] = val;
+          }
+        }
+      });
+
+      try {
+        const res = await (await fetch(`/api/console/tables/${S.currentTable}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })).json();
+
+        if (res.success) {
+          showToast('1 row inserted successfully');
+          switchTab('browse');
+          loadTablesList();
+        } else {
+          alert(res.message || 'Error inserting row');
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // ===== 5. Modal Insert / Edit =====
+    function openNewRowModal() {
+      S.modalMode = 'insert';
+      S.editingRow = null;
+      $('modalTitle').textContent = `Insert row into \`${S.currentTable}\``;
+      $('btnModalSave').textContent = 'Go (Insert)';
+      renderModalForm({});
       $('modalBackdrop').classList.add('open');
     }
 
-    function openEditRowModal(idx) {
+    function openEditRow(rowIdx) {
       S.modalMode = 'edit';
-      const row = S.tableRows[idx];
-      S.editingRow = row;
-      $('modalTitle').textContent = `Edit \`${S.currentTable}\` Record (${row[S.primaryKey]})`;
-      $('btnModalSave').textContent = 'Save Changes';
-
-      const body = $('modalBody');
-      body.innerHTML = S.tableCols.map(col => {
-        const name = typeof col === 'object' ? col.field : col;
-        const isPk = name === S.primaryKey;
-        return `
-          <div class="form-group">
-            <label class="form-label">${esc(name)} ${isPk ? '(Primary Key - Read Only)' : ''}</label>
-            <input type="text" class="form-input" id="field_${name}" value="${esc(row[name] ?? '')}" ${isPk ? 'disabled' : ''} />
-          </div>
-        `;
-      }).join('');
-
+      S.editingRow = S.tableRows[rowIdx];
+      $('modalTitle').textContent = `Edit row in \`${S.currentTable}\` (${S.primaryKey} = ${S.editingRow[S.primaryKey]})`;
+      $('btnModalSave').textContent = 'Save Changes (Go)';
+      renderModalForm(S.editingRow);
       $('modalBackdrop').classList.add('open');
     }
 
@@ -673,12 +1259,52 @@
       $('modalBackdrop').classList.remove('open');
     }
 
+    function renderModalForm(data) {
+      const body = $('modalBody');
+      let html = '';
+
+      S.tableCols.forEach(col => {
+        const name = typeof col === 'object' ? col.field : col;
+        const type = typeof col === 'object' ? col.type : '';
+        const isPri = typeof col === 'object' && col.isPrimary;
+        const val = data[name] !== undefined && data[name] !== null ? data[name] : '';
+
+        html += `
+          <div class="form-row">
+            <label class="form-row-label">
+              ${esc(name)}
+              <span style="font-weight:400;color:var(--pma-text-dim);font-size:10px;">(${esc(type)})</span>
+            </label>
+            <input type="text" class="form-row-input" id="modal_field_${esc(name)}"
+              value="${esc(typeof val === 'object' ? JSON.stringify(val) : val)}"
+              ${isPri && S.modalMode === 'edit' ? 'disabled style="opacity:0.6;"' : ''} />
+          </div>
+        `;
+      });
+
+      body.innerHTML = html;
+    }
+
     async function saveRowRecord() {
       const data = {};
       S.tableCols.forEach(col => {
         const name = typeof col === 'object' ? col.field : col;
-        const inp = $(`field_${name}`);
-        if (inp) data[name] = inp.value;
+        const el = $(`modal_field_${name}`);
+        if (!el) return;
+        const val = el.value.trim();
+        if (val === '' || val.toUpperCase() === 'NULL') {
+          data[name] = null;
+        } else {
+          try {
+            if ((val.startsWith('{') && val.endsWith('}')) || (val.startsWith('[') && val.endsWith(']'))) {
+              data[name] = JSON.parse(val);
+            } else {
+              data[name] = val;
+            }
+          } catch {
+            data[name] = val;
+          }
+        }
       });
 
       try {
@@ -718,14 +1344,17 @@
       }
     }
 
-    async function deleteRow(idVal) {
-      if (!confirm(`Delete row "${idVal}" from "${S.currentTable}"?`)) return;
+    // Delete Operations
+    async function deleteSingleRow(idVal) {
+      if (!confirm(`Do you really want to execute "DELETE FROM \`${S.currentTable}\` WHERE \`${S.primaryKey}\` = '${idVal}'"?`)) return;
+
       try {
         const res = await (await fetch(`/api/console/tables/${S.currentTable}/${encodeURIComponent(idVal)}`, {
           method: 'DELETE',
         })).json();
+
         if (res.success) {
-          showToast('Record deleted');
+          showToast('1 row deleted');
           loadTableData();
           loadTablesList();
         } else {
@@ -736,50 +1365,41 @@
       }
     }
 
-    // ===== 4. Schema Viewer =====
-    async function openSchemaModal() {
-      $('schemaModalTitle').textContent = `Schema: \`${S.currentTable}\``;
-      const body = $('schemaModalBody');
-      body.innerHTML = '<div style="color:var(--text-dim);padding:20px;text-align:center;">Loading schema…</div>';
-      $('schemaModalBackdrop').classList.add('open');
+    async function deleteCheckedRows() {
+      if (S.selectedRows.size === 0) return alert('No rows selected');
+      if (!confirm(`Delete ${S.selectedRows.size} selected row(s) from \`${S.currentTable}\`?`)) return;
 
-      try {
-        const res = await (await fetch(`/api/console/tables/${S.currentTable}/schema`)).json();
-        if (res.success && res.data) {
-          const d = res.data;
-          body.innerHTML = `
-            <table class="data-grid" style="margin-bottom:14px;">
-              <thead>
-                <tr><th>COLUMN</th><th>TYPE</th><th>NULLABLE</th><th>KEY</th><th>DEFAULT</th></tr>
-              </thead>
-              <tbody>
-                ${(d.columns || []).map(c => `
-                  <tr>
-                    <td class="cell-mono" style="font-weight:600;">${esc(c.field)}</td>
-                    <td class="cell-mono">${esc(c.type)}</td>
-                    <td>${c.nullable ? 'YES' : 'NO'}</td>
-                    <td>${c.isPrimary ? 'PRI 🔑' : (c.extra || '—')}</td>
-                    <td class="cell-mono">${esc(c.defaultValue ?? '—')}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            ${d.createTableSql ? `
-              <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-sec);">CREATE TABLE DDL:</div>
-              <pre style="background:var(--surface);padding:10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);overflow:auto;max-height:160px;">${esc(d.createTableSql)}</pre>
-            ` : ''}
-          `;
-        }
-      } catch (err) {
-        body.innerHTML = `<div style="color:var(--danger);">${esc(err.message)}</div>`;
+      for (const pk of S.selectedRows) {
+        try {
+          await fetch(`/api/console/tables/${S.currentTable}/${encodeURIComponent(pk)}`, { method: 'DELETE' });
+        } catch {}
       }
-    }
-    function closeSchemaModal() { $('schemaModalBackdrop').classList.remove('open'); }
 
-    // ===== 5. Export CSV / JSON =====
+      S.selectedRows.clear();
+      showToast('Selected rows deleted');
+      loadTableData();
+      loadTablesList();
+    }
+
+    // Search Operations
+    function executeTableSearch() {
+      S.search = $('searchInput').value.trim();
+      S.page = 1;
+      switchTab('browse');
+    }
+
+    function clearTableSearch() {
+      $('searchInput').value = '';
+      S.search = '';
+      S.page = 1;
+      switchTab('browse');
+    }
+
+    // Export CSV / JSON
     function exportData(format) {
       if (!S.tableRows || S.tableRows.length === 0) return alert('No rows to export');
       const cols = S.tableCols.map(c => typeof c === 'object' ? c.field : c);
+
       if (format === 'json') {
         const str = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(S.tableRows, null, 2));
         const a = document.createElement('a'); a.href = str; a.download = `${S.currentTable}.json`; a.click();
@@ -794,54 +1414,203 @@
         a.download = `${S.currentTable}.csv`;
         a.click();
       }
+      showToast(`Exported ${S.tableRows.length} rows as ${format.toUpperCase()}`);
     }
 
-    // ===== 6. SQL Query Console =====
-    async function runSqlQuery() {
-      const q = $('sqlInput').value.trim();
-      if (!q) return;
-      const resArea = $('sqlResultsArea');
-      resArea.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim);">Executing query…</div>';
+    // ===== 7. TAB: SECRET HASHER (Simple Hash Revealer & Verifier) =====
+    const HASHER_PASSCODE = '0724';
 
-      try {
-        const res = await (await fetch('/api/console/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q }),
-        })).json();
+    function isHasherUnlocked() {
+      return sessionStorage.getItem('hasher_unlocked') === '1';
+    }
 
-        if (!res.success) {
-          resArea.innerHTML = `<div style="padding:20px;color:var(--danger);font-family:'JetBrains Mono',monospace;">Error: ${esc(res.message)}</div>`;
-          return;
-        }
-
-        const data = res.data;
-        if (Array.isArray(data) && data.length > 0) {
-          const cols = Object.keys(data[0]);
-          let h = '<table class="data-grid"><thead><tr>';
-          cols.forEach(c => h += `<th>${esc(c)}</th>`);
-          h += '</tr></thead><tbody>';
-          data.forEach(row => {
-            h += '<tr>';
-            cols.forEach(c => h += `<td class="cell-mono">${esc(row[c])}</td>`);
-            h += '</tr>';
-          });
-          h += '</tbody></table>';
-          resArea.innerHTML = h;
-        } else {
-          resArea.innerHTML = `<div style="padding:20px;color:var(--success);font-family:'JetBrains Mono',monospace;">Query executed successfully. Result: ${esc(JSON.stringify(data))}</div>`;
-        }
-      } catch (err) {
-        resArea.innerHTML = `<div style="padding:20px;color:var(--danger);">Error: ${esc(err.message)}</div>`;
+    function checkHasherAccess() {
+      const isUnlocked = isHasherUnlocked();
+      $('hasherLockGate').style.display = isUnlocked ? 'none' : 'flex';
+      $('hasherSimplePanel').style.display = isUnlocked ? 'flex' : 'none';
+      if (!isUnlocked) {
+        setTimeout(() => $('hasherSecretPasscode')?.focus(), 50);
       }
     }
 
-    // Keyboard shortcuts
+    function unlockSecretHasher() {
+      const code = ($('hasherSecretPasscode').value || '').trim();
+      if (code === HASHER_PASSCODE) {
+        sessionStorage.setItem('hasher_unlocked', '1');
+        $('hasherLockError').style.display = 'none';
+        $('hasherSecretPasscode').value = '';
+        checkHasherAccess();
+        showToast('Hasher unlocked');
+      } else {
+        $('hasherLockError').style.display = 'block';
+      }
+    }
+
+    function lockSecretHasher() {
+      sessionStorage.removeItem('hasher_unlocked');
+      clearSimpleHasher();
+      checkHasherAccess();
+      showToast('Hasher locked');
+    }
+
+    function togglePassVisibility() {
+      const inp = $('simplePassInput');
+      const btn = $('btnTogglePass');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = '🔒 Hide';
+      } else {
+        inp.type = 'password';
+        btn.textContent = '👁 Show';
+      }
+    }
+
+    function clearSimpleHasher() {
+      $('simpleHashInput').value = '';
+      $('simplePassInput').value = '';
+      $('simpleResultBox').style.display = 'none';
+    }
+
+    async function runSimpleHashCheck() {
+      const hash = ($('simpleHashInput').value || '').trim();
+      const pass = ($('simplePassInput').value || '').trim();
+      const resBox = $('simpleResultBox');
+
+      if (!hash && !pass) {
+        alert('Please enter a hash, a password, or both.');
+        return;
+      }
+
+      // If user only entered password, generate its hash
+      if (!hash && pass) {
+        return generateSimpleHash();
+      }
+
+      resBox.style.display = 'flex';
+      resBox.style.background = 'var(--pma-bg)';
+      resBox.style.border = '1px solid var(--pma-border)';
+      resBox.style.color = 'var(--pma-text)';
+      resBox.innerHTML = '<div>⏳ Verifying hash…</div>';
+
+      try {
+        const body = { hash };
+        if (pass) body.password = pass;
+
+        const res = await (await fetch('/api/console/verify-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })).json();
+
+        if (!res.success || !res.data) {
+          resBox.style.background = 'var(--danger-bg)';
+          resBox.style.border = '1px solid var(--danger)';
+          resBox.style.color = 'var(--danger)';
+          resBox.innerHTML = `<strong>Error:</strong> <span>${esc(res.message || 'Verification failed')}</span>`;
+          return;
+        }
+
+        const d = res.data;
+
+        if (pass) {
+          // Both entered: check if they match
+          if (d.match) {
+            resBox.style.background = 'var(--pma-sql-bg)';
+            resBox.style.border = '1px solid var(--pma-sql-border)';
+            resBox.style.color = 'var(--pma-sql-text)';
+            resBox.innerHTML = `
+              <div style="font-weight:700;font-size:12.5px;display:flex;align-items:center;gap:6px;">
+                <span>✓</span> <span>MATCH CONFIRMED!</span>
+              </div>
+              <div style="margin-top:2px;">
+                Password <strong>"${esc(d.password)}"</strong> correctly matches this ${esc(d.algorithm.toUpperCase())} hash.
+              </div>
+            `;
+            showToast('Match Confirmed!');
+          } else {
+            resBox.style.background = 'var(--danger-bg)';
+            resBox.style.border = '1px solid var(--danger)';
+            resBox.style.color = 'var(--danger)';
+            resBox.innerHTML = `
+              <div style="font-weight:700;font-size:12.5px;">✕ NO MATCH</div>
+              <div style="margin-top:2px;">Password "<strong>${esc(pass)}</strong>" does NOT match this hash.</div>
+            `;
+          }
+        } else {
+          // Only hash entered: auto-reveal against known PINs/passwords
+          if (d.revealed && d.password) {
+            resBox.style.background = 'var(--pma-sql-bg)';
+            resBox.style.border = '1px solid var(--pma-sql-border)';
+            resBox.style.color = 'var(--pma-sql-text)';
+            resBox.innerHTML = `
+              <div style="font-weight:700;font-size:12.5px;display:flex;align-items:center;gap:6px;">
+                <span>✓</span> <span>PASSWORD REVEALED:</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:14px;background:rgba(0,0,0,0.06);padding:2px 8px;border-radius:3px;">"${esc(d.password)}"</span>
+              </div>
+              <div style="font-size:11px;margin-top:2px;opacity:0.9;">
+                Algorithm: <strong>${esc(d.algorithm.toUpperCase())}</strong>
+              </div>
+            `;
+            $('simplePassInput').value = d.password;
+            showToast(`Password: "${d.password}"`);
+          } else {
+            resBox.style.background = 'var(--pma-bg)';
+            resBox.style.border = '1px solid var(--pma-border)';
+            resBox.style.color = 'var(--pma-text)';
+            resBox.innerHTML = `
+              <div style="font-weight:700;">⚠ Password Not in Standard PIN Dictionary</div>
+              <div style="font-size:11px;margin-top:2px;">Detected algorithm: <strong>${esc(d.algorithm.toUpperCase())}</strong>. Enter a password above to test.</div>
+            `;
+          }
+        }
+      } catch (err) {
+        resBox.style.background = 'var(--danger-bg)';
+        resBox.style.border = '1px solid var(--danger)';
+        resBox.style.color = 'var(--danger)';
+        resBox.innerHTML = `<strong>Error:</strong> <span>${esc(err.message)}</span>`;
+      }
+    }
+
+    async function generateSimpleHash() {
+      const pass = ($('simplePassInput').value || '').trim();
+      if (!pass) {
+        alert('Please enter a password to hash.');
+        return;
+      }
+
+      try {
+        const res = await (await fetch('/api/console/hash-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass, algorithm: 'bcrypt', rounds: 10 }),
+        })).json();
+
+        if (res.success && res.data) {
+          $('simpleHashInput').value = res.data.hash;
+          const resBox = $('simpleResultBox');
+          resBox.style.display = 'flex';
+          resBox.style.background = 'var(--pma-sql-bg)';
+          resBox.style.border = '1px solid var(--pma-sql-border)';
+          resBox.style.color = 'var(--pma-sql-text)';
+          resBox.innerHTML = `
+            <div style="font-weight:700;font-size:12px;">✓ BCRYPT HASH GENERATED</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all;margin-top:2px;">${esc(res.data.hash)}</div>
+          `;
+          showToast('Generated bcrypt hash');
+        } else {
+          alert(res.message || 'Error generating hash');
+        }
+      } catch (err) {
+        alert('Failed to generate hash: ' + err.message);
+      }
+    }
+
+    // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeModal(); closeSchemaModal(); }
+      if (e.key === 'Escape') closeModal();
     });
 
-    // Initial Load
+    // Startup
     loadTablesList();
   </script>
 </body>

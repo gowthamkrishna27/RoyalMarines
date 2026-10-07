@@ -9,6 +9,8 @@ import {
   getSchema,
   bulkDelete,
   getDashboardMetrics,
+  hashPassword,
+  verifyPassword,
 } from '../controllers/dbAdminController.js';
 
 const router = Router();
@@ -39,5 +41,9 @@ router.delete('/tables/:table/:id', deleteRow);
 
 // SQL query console
 router.post('/query', executeQuery);
+
+// Password Hasher & Verifier (reverse lookup)
+router.post('/hash-password', hashPassword);
+router.post('/verify-password', verifyPassword);
 
 export default router;

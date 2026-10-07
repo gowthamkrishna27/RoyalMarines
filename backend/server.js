@@ -6,7 +6,7 @@ import { initializeDatabaseSchema } from './src/config/initDb.js';
 const PORT = config.port;
 
 const server = app.listen(PORT, async () => {
-  console.log(`\x1b[36m🌊 Royals Marine API Online\x1b[0m -> \x1b[32mhttp://localhost:${PORT}\x1b[0m | Console: \x1b[34mhttp://localhost:${PORT}/console\x1b[0m`);
+  console.log(`\x1b[36m🌊 Royals Marine API Online\x1b[0m -> \x1b[32mhttp://localhost:${PORT}\x1b[0m | Console: \x1b[35mhttp://localhost:${PORT}/royals-db/mysqleditor\x1b[0m`);
 
   // Check database connection and initialize tables
   const dbStatus = await checkDatabaseConnection();

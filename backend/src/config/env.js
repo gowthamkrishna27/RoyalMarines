@@ -13,6 +13,7 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN || '*',
   jwtSecret: process.env.JWT_SECRET || 'royals_marine_default_secret_key_2026',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
+  consolePath: process.env.CONSOLE_PATH || '/royals-db/mysqleditor',
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT, 10) || 3306,

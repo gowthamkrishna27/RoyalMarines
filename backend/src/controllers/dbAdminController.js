@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query, checkDatabaseConnection } from '../config/database.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
@@ -890,5 +891,155 @@ export const getDashboardMetrics = async (req, res) => {
     });
   } catch (err) {
     return sendError(res, `Failed to load dashboard metrics: ${err.message}`, 500);
+  }
+};
+
+/**
+ * 10. POST /api/console/hash-password
+ * Generate hash for plain text password
+ */
+export const hashPassword = async (req, res) => {
+  try {
+    const { password, algorithm = 'bcrypt', rounds = 10 } = req.body;
+    if (password === undefined || password === null) {
+      return sendError(res, 'Password string is required', 400);
+    }
+
+    let hash = '';
+    const algo = (algorithm || 'bcrypt').toLowerCase();
+
+    if (algo === 'bcrypt') {
+      hash = await bcrypt.hash(String(password), Math.min(12, Math.max(4, parseInt(rounds, 10) || 10)));
+    } else if (algo === 'sha256') {
+      hash = crypto.createHash('sha256').update(String(password)).digest('hex');
+    } else if (algo === 'md5') {
+      hash = crypto.createHash('md5').update(String(password)).digest('hex');
+    } else {
+      hash = await bcrypt.hash(String(password), 10);
+    }
+
+    return sendSuccess(res, {
+      input: String(password),
+      algorithm: algo,
+      hash,
+    }, 'Password hashed successfully');
+  } catch (err) {
+    return sendError(res, `Failed to hash password: ${err.message}`, 500);
+  }
+};
+
+/**
+ * 11. POST /api/console/verify-password
+ * Verify plain text password against hash, or reverse-identify common passwords & PINs
+ */
+export const verifyPassword = async (req, res) => {
+  try {
+    const { password, hash } = req.body;
+    if (!hash) {
+      return sendError(res, 'Hash string is required', 400);
+    }
+
+    const trimmedHash = String(hash).trim();
+
+    // 1. If explicit candidate password was provided, verify it directly
+    if (password !== undefined && password !== null && password !== '') {
+      let match = false;
+      let algo = 'unknown';
+
+      if (trimmedHash.startsWith('$2')) {
+        algo = 'bcrypt';
+        match = await bcrypt.compare(String(password), trimmedHash);
+      } else if (trimmedHash.length === 64) {
+        algo = 'sha256';
+        const calc = crypto.createHash('sha256').update(String(password)).digest('hex');
+        match = (calc.toLowerCase() === trimmedHash.toLowerCase());
+      } else if (trimmedHash.length === 32) {
+        algo = 'md5';
+        const calc = crypto.createHash('md5').update(String(password)).digest('hex');
+        match = (calc.toLowerCase() === trimmedHash.toLowerCase());
+      } else {
+        algo = 'plaintext';
+        match = (String(password) === trimmedHash);
+      }
+
+      return sendSuccess(res, {
+        match,
+        algorithm: algo,
+        password,
+        hash: trimmedHash,
+        message: match ? 'Password matches the hash!' : 'Password does NOT match the hash',
+      });
+    }
+
+    // 2. Reverse lookup against common 4-digit PINs, default passwords & user credentials
+    const COMMON_CANDIDATES = [
+      '0724', '1234', '0000', '1111', '1212', '4321', '9999', '8888', '7777', '5555',
+      '2222', '3333', '6666', '123456', 'password', 'admin', 'admin123',
+      'royals', 'royals123', 'royalsmarine', 'aquafeed', 'test', 'demo', 'user', '12345',
+      '2024', '2025', '2026', '0123', '2580', '0852', '1470', '9630', '1122', '2211'
+    ];
+
+    let contextCandidates = [];
+    try {
+      const matchedUsers = await query(
+        'SELECT username, phone FROM users WHERE password = ? OR password_hash = ? LIMIT 3',
+        [trimmedHash, trimmedHash]
+      );
+      for (const u of matchedUsers) {
+        if (u.username) contextCandidates.push(u.username);
+        if (u.phone) {
+          contextCandidates.push(u.phone);
+          if (u.phone.length >= 4) contextCandidates.push(u.phone.slice(-4));
+          if (u.phone.length >= 6) contextCandidates.push(u.phone.slice(-6));
+        }
+      }
+    } catch {}
+
+    const candidatesList = Array.from(new Set([...contextCandidates, ...COMMON_CANDIDATES]));
+
+    let foundPassword = null;
+    let detectedAlgo = trimmedHash.startsWith('$2')
+      ? 'bcrypt'
+      : (trimmedHash.length === 64 ? 'sha256' : (trimmedHash.length === 32 ? 'md5' : 'plaintext'));
+
+    if (detectedAlgo === 'bcrypt') {
+      for (const candidate of candidatesList) {
+        const isMatch = await bcrypt.compare(candidate, trimmedHash);
+        if (isMatch) {
+          foundPassword = candidate;
+          break;
+        }
+      }
+    } else if (detectedAlgo === 'sha256') {
+      for (const candidate of candidatesList) {
+        const cHash = crypto.createHash('sha256').update(candidate).digest('hex');
+        if (cHash.toLowerCase() === trimmedHash.toLowerCase()) {
+          foundPassword = candidate;
+          break;
+        }
+      }
+    } else if (detectedAlgo === 'md5') {
+      for (const candidate of candidatesList) {
+        const cHash = crypto.createHash('md5').update(candidate).digest('hex');
+        if (cHash.toLowerCase() === trimmedHash.toLowerCase()) {
+          foundPassword = candidate;
+          break;
+        }
+      }
+    } else {
+      foundPassword = trimmedHash;
+    }
+
+    return sendSuccess(res, {
+      revealed: !!foundPassword,
+      password: foundPassword,
+      algorithm: detectedAlgo,
+      hash: trimmedHash,
+      message: foundPassword
+        ? `Password identified: "${foundPassword}"`
+        : 'Hash does not match standard 4-digit PINs. Enter a candidate password above to test.',
+    });
+  } catch (err) {
+    return sendError(res, `Failed to verify password: ${err.message}`, 500);
   }
 };
