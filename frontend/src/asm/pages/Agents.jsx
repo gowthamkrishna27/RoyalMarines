@@ -6,9 +6,9 @@ import { useMockData } from '../../context/MockDataContext';
 import { getAsmBasePath } from '../utils/asmNavigation';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
-import { 
-  Search, Filter, Eye, X, Phone, MapPin, 
-  Users, Droplets, TestTube, CheckCircle2, ShieldCheck, 
+import {
+  Search, Filter, Eye, X, Phone, MapPin,
+  Users, Droplets, TestTube, CheckCircle2, ShieldCheck,
   User, Layers, TrendingUp, Scale, Fish, Activity, ChevronRight, ArrowLeft, Clock,
   Bell, Check, AlertCircle, Calendar, FileText, UserCheck, Plus
 } from 'lucide-react';
@@ -62,7 +62,7 @@ const Agents = () => {
   const personalFarmerItems = personalFarmersList.map((farmer, fIdx) => {
     const rawTanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
     const hasPendingTest = rawTanks.some(p => p.testStatus === 'Pending' || p.testStatus === 'Overdue');
-    
+
     const formattedTanks = rawTanks.map((t, tIdx) => {
       const isDue = t.testStatus === 'Due' || (!t.testStatus && tIdx === 0);
       const isOverdue = t.testStatus === 'Overdue' || (tIdx === 1);
@@ -146,30 +146,30 @@ const Agents = () => {
     const allAgentTanks = farmers.flatMap(f => getTanksByFarmerId(f.id));
     const tanks = allAgentTanks.length;
     const tests = getSubmissionsByAgentId(a.id).length;
-    
+
     // Accurately compute due & overdue tests for this agent's tanks
     const dueTanks = allAgentTanks.filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue'));
     const dueTests = dueTanks.length > 0 ? dueTanks.length : ((idx % 2 === 0) ? 2 : 1);
     const overdueCount = dueTanks.filter(t => t.testStatus === 'Overdue').length || (idx === 1 ? 1 : 0);
     const compliance = 100;
 
-    return { 
-      ...a, 
-      mobile: a.phone || a.mobile || '+91 98480 22334', 
-      farmers: farmers.length, 
-      tanks, 
-      tests, 
+    return {
+      ...a,
+      mobile: a.phone || a.mobile || '+91 98480 22334',
+      farmers: farmers.length,
+      tanks,
+      tests,
       dueTests,
       overdueCount,
-      compliance, 
-      status: a.status === 'ACTIVE' ? 'Active' : 'Active' 
+      compliance,
+      status: a.status === 'ACTIVE' ? 'Active' : 'Active'
     };
   });
 
   const localities = Array.from(new Set(agents.map(a => a.locality).filter(Boolean)));
 
   const filteredAgents = agents.filter(agent => {
-    const matchesSearch = 
+    const matchesSearch =
       agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.locality.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.mobile.includes(searchTerm);
@@ -370,7 +370,7 @@ const Agents = () => {
   const selectedAgentTanksList = selectedAgentTanks ? getTanksForAgent(selectedAgentTanks) : [];
   const filteredAgentTanks = selectedAgentTanksList.filter(item => {
     const q = agentTanksSearch.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       (item.name || '').toLowerCase().includes(q) ||
       (item.farmerName || '').toLowerCase().includes(q) ||
       (item.farmerLocality || '').toLowerCase().includes(q);
@@ -559,234 +559,234 @@ const Agents = () => {
           <div style={styles.summaryBar} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-y-4 gap-x-4 sm:gap-6 items-center">
             <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
               <span style={styles.summaryLabel}>Total Technicians</span>
-            <span style={styles.summaryValue}>{agents.length}</span>
-          </div>
-          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
-            <span style={styles.summaryLabel}>Active in Field</span>
-            <span style={{ ...styles.summaryValue, color: '#16A34A' }}>{agents.length}</span>
-          </div>
-          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
-            <span style={styles.summaryLabel}>Assigned Farmers</span>
-            <span style={styles.summaryValue}>{totalFarmersAssigned}</span>
-          </div>
-          <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
-            <span style={styles.summaryLabel}>Supervised Tanks</span>
-            <span style={styles.summaryValue}>{totalTanksAssigned}</span>
-          </div>
-          <div 
-            style={{ ...styles.summaryItem, cursor: 'pointer' }}
-            onClick={() => setDueTestsAgent('ALL')}
-            className="col-span-2 sm:col-span-1 lg:col-span-1 pt-2 sm:pt-0 border-t border-slate-100 sm:border-t-0 transition-all duration-150 hover:-translate-y-0.5 cursor-pointer"
-            title="Click to view all due tests & farmer details across all field technicians"
-          >
-            <span style={styles.summaryLabel}>Test Dues Pending</span>
-            <span style={{ ...styles.summaryValue, color: '#D97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {totalTestsDue} Due <ChevronRight size={15} />
-            </span>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* 2. Main Content Card with Table */}
-        {/* ========================================================= */}
-        <div style={styles.mainCard}>
-          {/* Action Bar */}
-          <div style={{ ...styles.actionBar, flexWrap: 'wrap', gap: '12px' }}>
-            <div style={styles.searchGroup}>
-              <div style={styles.searchBox}>
-                <Search size={17} color="#64748B" />
-                <input 
-                  type="text" 
-                  placeholder="Search technician by name, phone, or locality..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={styles.searchInput}
-                />
-              </div>
-
-              {localities.length > 0 && (
-                <select 
-                  value={filterLocality} 
-                  onChange={(e) => setFilterLocality(e.target.value)}
-                  style={styles.selectFilter}
-                >
-                  <option value="ALL">All Localities ({localities.length})</option>
-                  {localities.map(loc => (
-                    <option key={loc} value={loc}>{loc}</option>
-                  ))}
-                </select>
-              )}
+              <span style={styles.summaryValue}>{agents.length}</span>
+            </div>
+            <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
+              <span style={styles.summaryLabel}>Active in Field</span>
+              <span style={{ ...styles.summaryValue, color: '#16A34A' }}>{agents.length}</span>
+            </div>
+            <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
+              <span style={styles.summaryLabel}>Assigned Farmers</span>
+              <span style={styles.summaryValue}>{totalFarmersAssigned}</span>
+            </div>
+            <div style={styles.summaryItem} className="lg:border-r lg:border-slate-100 lg:pr-4">
+              <span style={styles.summaryLabel}>Supervised Tanks</span>
+              <span style={styles.summaryValue}>{totalTanksAssigned}</span>
+            </div>
+            <div
+              style={{ ...styles.summaryItem, cursor: 'pointer' }}
+              onClick={() => setDueTestsAgent('ALL')}
+              className="col-span-2 sm:col-span-1 lg:col-span-1 pt-2 sm:pt-0 border-t border-slate-100 sm:border-t-0 transition-all duration-150 hover:-translate-y-0.5 cursor-pointer"
+              title="Click to view all due tests & farmer details across all field technicians"
+            >
+              <span style={styles.summaryLabel}>Test Dues Pending</span>
+              <span style={{ ...styles.summaryValue, color: '#D97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {totalTestsDue} Due <ChevronRight size={15} />
+              </span>
             </div>
           </div>
 
-          {/* Table View Format Only */}
-          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.thRow}>
-                  <th style={styles.th}>Technician</th>
-                  <th style={{ ...styles.th, textAlign: 'center' }}>Farmers</th>
-                  <th style={{ ...styles.th, textAlign: 'center' }}>Tanks</th>
-                  <th style={{ ...styles.th, textAlign: 'center' }}>Done</th>
-                  <th style={{ ...styles.th, textAlign: 'center' }}>Due</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAgents.map((agent) => (
-                  <tr 
-                    key={agent.id} 
-                    style={styles.tr}
-                    className="hover:bg-slate-50 transition-colors"
+          {/* ========================================================= */}
+          {/* 2. Main Content Card with Table */}
+          {/* ========================================================= */}
+          <div style={styles.mainCard}>
+            {/* Action Bar */}
+            <div style={{ ...styles.actionBar, flexWrap: 'wrap', gap: '12px' }}>
+              <div style={styles.searchGroup}>
+                <div style={styles.searchBox}>
+                  <Search size={17} color="#64748B" />
+                  <input
+                    type="text"
+                    placeholder="Search technician by name, phone, or locality..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={styles.searchInput}
+                  />
+                </div>
+
+                {localities.length > 0 && (
+                  <select
+                    value={filterLocality}
+                    onChange={(e) => setFilterLocality(e.target.value)}
+                    style={styles.selectFilter}
                   >
-                    <td 
-                      style={{ ...styles.td, cursor: 'pointer' }}
-                      onClick={() => {
-                        setAgentModalTab('PROFILE');
-                        setSelectedAgent(agent);
-                      }}
-                      title={`Click to view all profile details of ${agent.name}`}
-                    >
-                      <div style={{ fontSize: '13px', color: '#1A2FB8', fontWeight: '800' }}>
-                        {agent.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
-                        <span>{agent.mobile}</span>
-                        <span>•</span>
-                        <span>{agent.locality}</span>
-                      </div>
-                    </td>
+                    <option value="ALL">All Localities ({localities.length})</option>
+                    {localities.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
 
-                    <td 
-                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
-                      onClick={() => {
-                        setAgentModalTab('FARMERS');
-                        setSelectedAgent(agent);
-                      }}
-                      title={`Click to view all farmers assigned to ${agent.name}`}
+            {/* Table View Format Only */}
+            <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.thRow}>
+                    <th style={styles.th}>Technician</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Farmers</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Tanks</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Done</th>
+                    <th style={{ ...styles.th, textAlign: 'center' }}>Due</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAgents.map((agent) => (
+                    <tr
+                      key={agent.id}
+                      style={styles.tr}
+                      className="hover:bg-slate-50 transition-colors"
                     >
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
-                        {agent.farmers}
-                      </span>
-                    </td>
-
-                    <td 
-                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
-                      onClick={() => {
-                        setSelectedAgentTanks(agent);
-                      }}
-                      title={`Click to view all tanks supervised by ${agent.name}`}
-                    >
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284C7' }}>
-                        {agent.tanks}
-                      </span>
-                    </td>
-
-                    <td 
-                      style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
-                      onClick={() => {
-                        setAgentModalTab('SUBMISSIONS');
-                        setSelectedAgent(agent);
-                      }}
-                      title={`Click to view field test logs by ${agent.name}`}
-                    >
-                      <span style={styles.statusPill}>
-                        <CheckCircle2 size={10} /> {agent.tests}
-                      </span>
-                    </td>
-
-                    <td style={{ ...styles.td, textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDueTestsAgent(agent);
+                      <td
+                        style={{ ...styles.td, cursor: 'pointer' }}
+                        onClick={() => {
+                          setAgentModalTab('PROFILE');
+                          setSelectedAgent(agent);
                         }}
-                        title={`Click to view ${agent.name}'s due tests and farmer details`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          padding: '2px 6px',
-                          borderRadius: '6px',
-                          backgroundColor: agent.overdueCount > 0 ? '#FEE2E2' : '#FEF3C7',
-                          color: agent.overdueCount > 0 ? '#DC2626' : '#B45309',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          border: agent.overdueCount > 0 ? '1px solid #FECACA' : '1px solid #FDE68A',
-                          cursor: 'pointer'
-                        }}
-                        className="transition-transform active:scale-95 cursor-pointer"
+                        title={`Click to view all profile details of ${agent.name}`}
                       >
-                        <Clock size={10} />
-                        <span>{agent.dueTests} Due</span>
-                      </button>
-                    </td>
+                        <div style={{ fontSize: '13px', color: '#1A2FB8', fontWeight: '800' }}>
+                          {agent.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                          <span>{agent.mobile}</span>
+                          <span>•</span>
+                          <span>{agent.locality}</span>
+                        </div>
+                      </td>
 
-                    <td style={{ ...styles.td, textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <a
-                          href={`tel:${agent.mobile}`}
+                      <td
+                        style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
+                        onClick={() => {
+                          setAgentModalTab('FARMERS');
+                          setSelectedAgent(agent);
+                        }}
+                        title={`Click to view all farmers assigned to ${agent.name}`}
+                      >
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                          {agent.farmers}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
+                        onClick={() => {
+                          setSelectedAgentTanks(agent);
+                        }}
+                        title={`Click to view all tanks supervised by ${agent.name}`}
+                      >
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284C7' }}>
+                          {agent.tanks}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{ ...styles.td, textAlign: 'center', cursor: 'pointer' }}
+                        onClick={() => {
+                          setAgentModalTab('SUBMISSIONS');
+                          setSelectedAgent(agent);
+                        }}
+                        title={`Click to view field test logs by ${agent.name}`}
+                      >
+                        <span style={styles.statusPill}>
+                          <CheckCircle2 size={10} /> {agent.tests}
+                        </span>
+                      </td>
+
+                      <td style={{ ...styles.td, textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDueTestsAgent(agent);
+                          }}
+                          title={`Click to view ${agent.name}'s due tests and farmer details`}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '24px',
-                            height: '24px',
+                            gap: '3px',
+                            padding: '2px 6px',
                             borderRadius: '6px',
-                            backgroundColor: '#F1F5F9',
-                            color: '#475569',
-                            border: '1px solid #CBD5E1'
+                            backgroundColor: agent.overdueCount > 0 ? '#FEE2E2' : '#FEF3C7',
+                            color: agent.overdueCount > 0 ? '#DC2626' : '#B45309',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            border: agent.overdueCount > 0 ? '1px solid #FECACA' : '1px solid #FDE68A',
+                            cursor: 'pointer'
                           }}
-                          className="hover:bg-slate-200"
-                          title={`Call ${agent.name}`}
+                          className="transition-transform active:scale-95 cursor-pointer"
                         >
-                          <Phone size={11} />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAgentModalTab('FARMERS');
-                            setSelectedAgent(agent);
-                          }}
-                          style={styles.viewPortfolioBtn}
-                        >
-                          Inspect
+                          <Clock size={10} />
+                          <span>{agent.dueTests} Due</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
 
-                {filteredAgents.length === 0 && (
-                  <tr>
-                    <td colSpan="6" style={styles.emptyTd}>
-                      No field technicians match your search criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <a
+                            href={`tel:${agent.mobile}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '6px',
+                              backgroundColor: '#F1F5F9',
+                              color: '#475569',
+                              border: '1px solid #CBD5E1'
+                            }}
+                            className="hover:bg-slate-200"
+                            title={`Call ${agent.name}`}
+                          >
+                            <Phone size={11} />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAgentModalTab('FARMERS');
+                              setSelectedAgent(agent);
+                            }}
+                            style={styles.viewPortfolioBtn}
+                          >
+                            Inspect
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredAgents.length === 0 && (
+                    <tr>
+                      <td colSpan="6" style={styles.emptyTd}>
+                        No field technicians match your search criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
       {/* ========================================================= */}
       {/* 3. AGENT DETAILS & MULTI-TAB MODAL (Profile, Farmers, Tanks, Tests) */}
       {/* ========================================================= */}
       {selectedAgent && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setSelectedAgent(null)}>
-          <div 
-            style={{ 
-              ...styles.agentModalCard, 
-              maxWidth: '800px', 
-              maxHeight: '92vh', 
-              display: 'flex', 
+          <div
+            style={{
+              ...styles.agentModalCard,
+              maxWidth: '800px',
+              maxHeight: '92vh',
+              display: 'flex',
               flexDirection: 'column',
               padding: 0,
               overflow: 'hidden'
-            }} 
+            }}
             onClick={e => e.stopPropagation()}
             className="animate-modal-in"
           >
@@ -819,7 +819,7 @@ const Agents = () => {
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setSelectedAgent(null)}
                 style={styles.modalCloseBtn}
@@ -830,9 +830,9 @@ const Agents = () => {
             </div>
 
             {/* Scrollable Modal Body: Contains Stats Grid, Sticky Tabs Navigation & Tab Content */}
-            <div style={{ 
-              flex: 1, 
-              overflowY: 'auto', 
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
               WebkitOverflowScrolling: 'touch',
               backgroundColor: '#F8FAFC',
               display: 'flex',
@@ -840,13 +840,13 @@ const Agents = () => {
             }}>
               {/* Agent Stats Grid */}
               <div style={{ padding: '16px 20px 0 20px' }}>
-                <div style={{ 
+                <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                   gap: '10px',
                   marginBottom: '16px'
                 }}>
-                  <div 
+                  <div
                     style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'FARMERS' ? '#EFF6FF' : '#FFFFFF' }}
                     onClick={() => setAgentModalTab('FARMERS')}
                     className="transition-transform active:scale-95 cursor-pointer"
@@ -855,7 +855,7 @@ const Agents = () => {
                     <span style={styles.miniLabel}>ASSIGNED FARMERS</span>
                     <span style={{ ...styles.agentStatsVal, color: '#1A2FB8' }}>{agentFarmers.length} Farmers</span>
                   </div>
-                  <div 
+                  <div
                     style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'TANKS' ? '#F0F9FF' : '#FFFFFF' }}
                     onClick={() => setAgentModalTab('TANKS')}
                     className="transition-transform active:scale-95 cursor-pointer"
@@ -864,7 +864,7 @@ const Agents = () => {
                     <span style={styles.miniLabel}>SUPERVISED TANKS</span>
                     <span style={{ ...styles.agentStatsVal, color: '#0284C7' }}>{selectedAgent.tanks} Tanks</span>
                   </div>
-                  <div 
+                  <div
                     style={{ ...styles.agentStatBox, cursor: 'pointer', backgroundColor: agentModalTab === 'SUBMISSIONS' ? '#F0FDF4' : '#FFFFFF' }}
                     onClick={() => setAgentModalTab('SUBMISSIONS')}
                     className="transition-transform active:scale-95 cursor-pointer"
@@ -873,7 +873,7 @@ const Agents = () => {
                     <span style={styles.miniLabel}>TESTS LOGGED</span>
                     <span style={{ ...styles.agentStatsVal, color: '#16A34A' }}>{selectedAgent.tests} Tests</span>
                   </div>
-                  <div 
+                  <div
                     style={{ ...styles.agentStatBox, cursor: 'pointer', border: '1px solid #FDE68A', backgroundColor: '#FFFDF5' }}
                     onClick={() => setDueTestsAgent(selectedAgent)}
                     className="transition-transform active:scale-95 hover:shadow-xs cursor-pointer"
@@ -892,16 +892,16 @@ const Agents = () => {
               </div>
 
               {/* Tab Navigation Buttons (Sticky below Stats / top of scroll) */}
-              <div style={{ 
+              <div style={{
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
                 backgroundColor: '#F8FAFC',
                 borderBottom: '1px solid #E2E8F0',
                 padding: '0 20px',
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px', 
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 overflowX: 'auto',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
               }}>
@@ -952,374 +952,370 @@ const Agents = () => {
 
               {/* Tab Body Content */}
               <div style={{ padding: '20px', flex: 1 }}>
-              
-              {/* TAB 1: PROFILE & OVERVIEW */}
-              {agentModalTab === 'PROFILE' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
-                    <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: '0 0 10px 0' }}>
-                      Technician Information
-                    </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>FULL NAME</span>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.name}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>PHONE NUMBER</span>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.mobile}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>ASSIGNED LOCALITY / CLUSTER</span>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.locality}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>COMPLIANCE SCORE</span>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#16A34A', marginTop: '2px' }}>100% On-Time Testing</div>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                        Quick Portfolio Access
+                {/* TAB 1: PROFILE & OVERVIEW */}
+                {agentModalTab === 'PROFILE' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
+                      <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: '0 0 10px 0' }}>
+                        Technician Information
                       </h4>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-                      <button
-                        type="button"
-                        onClick={() => setAgentModalTab('FARMERS')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '12px',
-                          borderRadius: '10px',
-                          backgroundColor: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                        className="transition-transform active:scale-98"
-                      >
-                        <Users size={20} color="#1A2FB8" />
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                         <div>
-                          <div style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8' }}>View All {agentFarmers.length} Farmers</div>
-                          <div style={{ fontSize: '11px', color: '#64748B' }}>Tap to inspect farmer details & ponds</div>
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>FULL NAME</span>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.name}</div>
                         </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setAgentModalTab('TANKS')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '12px',
-                          borderRadius: '10px',
-                          backgroundColor: '#F0F9FF',
-                          border: '1px solid #BAE6FD',
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                        className="transition-transform active:scale-98"
-                      >
-                        <Droplets size={20} color="#0284C7" />
                         <div>
-                          <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284C7' }}>View All {agentAllTanks.length} Tanks</div>
-                          <div style={{ fontSize: '11px', color: '#64748B' }}>Live ABW, Biomass, FCR telemetry</div>
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>PHONE NUMBER</span>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.mobile}</div>
                         </div>
-                      </button>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>ASSIGNED LOCALITY / CLUSTER</span>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>{selectedAgent.locality}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>COMPLIANCE SCORE</span>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#16A34A', marginTop: '2px' }}>100% On-Time Testing</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {/* TAB 2: ASSIGNED FARMERS */}
-              {agentModalTab === 'FARMERS' && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                      Assigned Farmers ({agentFarmers.length})
-                    </h4>
-                    <span style={{ fontSize: '11.5px', color: '#64748B' }}>
-                      Click any farmer to inspect full details & ponds
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {agentFarmers.map((farmer) => (
-                      <div
-                        key={farmer.id}
-                        onClick={() => setSelectedFarmer(farmer)}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          borderRadius: '12px',
-                          border: '1px solid #E2E8F0',
-                          padding: '12px 16px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                          cursor: 'pointer'
-                        }}
-                        className="hover:border-blue-400 hover:bg-blue-50/20 active:scale-[0.99] transition-all cursor-pointer"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                          <div style={{
-                            width: '38px',
-                            height: '38px',
-                            borderRadius: '8px',
+                    <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                          Quick Portfolio Access
+                        </h4>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setAgentModalTab('FARMERS')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '12px',
+                            borderRadius: '10px',
                             backgroundColor: '#EFF6FF',
                             border: '1px solid #BFDBFE',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#1A2FB8',
-                            fontWeight: '800',
-                            fontSize: '15px',
-                            flexShrink: 0
-                          }}>
-                            {farmer.name ? farmer.name.charAt(0) : 'F'}
-                          </div>
-
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#0F172A', lineHeight: 1.3, marginBottom: '2px' }}>
-                              {farmer.name}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.3 }}>
-                              {farmer.localityName || farmer.villageName || farmer.locality || 'Chinnamiram'}, {farmer.regionName || farmer.region || 'Coastal Region'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#1A2FB8', fontWeight: '700', fontSize: '12px', flexShrink: 0 }}>
-                          <span className="hidden sm:inline">View Details</span>
-                          <div style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '50%',
-                            backgroundColor: '#EFF6FF',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            <ChevronRight size={15} color="#1A2FB8" strokeWidth={2.5} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {agentFarmers.length === 0 && (
-                      <div style={styles.emptyFarmersBox}>
-                        <Users size={24} color="#94A3B8" />
-                        <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#64748B' }}>
-                          No farmers assigned to this agent yet.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: SUPERVISED TANKS */}
-              {agentModalTab === 'TANKS' && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                      Supervised Culture Tanks ({agentAllTanks.length})
-                    </h4>
-                    <span style={{ fontSize: '11.5px', color: '#64748B' }}>
-                      Click any farmer name to view full profile
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {agentAllTanks.map((item, idx) => (
-                      <div
-                        key={item.id || idx}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid #E2E8F0',
-                          borderLeft: `4px solid ${item.isHarvested ? '#94A3B8' : (item.isDue || item.isOverdue ? '#F59E0B' : '#10B981')}`,
-                          borderRadius: '12px',
-                          padding: '12px 14px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
-                        }}
-                      >
-                        {/* Tank Header & Farmer */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                          className="transition-transform active:scale-98"
+                        >
+                          <Users size={20} color="#1A2FB8" />
                           <div>
-                            <div 
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
-                              onClick={() => setSelectedFarmer(item.rawFarmer)}
-                              title="Click to view farmer details"
-                            >
-                              <span style={{ fontSize: '14px', fontWeight: '800', color: '#1A2FB8', textDecoration: 'underline' }}>
-                                {item.farmerName}
-                              </span>
-                              <ChevronRight size={13} color="#1A2FB8" />
+                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8' }}>View All {agentFarmers.length} Farmers</div>
+                            <div style={{ fontSize: '11px', color: '#64748B' }}>Tap to inspect farmer details & ponds</div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setAgentModalTab('TANKS')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '12px',
+                            borderRadius: '10px',
+                            backgroundColor: '#F0F9FF',
+                            border: '1px solid #BAE6FD',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                          className="transition-transform active:scale-98"
+                        >
+                          <Droplets size={20} color="#0284C7" />
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#0284C7' }}>View All {agentAllTanks.length} Tanks</div>
+                            <div style={{ fontSize: '11px', color: '#64748B' }}>Live ABW, Biomass, FCR telemetry</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: ASSIGNED FARMERS */}
+                {agentModalTab === 'FARMERS' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        Assigned Farmers ({agentFarmers.length})
+                      </h4>
+                      <span style={{ fontSize: '11.5px', color: '#64748B' }}></span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {agentFarmers.map((farmer) => (
+                        <div
+                          key={farmer.id}
+                          onClick={() => setSelectedFarmer(farmer)}
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            borderRadius: '12px',
+                            border: '1px solid #E2E8F0',
+                            padding: '12px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                            cursor: 'pointer'
+                          }}
+                          className="hover:border-blue-400 hover:bg-blue-50/20 active:scale-[0.99] transition-all cursor-pointer"
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                            <div style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '8px',
+                              backgroundColor: '#EFF6FF',
+                              border: '1px solid #BFDBFE',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#1A2FB8',
+                              fontWeight: '800',
+                              fontSize: '15px',
+                              flexShrink: 0
+                            }}>
+                              {farmer.name ? farmer.name.charAt(0) : 'F'}
                             </div>
-                            <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
-                              📍 {item.farmerLocality} • 📞 {item.farmerPhone}
+
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#0F172A', lineHeight: 1.3, marginBottom: '2px' }}>
+                                {farmer.name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.3 }}>
+                                {farmer.localityName || farmer.villageName || farmer.locality || 'Chinnamiram'}, {farmer.regionName || farmer.region || 'Coastal Region'}
+                              </div>
                             </div>
                           </div>
 
-                          <span style={{
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            backgroundColor: item.isHarvested ? '#F1F5F9' : (item.isOverdue ? '#FEF2F2' : (item.isDue ? '#FEF3C7' : '#DCFCE7')),
-                            color: item.isHarvested ? '#475569' : (item.isOverdue ? '#DC2626' : (item.isDue ? '#B45309' : '#15803D')),
-                            border: `1px solid ${item.isHarvested ? '#CBD5E1' : (item.isOverdue ? '#FECACA' : (item.isDue ? '#FDE68A' : '#BBF7D0'))}`,
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {item.isHarvested ? 'Harvested' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Up to Date'))}
-                          </span>
-                        </div>
-
-                        {/* Tank Strip */}
-                        <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Droplets size={13} color="#1A2FB8" />
-                              <strong style={{ fontSize: '13px', color: '#0F172A' }}>{item.name}</strong>
-                              <span style={{ fontSize: '11.5px', color: '#64748B' }}>({item.size} • {item.species})</span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#1A2FB8', fontWeight: '700', fontSize: '12px', flexShrink: 0 }}>
+                            <span className="hidden sm:inline">View Details</span>
+                            <div style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              backgroundColor: '#EFF6FF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <ChevronRight size={15} color="#1A2FB8" strokeWidth={2.5} />
                             </div>
-                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#1A2FB8', backgroundColor: '#EFF6FF', padding: '1px 7px', borderRadius: '4px', border: '1px solid #DBEAFE' }}>
-                              Day {item.doc} DOC
+                          </div>
+                        </div>
+                      ))}
+
+                      {agentFarmers.length === 0 && (
+                        <div style={styles.emptyFarmersBox}>
+                          <Users size={24} color="#94A3B8" />
+                          <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#64748B' }}>
+                            No farmers assigned to this agent yet.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: SUPERVISED TANKS */}
+                {agentModalTab === 'TANKS' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        Supervised Culture Tanks ({agentAllTanks.length})
+                      </h4>
+                      <span style={{ fontSize: '11.5px', color: '#64748B' }}></span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {agentAllTanks.map((item, idx) => (
+                        <div
+                          key={item.id || idx}
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid #E2E8F0',
+                            borderLeft: `4px solid ${item.isHarvested ? '#94A3B8' : (item.isDue || item.isOverdue ? '#F59E0B' : '#10B981')}`,
+                            borderRadius: '12px',
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                          }}
+                        >
+                          {/* Tank Header & Farmer */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div>
+                              <div
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                                onClick={() => setSelectedFarmer(item.rawFarmer)}
+                                title="Click to view farmer details"
+                              >
+                                <span style={{ fontSize: '14px', fontWeight: '800', color: '#1A2FB8', textDecoration: 'underline' }}>
+                                  {item.farmerName}
+                                </span>
+                                <ChevronRight size={13} color="#1A2FB8" />
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                                📍 {item.farmerLocality} • 📞 {item.farmerPhone}
+                              </div>
+                            </div>
+
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              backgroundColor: item.isHarvested ? '#F1F5F9' : (item.isOverdue ? '#FEF2F2' : (item.isDue ? '#FEF3C7' : '#DCFCE7')),
+                              color: item.isHarvested ? '#475569' : (item.isOverdue ? '#DC2626' : (item.isDue ? '#B45309' : '#15803D')),
+                              border: `1px solid ${item.isHarvested ? '#CBD5E1' : (item.isOverdue ? '#FECACA' : (item.isDue ? '#FDE68A' : '#BBF7D0'))}`,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {item.isHarvested ? 'Harvested' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Up to Date'))}
                             </span>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                            <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
-                              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Weight (ABW)</div>
-                              <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.abw}</div>
+                          {/* Tank Strip */}
+                          <div style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Droplets size={13} color="#1A2FB8" />
+                                <strong style={{ fontSize: '13px', color: '#0F172A' }}>{item.name}</strong>
+                                <span style={{ fontSize: '11.5px', color: '#64748B' }}>({item.size} • {item.species})</span>
+                              </div>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#1A2FB8', backgroundColor: '#EFF6FF', padding: '1px 7px', borderRadius: '4px', border: '1px solid #DBEAFE' }}>
+                                Day {item.doc} DOC
+                              </span>
                             </div>
-                            <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
-                              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Biomass</div>
-                              <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.biomass}</div>
-                            </div>
-                            <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
-                              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Feed (FCR)</div>
-                              <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#16A34A' }}>{item.fcr}</div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                              <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                                <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Weight (ABW)</div>
+                                <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.abw}</div>
+                              </div>
+                              <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                                <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Biomass</div>
+                                <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#0F172A' }}>{item.biomass}</div>
+                              </div>
+                              <div style={{ backgroundColor: '#FFFFFF', padding: '5px', borderRadius: '5px', border: '1px solid #EDF2F7', textAlign: 'center' }}>
+                                <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Feed (FCR)</div>
+                                <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#16A34A' }}>{item.fcr}</div>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Action buttons */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedFarmer(item.rawFarmer)}
-                            style={{
-                              flex: 1,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                              backgroundColor: '#FFFFFF',
-                              color: '#1A2FB8',
-                              border: '1px solid #BFDBFE',
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <User size={12} /> View Farmer Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedRoutineTank({ tank: item.rawTank, farmer: item.rawFarmer })}
-                            style={{
-                              flex: 1,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                              backgroundColor: '#1A2FB8',
-                              color: '#FFFFFF',
-                              border: 'none',
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Calendar size={12} /> Routine Schedule
-                          </button>
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFarmer(item.rawFarmer)}
+                              style={{
+                                flex: 1,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                backgroundColor: '#FFFFFF',
+                                color: '#1A2FB8',
+                                border: '1px solid #BFDBFE',
+                                padding: '6px 10px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <User size={12} /> View Farmer Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRoutineTank({ tank: item.rawTank, farmer: item.rawFarmer })}
+                              style={{
+                                flex: 1,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                backgroundColor: '#1A2FB8',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                padding: '6px 10px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Calendar size={12} /> Routine Schedule
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* TAB 4: SUBMISSIONS */}
-              {agentModalTab === 'SUBMISSIONS' && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                      Field Test Records ({agentSubmissions.length})
-                    </h4>
-                  </div>
+                {/* TAB 4: SUBMISSIONS */}
+                {agentModalTab === 'SUBMISSIONS' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                        Field Test Records ({agentSubmissions.length})
+                      </h4>
+                    </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {agentSubmissions.map((sub, idx) => (
-                      <div
-                        key={sub.id || idx}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid #E2E8F0',
-                          borderRadius: '10px',
-                          padding: '12px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
-                            {sub.testType || sub.title || 'Water Quality Test'}
-                          </span>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#16A34A', backgroundColor: '#DCFCE7', padding: '2px 7px', borderRadius: '4px' }}>
-                            Verified
-                          </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {agentSubmissions.map((sub, idx) => (
+                        <div
+                          key={sub.id || idx}
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '10px',
+                            padding: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
+                              {sub.testType || sub.title || 'Water Quality Test'}
+                            </span>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#16A34A', backgroundColor: '#DCFCE7', padding: '2px 7px', borderRadius: '4px' }}>
+                              Verified
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748B' }}>
+                            Farmer: <strong style={{ color: '#0F172A' }}>{sub.farmerName || 'Appala Raju'}</strong> • Tank: <strong>{sub.tankName || 'Tank 1'}</strong> • Date: {sub.date || 'Today'}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#64748B' }}>
-                          Farmer: <strong style={{ color: '#0F172A' }}>{sub.farmerName || 'Appala Raju'}</strong> • Tank: <strong>{sub.tankName || 'Tank 1'}</strong> • Date: {sub.date || 'Today'}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
 
-                    {agentSubmissions.length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '30px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <TestTube size={24} color="#94A3B8" style={{ margin: '0 auto 6px' }} />
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>No test submissions yet</div>
-                      </div>
-                    )}
+                      {agentSubmissions.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '30px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                          <TestTube size={24} color="#94A3B8" style={{ margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>No test submissions yet</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               </div>
             </div>
 
             {/* Modal Footer */}
             <div style={{ padding: '12px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#FFFFFF', flexShrink: 0 }}>
-              <button 
+              <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setSelectedAgent(null)}
               >
                 Close Profile
@@ -1335,16 +1331,16 @@ const Agents = () => {
       {/* ========================================================= */}
       {selectedAgentTanks && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setSelectedAgentTanks(null)}>
-          <div 
-            style={{ 
-              ...styles.agentModalCard, 
-              maxWidth: '720px', 
-              maxHeight: '92vh', 
-              display: 'flex', 
+          <div
+            style={{
+              ...styles.agentModalCard,
+              maxWidth: '720px',
+              maxHeight: '92vh',
+              display: 'flex',
               flexDirection: 'column',
               padding: 0,
               overflow: 'hidden'
-            }} 
+            }}
             onClick={e => e.stopPropagation()}
             className="animate-modal-in"
           >
@@ -1376,7 +1372,7 @@ const Agents = () => {
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setSelectedAgentTanks(null)}
                 style={styles.modalCloseBtn}
@@ -1390,7 +1386,7 @@ const Agents = () => {
             <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF', padding: '6px 10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                 <Search size={14} color="#64748B" style={{ flexShrink: 0 }} />
-                <input 
+                <input
                   type="text"
                   placeholder="Search tank, farmer, or village..."
                   value={agentTanksSearch}
@@ -1462,7 +1458,7 @@ const Agents = () => {
                     {/* Top Row: Farmer info & Status */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div 
+                        <div
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
                           onClick={() => setSelectedFarmer(item.rawFarmer)}
                           title="Click to view full farmer profile"
@@ -1619,9 +1615,9 @@ const Agents = () => {
 
             {/* Footer */}
             <div style={{ padding: '10px 16px', borderTop: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
+              <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setSelectedAgentTanks(null)}
               >
                 Close Tanks View
@@ -1650,13 +1646,13 @@ const Agents = () => {
                   <ArrowLeft size={16} />
                 </button>
                 <div>
-                  <h3 style={styles.modalTitle}>{selectedFarmer.name} — Full Farmer Details</h3>
+                  <h3 style={styles.modalTitle}>{selectedFarmer.name}</h3>
                   <p style={styles.modalSub}>
                     <strong>Region:</strong> {selectedFarmer.region || selectedFarmer.regionName || 'Coastal Region'} • <strong>Locality:</strong> {selectedFarmer.locality || selectedFarmer.localityName || selectedFarmer.villageName || selectedFarmer.village || 'Chinnamiram'} • 🌾 {selectedFarmer.acres || 5} Acres Farm
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setSelectedFarmer(null)}
                 style={styles.modalCloseBtn}
@@ -1671,14 +1667,6 @@ const Agents = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={styles.farmerBioIcon}>
                     <Fish size={18} color="#1A2FB8" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
-                      Farmer: {selectedFarmer.name} • 📞 {selectedFarmer.phone || '+91 98480 12345'}
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
-                      Region: <strong>{selectedFarmer.region || selectedFarmer.regionName || 'Coastal Region'}</strong> • Locality: <strong>{selectedFarmer.locality || selectedFarmer.localityName || selectedFarmer.villageName || selectedFarmer.village || 'Chinnamiram'}</strong> • Water Source: {selectedFarmer.waterSource || 'Canal'} • Supervised Ponds: {farmerTanks.length}
-                    </div>
                   </div>
                 </div>
 
@@ -1711,11 +1699,9 @@ const Agents = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div>
                   <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    Supervised Ponds & Tanks ({farmerTanks.length})
+                    Supervised Tanks ({farmerTanks.length})
                   </h4>
-                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                    Click any pond to open its full details and record partial or final harvests.
-                  </p>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}></p>
                 </div>
               </div>
 
@@ -1826,9 +1812,9 @@ const Agents = () => {
 
             {/* Modal Footer */}
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #F1F5F9', paddingTop: '16px' }}>
-              <button 
+              <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setSelectedFarmer(null)}
               >
                 Close Farmer View
@@ -1855,7 +1841,7 @@ const Agents = () => {
       {/* ========================================================= */}
       {dueTestsAgent && createPortal(
         <div style={styles.modalBackdrop} onClick={() => setDueTestsAgent(null)}>
-          <div 
+          <div
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '16px',
@@ -2022,7 +2008,7 @@ const Agents = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span 
+                            <span
                               style={{ fontSize: '14.5px', fontWeight: '800', color: '#1A2FB8', cursor: 'pointer', textDecoration: 'underline' }}
                               onClick={() => {
                                 const f = getFarmersByAgentId(item.agentId).find(f => f.id === item.farmerId) || {
@@ -2210,9 +2196,9 @@ const Agents = () => {
 
             {/* Modal Footer */}
             <div style={{ padding: '10px 16px', borderTop: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
+              <button
                 type="button"
-                style={styles.closeBtnAction} 
+                style={styles.closeBtnAction}
                 onClick={() => setDueTestsAgent(null)}
               >
                 Close Due Tests
@@ -2225,7 +2211,7 @@ const Agents = () => {
 
       {/* Harvest Completed Modal if clicked */}
       {selectedHarvestTank && (
-        <HarvestCompletedModal 
+        <HarvestCompletedModal
           isOpen={Boolean(selectedHarvestTank)}
           tank={selectedHarvestTank}
           farmer={selectedFarmer || { name: selectedHarvestTank.farmer, location: selectedHarvestTank.locality }}
