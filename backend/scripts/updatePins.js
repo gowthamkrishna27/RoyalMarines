@@ -6,13 +6,19 @@ async function main() {
   const hash = await bcrypt.hash('1234', 10);
   console.log('Generated bcrypt hash for 4-digit PIN "1234":', hash);
 
-  const res = await query(
-    `UPDATE users SET password = ? WHERE role = 'AGENT' OR role = 'ASM' OR role = 'INCHARGE' OR id IN ('agent001', 'agent002', 'INC001')`,
-    [hash]
-  );
-  console.log('✅ Successfully updated Agent and ASM accounts to 4-digit PIN 1234. Affected rows:', res.affectedRows);
+  await query(`
+    INSERT INTO users (id, username, password, password_hash, name, full_name, role, role_id, phone, email, locality, region, status)
+    VALUES ('ADM001', 'ADM001', ?, ?, 'System Administrator', 'System Administrator', 'ADMIN', 1, '9999999990', 'admin2@royalsmarine.com', 'HQ', 'Headquarters', 'ACTIVE')
+    ON DUPLICATE KEY UPDATE password=VALUES(password), password_hash=VALUES(password_hash)
+  `, [hash, hash]);
 
-  const users = await query('SELECT id, name, role, username, phone FROM users');
+  const res = await query(
+    `UPDATE users SET password = ?, password_hash = ? WHERE 1=1`,
+    [hash, hash]
+  );
+  console.log('✅ Successfully updated all user accounts to 4-digit PIN 1234. Affected rows:', res.affectedRows);
+
+  const users = await query('SELECT id, name, username, role, phone FROM users');
   console.table(users);
 
   await (await getPool()).end();

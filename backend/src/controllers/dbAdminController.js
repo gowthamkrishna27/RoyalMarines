@@ -4,14 +4,31 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 // Table whitelist to strictly guard against SQL injection
 const ALLOWED_TABLES = [
+  // Schema V2 Normalized Tables (19 Tables)
+  'roles',
   'users',
   'regions',
   'incharges',
-  'agents',
+  'technicians',
   'farmers',
+  'farmer_assignments',
+  'ponds',
+  'culture_cycles',
+  'field_visits',
+  'water_quality_records',
+  'biomass_records',
+  'health_records',
+  'feed_products',
+  'feed_records',
+  'harvests',
+  'recommendations',
+  'notifications',
+  'audit_logs',
+  // Backward compatibility legacy tables
+  'agents',
   'tanks',
   'submissions',
-  'harvests',
+  'pond_crops',
 ];
 
 const validateTableName = (table) => {
@@ -687,36 +704,75 @@ export const getDashboardMetrics = async (req, res) => {
     };
 
     try {
-      const userRoles = await query('SELECT role, COUNT(*) as c FROM users GROUP BY role');
-      userRoles.forEach((r) => {
-        const role = (r.role || '').toUpperCase();
-        if (role === 'ADMIN') domainStats.usersByRole.admin = Number(r.c);
-        else if (role === 'ASM' || role === 'INCHARGE') domainStats.usersByRole.asm += Number(r.c);
-        else if (role === 'AGENT') domainStats.usersByRole.agent += Number(r.c);
-      });
+      // 3a. Users by Role (Supports Schema V2 roles and legacy role column)
+      try {
+        const userRoles = await query(`
+          SELECT 
+            COALESCE(r.name, u.role, 'UNKNOWN') as role_name, 
+            COUNT(*) as c 
+          FROM users u 
+          LEFT JOIN roles r ON u.role_id = r.id 
+          GROUP BY COALESCE(r.name, u.role, 'UNKNOWN')
+        `);
+        userRoles.forEach((r) => {
+          const role = (r.role_name || '').toUpperCase();
+          if (role === 'ADMIN') domainStats.usersByRole.admin += Number(r.c);
+          else if (role === 'ASM' || role === 'INCHARGE') domainStats.usersByRole.asm += Number(r.c);
+          else if (role === 'AGENT' || role === 'TECHNICIAN') domainStats.usersByRole.agent += Number(r.c);
+        });
+      } catch {
+        const [uc] = await query('SELECT COUNT(*) as c FROM users');
+        domainStats.usersByRole.admin = Number(uc?.c || 0);
+      }
 
-      const [fc] = await query('SELECT COUNT(*) as c FROM farmers');
-      domainStats.farmersCount = Number(fc?.c || 0);
+      // 3b. Farmers count
+      try {
+        const [fc] = await query('SELECT COUNT(*) as c FROM farmers');
+        domainStats.farmersCount = Number(fc?.c || 0);
+      } catch {}
 
-      const [tc] = await query('SELECT COUNT(*) as total, SUM(CASE WHEN status = "ACTIVE" THEN 1 ELSE 0 END) as active FROM tanks');
-      domainStats.tanksCount = Number(tc?.total || 0);
-      domainStats.activeTanks = Number(tc?.active || 0);
+      // 3c. Ponds / Tanks Count
+      try {
+        let pondRes;
+        try {
+          pondRes = await query('SELECT COUNT(*) as total, SUM(CASE WHEN status = "ACTIVE" THEN 1 ELSE 0 END) as active FROM ponds');
+        } catch {
+          pondRes = await query('SELECT COUNT(*) as total, SUM(CASE WHEN status = "ACTIVE" THEN 1 ELSE 0 END) as active FROM tanks');
+        }
+        domainStats.tanksCount = Number(pondRes[0]?.total || 0);
+        domainStats.activeTanks = Number(pondRes[0]?.active || 0);
+      } catch {}
 
-      const subStatus = await query('SELECT status, COUNT(*) as c FROM submissions GROUP BY status');
-      subStatus.forEach((s) => {
-        const st = (s.status || '').toUpperCase();
-        if (st === 'PENDING_VERIFICATION') domainStats.pendingSubmissions += Number(s.c);
-        else if (st === 'VERIFIED' || st === 'COMPLETED' || st === 'APPROVED') domainStats.verifiedSubmissions += Number(s.c);
-        else if (st === 'FLAGGED' || st === 'REJECTED') domainStats.flaggedSubmissions += Number(s.c);
-        domainStats.submissionsCount += Number(s.c);
-      });
+      // 3d. Field Visits / Submissions Count
+      try {
+        try {
+          const [fv] = await query('SELECT COUNT(*) as total FROM field_visits');
+          domainStats.submissionsCount = Number(fv?.total || 0);
+          domainStats.verifiedSubmissions = Number(fv?.total || 0);
+        } catch {
+          const subStatus = await query('SELECT status, COUNT(*) as c FROM submissions GROUP BY status');
+          subStatus.forEach((s) => {
+            const st = (s.status || '').toUpperCase();
+            if (st === 'PENDING_VERIFICATION') domainStats.pendingSubmissions += Number(s.c);
+            else if (st === 'VERIFIED' || st === 'COMPLETED' || st === 'APPROVED') domainStats.verifiedSubmissions += Number(s.c);
+            else if (st === 'FLAGGED' || st === 'REJECTED') domainStats.flaggedSubmissions += Number(s.c);
+            domainStats.submissionsCount += Number(s.c);
+          });
+        }
+      } catch {}
 
-      const [hr] = await query('SELECT COUNT(*) as c, COALESCE(SUM(revenue), 0) as rev FROM harvests');
-      domainStats.harvestsCount = Number(hr?.c || 0);
-      domainStats.totalRevenue = Number(hr?.rev || 0);
+      // 3e. Harvests
+      try {
+        const [hr] = await query('SELECT COUNT(*) as c, COALESCE(SUM(total_value), COALESCE(SUM(revenue), 0)) as rev FROM harvests');
+        domainStats.harvestsCount = Number(hr?.c || 0);
+        domainStats.totalRevenue = Number(hr?.rev || 0);
+      } catch {}
 
-      const [rc] = await query('SELECT COUNT(*) as c FROM regions');
-      domainStats.regionsCount = Number(rc?.c || 0);
+      // 3f. Regions
+      try {
+        const [rc] = await query('SELECT COUNT(*) as c FROM regions');
+        domainStats.regionsCount = Number(rc?.c || 0);
+      } catch {}
     } catch (e) {
       console.warn('[Domain stats partial error]', e.message);
     }

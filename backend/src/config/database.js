@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise';
 import { config } from './env.js';
 
 let pool = null;
-let isConnected = false;
+let isConnected = null;
 
 export const resetPool = () => {
   if (pool) {
@@ -11,6 +11,7 @@ export const resetPool = () => {
     } catch {}
     pool = null;
   }
+  isConnected = null;
 };
 
 export const getPool = () => {
@@ -71,6 +72,9 @@ export const checkDatabaseConnection = async () => {
   }
 };
 
-export const isDbConnected = () => isConnected;
+export const isDbConnected = () => {
+  if (isConnected !== null) return isConnected;
+  return Boolean(process.env.DB_HOST || config.db.host);
+};
 
 export default { getPool, query, checkDatabaseConnection, isDbConnected };
