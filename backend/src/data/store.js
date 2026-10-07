@@ -321,6 +321,9 @@ class DataStore {
           testStatus: r.test_status,
           lastTest: r.last_test,
           nextTest: r.next_test,
+          latitude: r.latitude != null ? parseFloat(r.latitude) : null,
+          longitude: r.longitude != null ? parseFloat(r.longitude) : null,
+          location: r.location || null,
           size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
           acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
           salinity: r.salinity || '15 ppt',
@@ -357,6 +360,9 @@ class DataStore {
             testStatus: r.test_status,
             lastTest: r.last_test,
             nextTest: r.next_test,
+            latitude: r.latitude != null ? parseFloat(r.latitude) : null,
+            longitude: r.longitude != null ? parseFloat(r.longitude) : null,
+            location: r.location || null,
             size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
             acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
             salinity: r.salinity || '15 ppt',
@@ -394,18 +400,22 @@ class DataStore {
       species: data.species || 'Vannamei',
       cultureType: data.cultureType || 'Semi-Intensive',
       stockingDate: data.stockingDate || new Date().toISOString().split('T')[0],
+      latitude: data.latitude != null ? parseFloat(data.latitude) : null,
+      longitude: data.longitude != null ? parseFloat(data.longitude) : null,
+      location: data.location || null,
       createdAt: new Date().toISOString(),
     };
 
     if (isDbConnected()) {
       try {
         await query(
-          `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date, latitude, longitude, location)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
              assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
-             biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc)`,
+             biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc),
+             latitude=VALUES(latitude), longitude=VALUES(longitude), location=VALUES(location)`,
           [
             newTank.id,
             newTank.name,
@@ -426,6 +436,9 @@ class DataStore {
             newTank.species,
             newTank.cultureType,
             newTank.stockingDate,
+            newTank.latitude,
+            newTank.longitude,
+            newTank.location,
           ]
         );
       } catch (err) {
@@ -455,6 +468,9 @@ class DataStore {
         if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
         if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
         if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
+        if (updates.latitude !== undefined) { fields.push('latitude = ?'); params.push(updates.latitude); }
+        if (updates.longitude !== undefined) { fields.push('longitude = ?'); params.push(updates.longitude); }
+        if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
 
         if (fields.length > 0) {
           params.push(id);
