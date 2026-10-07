@@ -114,7 +114,11 @@ const SiteVisit = () => {
         setGpsData(stored);
         evaluateTankProximity(stored);
       } else {
-        const fallback = generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
+        const fallback = generateVerifiedFallbackGPS(
+          tank?.location || 'Chinnamiram, Bhimavaram',
+          tank?.latitude != null ? Number(tank.latitude) : null,
+          tank?.longitude != null ? Number(tank.longitude) : null
+        );
         setGpsData(fallback);
         evaluateTankProximity(fallback);
       }

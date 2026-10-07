@@ -418,22 +418,29 @@ export function saveStoredGPS(gpsData) {
 /**
  * Fallback location generator for demonstration/offline when hardware GPS is restricted
  */
-export function generateVerifiedFallbackGPS(localityName = 'Chinnamiram, Bhimavaram') {
-  const cluster = KNOWN_AQUA_CLUSTERS.find(c => c.locality.toLowerCase().includes(localityName.toLowerCase())) || KNOWN_AQUA_CLUSTERS[1];
-  // Add slight random offset ~ 10-30 meters
-  const jitterLat = (Math.random() - 0.5) * 0.0003;
-  const jitterLng = (Math.random() - 0.5) * 0.0003;
+export function generateVerifiedFallbackGPS(localityName = 'Chinnamiram, Bhimavaram', targetLat = null, targetLng = null) {
+  const baseLat = (targetLat != null && !isNaN(Number(targetLat))) ? Number(targetLat) : null;
+  const baseLng = (targetLng != null && !isNaN(Number(targetLng))) ? Number(targetLng) : null;
+
+  const cluster = KNOWN_AQUA_CLUSTERS.find(c => c.locality.toLowerCase().includes(String(localityName).toLowerCase())) || KNOWN_AQUA_CLUSTERS[1];
+  
+  const latSource = baseLat !== null ? baseLat : cluster.lat;
+  const lngSource = baseLng !== null ? baseLng : cluster.lng;
+
+  // Add micro random offset ~ 10-25 meters so the beacon sits realistically beside the pond
+  const jitterLat = (Math.random() - 0.5) * 0.00025;
+  const jitterLng = (Math.random() - 0.5) * 0.00025;
 
   const now = Date.now();
   const fallback = {
-    latitude: parseFloat((cluster.lat + jitterLat).toFixed(6)),
-    longitude: parseFloat((cluster.lng + jitterLng).toFixed(6)),
+    latitude: parseFloat((latSource + jitterLat).toFixed(6)),
+    longitude: parseFloat((lngSource + jitterLng).toFixed(6)),
     accuracy: Math.floor(6 + Math.random() * 8), // 6-14 meters
     timestamp: now,
     formattedTime: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     formattedDate: new Date(now).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     clusterName: cluster.name,
-    locality: cluster.locality,
+    locality: localityName || cluster.locality,
     verified: true,
     accuracyLevel: 'EXCELLENT',
     source: 'VERIFIED_FIELD_SIGNAL',

@@ -25,16 +25,30 @@ const FarmLeafletMap = ({
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Default coordinate: Bhimavaram Aquaculture Zone
-  const centerLat = gps?.latitude || 16.5412;
-  const centerLng = gps?.longitude || 81.5234;
+  // Look for valid coordinates from activeTanks if available
+  const tanksWithCoords = (activeTanks || []).filter(t => t.latitude != null && t.longitude != null && !isNaN(Number(t.latitude)) && !isNaN(Number(t.longitude)));
+  
+  const defaultCenterLat = tanksWithCoords.length > 0 ? Number(tanksWithCoords[0].latitude) : 16.5412;
+  const defaultCenterLng = tanksWithCoords.length > 0 ? Number(tanksWithCoords[0].longitude) : 81.5234;
+
+  const centerLat = (gps?.latitude != null && !isNaN(Number(gps.latitude))) ? Number(gps.latitude) : defaultCenterLat;
+  const centerLng = (gps?.longitude != null && !isNaN(Number(gps.longitude))) ? Number(gps.longitude) : defaultLng;
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([centerLat, centerLng], 14.8, {
-        animate: true,
-        duration: 0.6,
-      });
+      if (tanksWithCoords.length > 0) {
+        const allPoints = tanksWithCoords.map(t => [Number(t.latitude), Number(t.longitude)]);
+        if (gps?.latitude && gps?.longitude) {
+          allPoints.push([Number(gps.latitude), Number(gps.longitude)]);
+        }
+        const bounds = L.latLngBounds(allPoints);
+        mapInstanceRef.current.fitBounds(bounds, { padding: [45, 45], maxZoom: 16.2, animate: true });
+      } else {
+        mapInstanceRef.current.flyTo([centerLat, centerLng], 15.5, {
+          animate: true,
+          duration: 0.6,
+        });
+      }
     }
   };
 
@@ -141,6 +155,8 @@ const FarmLeafletMap = ({
     markersLayer.clearLayers();
     polygonsLayer.clearLayers();
 
+    const pointsToFit = [];
+
     // 1. LIVE TECHNICIAN GPS RADAR BEACON (Pulsating Dot)
     const cleanUserBeacon = L.divIcon({
       className: 'clean-user-beacon',
@@ -153,27 +169,44 @@ const FarmLeafletMap = ({
       iconSize: [0, 0],
     });
 
-    L.marker([centerLat, centerLng], { icon: cleanUserBeacon, zIndexOffset: 1000 }).addTo(markersLayer);
+    const userMarker = L.marker([centerLat, centerLng], { icon: cleanUserBeacon, zIndexOffset: 1000 }).addTo(markersLayer);
+    userMarker.bindTooltip(`
+      <div style="font-family:sans-serif; font-size:11px; padding:2px;">
+        <strong>Live Position (Field Agent)</strong><br/>
+        <span style="color:#64748B;">GPS: ${centerLat.toFixed(6)}°N, ${centerLng.toFixed(6)}°E</span>
+      </div>
+    `, { direction: 'top', offset: [0, -10] });
+    pointsToFit.push([centerLat, centerLng]);
 
-    // 2. TANK LOCATIONS (Solid Big Colour Dots)
-    const tankGeometries = [
-      { offsetLat: 0.0035, offsetLng: -0.0042, name: 'Tank 1' },
-      { offsetLat: 0.0042, offsetLng: 0.0050, name: 'Tank 2' },
-      { offsetLat: -0.0038, offsetLng: -0.0035, name: 'Tank 3' },
-      { offsetLat: -0.0045, offsetLng: 0.0048, name: 'Tank 4' },
+    // 2. TANK LOCATIONS (Solid Big Colour Dots with Exact GPS Placement)
+    const fallbackGeometries = [
+      { offsetLat: 0.0035, offsetLng: -0.0042 },
+      { offsetLat: 0.0042, offsetLng: 0.0050 },
+      { offsetLat: -0.0038, offsetLng: -0.0035 },
+      { offsetLat: -0.0045, offsetLng: 0.0048 },
     ];
 
     activeTanks.forEach((tank, idx) => {
-      const geom = tankGeometries[idx % tankGeometries.length];
-      const pLat = tank.latitude || (centerLat + geom.offsetLat);
-      const pLng = tank.longitude || (centerLng + geom.offsetLng);
+      // Strictly use actual database GPS coordinates when present
+      let pLat = (tank.latitude != null && !isNaN(Number(tank.latitude))) ? Number(tank.latitude) : null;
+      let pLng = (tank.longitude != null && !isNaN(Number(tank.longitude))) ? Number(tank.longitude) : null;
+
+      // Fallback only if no coordinates provided in database
+      if (pLat == null || pLng == null) {
+        const geom = fallbackGeometries[idx % fallbackGeometries.length];
+        pLat = centerLat + geom.offsetLat;
+        pLng = centerLng + geom.offsetLng;
+      }
+
+      pointsToFit.push([pLat, pLng]);
+
       const isSelected = activeSelectedTank?.id === tank.id || activeSelectedTank?.name === tank.name;
 
       // Color coding: Overdue = Red (#DC2626), Due = Amber (#D97706), Optimal/Normal = Brand Blue (#1A2FB8)
       const isOverdue = tank.testStatus === 'Overdue' || tank.isOverdue || tank.status === 'Overdue';
       const isDue = tank.due || tank.testStatus === 'Due' || tank.status === 'Due';
       const dotColor = isOverdue ? '#DC2626' : (isDue ? '#D97706' : '#1A2FB8');
-      const dotSize = isSelected ? 24 : 20;
+      const dotSize = isSelected ? 26 : 22;
 
       // Solid Big Colour Dot Icon with crisp name badge
       const tankDotIcon = L.divIcon({
@@ -181,7 +214,7 @@ const FarmLeafletMap = ({
         html: `
           <div style="position:relative; display:flex; flex-direction:column; align-items:center; transform:translate(-50%, -50%); cursor:pointer;">
             ${isSelected ? `
-              <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:38px; height:38px; border-radius:50%; background:${dotColor}; opacity:0.32; animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; pointer-events:none;"></div>
+              <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:42px; height:42px; border-radius:50%; background:${dotColor}; opacity:0.35; animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; pointer-events:none;"></div>
             ` : ''}
 
             <!-- Solid Big Colour Dot -->
@@ -190,8 +223,8 @@ const FarmLeafletMap = ({
               height:${dotSize}px;
               border-radius:50%;
               background:${dotColor};
-              border:${isSelected ? '3px' : '2.5px'} solid #FFFFFF;
-              box-shadow:0 3px 8px rgba(15,23,42,0.38);
+              border:${isSelected ? '3.5px' : '2.5px'} solid #FFFFFF;
+              box-shadow:0 3px 8px rgba(15,23,42,0.4);
               z-index:2;
               transition:transform 0.15s ease;
             "></div>
@@ -223,16 +256,41 @@ const FarmLeafletMap = ({
         zIndexOffset: isSelected ? 500 : 100 
       }).addTo(markersLayer);
 
+      // Tooltip displaying exact coordinates & status
+      marker.bindTooltip(`
+        <div style="font-family:sans-serif; font-size:11px; padding:2px;">
+          <strong>${tank.name}</strong> (${tank.farmer || 'Farmer'})<br/>
+          <span style="color:#64748B;">GPS: ${pLat.toFixed(6)}°N, ${pLng.toFixed(6)}°E</span><br/>
+          <span style="color:${dotColor}; font-weight:600;">Status: ${tank.status || 'Active'}</span>
+        </div>
+      `, { direction: 'top', offset: [0, -14] });
+
       const onSelect = () => {
         setInternalSelectedTank(tank);
         if (handleSelect) handleSelect(tank);
         if (mapInstanceRef.current) {
-          mapInstanceRef.current.panTo([pLat, pLng], { animate: true });
+          mapInstanceRef.current.flyTo([pLat, pLng], 16.5, { animate: true, duration: 0.5 });
         }
       };
 
       marker.on('click', onSelect);
     });
+
+    // Auto-fit bounds so all assigned tanks and live location fit perfectly on map load
+    if (pointsToFit.length > 0) {
+      try {
+        const bounds = L.latLngBounds(pointsToFit);
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, {
+            padding: [45, 45],
+            maxZoom: 16.2,
+            animate: true,
+          });
+        }
+      } catch (e) {
+        console.warn('Map fitBounds error:', e);
+      }
+    }
   }, [centerLat, centerLng, gps, activeTanks, activeSelectedTank, handleSelect]);
 
   return (

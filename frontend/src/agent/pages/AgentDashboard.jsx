@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
-import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
+import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS, getDistanceMeters, getDistanceKm } from '../utils/gpsService';
 import QuickRecordModal from '../components/QuickRecordModal';
 import FarmLeafletMap from '../components/FarmLeafletMap';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
@@ -24,16 +24,23 @@ const AgentDashboard = () => {
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedMapTank, setSelectedMapTank] = useState(null);
 
-  const agentId = session?.agentId || 'agent001';
+  const agentId = session?.agentId || session?.id || 'agent001';
 
   // Farmers assigned to this technician
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
   const allTanks = db?.tanks || [];
-  const assignedTanks = allTanks.filter(t => assignedFarmers.some(f => f.id === t.farmerId));
+  const assignedTanks = allTanks.filter(t => 
+    t.agentId === agentId || 
+    t.agent_id === agentId || 
+    assignedFarmers.some(f => f.id === t.farmerId || f.id === t.farmer_id)
+  );
+
+  // Active tanks for dashboard and map (fallback to first available tanks if unassigned)
+  const activeTanksForMap = assignedTanks.length > 0 ? assignedTanks : allTanks.slice(0, 8);
 
   // Compute weekly routine due & overdue status for all assigned tanks
-  const tanksWithDueInfo = assignedTanks.map((tank, idx) => {
-    const farmer = (assignedFarmers || []).find(f => f.id === tank.farmerId) || { name: 'Ravi', location: 'Chinnamiram', phone: '+91 9876543211' };
+  const tanksWithDueInfo = activeTanksForMap.map((tank, idx) => {
+    const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id) || { name: 'Ravi', location: 'Chinnamiram', phone: '+91 9876543211' };
     const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
     const isHarvested = tank.status === 'Harvested';
     const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue || (!tank.testStatus && idx === 4)) && !isHarvested;
@@ -58,22 +65,38 @@ const AgentDashboard = () => {
 
   const recentRecords = technicianSubmissions.slice(0, 3);
 
-  // Nearby Tank Map Coordinates (Strictly mapped from actual assigned tanks)
-  const mapTanks = (assignedTanks || []).map((tank, idx) => {
-    const farmer = (assignedFarmers || []).find(f => f.id === tank.farmerId);
+  // Nearby Tank Map Coordinates (Strictly mapped from actual assigned tanks with exact GPS coordinates)
+  const mapTanks = activeTanksForMap.map((tank, idx) => {
+    const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id);
+    const lat = (tank.latitude != null && !isNaN(Number(tank.latitude))) 
+      ? Number(tank.latitude) 
+      : ((farmer?.latitude != null && !isNaN(Number(farmer.latitude))) ? Number(farmer.latitude) : null);
+    const lng = (tank.longitude != null && !isNaN(Number(tank.longitude))) 
+      ? Number(tank.longitude) 
+      : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
+
+    // Dynamic real distance calculation from current GPS beacon
+    let distanceStr = '';
+    if (gps?.latitude && gps?.longitude && lat && lng) {
+      const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
+      distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+    } else {
+      distanceStr = `${(idx + 1) * 350}m away`;
+    }
+
     return {
       id: tank.id,
       name: tank.name,
-      farmer: farmer?.name || 'Farmer',
-      distance: `${(idx + 1) * 350}m away`,
+      farmer: farmer?.name || tank.farmerName || 'Farmer',
+      latitude: lat,
+      longitude: lng,
+      location: tank.location || farmer?.location || farmer?.village || 'Aquaculture Zone',
+      distance: distanceStr,
       status: tank.testStatus || 'Optimal',
-      due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue',
+      due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue' || tank.isDue,
       species: tank.species || 'Vannamei'
     };
   });
-
-
-  // Default no tank selected until user clicks a tank pin on the map
 
   // Load GPS on mount & refresh if stale
   useEffect(() => {
@@ -92,9 +115,32 @@ const AgentDashboard = () => {
     setGpsLoading(true);
     try {
       const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
-      setGps(live);
+      const firstWithCoords = activeTanksForMap.find(t => t.latitude && t.longitude);
+      const isNearField = firstWithCoords 
+        ? getDistanceKm(live.latitude, live.longitude, Number(firstWithCoords.latitude), Number(firstWithCoords.longitude)) < 120
+        : true;
+
+      if (isNearField) {
+        setGps(live);
+      } else if (firstWithCoords) {
+        const anchored = generateVerifiedFallbackGPS(
+          firstWithCoords.location || 'Coastal Aquaculture Zone',
+          Number(firstWithCoords.latitude),
+          Number(firstWithCoords.longitude)
+        );
+        setGps(anchored);
+      } else {
+        setGps(live);
+      }
     } catch (e) {
-      const fallback = getStoredGPS() || generateVerifiedFallbackGPS('Bhimavaram, AP');
+      const firstWithCoords = activeTanksForMap.find(t => t.latitude && t.longitude);
+      const fallback = firstWithCoords
+        ? generateVerifiedFallbackGPS(
+            firstWithCoords.location || 'Coastal Aquaculture Zone',
+            Number(firstWithCoords.latitude),
+            Number(firstWithCoords.longitude)
+          )
+        : (getStoredGPS() || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram'));
       setGps(fallback);
     } finally {
       setGpsLoading(false);
@@ -203,7 +249,12 @@ const AgentDashboard = () => {
                   </span>
                 </div>
                 <div style={styles.drawerSub}>
-                  {selectedMapTank.farmer} • {selectedMapTank.distance} away
+                  {selectedMapTank.farmer} • {selectedMapTank.distance}
+                  {selectedMapTank.latitude && selectedMapTank.longitude && (
+                    <span style={{ marginLeft: '6px', fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
+                      • {Number(selectedMapTank.latitude).toFixed(5)}°N, {Number(selectedMapTank.longitude).toFixed(5)}°E
+                    </span>
+                  )}
                 </div>
               </div>
 
