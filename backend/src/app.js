@@ -55,8 +55,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'offline.html'));
 });
 
-// Database Console Web GUI: Exclusively available at /royals-db/mysqleditor
-app.get([config.consolePath || '/royals-db/mysqleditor', '/royals-db/mysqleditor'], (req, res) => {
+// Database Console Web GUI: Exclusively available at big unguessable URL
+const bigConsolePath = config.consolePath || '/rm-pma-console-8f92b74c10a3e9d82f5b6c01e7d4a39f/mysqleditor';
+const bigConsoleBase = '/rm-pma-console-8f92b74c10a3e9d82f5b6c01e7d4a39f';
+
+app.get([bigConsolePath, bigConsoleBase, `${bigConsoleBase}/mysqleditor`], (req, res) => {
   res.sendFile(path.join(publicDir, 'console.html'));
 });
 
