@@ -22,16 +22,19 @@ const AdminDashboard = () => {
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
+  // Retrieve all tanks first
+  const allTanks = db?.tanks || [];
+
   // Real or fallback statistics aligned with the dashboard design
-  const totalFarmers = db?.farmers?.length || 8;
-  const totalTanks = db?.tanks?.length || 15;
-  const activeTanks = 11;
-  const harvestedTanks = totalTanks - activeTanks;
+  const totalFarmers = db?.farmers?.length || 0;
+  const totalTanks = allTanks.length || 0;
+  const activeTanks = allTanks.filter(t => t.status !== 'Harvested').length || 0;
+  const harvestedTanks = allTanks.filter(t => t.status === 'Harvested').length || 0;
+  const totalIncharges = db?.agents?.length || 2;
   const totalRegionsCount = regions.length || 3;
   const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
 
   // Calculate Due and Overdue Tests across all tanks
-  const allTanks = db?.tanks || [];
   const dueAndOverdueTanks = allTanks
     .filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue' || !t.lastTest || t.testStatus === 'Pending'))
     .map((t, idx) => {
@@ -103,7 +106,7 @@ const AdminDashboard = () => {
     setDocInput('');
   };
 
-  const displayedHarvestRecords = docInput 
+  const displayedHarvestRecords = docInput
     ? [...harvestRecords].filter(r => r.doc <= parseInt(docInput || '0')).sort((a, b) => b.doc - a.doc)
     : harvestRecords;
 
@@ -111,7 +114,14 @@ const AdminDashboard = () => {
     <div style={styles.dashboardContainer}>
 
 
-      {/* 2. KPI Stat Cards Row (7 Cards, Clickable, No View All Links) */}
+      {/* 1. Header Section */}
+      <div style={styles.headerSection}>
+        <div style={styles.headerBadge}>ORGANIZATION-WIDE CONTROL CENTER</div>
+        <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
+        <p style={styles.headerSubtitle}>Real-time feed performance, FCR analytics, crop health, and multi-region operations.</p>
+      </div>
+
+      {/* 2. KPI Stat Cards Row */}
       <div style={styles.kpiGrid}>
         {/* Card 1: Total Farmers */}
         <div
@@ -121,12 +131,12 @@ const AdminDashboard = () => {
         >
           <div style={styles.kpiHeader}>
             <span style={styles.kpiLabel}>TOTAL FARMERS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
               <Tractor size={18} />
             </div>
           </div>
           <div style={styles.kpiValue}>{totalFarmers}</div>
-          <div style={styles.kpiSubtext}>Registered aquaculture growers</div>
+          <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 2: Total Tanks */}
@@ -137,12 +147,12 @@ const AdminDashboard = () => {
         >
           <div style={styles.kpiHeader}>
             <span style={styles.kpiLabel}>TOTAL TANKS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
               <Database size={18} />
             </div>
           </div>
           <div style={styles.kpiValue}>{totalTanks}</div>
-          <div style={styles.kpiSubtext}>All registered culture units</div>
+          <div style={styles.kpiLink}>View All Tanks <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 3: Active Tanks */}
@@ -153,12 +163,12 @@ const AdminDashboard = () => {
         >
           <div style={styles.kpiHeader}>
             <span style={styles.kpiLabel}>ACTIVE TANKS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
               <Box size={18} />
             </div>
           </div>
           <div style={styles.kpiValue}>{activeTanks}</div>
-          <div style={styles.kpiSubtext}>Currently stocking crops</div>
+          <div style={styles.kpiLink}>View Active <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 4: Harvested Tanks */}
@@ -174,7 +184,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div style={styles.kpiValue}>{harvestedTanks}</div>
-          <div style={styles.kpiSubtext}>Completed harvest cycles</div>
+          <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 5: Average ABW */}
@@ -189,23 +199,26 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div style={styles.kpiValue}>16.4g</div>
-          <div style={styles.kpiSubtext}>Mean body weight</div>
+          <div style={styles.kpiSubtext}>Mean Body Weight</div>
         </div>
 
-        {/* Card 6: Regions & Localities */}
+        {/* Card 6: Total Incharges */}
         <div
           style={styles.kpiCard}
-          onClick={() => navigate('/admin/regions')}
-          title="Click to explore all 3 Regions and 72 Localities in Andhra Pradesh"
+          onClick={() => navigate('/admin/incharges')}
+          title="Click to view incharges"
         >
           <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>REGIONS &amp; LOCALITIES</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+            <span style={styles.kpiLabel}>TOTAL INCHARGES</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
               <MapPin size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{totalRegionsCount}</div>
-          <div style={styles.kpiSubtext}>{totalLocalitiesCount} active operational clusters</div>
+          <div style={{ ...styles.kpiValue, marginBottom: '2px', display: 'flex', flexDirection: 'column' }}>
+            <span>{totalIncharges}</span>
+            <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+          </div>
+          <div style={{ ...styles.kpiLink, marginTop: '8px' }}>View Incharges <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 7: Tests Due */}
@@ -215,13 +228,16 @@ const AdminDashboard = () => {
           title="Click to view all organization-wide due & overdue tests"
         >
           <div style={styles.kpiHeader}>
-            <span style={{ ...styles.kpiLabel, color: '#DC2626' }}>TESTS DUE</span>
+            <span style={{ ...styles.kpiLabel, color: '#64748B' }}>TESTS DUE</span>
             <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
               <AlertCircle size={18} />
             </div>
           </div>
-          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>{dueAndOverdueTanks.length}</div>
-          <div style={{ ...styles.kpiSubtext, color: '#DC2626', fontWeight: 600 }}>{overdueCount} Critical Overdue</div>
+          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>{dueAndOverdueTanks.length} Tanks</div>
+          <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>View All Due Tests <ArrowUpRight size={12} /></div>
+            <span>({overdueCount} Overdue)</span>
+          </div>
         </div>
       </div>
 
@@ -573,17 +589,53 @@ const styles = {
   dashboardContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '24px',
+    gap: '16px',
     maxWidth: '1440px',
     margin: '0 auto',
-    fontFamily: 'Inter, system-ui, sans-serif'
+    fontFamily: 'Inter, system-ui, sans-serif',
+    padding: '0 0 24px 0'
   },
 
+  headerSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E2E8F0',
+    padding: '32px 32px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)'
+  },
 
+  headerBadge: {
+    backgroundColor: '#F0F4F8',
+    color: '#03358F',
+    fontSize: '12px',
+    fontWeight: 700,
+    padding: '4px 12px',
+    borderRadius: '6px',
+    marginBottom: '16px',
+    letterSpacing: '0.5px'
+  },
+
+  headerTitle: {
+    fontSize: '28px',
+    fontWeight: 700,
+    color: '#0F172A',
+    margin: '0 0 8px 0',
+    letterSpacing: '-0.02em'
+  },
+
+  headerSubtitle: {
+    fontSize: '15px',
+    color: '#64748B',
+    margin: 0,
+    fontWeight: 400
+  },
 
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gridTemplateColumns: 'repeat(7, 1fr)',
     gap: '16px'
   },
 
@@ -641,6 +693,17 @@ const styles = {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis'
+  },
+
+  kpiLink: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#03358F',
+    marginTop: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    whiteSpace: 'nowrap'
   },
 
   sectionCard: {

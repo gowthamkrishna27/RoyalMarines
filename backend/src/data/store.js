@@ -42,7 +42,7 @@ class DataStore {
     if (isDbConnected()) {
       try {
         const rows = await query(
-          'SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?) OR phone = ? OR LOWER(email) = LOWER(?) LIMIT 1',
+          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) OR u.phone = ? OR LOWER(u.email) = LOWER(?) LIMIT 1',
           [identifier, identifier, identifier, identifier]
         );
         if (rows && rows.length > 0) return normalizeUser(rows[0]);
@@ -71,7 +71,7 @@ class DataStore {
     if (isDbConnected()) {
       try {
         const rows = await query(
-          'SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?) LIMIT 1',
+          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) LIMIT 1',
           [id, id]
         );
         if (rows && rows.length > 0) return normalizeUser(rows[0]);

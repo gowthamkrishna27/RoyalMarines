@@ -208,7 +208,7 @@ const Analytics = () => {
                   value={filters.incharge} onChange={(e) => handleFilterChange('incharge', e.target.value)}
                 >
                   <option value="">All Incharges</option>
-                  {availableIncharges.map(i => <option key={i} value={i}>{i.split(' (')[0]}</option>)}
+                  {availableIncharges.map(i => <option key={i} value={i}>{(i || '').split(' (')[0]}</option>)}
                 </select>
               </div>
             </div>
@@ -222,7 +222,7 @@ const Analytics = () => {
                   value={filters.agent} onChange={(e) => handleFilterChange('agent', e.target.value)}
                 >
                   <option value="">All Agents</option>
-                  {availableAgents.map(a => <option key={a} value={a}>{a.split(' (')[0]}</option>)}
+                  {availableAgents.map(a => <option key={a} value={a}>{(a || '').split(' (')[0]}</option>)}
                 </select>
               </div>
             </div>
