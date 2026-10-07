@@ -13,10 +13,10 @@ const FieldData = () => {
   const submissions = db?.submissions || [];
   const location = useLocation();
 
-  const incharges = getIncharges();
-  const allAgents = getAgents();
-  const allFarmers = getFarmers();
-  const allTanks = getTanks();
+  const incharges = useMemo(() => getIncharges(db), [db]);
+  const allAgents = useMemo(() => getAgents(db), [db]);
+  const allFarmers = useMemo(() => getFarmers(db), [db]);
+  const allTanks = useMemo(() => getTanks(db), [db]);
 
   const [filters, setFilters] = useState({
     incharge: '',

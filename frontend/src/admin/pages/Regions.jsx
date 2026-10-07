@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRegions, getFarmers, getAgents, getIncharges } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import {
   MapPin, Plus, FileSpreadsheet, Search, Check, X,
   Layers, Compass, Building, User, Phone, Droplets,
@@ -13,90 +14,19 @@ import {
 
 const Regions = () => {
   const navigate = useNavigate();
-  const [regions, setRegions] = useState([]);
-  const allIncharges = getIncharges();
+  const { db } = useMockData();
+  const [regions, setRegions] = useState(() => getRegions(db));
+  const allIncharges = useMemo(() => getIncharges(db), [db]);
+  const [agents, setAgents] = useState(() => getAgents(db));
+  const [farmers, setFarmers] = useState(() => getFarmers(db));
 
   useEffect(() => {
-    const fetchRegions = async () => {
-      try {
-        const response = await fetch('/api/analytics/regions');
-        const data = await response.json();
-        if (data.success && data.data) {
-          const dbRegions = data.data.map(r => ({
-            id: r.code || r.id,
-            name: r.name,
-            localities: []
-          }));
-          setRegions(dbRegions);
-        }
-      } catch (error) {
-        console.error('Failed to fetch regions from DB:', error);
-      }
-    };
-    fetchRegions();
-  }, []);
-
-  // Normalizer for legacy records in localStorage
-  const normalizeFarmerData = (list) => {
-    return list.map(f => {
-      let reg = f.region;
-      let loc = f.locality;
-
-      // Fix legacy region strings
-      if (f.region?.includes('Central') || f.region?.includes('South') || f.region?.includes('Coastal')) {
-        reg = 'Coastal Andhra';
-      } else if (f.region?.includes('North') || f.region?.includes('Uttar')) {
-        reg = 'North Andhra (Uttarandhra)';
-      } else if (f.region?.includes('Rayalaseema')) {
-        reg = 'Rayalaseema';
-      }
-
-      // Fix legacy locality strings
-      if (f.locality?.includes('Bhimavaram') || f.village?.includes('Undi') || f.village?.includes('Akividu')) {
-        loc = 'Bhimavaram';
-      } else if (f.locality?.includes('Nellore') || f.village?.includes('Mypadu') || f.village?.includes('Indukurpet')) {
-        loc = 'Nellore';
-      } else if (f.locality?.includes('Kavali') || f.village?.includes('Allur')) {
-        loc = 'Kavali';
-      } else if (f.locality?.includes('Kakinada') || f.village?.includes('Coringa')) {
-        loc = 'Kakinada';
-      } else if (f.locality?.includes('Visakhapatnam') || f.village?.includes('Bheemili')) {
-        loc = 'Visakhapatnam';
-      } else if (f.locality?.includes('Tirupati') || f.village?.includes('Renigunta')) {
-        loc = 'Tirupati';
-      }
-
-      return {
-        ...f,
-        region: reg || 'Coastal Andhra',
-        locality: loc || 'Nellore'
-      };
-    });
-  };
-
-  // 1. Load Agents from localStorage or mock data
-  const [agents, setAgents] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_agents_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return normalizeFarmerData(parsed);
-      } catch (e) { }
+    if (db) {
+      setRegions(getRegions(db));
+      setAgents(getAgents(db));
+      setFarmers(getFarmers(db));
     }
-    return getAgents();
-  });
-
-  // 2. Load Farmers from localStorage or mock data
-  const [farmers, setFarmers] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_farmers_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return normalizeFarmerData(parsed);
-      } catch (e) { }
-    }
-    return getFarmers();
-  });
+  }, [db]);
 
   // Geographic Filter States
   const [selectedRegion, setSelectedRegion] = useState('ALL');

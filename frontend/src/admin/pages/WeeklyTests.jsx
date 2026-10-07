@@ -1,10 +1,12 @@
 import React from 'react';
 import PageHeader from '../components/PageHeader';
 import { getRegions } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import { Filter, Calendar, Map, CheckSquare } from 'lucide-react';
 
 const WeeklyTests = () => {
-  const regions = getRegions();
+  const { db } = useMockData();
+  const regions = getRegions(db);
 
   return (
     <>

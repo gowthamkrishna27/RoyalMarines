@@ -7,7 +7,7 @@ import {
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../incharge/utils/inchargeAuth';
-import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
+import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
@@ -118,8 +118,8 @@ const QuickRecordModal = ({
       const live = await captureDeviceGPS({ timeout: 15000, desiredAccuracy: 20 });
       setGpsData(live);
     } catch {
-      const fallback = getStoredGPS() || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
-      setGpsData(fallback);
+      const stored = getStoredGPS();
+      if (stored) setGpsData(stored);
     } finally {
       setGpsLoading(false);
     }
@@ -140,7 +140,7 @@ const QuickRecordModal = ({
   const selectedTank = tanks.find(t => t.id === selectedTankId);
   const isSelectedTankClosed = selectedTank?.status === 'Harvested' || selectedTank?.status === 'Completed';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (isSelectedTankClosed) {
@@ -148,26 +148,51 @@ const QuickRecordModal = ({
       return;
     }
 
+    setIsSubmitting(true);
+
+    let locationFix;
+    try {
+      // Capture device GPS at the exact moment of pressing Submit
+      locationFix = await requestSubmissionGPS({ timeout: 12000 });
+      setGpsData(locationFix);
+    } catch (err) {
+      setIsSubmitting(false);
+      alert('Location access is required to submit this record. Please enable location permission and try again.');
+      return;
+    }
+
     const farmer = assignedFarmers.find(f => f.id === selectedFarmerId);
     const tank = tanks.find(p => p.id === selectedTankId);
-    const farmerName = farmer?.name || 'Ravi';
+    const farmerName = farmer?.name || 'Farmer';
     const tankName = tank?.name || 'Tank 1';
 
     const isHarvest = activeTab === 'HARVEST_ENTRY';
     const testTypeName = isHarvest ? 'Harvest' : 'Water Analysis';
     const formData = isHarvest ? harvestForm : waterForm;
 
-    const recordId = `FR-${Date.now().toString().slice(-6)}`;
-    const now = new Date();
-    const formattedDate = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })} ${now.getFullYear()}`;
-    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const recordId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const now = new Date(locationFix.timestamp || Date.now());
+    const formattedDate = now.toISOString().split('T')[0];
+    const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
+    const resolvedUserId = isIncharge
+      ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
+      : (session?.agentId || session?.id || 'agent001');
+    const resolvedUserName = isIncharge
+      ? (inchargeSession?.name || 'Incharge')
+      : (session?.name || 'Ramesh');
 
     const submissionPayload = {
       id: recordId,
-      agentId: isIncharge ? null : (session?.agentId || 'agent001'),
-      agentName: isIncharge ? (inchargeSession?.name || 'Direct Incharge') : (session?.name || 'Ramesh'),
-      inchargeId: currentInchargeId,
-      submittedBy: isIncharge ? 'Incharge' : 'Agent',
+      submissionId: recordId,
+      userId: resolvedUserId,
+      userName: resolvedUserName,
+      role: resolvedRole,
+      agentId: resolvedUserId,
+      agentName: resolvedUserName,
+      inchargeId: isIncharge ? resolvedUserId : (session?.inchargeId || 'INC001'),
+      submittedBy: resolvedRole,
       farmerId: selectedFarmerId,
       farmerName,
       tankId: selectedTankId,
@@ -176,17 +201,29 @@ const QuickRecordModal = ({
       recordType: isHarvest ? 'HARVEST_ENTRY' : 'WATER_QUALITY',
       date: formattedDate,
       time: formattedTime,
+      submissionTime: formattedTime,
+      timestamp: now.toISOString(),
+      submittedAt: now.toISOString(),
+      latitude: locationFix.latitude,
+      longitude: locationFix.longitude,
+      accuracy: locationFix.accuracy,
+      locality: locationFix.locality || (farmer?.location || 'Coastal Aquaculture Zone'),
       data: formData,
-      gps: gpsData || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram'),
+      gps: {
+        latitude: locationFix.latitude,
+        longitude: locationFix.longitude,
+        accuracy: locationFix.accuracy,
+        timestamp: locationFix.timestamp,
+        locality: locationFix.locality,
+        verified: true,
+      },
       readOnly: true,
-      lockedAt: new Date().toISOString(),
+      lockedAt: now.toISOString(),
     };
 
-    setIsSubmitting(true);
-
-    setTimeout(() => {
+    try {
       if (recordFieldEntry) {
-        recordFieldEntry(submissionPayload);
+        await recordFieldEntry(submissionPayload);
       } else {
         queueOfflineRecord(submissionPayload);
       }
@@ -194,7 +231,10 @@ const QuickRecordModal = ({
       setIsSubmitting(false);
       setSubmittedRecord(submissionPayload);
       if (onSuccess) onSuccess(submissionPayload);
-    }, 350);
+    } catch (saveErr) {
+      setIsSubmitting(false);
+      alert('Failed to save record: ' + (saveErr.message || 'Error occurred'));
+    }
   };
 
   // 1. Loading State
@@ -202,7 +242,7 @@ const QuickRecordModal = ({
     return createPortal(
       <div style={styles.overlay}>
         <div style={styles.modalCardLoading}>
-          <MarineLoader message="Saving Entry..." size="compact" />
+          <MarineLoader message="Acquiring GPS & Submitting..." size="compact" />
         </div>
       </div>,
       document.body

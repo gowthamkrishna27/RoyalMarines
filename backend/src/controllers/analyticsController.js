@@ -31,6 +31,7 @@ export const getAgents = async (req, res) => {
 
         return {
           ...agent,
+          inchargeId: agent.incharge_id,
           activePonds: agent.active_ponds || assignedTanks.length,
           farmersCount: assignedFarmers.length,
           tanksCount: assignedTanks.length,
@@ -49,6 +50,7 @@ export const getAgents = async (req, res) => {
 
     return {
       ...agent,
+      inchargeId: agent.inchargeId || agent.incharge_id,
       farmersCount: assignedFarmers.length,
       tanksCount: assignedTanks.length,
       complianceRate: assignedTanks.length > 0 ? Math.round((completedTests / assignedTanks.length) * 100) : 0,
@@ -61,13 +63,27 @@ export const getAgents = async (req, res) => {
 export const getIncharges = async (req, res) => {
   if (isDbConnected()) {
     try {
-      const rows = await query('SELECT * FROM incharges');
+      const rows = await query(`
+        SELECT 
+          i.id,
+          COALESCE(i.name, u.name, u.full_name, 'Incharge') as name,
+          COALESCE(i.email, u.email, '') as email,
+          COALESCE(i.phone, u.phone, '') as phone,
+          COALESCE(i.region_id, r.code, r.id, 'REG001') as region_id,
+          COALESCE(r.name, 'Bhimavaram') as region,
+          COALESCE(u.locality, 'Bhimavaram') as locality
+        FROM incharges i 
+        LEFT JOIN users u ON i.user_id = u.id 
+        LEFT JOIN regions r ON (i.region_id = r.id OR i.region_id = r.code)
+      `);
       const enriched = rows.map((r) => ({
         ...r,
         regionId: r.region_id,
       }));
       return sendSuccess(res, enriched, 'Incharges list retrieved from database');
-    } catch {}
+    } catch (err) {
+      console.error('[DB Error in getIncharges]', err.message);
+    }
   }
   return sendSuccess(res, store.incharges, 'Incharges list retrieved');
 };

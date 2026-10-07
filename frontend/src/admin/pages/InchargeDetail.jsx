@@ -1,21 +1,46 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getInchargeById, getAgentsByIncharge, getFarmersByIncharge, getTanksByIncharge } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import { HardHat, Sprout, Database, CheckSquare, Eye, Users, Droplets, MapPin, Phone } from 'lucide-react';
 
 const InchargeDetail = () => {
   const { inchargeId } = useParams();
   const navigate = useNavigate();
+  const { db } = useMockData();
   const [activeTab, setActiveTab] = useState('agents');
 
-  const incharge = getInchargeById(inchargeId);
-  const agents = getAgentsByIncharge(inchargeId);
-  const farmers = getFarmersByIncharge(inchargeId);
-  const tanks = getTanksByIncharge(inchargeId);
+  const incharge = getInchargeById(inchargeId, db);
+  const agents = getAgentsByIncharge(inchargeId, db);
+  const farmers = getFarmersByIncharge(inchargeId, db);
+  const tanks = getTanksByIncharge(inchargeId, db);
 
   if (!incharge) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Incharge not found</div>;
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+          Loading Incharge Details...
+        </h3>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
+          Retrieving real-time records from the aquaculture database.
+        </p>
+        <button
+          onClick={() => navigate('/admin/incharges')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#1A2FB8',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Back to Incharges List
+        </button>
+      </div>
+    );
   }
 
   const kpis = [

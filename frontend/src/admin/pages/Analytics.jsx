@@ -1,15 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
 import { getRegions, getIncharges, getAgents, getFarmers, getTanks } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, Scale, Wheat, Filter, Calendar, Map, MapPin, User, Users, Droplet, UserCircle } from 'lucide-react';
 
 const Analytics = () => {
-  const regions = getRegions();
-  const incharges = getIncharges();
-  const agents = getAgents();
-  const farmers = getFarmers();
-  const allTanks = getTanks();
+  const { db } = useMockData();
+  const regions = useMemo(() => getRegions(db), [db]);
+  const incharges = useMemo(() => getIncharges(db), [db]);
+  const agents = useMemo(() => getAgents(db), [db]);
+  const farmers = useMemo(() => getFarmers(db), [db]);
+  const allTanks = useMemo(() => getTanks(db), [db]);
 
   const [filters, setFilters] = useState({
     date: 'This Month',

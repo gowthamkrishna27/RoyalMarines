@@ -442,3 +442,74 @@ export function generateVerifiedFallbackGPS(localityName = 'Chinnamiram, Bhimava
   saveStoredGPS(fallback);
   return fallback;
 }
+
+/**
+ * Capture actual device hardware GPS coordinates at the exact moment of pressing Submit.
+ * Rejects if geolocation is unsupported or permission is denied/unavailable.
+ * Returns { latitude, longitude, accuracy, timestamp, formattedTime, formattedDate, locality }
+ */
+export function requestSubmissionGPS(options = {}) {
+  const timeoutMs = options.timeout || 15000;
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      return reject(new Error('Location access is required to submit this record. Please enable location permission and try again.'));
+    }
+
+    let isDone = false;
+    const timer = setTimeout(() => {
+      if (!isDone) {
+        isDone = true;
+        reject(new Error('Location access is required to submit this record. Please enable location permission and try again.'));
+      }
+    }, timeoutMs);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (isDone) return;
+        isDone = true;
+        clearTimeout(timer);
+
+        const { latitude, longitude, accuracy } = position.coords;
+        if (latitude == null || longitude == null) {
+          return reject(new Error('Location access is required to submit this record. Please enable location permission and try again.'));
+        }
+
+        const timestamp = position.timestamp || Date.now();
+        const dateObj = new Date(timestamp);
+        const formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const formattedDate = dateObj.toISOString().split('T')[0];
+
+        let locality = estimateLocality(latitude, longitude).locality;
+        try {
+          const rev = await reverseGeocodeLocality(latitude, longitude);
+          if (rev?.locality) locality = rev.locality;
+        } catch {}
+
+        const fix = {
+          latitude: parseFloat(latitude.toFixed(6)),
+          longitude: parseFloat(longitude.toFixed(6)),
+          accuracy: Math.round(accuracy || 12),
+          timestamp,
+          formattedTime,
+          formattedDate,
+          locality,
+          source: 'DEVICE_HARDWARE_GPS'
+        };
+
+        saveStoredGPS(fix);
+        resolve(fix);
+      },
+      (error) => {
+        if (isDone) return;
+        isDone = true;
+        clearTimeout(timer);
+        reject(new Error('Location access is required to submit this record. Please enable location permission and try again.'));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: timeoutMs,
+        maximumAge: 0,
+      }
+    );
+  });
+}

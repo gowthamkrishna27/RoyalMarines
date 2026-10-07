@@ -12,64 +12,26 @@ import {
 
 const AgentsList = () => {
   const navigate = useNavigate();
-  const regions = getRegions();
   const { db, addNotification } = useMockData();
+  const regions = useMemo(() => getRegions(db), [db]);
 
-  // 1. Load Incharges from localStorage or fallback
-  const [incharges, setIncharges] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_incharges_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getIncharges();
-      }
-    }
-    return getIncharges();
-  });
+  // 1. Load Incharges from live context
+  const [incharges, setIncharges] = useState(() => getIncharges(db));
 
-  // 2. Load Agents from localStorage or fallback
-  const [agents, setAgents] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_agents_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getAgents();
-      }
-    }
-    return getAgents();
-  });
+  // 2. Load Agents from live context
+  const [agents, setAgents] = useState(() => getAgents(db));
 
-  // 3. Load Farmers from localStorage or fallback
-  const [farmersList] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_farmers_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getFarmers();
-      }
-    }
-    return getFarmers();
-  });
+  // 3. Load Farmers from live context
+  const [farmersList, setFarmersList] = useState(() => getFarmers(db));
 
-  const [selectedAgentForFarmers, setSelectedAgentForFarmers] = useState(null);
-  const [farmerModalSearch, setFarmerModalSearch] = useState('');
-
-  // Tests & Due Tests Modal States
-  const [selectedAgentForTests, setSelectedAgentForTests] = useState(null);
-  const [testsModalSearch, setTestsModalSearch] = useState('');
-  const [testsModalFilter, setTestsModalFilter] = useState('ALL');
-
-  const [selectedAgentForDueTests, setSelectedAgentForDueTests] = useState(null);
-  const [dueModalSearch, setDueModalSearch] = useState('');
-  const [remindedTanks, setRemindedTanks] = useState({});
-
-  // Persist to localStorage
+  // Sync with live database records
   useEffect(() => {
-    localStorage.setItem('royal_admin_agents_data', JSON.stringify(agents));
-  }, [agents]);
+    if (db) {
+      setIncharges(getIncharges(db));
+      setAgents(getAgents(db));
+      setFarmersList(getFarmers(db));
+    }
+  }, [db]);
 
   // Filters and search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -106,11 +68,12 @@ const AgentsList = () => {
 
   // Helper: Get initials for avatar
   const getInitials = (name) => {
-    if (!name) return 'AG';
+    if (!name || typeof name !== 'string') return 'AG';
     const cleanName = name.split('(')[0].trim();
+    if (!cleanName) return 'AG';
     const parts = cleanName.split(' ');
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0][0] + (parts[parts.length - 1][0] || '')).toUpperCase();
   };
 
   // Default initial locality and incharge
@@ -203,9 +166,10 @@ const AgentsList = () => {
   // Filter assigned farmers for the selected agent modal
   const filteredAgentFarmers = useMemo(() => {
     if (!selectedAgentForFarmers) return [];
+    const agFirstName = (selectedAgentForFarmers.shortName || selectedAgentForFarmers.name || '').split(' ')[0].toLowerCase();
     return farmersList.filter(f =>
       f.agentId === selectedAgentForFarmers.id ||
-      f.agent?.toLowerCase().includes(selectedAgentForFarmers.name.toLowerCase().split(' ')[0]) ||
+      (agFirstName && f.agent?.toLowerCase().includes(agFirstName)) ||
       f.agent?.toLowerCase().includes(selectedAgentForFarmers.shortName?.toLowerCase() || '') ||
       (f.locality && selectedAgentForFarmers.locality && f.locality.toLowerCase().trim() === selectedAgentForFarmers.locality.toLowerCase().trim())
     ).filter(f => {
@@ -225,12 +189,14 @@ const AgentsList = () => {
   const filteredAgentTests = useMemo(() => {
     if (!selectedAgentForTests) return [];
     const ag = selectedAgentForTests;
+    const agFirstName = (ag.shortName || ag.name || '').split(' ')[0].toLowerCase();
+    const agNameLower = (ag.name || '').toLowerCase();
     const rawSubs = (db?.submissions || []).filter(s =>
       s.agentId === ag.id ||
-      s.agentName?.toLowerCase().includes(ag.name.toLowerCase().split(' ')[0]) ||
-      (ag.name.toLowerCase().includes('mahesh') && s.agentId === 'agent003') ||
-      (ag.name.toLowerCase().includes('ramesh') && s.agentId === 'agent001') ||
-      (ag.name.toLowerCase().includes('suresh') && s.agentId === 'agent002')
+      (agFirstName && s.agentName?.toLowerCase().includes(agFirstName)) ||
+      (agNameLower.includes('mahesh') && s.agentId === 'agent003') ||
+      (agNameLower.includes('ramesh') && s.agentId === 'agent001') ||
+      (agNameLower.includes('suresh') && s.agentId === 'agent002')
     );
 
     const farmers = (db?.farmers || []).filter(f =>
@@ -447,8 +413,8 @@ const AgentsList = () => {
 
     setEditAgentForm({
       id: ag.id,
-      name: ag.shortName || ag.name.split('(')[0].trim(),
-      roleSuffix: ag.role || ag.name.split('(')[1]?.replace(')', '')?.trim() || 'Field Agent',
+      name: ag.shortName || (ag.name ? ag.name.split('(')[0].trim() : '') || ag.id || 'Field Agent',
+      roleSuffix: ag.role || (ag.name && ag.name.includes('(') ? ag.name.split('(')[1]?.replace(')', '')?.trim() : 'Field Agent') || 'Field Agent',
       phone: ag.phone || '',
       email: ag.email || '',
       regionId: regObj.id,

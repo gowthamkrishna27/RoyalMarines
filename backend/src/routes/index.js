@@ -6,6 +6,7 @@ import submissionRoutes from './submissionRoutes.js';
 import harvestRoutes from './harvestRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import dbAdminRoutes from './dbAdminRoutes.js';
+import adminRoutes from './adminRoutes.js';
 import { sendSuccess } from '../utils/response.js';
 
 const apiRouter = Router();
@@ -23,6 +24,7 @@ apiRouter.get('/health', (req, res) => {
 
 // Mount domain routes
 apiRouter.use('/auth', authRoutes);
+apiRouter.use('/admin', adminRoutes);
 apiRouter.use('/farmers', farmerRoutes);
 apiRouter.use('/tanks', tankRoutes);
 apiRouter.use('/submissions', submissionRoutes);

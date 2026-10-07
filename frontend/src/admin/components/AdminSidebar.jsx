@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutGrid, Globe, Users, UserCheck, Tractor,
-  ClipboardList, BarChart3, Download, History, Settings, Database
+  ClipboardList, BarChart3, Download, History, Settings, Database, MapPin
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
@@ -11,6 +11,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
       title: 'ENTERPRISE ADMIN PORTAL',
       items: [
         { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutGrid size={20} /> },
+        { name: 'Submission Map', path: '/admin/submission-locations', icon: <MapPin size={20} /> },
         { name: 'Regions & Localities', path: '/admin/regions', icon: <Globe size={20} /> },
         { name: 'ASMs', path: '/admin/incharges', icon: <Users size={20} /> },
         { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={20} /> },
