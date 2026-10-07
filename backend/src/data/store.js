@@ -1,5 +1,25 @@
 import { query, isDbConnected } from '../config/database.js';
 
+const normalizeUser = (u) => {
+  if (!u) return null;
+  const roleStr = (u.role || (u.role_id === 1 ? 'ADMIN' : (u.role_id === 2 ? 'ASM' : 'AGENT')) || '').toUpperCase();
+  const normalizedRole = (roleStr === 'TECHNICIAN' || roleStr === 'AGENT') ? 'AGENT' : (roleStr === 'INCHARGE' || roleStr === 'ASM') ? 'ASM' : roleStr;
+  return {
+    ...u,
+    id: String(u.id),
+    name: u.name || u.full_name || u.username,
+    fullName: u.full_name || u.name || u.username,
+    password: u.password || u.password_hash,
+    passwordHash: u.password_hash || u.password,
+    role: normalizedRole,
+    rawRole: roleStr,
+    phone: u.phone || '',
+    email: u.email || '',
+    locality: u.locality || '',
+    region: u.region || '',
+  };
+};
+
 class DataStore {
   constructor() {
     this.reset();
@@ -18,10 +38,6 @@ class DataStore {
 
   // --- Auth & Users ---
 
-  /**
-   * Find a user by identifier (username, phone, or email) WITHOUT checking password.
-   * Password verification is handled separately with bcrypt in the auth controller.
-   */
   async findUserByIdentifier(identifier) {
     if (isDbConnected()) {
       try {
@@ -29,29 +45,22 @@ class DataStore {
           'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) OR u.phone = ? OR LOWER(u.email) = LOWER(?) LIMIT 1',
           [identifier, identifier, identifier, identifier]
         );
-        if (rows && rows.length > 0) {
-          const user = rows[0];
-          user.password = user.password_hash; // Map for backward compatibility
-          return user;
-        }
+        if (rows && rows.length > 0) return normalizeUser(rows[0]);
       } catch (err) {
         console.error('[DB Error in findUserByIdentifier]', err.message);
       }
     }
 
-    // In-memory fallback (should not be reached with proper DB connection)
-    return this.users.find(
-      (u) =>
-        u.username?.toLowerCase() === identifier.toLowerCase() ||
-        u.phone === identifier ||
-        u.email?.toLowerCase() === identifier.toLowerCase()
+    const u = this.users.find(
+      (user) =>
+        user.username?.toLowerCase() === identifier.toLowerCase() ||
+        user.phone === identifier ||
+        user.email?.toLowerCase() === identifier.toLowerCase() ||
+        String(user.id).toLowerCase() === identifier.toLowerCase()
     );
+    return normalizeUser(u);
   }
 
-  /**
-   * Legacy method kept for backward compatibility.
-   * Uses findUserByIdentifier internally.
-   */
   async findUserByCredentials(identifier, password) {
     const user = await this.findUserByIdentifier(identifier);
     if (user && user.password === password) return user;
@@ -61,18 +70,18 @@ class DataStore {
   async findUserById(id) {
     if (isDbConnected()) {
       try {
-        const rows = await query('SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? LIMIT 1', [id]);
-        if (rows && rows.length > 0) {
-          const user = rows[0];
-          user.password = user.password_hash;
-          return user;
-        }
+        const rows = await query(
+          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) LIMIT 1',
+          [id, id]
+        );
+        if (rows && rows.length > 0) return normalizeUser(rows[0]);
       } catch (err) {
         console.error('[DB Error in findUserById]', err.message);
       }
     }
 
-    return this.users.find((u) => u.id === id);
+    const u = this.users.find((user) => String(user.id) === String(id) || user.username === id);
+    return normalizeUser(u);
   }
 
   // --- Farmers ---
@@ -83,23 +92,31 @@ class DataStore {
         const params = [];
 
         if (filter.agentId) {
-          sql += ' AND agent_id = ?';
+          sql += ' AND (agent_id = ? OR agent_id IS NULL)';
           params.push(filter.agentId);
         }
         if (filter.inchargeId) {
-          sql += ' AND incharge_id = ?';
+          sql += ' AND (incharge_id = ? OR incharge_id IS NULL)';
           params.push(filter.inchargeId);
         }
         if (filter.search) {
-          sql += ' AND (LOWER(name) LIKE ? OR LOWER(location) LIKE ? OR phone LIKE ?)';
+          sql += ' AND (LOWER(name) LIKE ? OR LOWER(location) LIKE ? OR LOWER(village) LIKE ? OR phone LIKE ?)';
           const term = `%${filter.search.toLowerCase()}%`;
-          params.push(term, term, term);
+          params.push(term, term, term, term);
         }
         sql += ' ORDER BY created_at DESC';
 
         const rows = await query(sql, params);
         return rows.map((r) => ({
           ...r,
+          id: String(r.id),
+          farmerCode: r.farmer_code || r.id,
+          name: r.name,
+          phone: r.phone || '',
+          location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : ''),
+          village: r.village || r.location || '',
+          acres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
+          totalAcres: r.total_acres != null ? Number(r.total_acres) : (r.acres != null ? Number(r.acres) : 0),
           agentId: r.agent_id,
           inchargeId: r.incharge_id,
           assignedTo: r.assigned_to,
@@ -107,6 +124,8 @@ class DataStore {
           waterSource: r.water_source,
           region: r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : r.mandal?.includes('Kakinada') ? 'Kakinada' : r.mandal?.includes('Narasapuram') ? 'Narasapuram' : 'Bhimavaram'),
           location: r.location || (r.village ? `${r.village}, ${r.mandal || ''}`.replace(/,\s*$/, '') : 'Bhimavaram'),
+          waterSource: r.water_source || 'Borewell',
+          status: r.status || 'ACTIVE',
         }));
       } catch (err) {
         console.error('[DB Error in getFarmers]', err.message);
@@ -139,13 +158,21 @@ class DataStore {
           const r = rows[0];
           return {
             ...r,
+            id: String(r.id),
+            farmerCode: r.farmer_code || r.id,
+            name: r.name,
+            phone: r.phone || '',
+            location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : 'Bhimavaram'),
+            village: r.village || r.location || '',
+            acres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
+            totalAcres: r.total_acres != null ? Number(r.total_acres) : (r.acres != null ? Number(r.acres) : 0),
             agentId: r.agent_id,
             inchargeId: r.incharge_id,
             assignedTo: r.assigned_to,
             assignedBy: r.assigned_by,
-            waterSource: r.water_source,
+            waterSource: r.water_source || 'Canal',
             region: r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : 'Bhimavaram'),
-            location: r.location || (r.village ? `${r.village}, ${r.mandal || ''}`.replace(/,\s*$/, '') : 'Bhimavaram'),
+            status: r.status || 'ACTIVE',
           };
         }
       } catch (err) {
@@ -160,25 +187,34 @@ class DataStore {
     const id = data.id || `F${String(Date.now()).slice(-4)}`;
     const newFarmer = {
       id,
+      farmerCode: data.farmerCode || id,
       name: data.name,
-      status: 'ACTIVE',
+      status: data.status || 'ACTIVE',
       agentId: data.agentId || null,
       inchargeId: data.inchargeId || 'INC001',
       assignedTo: data.assignedTo || (data.agentId ? 'Agent' : 'Incharge'),
       assignedBy: data.assignedBy || 'Admin',
       phone: data.phone || '',
-      location: data.location || '',
+      location: data.location || data.village || '',
+      village: data.village || data.location || '',
       waterSource: data.waterSource || 'Borewell',
       acres: data.acres ? Number(data.acres) : 10,
+      totalAcres: data.acres ? Number(data.acres) : 10,
       createdAt: new Date().toISOString(),
     };
 
     if (isDbConnected()) {
       try {
         await query(
-          'INSERT INTO farmers (id, name, status, agent_id, incharge_id, assigned_to, assigned_by, phone, location, water_source, acres) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO farmers (id, farmer_code, name, status, agent_id, incharge_id, assigned_to, assigned_by, phone, location, village, water_source, acres, total_acres)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             name=VALUES(name), phone=VALUES(phone), location=VALUES(location), village=VALUES(village),
+             acres=VALUES(acres), total_acres=VALUES(total_acres), water_source=VALUES(water_source),
+             agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id), assigned_to=VALUES(assigned_to), assigned_by=VALUES(assigned_by)`,
           [
             newFarmer.id,
+            newFarmer.farmerCode,
             newFarmer.name,
             newFarmer.status,
             newFarmer.agentId,
@@ -187,7 +223,9 @@ class DataStore {
             newFarmer.assignedBy,
             newFarmer.phone,
             newFarmer.location,
+            newFarmer.village,
             newFarmer.waterSource,
+            newFarmer.acres,
             newFarmer.acres,
           ]
         );
@@ -213,8 +251,12 @@ class DataStore {
         if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
         if (updates.phone !== undefined) { fields.push('phone = ?'); params.push(updates.phone); }
         if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
+        if (updates.village !== undefined) { fields.push('village = ?'); params.push(updates.village); }
         if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
-        if (updates.acres !== undefined) { fields.push('acres = ?'); params.push(Number(updates.acres)); }
+        if (updates.acres !== undefined) {
+          fields.push('acres = ?'); params.push(Number(updates.acres));
+          fields.push('total_acres = ?'); params.push(Number(updates.acres));
+        }
 
         if (fields.length > 0) {
           params.push(id);
@@ -237,6 +279,7 @@ class DataStore {
     if (isDbConnected()) {
       try {
         await query('DELETE FROM farmers WHERE id = ?', [id]);
+        await query('DELETE FROM tanks WHERE farmer_id = ?', [id]);
       } catch (err) {
         console.error('[DB Error in deleteFarmer]', err.message);
       }
@@ -245,8 +288,8 @@ class DataStore {
     const index = this.farmers.findIndex((f) => f.id === id);
     if (index !== -1) {
       this.farmers.splice(index, 1);
-      return true;
     }
+    this.tanks = this.tanks.filter((t) => t.farmerId !== id);
     return true;
   }
 
@@ -261,14 +304,16 @@ class DataStore {
           sql += ' AND (farmer_id = ? OR (farmer_id = "F001" AND ? = "1") OR (farmer_id = "1" AND ? = "F001") OR (farmer_id = "F001" AND ? = "FAR001"))';
           params.push(filter.farmerId, filter.farmerId, filter.farmerId, filter.farmerId);
         }
-        if (filter.agentId) { sql += ' AND agent_id = ?'; params.push(filter.agentId); }
-        if (filter.inchargeId) { sql += ' AND incharge_id = ?'; params.push(filter.inchargeId); }
+        if (filter.agentId) { sql += ' AND (agent_id = ? OR agent_id IS NULL)'; params.push(filter.agentId); }
+        if (filter.inchargeId) { sql += ' AND (incharge_id = ? OR incharge_id IS NULL)'; params.push(filter.inchargeId); }
         if (filter.status) { sql += ' AND LOWER(status) = LOWER(?)'; params.push(filter.status); }
         if (filter.testStatus) { sql += ' AND LOWER(test_status) = LOWER(?)'; params.push(filter.testStatus); }
+        sql += ' ORDER BY created_at DESC';
 
         const rows = await query(sql, params);
         return rows.map((r) => ({
           ...r,
+          id: String(r.id),
           farmerId: r.farmer_id,
           agentId: r.agent_id,
           inchargeId: r.incharge_id,
@@ -276,6 +321,11 @@ class DataStore {
           testStatus: r.test_status,
           lastTest: r.last_test,
           nextTest: r.next_test,
+          size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
+          acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
+          salinity: r.salinity || '15 ppt',
+          species: r.species || 'Vannamei',
+          cultureType: r.culture_type || 'Semi-Intensive',
         }));
       } catch (err) {
         console.error('[DB Error in getTanks]', err.message);
@@ -299,6 +349,7 @@ class DataStore {
           const r = rows[0];
           return {
             ...r,
+            id: String(r.id),
             farmerId: r.farmer_id,
             agentId: r.agent_id,
             inchargeId: r.incharge_id,
@@ -306,6 +357,11 @@ class DataStore {
             testStatus: r.test_status,
             lastTest: r.last_test,
             nextTest: r.next_test,
+            size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
+            acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
+            salinity: r.salinity || '15 ppt',
+            species: r.species || 'Vannamei',
+            cultureType: r.culture_type || 'Semi-Intensive',
           };
         }
       } catch (err) {
@@ -325,22 +381,31 @@ class DataStore {
       agentId: data.agentId || null,
       inchargeId: data.inchargeId || null,
       assignedTo: data.assignedTo || 'Agent',
-      status: 'ACTIVE',
-      testStatus: 'Due',
-      abw: data.abw || '10g',
-      biomass: data.biomass || '500kg',
+      status: data.status || 'ACTIVE',
+      testStatus: data.testStatus || 'Due',
+      abw: data.abw || '16.5g',
+      biomass: data.biomass || '1500kg',
       fcr: data.fcr || '1.20',
-      lastTest: data.lastTest || new Date().toLocaleDateString('en-GB'),
-      nextTest: data.nextTest || 'In 7 Days',
-      size: data.size || '10 Acres',
+      lastTest: data.lastTest || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      nextTest: data.nextTest || 'Due This Week',
+      size: data.size || (data.acres ? `${data.acres} Acres` : '5.0 Acres'),
       doc: data.doc ? Number(data.doc) : 1,
+      salinity: data.salinity || '15 ppt',
+      species: data.species || 'Vannamei',
+      cultureType: data.cultureType || 'Semi-Intensive',
+      stockingDate: data.stockingDate || new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
     };
 
     if (isDbConnected()) {
       try {
         await query(
-          'INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
+             assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
+             biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc)`,
           [
             newTank.id,
             newTank.name,
@@ -357,6 +422,10 @@ class DataStore {
             newTank.nextTest,
             newTank.size,
             newTank.doc,
+            newTank.salinity,
+            newTank.species,
+            newTank.cultureType,
+            newTank.stockingDate,
           ]
         );
       } catch (err) {
@@ -383,6 +452,9 @@ class DataStore {
         if (updates.lastTest !== undefined) { fields.push('last_test = ?'); params.push(updates.lastTest); }
         if (updates.nextTest !== undefined) { fields.push('next_test = ?'); params.push(updates.nextTest); }
         if (updates.doc !== undefined) { fields.push('doc = ?'); params.push(Number(updates.doc)); }
+        if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
+        if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
+        if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
 
         if (fields.length > 0) {
           params.push(id);
@@ -413,7 +485,6 @@ class DataStore {
     const index = this.tanks.findIndex((t) => t.id === id);
     if (index !== -1) {
       this.tanks.splice(index, 1);
-      return true;
     }
     return true;
   }
@@ -425,19 +496,20 @@ class DataStore {
         let sql = 'SELECT * FROM submissions WHERE 1=1';
         const params = [];
         if (filter.status) { sql += ' AND UPPER(status) = UPPER(?)'; params.push(filter.status); }
-        if (filter.agentId) { sql += ' AND agent_id = ?'; params.push(filter.agentId); }
+        if (filter.agentId) { sql += ' AND (agent_id = ? OR agent_id IS NULL)'; params.push(filter.agentId); }
         if (filter.tankId) { sql += ' AND tank_id = ?'; params.push(filter.tankId); }
         sql += ' ORDER BY created_at DESC';
 
         const rows = await query(sql, params);
         return rows.map((r) => ({
           ...r,
+          id: String(r.id),
           agentId: r.agent_id,
           farmerId: r.farmer_id,
           tankId: r.tank_id,
           testType: r.test_type,
-          submittedAgo: r.submitted_ago,
-          data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
+          submittedAgo: r.submitted_ago || 'Recently',
+          data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
         }));
       } catch (err) {
         console.error('[DB Error in getSubmissions]', err.message);
@@ -579,7 +651,7 @@ class DataStore {
     const longitude = data.longitude ?? data.lng ?? data.gps?.longitude ?? data.coordinates?.longitude ?? data.data?.gps?.longitude ?? data.data?.longitude ?? null;
     const accuracy = data.accuracy ?? data.gps?.accuracy ?? data.coordinates?.accuracy ?? data.data?.gps?.accuracy ?? null;
     const locality = data.locality ?? data.gps?.locality ?? data.data?.gps?.locality ?? data.data?.locality ?? null;
-    
+
     const userId = data.userId || data.agentId || data.inchargeId || null;
     const userName = data.userName || data.agentName || data.name || null;
     const role = data.role || (data.inchargeId || (userId && userId.startsWith('INC')) ? 'Incharge' : 'Agent');
@@ -610,7 +682,9 @@ class DataStore {
     if (isDbConnected()) {
       try {
         await query(
-          'INSERT INTO submissions (id, agent_id, user_id, user_name, role, farmer_id, tank_id, test_type, date, submission_time, status, data, latitude, longitude, accuracy, locality, submitted_ago) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO submissions (id, agent_id, user_id, user_name, role, farmer_id, tank_id, test_type, date, submission_time, status, data, latitude, longitude, accuracy, locality, submitted_ago)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE status=VALUES(status), data=VALUES(data), review_notes=VALUES(review_notes)`,
           [
             newSub.id,
             newSub.agentId,
@@ -671,11 +745,17 @@ class DataStore {
         const rows = await query(sql, params);
         return rows.map((r) => ({
           ...r,
+          id: String(r.id),
           tankId: r.tank_id,
           farmerId: r.farmer_id,
-          quantityKg: r.quantity_kg,
-          countPerKg: r.count_per_kg,
-          pricePerKg: r.price_per_kg,
+          date: r.date || (r.harvest_date ? String(r.harvest_date).split('T')[0] : ''),
+          quantityKg: Number(r.quantity_kg || 0),
+          countPerKg: r.count_per_kg || (r.average_weight_g ? Math.round(1000 / Number(r.average_weight_g)) : 30),
+          quality: r.quality || 'A Grade',
+          pricePerKg: Number(r.price_per_kg || 0),
+          revenue: Number(r.revenue || r.total_value || 0),
+          buyerName: r.buyer_name || 'Exporter',
+          remarks: r.remarks || '',
         }));
       } catch (err) {
         console.error('[DB Error in getHarvests]', err.message);
@@ -688,34 +768,49 @@ class DataStore {
   }
 
   async createHarvest(data) {
-    const id = `HARV${String(Date.now()).slice(-4)}`;
+    const id = data.id || `HARV${String(Date.now()).slice(-4)}`;
+    const q = Number(data.quantityKg) || 0;
+    const price = Number(data.pricePerKg) || 380;
+    const rev = Number(data.revenue) || (q * price);
+
     const newHarvest = {
       id,
       tankId: data.tankId,
       farmerId: data.farmerId || '',
-      date: new Date().toISOString().split('T')[0],
-      quantityKg: Number(data.quantityKg),
+      date: data.date || new Date().toISOString().split('T')[0],
+      quantityKg: q,
       countPerKg: data.countPerKg ? Number(data.countPerKg) : 30,
       quality: data.quality || 'A Grade',
-      pricePerKg: Number(data.pricePerKg) || 380,
-      revenue: Number(data.revenue) || 0,
+      pricePerKg: price,
+      revenue: rev,
+      buyerName: data.buyerName || 'Local Exporter',
+      remarks: data.remarks || '',
       createdAt: new Date().toISOString(),
     };
 
     if (isDbConnected()) {
       try {
         await query(
-          'INSERT INTO harvests (id, tank_id, farmer_id, date, quantity_kg, count_per_kg, quality, price_per_kg, revenue) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             quantity_kg=VALUES(quantity_kg), count_per_kg=VALUES(count_per_kg),
+             price_per_kg=VALUES(price_per_kg), revenue=VALUES(revenue), total_value=VALUES(total_value)`,
           [
+            newHarvest.id,
             newHarvest.id,
             newHarvest.tankId,
             newHarvest.farmerId,
+            newHarvest.date,
             newHarvest.date,
             newHarvest.quantityKg,
             newHarvest.countPerKg,
             newHarvest.quality,
             newHarvest.pricePerKg,
             newHarvest.revenue,
+            newHarvest.revenue,
+            newHarvest.buyerName,
+            newHarvest.remarks,
           ]
         );
       } catch (err) {
@@ -743,7 +838,7 @@ class DataStore {
         const [tc] = await query('SELECT COUNT(*) as total FROM tanks');
         const [at] = await query("SELECT COUNT(*) as total FROM tanks WHERE status = 'ACTIVE'");
         const [pt] = await query("SELECT COUNT(*) as total FROM tanks WHERE test_status IN ('Due', 'Overdue')");
-        const [hr] = await query('SELECT COALESCE(SUM(revenue), 0) as total FROM harvests');
+        const [hr] = await query('SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) as total FROM harvests');
         const [fcrRes] = await query("SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) as avg_fcr FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0'");
         const [ac] = await query('SELECT COUNT(*) as total FROM agents');
         const [rc] = await query('SELECT COUNT(*) as total FROM regions');

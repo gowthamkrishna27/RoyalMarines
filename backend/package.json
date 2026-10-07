@@ -9,10 +9,11 @@
     "build": "echo \"Backend build complete\"",
     "dev": "node --watch server.js",
     "db:view": "node scripts/viewTables.js",
+    "db:seed": "node scripts/seedData.js",
+    "db:pins": "node scripts/updatePins.js",
     "db:wipe": "node scripts/wipeDatabase.js",
     "db:reset": "node scripts/wipeDatabase.js --reset",
-    "db:drop": "node scripts/wipeDatabase.js --drop",
-    "test": "node --test"
+    "db:drop": "node scripts/wipeDatabase.js --drop"
   },
   "keywords": [
     "aquaculture",
