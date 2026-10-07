@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAgentById, getAgents, getFarmers, getRegions, getIncharges } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import {
   ArrowLeft, Edit, Phone, Mail, MapPin, Building,
@@ -11,32 +12,23 @@ import {
 const AgentDetail = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
-  const regions = getRegions();
-  const allIncharges = getIncharges();
+  const { db } = useMockData();
+  const regions = useMemo(() => getRegions(db), [db]);
+  const allIncharges = useMemo(() => getIncharges(db), [db]);
 
-  // 1. Load Agent from localStorage or fallback
-  const [agent, setAgent] = useState(() => {
-    const savedAgents = localStorage.getItem('royal_admin_agents_data');
-    if (savedAgents) {
-      try {
-        const parsed = JSON.parse(savedAgents);
-        const found = parsed.find(a => a.id === agentId);
-        if (found) return found;
-      } catch (e) { }
-    }
-    return getAgentById(agentId) || getAgents()[0];
-  });
+  // 1. Load Agent from live context
+  const [agent, setAgent] = useState(() => getAgentById(agentId, db) || null);
 
-  // 2. Load Farmers from localStorage or fallback
-  const [farmersList, setFarmersList] = useState(() => {
-    const savedFarmers = localStorage.getItem('royal_admin_farmers_data');
-    if (savedFarmers) {
-      try {
-        return JSON.parse(savedFarmers);
-      } catch (e) { }
+  // 2. Load Farmers from live context
+  const [farmersList, setFarmersList] = useState(() => getFarmers(db));
+
+  useEffect(() => {
+    if (db) {
+      const a = getAgentById(agentId, db);
+      if (a) setAgent(a);
+      setFarmersList(getFarmers(db));
     }
-    return getFarmers();
-  });
+  }, [db, agentId]);
 
   const [toastMessage, setToastMessage] = useState('');
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
@@ -90,24 +82,25 @@ const AgentDetail = () => {
   };
 
   // Filter and sort farmers reporting to this agent
+  const agentFirstName = (agent?.shortName || agent?.name || '').split(' ')[0].toLowerCase();
   const allocatedFarmers = farmersList.filter(f =>
-    f.agentId === agent.id ||
-    f.agent?.toLowerCase().includes(agent.name.toLowerCase().split(' ')[0]) ||
-    f.agent?.toLowerCase().includes(agent.shortName?.toLowerCase() || '')
+    f.agentId === agent?.id ||
+    (agentFirstName && f.agent?.toLowerCase().includes(agentFirstName)) ||
+    (agent?.shortName && f.agent?.toLowerCase().includes(agent.shortName.toLowerCase()))
   ).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   // 1. Open Edit Agent Modal
   const openEditAgentModal = () => {
-    const regObj = regions.find(r => r.id === agent.regionId || r.name === agent.region) || regions[0];
+    const regObj = regions.find(r => r.id === agent?.regionId || r.name === agent?.region) || regions[0] || { id: 'REG001', name: 'Bhimavaram' };
     setEditAgentForm({
-      name: agent.shortName || agent.name.split('(')[0].trim(),
-      roleSuffix: agent.role || agent.name.split('(')[1]?.replace(')', '')?.trim() || 'Field Agent',
-      phone: agent.phone || '',
-      email: agent.email || '',
-      regionId: regObj.id,
-      locality: agent.locality || 'Nellore',
-      assignedArea: agent.assignedArea || 'Designated Area',
-      status: agent.status || 'ACTIVE'
+      name: agent?.shortName || (agent?.name ? agent.name.split('(')[0].trim() : '') || agent?.id || 'Field Agent',
+      roleSuffix: agent?.role || (agent?.name && agent.name.includes('(') ? agent.name.split('(')[1]?.replace(')', '')?.trim() : 'Field Agent') || 'Field Agent',
+      phone: agent?.phone || '',
+      email: agent?.email || '',
+      regionId: regObj?.id || 'REG001',
+      locality: agent?.locality || 'Bhimavaram',
+      assignedArea: agent?.assignedArea || 'Designated Area',
+      status: agent?.status || 'ACTIVE'
     });
     setShowEditAgentModal(true);
   };
@@ -132,8 +125,8 @@ const AgentDetail = () => {
       region: selectedRegionObj.name,
       locality: editAgentForm.locality,
       assignedArea: editAgentForm.assignedArea.trim(),
-      inchargeId: dedicatedIncharge.id,
-      incharge: dedicatedIncharge.name,
+      inchargeId: dedicatedIncharge?.id || 'INC001',
+      incharge: dedicatedIncharge?.name || 'Ravi Kumar',
       status: editAgentForm.status
     };
 
@@ -195,6 +188,33 @@ const AgentDetail = () => {
   };
 
   const editModalIncharge = getInchargeForLocality(editAgentForm.locality, editAgentForm.regionId);
+
+  if (!agent) {
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+          Loading Agent Details...
+        </h3>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
+          Retrieving real-time records from the aquaculture database.
+        </p>
+        <button
+          onClick={() => navigate('/admin/agents')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#1A2FB8',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Back to Field Agents List
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFarmerById, getFarmers, getTanksByFarmer, calculateBiomass, calculateFCR } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import {
   Database, Download, TrendingUp, Activity,
@@ -15,23 +16,27 @@ import {
 const FarmerDetail = () => {
   const { farmerId } = useParams();
   const navigate = useNavigate();
+  const { db } = useMockData();
 
-  // Load farmer from localStorage or fallback mock data
-  const [farmer, setFarmer] = useState(() => {
-    const savedFarmers = localStorage.getItem('royal_admin_farmers_data');
-    if (savedFarmers) {
-      try {
-        const parsed = JSON.parse(savedFarmers);
-        const found = parsed.find(f => f.id === farmerId);
-        if (found) return found;
-      } catch (e) { }
+  // Load farmer from live context
+  const [farmer, setFarmer] = useState(() => getFarmerById(farmerId, db) || null);
+
+  useEffect(() => {
+    if (farmerId) {
+      const f = getFarmerById(farmerId, db);
+      if (f) {
+        setFarmer(f);
+        const rawTanks = f.tankBreakdown || getTanksByFarmer(f.id, db) || [];
+        if (rawTanks.length > 0) {
+          setTanksList(rawTanks);
+        }
+      }
     }
-    return getFarmerById(farmerId) || getFarmers()[0];
-  });
+  }, [db, farmerId]);
 
   // Load and construct tanks with individual specifications
   const [tanksList, setTanksList] = useState(() => {
-    const rawTanks = farmer?.tankBreakdown || getTanksByFarmer(farmer?.id) || [];
+    const rawTanks = farmer?.tankBreakdown || getTanksByFarmer(farmer?.id, db) || [];
     const sourceTanks = rawTanks.length > 0 ? rawTanks : [
       {
         id: `T-${farmer?.id || '349'}-1`,
@@ -81,7 +86,16 @@ const FarmerDetail = () => {
   const [showEditTankModal, setShowEditTankModal] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
 
-  const activeTank = tanksList[activeTankIndex] || tanksList[0];
+  const activeTank = tanksList[activeTankIndex] || tanksList[0] || {
+    id: `T-${farmer?.id || '1'}-1`,
+    name: 'Tank 1',
+    acres: farmer?.totalAcres || 4.5,
+    doc: 65,
+    abw: 24.5,
+    biomass: 3800,
+    fcr: 1.30,
+    salinity: 16
+  };
 
   // Edit Tank Form State
   const [editTankForm, setEditTankForm] = useState({
@@ -188,8 +202,10 @@ const FarmerDetail = () => {
   };
 
   // Clean, realistic Water Quality Logs for active tank
-  const baseSal = activeTank.salinity || 16;
-  const agentShortName = farmer?.agent ? farmer.agent.split(' ')[0] + ' ' + (farmer.agent.split(' ')[1] || '') : 'P. Raju';
+  const baseSal = activeTank?.salinity || 16;
+  const agentShortName = typeof farmer?.agent === 'string' && farmer.agent.trim()
+    ? (farmer.agent.split(' ')[0] + ' ' + (farmer.agent.split(' ')[1] || ''))
+    : 'Assigned Tech';
 
   const waterQualityLogs = [
     {
@@ -588,6 +604,33 @@ const FarmerDetail = () => {
     URL.revokeObjectURL(url);
     showToast(`Master Excel Report for ${activeTank.name} downloaded successfully!`);
   };
+
+  if (!farmer) {
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+          Loading Farmer Details...
+        </h3>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
+          Retrieving real-time records from the aquaculture database.
+        </p>
+        <button
+          onClick={() => navigate('/admin/farmers')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#1A2FB8',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Back to Farmers List
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>

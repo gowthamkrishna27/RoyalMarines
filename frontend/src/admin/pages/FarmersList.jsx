@@ -12,16 +12,16 @@ import {
 const FarmersList = () => {
   const navigate = useNavigate();
   const { db, createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
-  const regions = getRegions();
-  const allAgents = getAgents();
-  const allIncharges = getIncharges();
+  const regions = useMemo(() => getRegions(db), [db]);
+  const allAgents = useMemo(() => getAgents(db), [db]);
+  const allIncharges = useMemo(() => getIncharges(db), [db]);
 
   // Load farmers reactively from unified data context
-  const [farmers, setFarmers] = useState(() => getFarmers());
+  const [farmers, setFarmers] = useState(() => getFarmers(db));
 
   // Keep farmers in sync whenever db changes
   useEffect(() => {
-    setFarmers(getFarmers());
+    setFarmers(getFarmers(db));
   }, [db]);
 
   // Filters state

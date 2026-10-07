@@ -1,16 +1,42 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getTankById } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import { Database, Droplet, Wheat, Pill, Bug, Fish, MapPin, CheckSquare, History } from 'lucide-react';
 
 const TankHistory = () => {
   const { tankId } = useParams();
-  const tank = getTankById(tankId);
+  const navigate = useNavigate();
+  const { db } = useMockData();
+  const tank = getTankById(tankId, db);
   const [activeTab, setActiveTab] = useState('basic');
 
   if (!tank) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Tank not found</div>;
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+          Loading Tank History...
+        </h3>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
+          Retrieving real-time records from the aquaculture database.
+        </p>
+        <button
+          onClick={() => navigate('/admin/tanks')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#1A2FB8',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Back to Tanks List
+        </button>
+      </div>
+    );
   }
 
   const tabs = [

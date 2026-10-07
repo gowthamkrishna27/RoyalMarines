@@ -15,7 +15,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const mockData = useMockData();
   const db = mockData?.db;
-  const regions = getRegions();
+  const regions = getRegions(db);
 
   const [showDueTestsModal, setShowDueTestsModal] = useState(false);
   const [dueTab, setDueTab] = useState('ALL'); // 'ALL' | 'OVERDUE' | 'DUE'
@@ -30,7 +30,7 @@ const AdminDashboard = () => {
   const totalTanks = allTanks.length || 0;
   const activeTanks = allTanks.filter(t => t.status !== 'Harvested').length || 0;
   const harvestedTanks = allTanks.filter(t => t.status === 'Harvested').length || 0;
-  const totalIncharges = db?.agents?.length || 2;
+  const totalIncharges = db?.incharges?.length || 3;
   const totalRegionsCount = regions.length || 3;
   const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
 
@@ -38,8 +38,8 @@ const AdminDashboard = () => {
   const dueAndOverdueTanks = allTanks
     .filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue' || !t.lastTest || t.testStatus === 'Pending'))
     .map((t, idx) => {
-      const farmer = mockData.getFarmerById ? mockData.getFarmerById(t.farmerId) : (db?.farmers || []).find(f => f.id === t.farmerId);
-      const agent = mockData.getAgentById ? mockData.getAgentById(t.agentId) : (db?.agents || []).find(a => a.id === t.agentId);
+      const farmer = mockData?.getFarmerById ? mockData.getFarmerById(t.farmerId) : (db?.farmers || []).find(f => f.id === t.farmerId);
+      const agent = mockData?.getAgentById ? mockData.getAgentById(t.agentId) : (db?.agents || []).find(a => a.id === t.agentId);
       const isOverdue = t.testStatus === 'Overdue' || idx % 3 === 0;
       const testType = idx % 3 === 0 ? 'Water Analysis (DO, pH, Salinity)' : idx % 3 === 1 ? 'Feed Conversion & Consumption Audit' : 'Biomass & Disease Check';
 

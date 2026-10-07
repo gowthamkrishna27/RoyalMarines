@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, Send, MapPin, AlertTriangle, Droplet, Fish, Pill, Bug, ChevronRight, Check, Edit3, RefreshCw, Radio } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
-import { captureDeviceGPS, getStoredGPS, generateVerifiedFallbackGPS, getDistanceMeters } from '../utils/gpsService';
+import { captureDeviceGPS, getStoredGPS, requestSubmissionGPS, getDistanceMeters } from '../utils/gpsService';
 
 const STEPS = [
   'GPS Verification',
@@ -268,32 +268,43 @@ const SiteVisit = () => {
   };
 
   const handleSubmit = async () => {
-    let finalCoords = gpsData;
-
-    // If gpsData is not yet populated, try to get live or cached GPS
-    if (!finalCoords || !finalCoords.latitude) {
-      try {
-        finalCoords = await captureDeviceGPS({ timeout: 12000, desiredAccuracy: 25 });
-      } catch {
-        finalCoords = getStoredGPS() || generateVerifiedFallbackGPS('Chinnamiram, Bhimavaram');
-      }
+    let locationFix;
+    try {
+      // Capture actual device GPS at the exact moment of pressing Submit
+      locationFix = await requestSubmissionGPS({ timeout: 12000 });
+      setGpsData(locationFix);
+    } catch (err) {
+      alert('Location access is required to submit this record. Please enable location permission and try again.');
+      return;
     }
+
+    const now = new Date(locationFix.timestamp || Date.now());
+    const formattedDate = now.toISOString().split('T')[0];
+    const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
     submitRecord({
       tankId,
       agentId: session?.agentId || 'agent001',
+      userId: session?.agentId || 'agent001',
+      userName: session?.name || 'Ramesh',
+      role: 'Agent',
       formData,
-      latitude: finalCoords?.latitude != null ? finalCoords.latitude : 16.5449,
-      longitude: finalCoords?.longitude != null ? finalCoords.longitude : 81.5212,
-      locality: finalCoords?.locality || 'Chinnamiram, Bhimavaram',
-      gps: finalCoords || {
-        latitude: 16.5449,
-        longitude: 81.5212,
-        accuracy: 10,
-        locality: 'Chinnamiram, Bhimavaram',
+      latitude: locationFix.latitude,
+      longitude: locationFix.longitude,
+      accuracy: locationFix.accuracy,
+      date: formattedDate,
+      submissionTime: formattedTime,
+      timestamp: now.toISOString(),
+      locality: locationFix.locality || 'Coastal Aquaculture Zone',
+      gps: {
+        latitude: locationFix.latitude,
+        longitude: locationFix.longitude,
+        accuracy: locationFix.accuracy,
+        timestamp: locationFix.timestamp,
+        locality: locationFix.locality,
         verified: true,
       },
-      submittedAt: new Date().toISOString()
+      submittedAt: now.toISOString()
     });
     alert('Site Visit submitted successfully! High-accuracy GPS recorded.');
     navigate('/dashboard');

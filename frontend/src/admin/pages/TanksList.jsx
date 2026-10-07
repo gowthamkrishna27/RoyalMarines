@@ -8,11 +8,11 @@ import { Search, Filter, Eye } from 'lucide-react';
 const TanksList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { db } = useMockData();
-  const [tanks, setTanks] = useState(() => getTanks());
+  const [tanks, setTanks] = useState(() => getTanks(db));
   const navigate = useNavigate();
 
   useEffect(() => {
-    setTanks(getTanks());
+    setTanks(getTanks(db));
   }, [db]);
 
   const filtered = tanks.filter(t =>
