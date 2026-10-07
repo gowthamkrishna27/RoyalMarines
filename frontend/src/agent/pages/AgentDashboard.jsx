@@ -94,7 +94,12 @@ const AgentDashboard = () => {
       distance: distanceStr,
       status: tank.testStatus || 'Optimal',
       due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue' || tank.isDue,
-      species: tank.species || 'Vannamei'
+      species: tank.species || 'Vannamei',
+      size: tank.size || (tank.acres ? `${tank.acres} Acres` : '1.5 Acres'),
+      acres: tank.acres || tank.area_acres || 1.5,
+      doc: tank.doc,
+      abw: tank.abw,
+      salinity: tank.salinity
     };
   });
 
