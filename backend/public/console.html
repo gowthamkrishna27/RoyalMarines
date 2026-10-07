@@ -8,33 +8,81 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #0b0f17;
-      --panel: #0d121c;
-      --card: #111622;
-      --card-hover: #141c2c;
-      --surface: #151c2a;
-      --hover: #1a2336;
-      --active: #1d273d;
-      --border: #1a2234;
-      --border-subtle: #141b2b;
-      --border-hover: #26354f;
-      --text: #f8fafc;
+    /* ===== Strictly Clean Dark & Light Theme ===== */
+    :root[data-theme="dark"] {
+      --bg: #090a0f;
+      --panel: #0d0f15;
+      --card: #12141c;
+      --card-hover: #161922;
+      --surface: #171a23;
+      --hover: #1c202a;
+      --active: #222734;
+      --border: #1e222e;
+      --border-subtle: #141720;
+      --border-hover: #2e3446;
+      --text: #ffffff;
       --text-sec: #94a3b8;
       --text-dim: #64748b;
       --text-ghost: #475569;
-      --accent: #38bdf8;
-      --accent-glow: rgba(56, 189, 248, 0.15);
-      --accent-hover: #0284c7;
-      --primary: #2563eb;
-      --success: #22c55e;
-      --success-bg: rgba(34, 197, 94, 0.12);
-      --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, 0.12);
-      --warn: #f59e0b;
-      --modal-backdrop: rgba(3, 7, 18, 0.85);
-      --scrollbar-thumb: #1e293b;
-      --scrollbar-track: #0b0f17;
+      --accent: #ffffff;
+      --accent-muted: #e2e8f0;
+      --gauge-track: #1c202c;
+      --gauge-stroke: #ffffff;
+      --chart-line: #ffffff;
+      --chart-fill-start: rgba(255, 255, 255, 0.12);
+      --chart-fill-end: rgba(255, 255, 255, 0.0);
+      --chart-grid: #181c26;
+      --btn-bg: #141720;
+      --btn-text: #ffffff;
+      --btn-border: #222634;
+      --btn-hover: #1c202c;
+      --btn-pri-bg: #ffffff;
+      --btn-pri-text: #090a0f;
+      --btn-pri-hover: #e2e8f0;
+      --status-bg: rgba(255, 255, 255, 0.06);
+      --status-border: rgba(255, 255, 255, 0.15);
+      --status-dot: #22c55e;
+      --modal-backdrop: rgba(0, 0, 0, 0.82);
+      --scrollbar-thumb: #222634;
+      --scrollbar-track: #090a0f;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --card-hover: #f1f5f9;
+      --surface: #f8fafc;
+      --hover: #f1f5f9;
+      --active: #e2e8f0;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --border-hover: #cbd5e1;
+      --text: #0f172a;
+      --text-sec: #475569;
+      --text-dim: #64748b;
+      --text-ghost: #94a3b8;
+      --accent: #0f172a;
+      --accent-muted: #1e293b;
+      --gauge-track: #e2e8f0;
+      --gauge-stroke: #0f172a;
+      --chart-line: #0f172a;
+      --chart-fill-start: rgba(15, 23, 42, 0.08);
+      --chart-fill-end: rgba(15, 23, 42, 0.0);
+      --chart-grid: #edf2f7;
+      --btn-bg: #ffffff;
+      --btn-text: #0f172a;
+      --btn-border: #cbd5e1;
+      --btn-hover: #f1f5f9;
+      --btn-pri-bg: #0f172a;
+      --btn-pri-text: #ffffff;
+      --btn-pri-hover: #1e293b;
+      --status-bg: rgba(0, 0, 0, 0.04);
+      --status-border: rgba(0, 0, 0, 0.1);
+      --status-dot: #16a34a;
+      --modal-backdrop: rgba(15, 23, 42, 0.45);
+      --scrollbar-thumb: #cbd5e1;
+      --scrollbar-track: #f8fafc;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,311 +91,304 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 13px; line-height: 1.5;
       min-height: 100vh; display: flex; flex-direction: column;
-      overflow-x: hidden;
+      overflow-x: hidden; transition: background 0.15s, color 0.15s;
     }
 
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
-    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
 
     /* ===== Top Header ===== */
     header {
-      height: 52px; padding: 0 20px;
+      height: 50px; padding: 0 20px;
       display: flex; align-items: center; justify-content: space-between;
       border-bottom: 1px solid var(--border); background: var(--panel);
       flex-shrink: 0; z-index: 50;
     }
-    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .brand-group { display: flex; align-items: center; gap: 10px; }
     .brand-logo {
       display: flex; align-items: center; gap: 8px;
-      font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none;
+      font-size: 14px; font-weight: 700; color: var(--text); text-decoration: none;
       letter-spacing: -0.01em; cursor: pointer;
     }
-    .wave-icon {
-      width: 24px; height: 24px; color: var(--accent);
-      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
-    }
+    .wave-icon { width: 20px; height: 20px; color: var(--text); }
     .console-badge {
       font-size: 11px; font-weight: 500; color: var(--text-sec);
-      background: #151d2d; border: 1px solid var(--border);
-      padding: 3px 10px; border-radius: 9999px; letter-spacing: 0.01em;
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 6px; letter-spacing: 0.01em;
     }
 
-    .header-actions { display: flex; align-items: center; gap: 14px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
     .status-pill {
-      display: inline-flex; align-items: center; gap: 7px;
-      background: var(--success-bg); border: 1px solid rgba(34, 197, 94, 0.25);
-      color: var(--success); padding: 4px 12px; border-radius: 9999px;
-      font-size: 12px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--status-bg); border: 1px solid var(--status-border);
+      color: var(--text-sec); padding: 3px 10px; border-radius: 9999px;
+      font-size: 11px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
     }
     .status-dot {
-      width: 7px; height: 7px; border-radius: 50%; background: var(--success);
-      box-shadow: 0 0 8px #22c55e;
-      animation: pulseDot 2s infinite ease-in-out;
-    }
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
+      width: 6px; height: 6px; border-radius: 50%; background: var(--status-dot);
     }
     .engine-tag {
-      font-size: 12px; color: var(--text-sec); font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;
     }
 
+    .theme-btn {
+      background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--text);
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px;
+      transition: all 0.12s;
+    }
+    .theme-btn:hover { background: var(--btn-hover); border-color: var(--border-hover); }
+
     .admin-pill {
-      display: flex; align-items: center; gap: 8px;
-      padding: 4px 10px 4px 5px; border-radius: 9999px;
+      display: flex; align-items: center; gap: 7px;
+      padding: 3px 10px 3px 4px; border-radius: 9999px;
       background: var(--surface); border: 1px solid var(--border);
-      cursor: pointer; transition: all 0.15s;
+      cursor: pointer; transition: all 0.12s;
     }
     .admin-pill:hover { border-color: var(--border-hover); background: var(--hover); }
     .avatar-circle {
-      width: 24px; height: 24px; border-radius: 50%;
-      background: var(--primary); color: #ffffff;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--text); color: var(--bg);
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700;
+      font-size: 11px; font-weight: 700;
     }
-    .admin-name { font-size: 12px; font-weight: 600; color: var(--text); }
-    .admin-chevron { font-size: 10px; color: var(--text-dim); }
+    .admin-name { font-size: 11px; font-weight: 600; color: var(--text); }
+    .admin-chevron { font-size: 9px; color: var(--text-dim); }
 
     /* ===== App Layout ===== */
-    .app-body { flex: 1; display: flex; height: calc(100vh - 52px); overflow: hidden; }
+    .app-body { flex: 1; display: flex; height: calc(100vh - 50px); overflow: hidden; }
 
     /* ===== Left Sidebar ===== */
     .sidebar {
-      width: 220px; border-right: 1px solid var(--border); background: var(--panel);
+      width: 210px; border-right: 1px solid var(--border); background: var(--panel);
       display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
     }
     .sidebar-section-title {
-      padding: 16px 16px 6px; font-size: 10px; font-weight: 700;
+      padding: 14px 14px 4px; font-size: 10px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
     }
-    .sidebar-nav-list { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+    .sidebar-nav-list { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
     .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px; border-radius: 8px; border: 1px solid transparent;
-      background: transparent; color: var(--text-sec); font-size: 13px; font-weight: 500;
-      font-family: inherit; cursor: pointer; text-align: left; transition: all 0.12s ease;
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 10px; border-radius: 6px; border: 1px solid transparent;
+      background: transparent; color: var(--text-sec); font-size: 12px; font-weight: 500;
+      font-family: inherit; cursor: pointer; text-align: left; transition: all 0.1s;
       width: 100%;
     }
     .nav-item:hover { background: var(--hover); color: var(--text); }
     .nav-item.active {
-      background: #172134; color: #ffffff; font-weight: 600;
-      border-color: #243553;
+      background: var(--active); color: var(--text); font-weight: 600;
+      border-color: var(--border);
     }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.85; }
-    .nav-item.active svg { color: var(--accent); opacity: 1; }
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.85; }
     .nav-count-badge {
       margin-left: auto; font-size: 10px; font-family: 'JetBrains Mono', monospace;
-      color: var(--text-dim); padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.25);
+      color: var(--text-dim); padding: 1px 5px; border-radius: 4px; background: var(--surface);
     }
 
     .sidebar-footer {
-      margin-top: auto; padding: 14px 16px; border-top: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 6px; background: var(--panel);
+      margin-top: auto; padding: 12px 14px; border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 5px; background: var(--panel);
     }
-    .storage-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-sec); }
-    .storage-bar-track { width: 100%; height: 4px; background: #1a2436; border-radius: 2px; overflow: hidden; }
-    .storage-bar-fill { height: 100%; background: var(--accent); width: 0.1%; border-radius: 2px; transition: width 0.3s; }
-    .storage-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+    .storage-header { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-sec); }
+    .storage-bar-track { width: 100%; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .storage-bar-fill { height: 100%; background: var(--text); width: 0.1%; border-radius: 2px; }
+    .storage-meta { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
 
     /* ===== Main Content Area ===== */
     .content-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); overflow: hidden; }
 
     /* ===== Dashboard View ===== */
     .dashboard-container {
-      flex: 1; overflow-y: auto; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px;
+      flex: 1; overflow-y: auto; padding: 22px 26px 36px; display: flex; flex-direction: column; gap: 18px;
     }
     .dash-topbar {
-      display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px;
+      display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;
     }
-    .dash-db-category { font-size: 13px; font-weight: 500; color: var(--text-sec); margin-bottom: 2px; }
-    .dash-db-title { font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em; }
+    .dash-db-category { font-size: 12px; font-weight: 500; color: var(--text-dim); margin-bottom: 2px; }
+    .dash-db-title { font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
     .dash-db-subtitle {
-      display: flex; align-items: center; gap: 7px;
-      font-size: 12px; color: var(--text-sec); margin-top: 4px; font-family: 'JetBrains Mono', monospace;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-dim); margin-top: 3px; font-family: 'JetBrains Mono', monospace;
     }
     .btn-refresh {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500;
-      background: var(--card); border: 1px solid var(--border); color: var(--text);
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+      background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--text);
+      cursor: pointer; font-family: inherit; transition: all 0.12s;
     }
-    .btn-refresh:hover { background: var(--surface); border-color: var(--border-hover); }
-    .btn-refresh svg { width: 14px; height: 14px; }
+    .btn-refresh:hover { background: var(--btn-hover); border-color: var(--border-hover); }
+    .btn-refresh svg { width: 13px; height: 13px; }
 
-    /* Row 1: KPI Cards */
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    /* Row 1: KPI Cards (4 Minimalist Rings) */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
     .kpi-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      padding: 18px 20px; display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; transition: all 0.15s ease; position: relative; overflow: hidden;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 18px; display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; transition: all 0.12s ease;
     }
     .kpi-card:hover {
       background: var(--card-hover); border-color: var(--border-hover);
-      transform: translateY(-1px);
     }
-    .kpi-left { display: flex; align-items: center; gap: 16px; }
+    .kpi-left { display: flex; align-items: center; gap: 14px; }
     .ring-container {
-      width: 62px; height: 62px; position: relative; display: flex; align-items: center; justify-content: center;
+      width: 56px; height: 56px; position: relative; display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
-    .ring-container svg { width: 62px; height: 62px; transform: rotate(-90deg); }
-    .ring-bg { fill: none; stroke: #1a2336; stroke-width: 5.5; }
+    .ring-container svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: var(--gauge-track); stroke-width: 5; }
     .ring-val {
-      fill: none; stroke: var(--accent); stroke-width: 5.5; stroke-linecap: round;
-      transition: stroke-dashoffset 0.8s ease-in-out;
+      fill: none; stroke: var(--gauge-stroke); stroke-width: 5; stroke-linecap: round;
+      transition: stroke-dashoffset 0.6s ease;
     }
     .ring-number {
-      position: absolute; font-size: 17px; font-weight: 700; color: #ffffff;
+      position: absolute; font-size: 16px; font-weight: 700; color: var(--text);
       font-family: 'Inter', sans-serif;
     }
-    .kpi-info { display: flex; flex-direction: column; gap: 3px; }
-    .kpi-title { font-size: 14px; font-weight: 600; color: #ffffff; }
-    .kpi-sub { font-size: 12px; color: var(--text-sec); }
-    .kpi-arrow { color: var(--text-ghost); font-size: 18px; line-height: 1; transition: transform 0.15s; }
-    .kpi-card:hover .kpi-arrow { color: var(--accent); transform: translateX(2px); }
+    .kpi-info { display: flex; flex-direction: column; gap: 2px; }
+    .kpi-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .kpi-sub { font-size: 11px; color: var(--text-sec); }
+    .kpi-arrow { color: var(--text-dim); font-size: 16px; line-height: 1; transition: transform 0.1s; }
+    .kpi-card:hover .kpi-arrow { color: var(--text); transform: translateX(2px); }
 
     /* Row 2: Trend Charts Grid */
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .chart-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      padding: 20px; display: flex; flex-direction: column; gap: 14px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;
     }
     .chart-header { display: flex; align-items: center; justify-content: space-between; }
     .chart-title-left {
-      display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #ffffff;
+      display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text);
     }
-    .chart-title-left svg { width: 17px; height: 17px; color: var(--accent); }
-    .chart-total { font-size: 12px; color: var(--text-sec); font-family: 'JetBrains Mono', monospace; }
-    .chart-svg-container { width: 100%; height: 170px; position: relative; }
+    .chart-title-left svg { width: 16px; height: 16px; color: var(--text); }
+    .chart-total { font-size: 11px; color: var(--text-sec); font-family: 'JetBrains Mono', monospace; }
+    .chart-svg-container { width: 100%; height: 160px; position: relative; }
     .chart-svg { width: 100%; height: 100%; overflow: visible; }
-    .chart-axis-label { font-size: 10px; fill: #64748b; font-family: 'Inter', sans-serif; }
-    .chart-grid-line { stroke: #172134; stroke-dasharray: 3, 3; stroke-width: 1; }
+    .chart-axis-label { font-size: 10px; fill: var(--text-dim); font-family: 'Inter', sans-serif; }
+    .chart-grid-line { stroke: var(--chart-grid); stroke-dasharray: 3, 3; stroke-width: 1; }
 
     /* Row 3: Bottom Panels */
-    .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .panel-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      padding: 20px; display: flex; flex-direction: column; gap: 16px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
     }
     .panel-header { display: flex; align-items: center; justify-content: space-between; }
     .panel-title {
-      display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #ffffff;
+      display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text);
     }
-    .panel-title svg { width: 17px; height: 17px; color: var(--accent); }
+    .panel-title svg { width: 16px; height: 16px; color: var(--text); }
     .panel-link {
-      font-size: 12px; font-weight: 500; color: var(--accent); text-decoration: none;
-      display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: opacity 0.15s;
+      font-size: 11px; font-weight: 500; color: var(--text); text-decoration: none;
+      display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: opacity 0.12s;
     }
-    .panel-link:hover { opacity: 0.8; text-decoration: underline; }
+    .panel-link:hover { opacity: 0.7; }
 
     /* Recent Activity Items */
-    .activity-list { display: flex; flex-direction: column; gap: 12px; }
+    .activity-list { display: flex; flex-direction: column; gap: 8px; }
     .activity-item {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 12px; border-radius: 8px; background: rgba(18, 25, 38, 0.6);
-      border: 1px solid var(--border-subtle); transition: all 0.12s;
+      padding: 9px 12px; border-radius: 6px; background: var(--surface);
+      border: 1px solid var(--border-subtle); transition: all 0.1s;
     }
     .activity-item:hover { background: var(--hover); border-color: var(--border-hover); }
-    .activity-left { display: flex; align-items: center; gap: 12px; }
+    .activity-left { display: flex; align-items: center; gap: 10px; }
     .activity-icon-badge {
-      width: 36px; height: 36px; border-radius: 8px;
-      background: #172033; border: 1px solid #23314f;
+      width: 32px; height: 32px; border-radius: 6px;
+      background: var(--panel); border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
-      color: var(--text-sec); flex-shrink: 0;
+      color: var(--text); flex-shrink: 0;
     }
-    .activity-icon-badge svg { width: 18px; height: 18px; }
-    .activity-details { display: flex; flex-direction: column; gap: 2px; }
-    .activity-title { font-size: 13px; font-weight: 600; color: #ffffff; }
+    .activity-icon-badge svg { width: 15px; height: 15px; }
+    .activity-details { display: flex; flex-direction: column; gap: 1px; }
+    .activity-title { font-size: 12px; font-weight: 600; color: var(--text); }
     .activity-sub { font-size: 11px; color: var(--text-sec); }
-    .activity-time { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+    .activity-time { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
 
     /* Tables Card */
     .table-search-box {
       position: relative; display: flex; align-items: center;
     }
     .table-search-icon {
-      position: absolute; left: 10px; width: 14px; height: 14px; color: var(--text-dim); pointer-events: none;
+      position: absolute; left: 9px; width: 13px; height: 13px; color: var(--text-dim); pointer-events: none;
     }
     .table-search-input {
-      background: #090d16; border: 1px solid var(--border); border-radius: 8px;
-      padding: 6px 12px 6px 32px; font-size: 12px; color: var(--text);
-      font-family: inherit; outline: none; width: 180px; transition: all 0.15s;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px 5px 28px; font-size: 11px; color: var(--text);
+      font-family: inherit; outline: none; width: 160px; transition: all 0.12s;
     }
-    .table-search-input:focus { border-color: var(--accent); width: 220px; }
+    .table-search-input:focus { border-color: var(--text); width: 200px; }
 
-    .dash-table-list {
-      width: 100%; border-collapse: collapse; font-size: 12px;
-    }
+    .dash-table-list { width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-table-list th {
-      text-align: left; padding: 8px 12px; color: var(--text-dim); font-size: 10px;
+      text-align: left; padding: 7px 10px; color: var(--text-dim); font-size: 10px;
       font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
       border-bottom: 1px solid var(--border);
     }
     .dash-table-list td {
-      padding: 10px 12px; border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 10px; border-bottom: 1px solid var(--border-subtle);
       color: var(--text); vertical-align: middle;
     }
     .dash-table-list tr:hover td { background: var(--hover); cursor: pointer; }
-    .dash-table-name { font-weight: 600; color: #ffffff; font-family: 'JetBrains Mono', monospace; }
+    .dash-table-name { font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }
     .dash-table-count { font-family: 'JetBrains Mono', monospace; color: var(--text-sec); }
     .dash-dots-btn {
       background: transparent; border: none; color: var(--text-dim);
-      cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 14px;
-      letter-spacing: 1px; font-weight: bold;
+      cursor: pointer; padding: 3px 6px; border-radius: 4px; font-size: 13px; font-weight: bold;
     }
-    .dash-dots-btn:hover { background: var(--surface); color: var(--text); }
+    .dash-dots-btn:hover { background: var(--hover); color: var(--text); }
 
-    /* ===== Table View / Inspector ===== */
+    /* ===== Table Inspector View ===== */
     .table-inspector { display: none; flex-direction: column; flex: 1; overflow: hidden; }
     .inspector-toolbar {
-      padding: 10px 18px; border-bottom: 1px solid var(--border);
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
       background: var(--panel); flex-shrink: 0;
     }
-    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; }
+    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 7px; }
     .table-badge-active {
-      font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
-      color: #ffffff; padding: 3px 8px; background: #162035; border: 1px solid #233454;
-      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+      color: var(--text); padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 5px;
     }
     .btn {
-      padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
-      cursor: pointer; border: 1px solid var(--border); background: var(--surface);
-      color: var(--text-sec); font-family: inherit; display: inline-flex; align-items: center;
-      gap: 5px; transition: all 0.12s;
+      padding: 5px 10px; border-radius: 5px; font-size: 11px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--btn-text); font-family: inherit; display: inline-flex; align-items: center;
+      gap: 4px; transition: all 0.1s;
     }
-    .btn:hover { background: var(--hover); color: var(--text); }
-    .btn-primary { background: var(--primary); border-color: var(--primary); color: #ffffff; font-weight: 600; }
-    .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
-    .btn-danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.4); }
-    .btn-danger:hover { background: var(--danger-bg); }
+    .btn:hover { background: var(--btn-hover); color: var(--text); border-color: var(--border-hover); }
+    .btn-primary { background: var(--btn-pri-bg); border-color: var(--btn-pri-bg); color: var(--btn-pri-text); font-weight: 600; }
+    .btn-primary:hover { background: var(--btn-pri-hover); border-color: var(--btn-pri-hover); }
+    .btn-danger { color: #ef4444; border-color: #ef4444; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
 
     .data-table-wrapper { flex: 1; overflow: auto; background: var(--bg); }
     table.data-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; font-size: 12px; }
     table.data-table th {
-      position: sticky; top: 0; background: #0e1422;
-      padding: 8px 14px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--panel);
+      padding: 7px 12px; border-bottom: 1px solid var(--border);
       font-size: 11px; font-weight: 600; color: var(--text-sec);
       text-transform: uppercase; letter-spacing: 0.05em; z-index: 10;
     }
     table.data-table td {
-      padding: 7px 14px; border-bottom: 1px solid var(--border-subtle);
+      padding: 6px 12px; border-bottom: 1px solid var(--border-subtle);
       color: var(--text); max-width: 260px; overflow: hidden; text-overflow: ellipsis;
     }
     table.data-table tr:hover td { background: var(--hover); }
     .cell-mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 
     .table-footer {
-      height: 40px; padding: 0 16px;
+      height: 36px; padding: 0 16px;
       display: flex; align-items: center; justify-content: space-between;
       border-top: 1px solid var(--border); background: var(--panel);
-      font-size: 12px; color: var(--text-sec); flex-shrink: 0;
+      font-size: 11px; color: var(--text-sec); flex-shrink: 0;
     }
-    .pager { display: flex; align-items: center; gap: 6px; }
+    .pager { display: flex; align-items: center; gap: 5px; }
     .pager-btn {
-      padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
+      padding: 2px 7px; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); border-radius: 4px; cursor: pointer; font-size: 11px;
     }
     .pager-btn:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -355,66 +396,66 @@
     /* ===== SQL Console View ===== */
     .sql-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
     .sql-input-area {
-      padding: 16px; border-bottom: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 10px; background: var(--panel);
+      padding: 14px; border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px; background: var(--panel);
     }
     .sql-textarea {
-      width: 100%; min-height: 100px; max-height: 250px;
-      background: #090d16; border: 1px solid var(--border); border-radius: 8px;
-      color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px;
-      padding: 12px; outline: none; line-height: 1.6; resize: vertical;
+      width: 100%; min-height: 90px; max-height: 220px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      padding: 10px; outline: none; line-height: 1.6; resize: vertical;
     }
-    .sql-textarea:focus { border-color: var(--accent); }
+    .sql-textarea:focus { border-color: var(--text); }
     .sql-results { flex: 1; overflow: auto; padding: 0; }
 
     /* Schema View */
-    .schema-view { display: none; flex-direction: column; flex: 1; overflow: auto; padding: 24px; gap: 16px; }
+    .schema-view { display: none; flex-direction: column; flex: 1; overflow: auto; padding: 20px; gap: 14px; }
 
     /* Modals & Toasts */
     .modal-backdrop {
       position: fixed; inset: 0; background: var(--modal-backdrop);
-      display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+      display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
     }
     .modal-backdrop.open { display: flex; }
     .modal {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      width: 100%; max-width: 560px; max-height: 85vh; display: flex; flex-direction: column;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      width: 100%; max-width: 540px; max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
     }
-    .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-    .modal-title { font-size: 14px; font-weight: 700; color: #ffffff; }
-    .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 20px; line-height: 1; }
-    .modal-body { padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-    .modal-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; }
+    .modal-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .modal-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 7px; }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
     .form-label { font-size: 11px; font-weight: 600; color: var(--text-sec); }
     .form-input {
-      background: #090d16; border: 1px solid var(--border); border-radius: 6px;
-      padding: 7px 10px; color: var(--text); font-size: 12px; font-family: inherit; outline: none;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
+      padding: 6px 9px; color: var(--text); font-size: 12px; font-family: inherit; outline: none;
     }
-    .form-input:focus { border-color: var(--accent); }
+    .form-input:focus { border-color: var(--text); }
 
     .toast {
-      position: fixed; bottom: 20px; right: 20px;
-      background: #141c2c; border: 1px solid #23314f; color: #ffffff;
-      padding: 8px 18px; border-radius: 8px; font-size: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: none; z-index: 300;
+      position: fixed; bottom: 18px; right: 18px;
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 16px; border-radius: 6px; font-size: 11px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4); display: none; z-index: 300;
     }
-    .toast.show { display: block; animation: slideUp 0.2s ease; }
-    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast.show { display: block; animation: slideUp 0.15s ease; }
+    @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
     /* Quick Action Dropdown */
     .dropdown-menu {
-      position: absolute; background: #131b2c; border: 1px solid #243452;
-      border-radius: 8px; padding: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-      z-index: 50; display: none; min-width: 140px;
+      position: absolute; background: var(--card); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      z-index: 50; display: none; min-width: 130px;
     }
     .dropdown-menu.show { display: block; }
     .dropdown-item {
-      padding: 6px 12px; font-size: 11px; color: var(--text-sec); border-radius: 4px;
+      padding: 5px 10px; font-size: 11px; color: var(--text-sec); border-radius: 4px;
       cursor: pointer; display: flex; align-items: center; gap: 6px;
     }
-    .dropdown-item:hover { background: var(--hover); color: #ffffff; }
+    .dropdown-item:hover { background: var(--hover); color: var(--text); }
   </style>
 </head>
 <body>
@@ -425,7 +466,7 @@
       <div class="brand-logo" onclick="switchToTab('dashboard')">
         <svg class="wave-icon" viewBox="0 0 24 24" fill="currentColor">
           <path d="M2.5 13.5C4 11 7 11 8.5 13.5C10 16 13 16 14.5 13.5C16 11 19 11 20.5 13.5C21.5 15.1 23 15.1 23.5 14C23.2 17.5 19.5 20 15 20C10.5 20 7.5 17.5 4 17.5C3 17.5 2.2 17.8 1.5 18.5C1.8 16.5 2.1 15 2.5 13.5Z"/>
-          <path d="M2.5 8.5C4 6 7 6 8.5 8.5C10 11 13 11 14.5 8.5C16 6 19 6 20.5 8.5C21.8 10.6 23.5 10 23.5 10C22.8 7 19.5 4.5 15 4.5C10.5 4.5 7.5 7 4 7C3 7 2.2 6.7 1.5 6C1.8 7 2.1 7.8 2.5 8.5Z" opacity="0.65"/>
+          <path d="M2.5 8.5C4 6 7 6 8.5 8.5C10 11 13 11 14.5 8.5C16 6 19 6 20.5 8.5C21.8 10.6 23.5 10 23.5 10C22.8 7 19.5 4.5 15 4.5C10.5 4.5 7.5 7 4 7C3 7 2.2 6.7 1.5 6C1.8 7 2.1 7.8 2.5 8.5Z" opacity="0.5"/>
         </svg>
         <span>Royals Marine</span>
       </div>
@@ -438,6 +479,7 @@
         <span id="headerStatusText">Database Online</span>
       </div>
       <span class="engine-tag" id="headerEngineText">MySQL 8.4.8</span>
+      <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">☀ Light</button>
       <div class="admin-pill" onclick="showToast('Signed in as Database Administrator')">
         <div class="avatar-circle">A</div>
         <span class="admin-name">Admin</span>
@@ -560,7 +602,7 @@
             <div class="dash-db-category">Database</div>
             <div class="dash-db-title" id="dashDbTitle">defaultdb</div>
             <div class="dash-db-subtitle">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
               <span id="dashHostSubtitle">MySQL 8.4.8 • mysql-10f6d085-gowthamkrishna18v-9b4c.f.aivencloud.com:17923</span>
             </div>
           </div>
@@ -570,15 +612,15 @@
           </button>
         </div>
 
-        <!-- Row 1: 4 KPI Cards -->
+        <!-- Row 1: 4 Minimalist KPI Cards -->
         <div class="kpi-grid">
           <!-- Card 1: Tables -->
           <div class="kpi-card" onclick="scrollToTablesCard()">
             <div class="kpi-left">
               <div class="ring-container">
                 <svg>
-                  <circle class="ring-bg" cx="31" cy="31" r="25"/>
-                  <circle class="ring-val" id="ring_tables" cx="31" cy="31" r="25" stroke-dasharray="157" stroke-dashoffset="0"/>
+                  <circle class="ring-bg" cx="28" cy="28" r="23"/>
+                  <circle class="ring-val" id="ring_tables" cx="28" cy="28" r="23" stroke-dasharray="144" stroke-dashoffset="0"/>
                 </svg>
                 <div class="ring-number" id="card_tables_count">19</div>
               </div>
@@ -595,8 +637,8 @@
             <div class="kpi-left">
               <div class="ring-container">
                 <svg>
-                  <circle class="ring-bg" cx="31" cy="31" r="25"/>
-                  <circle class="ring-val" id="ring_farmers" cx="31" cy="31" r="25" stroke-dasharray="157" stroke-dashoffset="40"/>
+                  <circle class="ring-bg" cx="28" cy="28" r="23"/>
+                  <circle class="ring-val" id="ring_farmers" cx="28" cy="28" r="23" stroke-dasharray="144" stroke-dashoffset="36"/>
                 </svg>
                 <div class="ring-number" id="card_farmers_count">10</div>
               </div>
@@ -613,8 +655,8 @@
             <div class="kpi-left">
               <div class="ring-container">
                 <svg>
-                  <circle class="ring-bg" cx="31" cy="31" r="25"/>
-                  <circle class="ring-val" id="ring_cultures" cx="31" cy="31" r="25" stroke-dasharray="157" stroke-dashoffset="157"/>
+                  <circle class="ring-bg" cx="28" cy="28" r="23"/>
+                  <circle class="ring-val" id="ring_cultures" cx="28" cy="28" r="23" stroke-dasharray="144" stroke-dashoffset="144"/>
                 </svg>
                 <div class="ring-number" id="card_cultures_count">0</div>
               </div>
@@ -631,8 +673,8 @@
             <div class="kpi-left">
               <div class="ring-container">
                 <svg>
-                  <circle class="ring-bg" cx="31" cy="31" r="25"/>
-                  <circle class="ring-val" id="ring_pending" cx="31" cy="31" r="25" stroke-dasharray="157" stroke-dashoffset="157"/>
+                  <circle class="ring-bg" cx="28" cy="28" r="23"/>
+                  <circle class="ring-val" id="ring_pending" cx="28" cy="28" r="23" stroke-dasharray="144" stroke-dashoffset="144"/>
                 </svg>
                 <div class="ring-number" id="card_pending_count">0</div>
               </div>
@@ -657,46 +699,45 @@
               <span class="chart-total" id="farmersChartTotal">Total 10</span>
             </div>
             <div class="chart-svg-container">
-              <svg class="chart-svg" viewBox="0 0 500 160" preserveAspectRatio="none">
+              <svg class="chart-svg" viewBox="0 0 500 150" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="farmersGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.32"/>
-                    <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.0"/>
+                    <stop offset="0%" stop-color="var(--chart-line)" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="var(--chart-line)" stop-opacity="0.0"/>
                   </linearGradient>
                 </defs>
                 <!-- Horizontal Grid Lines -->
-                <line x1="35" y1="20" x2="480" y2="20" class="chart-grid-line"/>
-                <line x1="35" y1="60" x2="480" y2="60" class="chart-grid-line"/>
-                <line x1="35" y1="100" x2="480" y2="100" class="chart-grid-line"/>
-                <line x1="35" y1="135" x2="480" y2="135" class="chart-grid-line"/>
+                <line x1="30" y1="20" x2="480" y2="20" class="chart-grid-line"/>
+                <line x1="30" y1="56" x2="480" y2="56" class="chart-grid-line"/>
+                <line x1="30" y1="92" x2="480" y2="92" class="chart-grid-line"/>
+                <line x1="30" y1="125" x2="480" y2="125" class="chart-grid-line"/>
 
                 <!-- Y Axis Labels -->
-                <text x="12" y="24" class="chart-axis-label">15</text>
-                <text x="12" y="64" class="chart-axis-label">10</text>
-                <text x="12" y="104" class="chart-axis-label">5</text>
-                <text x="16" y="139" class="chart-axis-label">0</text>
+                <text x="10" y="24" class="chart-axis-label">15</text>
+                <text x="10" y="60" class="chart-axis-label">10</text>
+                <text x="10" y="96" class="chart-axis-label">5</text>
+                <text x="14" y="129" class="chart-axis-label">0</text>
 
                 <!-- Gradient Fill Under Spline -->
-                <path d="M 45 125 Q 90 120, 130 110 T 225 100 T 320 85 T 410 65 T 470 55 L 470 135 L 45 135 Z" fill="url(#farmersGrad)"/>
+                <path d="M 45 115 Q 90 110, 130 100 T 225 90 T 320 78 T 410 60 T 470 50 L 470 125 L 45 125 Z" fill="url(#farmersGrad)"/>
 
                 <!-- Spline Line -->
-                <path d="M 45 125 Q 90 120, 130 110 T 225 100 T 320 85 T 410 65 T 470 55" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M 45 115 Q 90 110, 130 100 T 225 90 T 320 78 T 410 60 T 470 50" fill="none" stroke="var(--chart-line)" stroke-width="2" stroke-linecap="round"/>
 
                 <!-- Glowing Dot on Active End -->
-                <circle cx="470" cy="55" r="7" fill="rgba(56, 189, 248, 0.25)"/>
-                <circle cx="470" cy="55" r="3.5" fill="#ffffff" stroke="#38bdf8" stroke-width="2"/>
+                <circle cx="470" cy="50" r="5" fill="var(--chart-line)"/>
 
                 <!-- X Axis Labels -->
-                <text x="40" y="155" class="chart-axis-label">Jan</text>
-                <text x="85" y="155" class="chart-axis-label">Feb</text>
-                <text x="130" y="155" class="chart-axis-label">Mar</text>
-                <text x="175" y="155" class="chart-axis-label">Apr</text>
-                <text x="220" y="155" class="chart-axis-label">May</text>
-                <text x="268" y="155" class="chart-axis-label">Jun</text>
-                <text x="315" y="155" class="chart-axis-label">Jul</text>
-                <text x="360" y="155" class="chart-axis-label">Aug</text>
-                <text x="408" y="155" class="chart-axis-label">Sep</text>
-                <text x="455" y="155" class="chart-axis-label">Oct</text>
+                <text x="40" y="145" class="chart-axis-label">Jan</text>
+                <text x="85" y="145" class="chart-axis-label">Feb</text>
+                <text x="130" y="145" class="chart-axis-label">Mar</text>
+                <text x="175" y="145" class="chart-axis-label">Apr</text>
+                <text x="220" y="145" class="chart-axis-label">May</text>
+                <text x="268" y="145" class="chart-axis-label">Jun</text>
+                <text x="315" y="145" class="chart-axis-label">Jul</text>
+                <text x="360" y="145" class="chart-axis-label">Aug</text>
+                <text x="408" y="145" class="chart-axis-label">Sep</text>
+                <text x="455" y="145" class="chart-axis-label">Oct</text>
               </svg>
             </div>
           </div>
@@ -711,43 +752,43 @@
               <span class="chart-total" id="pondsChartTotal">Total 0</span>
             </div>
             <div class="chart-svg-container">
-              <svg class="chart-svg" viewBox="0 0 500 160" preserveAspectRatio="none">
+              <svg class="chart-svg" viewBox="0 0 500 150" preserveAspectRatio="none">
                 <!-- Horizontal Grid Lines -->
-                <line x1="35" y1="30" x2="480" y2="30" class="chart-grid-line"/>
-                <line x1="35" y1="80" x2="480" y2="80" class="chart-grid-line"/>
-                <line x1="35" y1="135" x2="480" y2="135" class="chart-grid-line"/>
+                <line x1="30" y1="25" x2="480" y2="25" class="chart-grid-line"/>
+                <line x1="30" y1="75" x2="480" y2="75" class="chart-grid-line"/>
+                <line x1="30" y1="125" x2="480" y2="125" class="chart-grid-line"/>
 
                 <!-- Y Axis Labels -->
-                <text x="16" y="34" class="chart-axis-label">5</text>
-                <text x="16" y="84" class="chart-axis-label">2</text>
-                <text x="16" y="139" class="chart-axis-label">0</text>
+                <text x="14" y="29" class="chart-axis-label">5</text>
+                <text x="14" y="79" class="chart-axis-label">2</text>
+                <text x="14" y="129" class="chart-axis-label">0</text>
 
                 <!-- Baseline Line -->
-                <line x1="45" y1="135" x2="475" y2="135" stroke="#38bdf8" stroke-width="2"/>
+                <line x1="45" y1="125" x2="475" y2="125" stroke="var(--text-dim)" stroke-width="1.5"/>
 
                 <!-- Point Dots on Baseline -->
-                <circle cx="48" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="95" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="142" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="188" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="235" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="282" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="328" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="375" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="422" cy="135" r="2.5" fill="#38bdf8"/>
-                <circle cx="470" cy="135" r="2.5" fill="#38bdf8"/>
+                <circle cx="48" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="95" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="142" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="188" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="235" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="282" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="328" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="375" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="422" cy="125" r="2" fill="var(--text-dim)"/>
+                <circle cx="470" cy="125" r="2" fill="var(--text-dim)"/>
 
                 <!-- X Axis Labels -->
-                <text x="40" y="155" class="chart-axis-label">Jan</text>
-                <text x="85" y="155" class="chart-axis-label">Feb</text>
-                <text x="130" y="155" class="chart-axis-label">Mar</text>
-                <text x="175" y="155" class="chart-axis-label">Apr</text>
-                <text x="220" y="155" class="chart-axis-label">May</text>
-                <text x="268" y="155" class="chart-axis-label">Jun</text>
-                <text x="315" y="155" class="chart-axis-label">Jul</text>
-                <text x="360" y="155" class="chart-axis-label">Aug</text>
-                <text x="408" y="155" class="chart-axis-label">Sep</text>
-                <text x="455" y="155" class="chart-axis-label">Oct</text>
+                <text x="40" y="145" class="chart-axis-label">Jan</text>
+                <text x="85" y="145" class="chart-axis-label">Feb</text>
+                <text x="130" y="145" class="chart-axis-label">Mar</text>
+                <text x="175" y="145" class="chart-axis-label">Apr</text>
+                <text x="220" y="145" class="chart-axis-label">May</text>
+                <text x="268" y="145" class="chart-axis-label">Jun</text>
+                <text x="315" y="145" class="chart-axis-label">Jul</text>
+                <text x="360" y="145" class="chart-axis-label">Aug</text>
+                <text x="408" y="145" class="chart-axis-label">Sep</text>
+                <text x="455" y="145" class="chart-axis-label">Oct</text>
               </svg>
             </div>
           </div>
@@ -861,7 +902,7 @@
           <div class="toolbar-left">
             <button class="btn" onclick="switchToTab('dashboard')">← Dashboard</button>
             <span class="table-badge-active" id="activeTableName">users</span>
-            <input type="text" id="tableFilterInput" class="form-input" style="width:200px;" placeholder="Filter rows…" oninput="filterTableRows(this.value)" />
+            <input type="text" id="tableFilterInput" class="form-input" style="width:180px;" placeholder="Filter rows…" oninput="filterTableRows(this.value)" />
           </div>
           <div class="toolbar-right">
             <button class="btn" onclick="openSchema(S.currentTable)">⎔ Schema</button>
@@ -891,7 +932,7 @@
         <div class="inspector-toolbar">
           <div class="toolbar-left">
             <button class="btn" onclick="switchToTab('dashboard')">← Dashboard</button>
-            <span style="font-weight:700;color:#ffffff;font-size:13px;">SQL Console</span>
+            <span style="font-weight:700;color:var(--text);font-size:12px;">SQL Console</span>
           </div>
           <div class="toolbar-right">
             <button class="btn btn-primary" onclick="runQuery()">▶ Execute Query</button>
@@ -908,9 +949,9 @@
 
       <!-- ===== 4. SCHEMA VIEW ===== -->
       <div class="schema-view" id="viewSchema">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <button class="btn" onclick="switchToTab('table')">← Back to Table</button>
-          <span style="font-weight:700;font-size:15px;color:#ffffff;" id="schemaTitle">Schema</span>
+          <span style="font-weight:700;font-size:14px;color:var(--text);" id="schemaTitle">Schema</span>
         </div>
         <div id="schemaContentArea"></div>
       </div>
@@ -963,6 +1004,22 @@
     };
 
     const $ = id => document.getElementById(id);
+
+    // Theme Toggle
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('rm_console_theme', next);
+      $('themeToggleBtn').textContent = next === 'dark' ? '☀ Light' : '☾ Dark';
+    }
+
+    const savedTheme = localStorage.getItem('rm_console_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    if ($('themeToggleBtn')) {
+      $('themeToggleBtn').textContent = savedTheme === 'dark' ? '☀ Light' : '☾ Dark';
+    }
+
     let toastTimeout;
     function showToast(msg) {
       const t = $('toast');
@@ -1099,9 +1156,7 @@
           renderActivityList(d.recentActivity);
         }
 
-      } catch (err) {
-        console.error('Error fetching dashboard:', err);
-      }
+      } catch (_) {}
     }
 
     function renderActivityList(items) {
@@ -1165,7 +1220,7 @@
     // Quick Action Dropdown
     function showQuickMenu(e, tableName) {
       const menu = $('quickDropdown');
-      menu.style.left = `${e.pageX - 120}px`;
+      menu.style.left = `${e.pageX - 110}px`;
       menu.style.top = `${e.pageY + 10}px`;
       menu.classList.add('show');
 
@@ -1190,7 +1245,7 @@
         const res = await (await fetch(url)).json();
 
         if (!res.success || !res.data) {
-          wrapper.innerHTML = `<div style="padding:40px;text-align:center;color:var(--danger);">${esc(res.message || 'Error loading table')}</div>`;
+          wrapper.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444;">${esc(res.message || 'Error loading table')}</div>`;
           return;
         }
 
@@ -1213,7 +1268,7 @@
 
         // Render Table
         let html = '<table class="data-table"><thead><tr>';
-        html += '<th style="width:40px;">#</th>';
+        html += '<th style="width:36px;">#</th>';
         S.tableCols.forEach(col => {
           const isPk = col === S.primaryKey;
           html += `<th>${esc(col)}${isPk ? ' 🔑' : ''}</th>`;
@@ -1236,8 +1291,8 @@
           });
           html += `
             <td style="text-align:right;">
-              <button class="btn" style="padding:2px 7px;font-size:11px;" onclick="openEditRowModal(${i})">Edit</button>
-              <button class="btn btn-danger" style="padding:2px 7px;font-size:11px;" onclick="deleteRowRecord('${esc(pkVal)}')">Del</button>
+              <button class="btn" style="padding:2px 6px;font-size:10px;" onclick="openEditRowModal(${i})">Edit</button>
+              <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" onclick="deleteRowRecord('${esc(pkVal)}')">Del</button>
             </td>
           `;
           html += '</tr>';
@@ -1247,7 +1302,7 @@
         wrapper.innerHTML = html;
 
       } catch (err) {
-        wrapper.innerHTML = `<div style="padding:40px;text-align:center;color:var(--danger);">${esc(err.message)}</div>`;
+        wrapper.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444;">${esc(err.message)}</div>`;
       }
     }
 
@@ -1339,6 +1394,7 @@
             showToast('Row updated successfully');
             closeModal();
             loadTableData();
+            loadDashboard();
           } else {
             alert(res.message || 'Error updating row');
           }
@@ -1402,7 +1458,7 @@
         })).json();
 
         if (!res.success) {
-          resArea.innerHTML = `<div style="padding:20px;color:var(--danger);font-family:'JetBrains Mono',monospace;">Error: ${esc(res.message)}</div>`;
+          resArea.innerHTML = `<div style="padding:20px;color:#ef4444;font-family:'JetBrains Mono',monospace;">Error: ${esc(res.message)}</div>`;
           return;
         }
 
@@ -1420,10 +1476,10 @@
           h += '</tbody></table>';
           resArea.innerHTML = h;
         } else {
-          resArea.innerHTML = `<div style="padding:20px;color:var(--success);font-family:'JetBrains Mono',monospace;">Query executed successfully. Result: ${esc(JSON.stringify(data))}</div>`;
+          resArea.innerHTML = `<div style="padding:20px;color:var(--text);font-family:'JetBrains Mono',monospace;">Query executed successfully. Result: ${esc(JSON.stringify(data))}</div>`;
         }
       } catch (err) {
-        resArea.innerHTML = `<div style="padding:20px;color:var(--danger);">Error: ${esc(err.message)}</div>`;
+        resArea.innerHTML = `<div style="padding:20px;color:#ef4444;">Error: ${esc(err.message)}</div>`;
       }
     }
 
@@ -1444,7 +1500,7 @@
           const d = res.data;
           area.innerHTML = `
             <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;">
-              <h3 style="margin-bottom:12px;color:#ffffff;font-size:14px;">Columns</h3>
+              <h3 style="margin-bottom:12px;color:var(--text);font-size:13px;">Columns</h3>
               <table class="dash-table-list">
                 <thead>
                   <tr><th>FIELD</th><th>TYPE</th><th>NULLABLE</th><th>KEY</th><th>DEFAULT</th></tr>
@@ -1462,14 +1518,14 @@
                 </tbody>
               </table>
               ${d.createTableSql ? `
-                <h3 style="margin:20px 0 8px;color:#ffffff;font-size:14px;">CREATE TABLE DDL</h3>
-                <pre style="background:#090d16;padding:12px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-sec);overflow:auto;">${esc(d.createTableSql)}</pre>
+                <h3 style="margin:18px 0 8px;color:var(--text);font-size:13px;">CREATE TABLE DDL</h3>
+                <pre style="background:var(--surface);padding:10px;border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-sec);overflow:auto;">${esc(d.createTableSql)}</pre>
               ` : ''}
             </div>
           `;
         }
       } catch (err) {
-        area.innerHTML = `<div style="color:var(--danger);">${esc(err.message)}</div>`;
+        area.innerHTML = `<div style="color:#ef4444;">${esc(err.message)}</div>`;
       }
     }
 

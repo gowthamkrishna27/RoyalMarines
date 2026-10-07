@@ -3,7 +3,6 @@ import { getPool, query } from './database.js';
 
 export const initializeDatabaseSchema = async () => {
   try {
-    console.log('\x1b[36m[Database Init]\x1b[0m Checking tables schema and verifying database compatibility...');
 
     // 1. Roles Table
     await query(`
