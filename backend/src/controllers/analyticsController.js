@@ -88,3 +88,30 @@ export const getIncharges = async (req, res) => {
   }
   return sendSuccess(res, store.incharges, 'Incharges list retrieved');
 };
+
+export const getAuditLogs = async (req, res) => {
+  if (isDbConnected()) {
+    try {
+      const rows = await query(`
+        SELECT 
+          a.id, 
+          DATE_FORMAT(a.created_at, '%d %b %Y, %I:%M %p') as time, 
+          COALESCE(u.full_name, u.name, 'System') as user, 
+          COALESCE(u.role, 'Admin') as role, 
+          a.action, 
+          a.table_name as module, 
+          COALESCE(r.name, 'System Admin') as region, 
+          CONCAT('Record ID: ', a.record_id) as detail
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        LEFT JOIN regions r ON (u.region_id = r.id OR u.region_id = r.code)
+        ORDER BY a.created_at DESC
+        LIMIT 100
+      `);
+      return sendSuccess(res, rows, 'Audit logs retrieved from database');
+    } catch (err) {
+      console.error('[DB Error in getAuditLogs]', err.message);
+    }
+  }
+  return sendSuccess(res, [], 'Audit logs retrieved');
+};
