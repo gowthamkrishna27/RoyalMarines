@@ -31,7 +31,7 @@ const FarmersList = () => {
             phone: f.phone || '',
             village: f.village || f.locality || '',
             locality: f.locality || '',
-            region: f.region_name || 'Unknown',
+            region: f.region || f.region_name || 'Unknown',
             agent: f.agent_name || 'Unassigned',
             tanks: f.tanks_count || f.tanks || 0,
             activePonds: f.active_ponds || 0,

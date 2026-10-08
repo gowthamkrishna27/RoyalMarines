@@ -88,23 +88,23 @@ class DataStore {
   async getFarmers(filter = {}) {
     if (isDbConnected()) {
       try {
-        let sql = 'SELECT * FROM farmers WHERE 1=1';
+        let sql = 'SELECT f.*, a.name as agent_name FROM farmers f LEFT JOIN agents a ON f.agent_id = a.id WHERE 1=1';
         const params = [];
 
         if (filter.agentId) {
-          sql += ' AND (agent_id = ? OR agent_id IS NULL)';
+          sql += ' AND (f.agent_id = ? OR f.agent_id IS NULL)';
           params.push(filter.agentId);
         }
         if (filter.inchargeId) {
-          sql += ' AND (incharge_id = ? OR incharge_id IS NULL)';
+          sql += ' AND (f.incharge_id = ? OR f.incharge_id IS NULL)';
           params.push(filter.inchargeId);
         }
         if (filter.search) {
-          sql += ' AND (LOWER(name) LIKE ? OR LOWER(location) LIKE ? OR LOWER(village) LIKE ? OR phone LIKE ?)';
+          sql += ' AND (LOWER(f.name) LIKE ? OR LOWER(f.location) LIKE ? OR LOWER(f.village) LIKE ? OR f.phone LIKE ?)';
           const term = `%${filter.search.toLowerCase()}%`;
           params.push(term, term, term, term);
         }
-        sql += ' ORDER BY created_at DESC';
+        sql += ' ORDER BY f.created_at DESC';
 
         const rows = await query(sql, params);
         return rows.map((r) => ({
@@ -118,6 +118,7 @@ class DataStore {
           acres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
           totalAcres: r.total_acres != null ? Number(r.total_acres) : (r.acres != null ? Number(r.acres) : 0),
           agentId: r.agent_id,
+          agent_name: r.agent_name,
           inchargeId: r.incharge_id,
           assignedTo: r.assigned_to,
           assignedBy: r.assigned_by,
