@@ -66,15 +66,16 @@ export const getIncharges = async (req, res) => {
       const rows = await query(`
         SELECT 
           i.id,
-          COALESCE(i.name, u.name, u.full_name, 'Incharge') as name,
-          COALESCE(i.email, u.email, '') as email,
-          COALESCE(i.phone, u.phone, '') as phone,
-          COALESCE(i.region_id, r.code, r.id, 'REG001') as region_id,
-          COALESCE(r.name, 'Bhimavaram') as region,
-          COALESCE(u.locality, 'Bhimavaram') as locality
+          MAX(COALESCE(i.name, u.name, u.full_name, 'Incharge')) as name,
+          MAX(COALESCE(i.email, u.email, '')) as email,
+          MAX(COALESCE(i.phone, u.phone, '')) as phone,
+          MAX(COALESCE(i.region_id, r.code, r.id, 'REG001')) as region_id,
+          MAX(COALESCE(r.name, 'Bhimavaram')) as region,
+          MAX(COALESCE(u.locality, 'Bhimavaram')) as locality
         FROM incharges i 
         LEFT JOIN users u ON i.user_id = u.id 
         LEFT JOIN regions r ON (i.region_id = r.id OR i.region_id = r.code)
+        GROUP BY i.id
       `);
       const enriched = rows.map((r) => ({
         ...r,
