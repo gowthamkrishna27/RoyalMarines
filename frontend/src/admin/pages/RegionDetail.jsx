@@ -1,18 +1,43 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRegionById, getInchargesByRegion } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import PageHeader from '../components/PageHeader';
 import { Users, HardHat, Sprout, Database, Eye } from 'lucide-react';
 
 const RegionDetail = () => {
   const { regionId } = useParams();
   const navigate = useNavigate();
+  const { db } = useMockData();
 
-  const region = getRegionById(regionId);
-  const incharges = getInchargesByRegion(regionId);
+  const region = getRegionById(regionId, db);
+  const incharges = getInchargesByRegion(regionId, db);
 
   if (!region) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Region not found</div>;
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+          Loading Region Details...
+        </h3>
+        <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
+          Retrieving real-time records from the aquaculture database.
+        </p>
+        <button
+          onClick={() => navigate('/admin/regions')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#1A2FB8',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Back to Regions List
+        </button>
+      </div>
+    );
   }
 
   const kpis = [

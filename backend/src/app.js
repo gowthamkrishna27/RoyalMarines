@@ -55,12 +55,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'offline.html'));
 });
 
-// Database Console Web GUI routes
-app.get('/db-admin', (req, res) => {
-  res.redirect('/console');
-});
+// Database Console Web GUI: Exclusively available at big unguessable URL
+const bigConsolePath = config.consolePath || '/rm-pma-console-8f92b74c10a3e9d82f5b6c01e7d4a39f/mysqleditor';
+const bigConsoleBase = '/rm-pma-console-8f92b74c10a3e9d82f5b6c01e7d4a39f';
 
-app.get(['/console', '/database', '/admin/db'], (req, res) => {
+app.get([bigConsolePath, bigConsoleBase, `${bigConsoleBase}/mysqleditor`], (req, res) => {
   res.sendFile(path.join(publicDir, 'console.html'));
 });
 

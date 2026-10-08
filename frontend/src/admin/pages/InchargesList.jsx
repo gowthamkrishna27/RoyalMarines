@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIncharges, getRegions, getAgents, getFarmers } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import {
   Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Edit,
@@ -10,7 +11,8 @@ import {
 
 const InchargesList = () => {
   const navigate = useNavigate();
-  const regions = getRegions();
+  const { db } = useMockData();
+  const regions = useMemo(() => getRegions(db), [db]);
 
   // 1. Load Incharges from API
   const [incharges, setIncharges] = useState([]);
@@ -47,41 +49,17 @@ const InchargesList = () => {
     fetchIncharges();
   }, []);
 
-  // 2. Load Agents from localStorage or fallback mock data
-  const [agents, setAgents] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_agents_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getAgents();
-      }
-    }
-    return getAgents();
-  });
+  // 2. Load Agents from live context
+  const [agents, setAgents] = useState(() => getAgents(db));
 
-  useEffect(() => {
-    localStorage.setItem('royal_admin_agents_data', JSON.stringify(agents));
-  }, [agents]);
+  // 3. Load Farmers from live context
+  const [farmers, setFarmers] = useState(() => getFarmers(db));
 
   // Filter and search state
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState('');
-
-  // 3. Load Farmers from localStorage or fallback mock data
-  const [farmers, setFarmers] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_farmers_data');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getFarmers();
-      }
-    }
-    return getFarmers();
-  });
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -136,26 +114,28 @@ const InchargesList = () => {
 
   // Helper: Get initials for avatar
   const getInitials = (name) => {
-    if (!name) return 'AS';
+    if (!name || typeof name !== 'string') return 'AS';
     const cleanName = name.split('(')[0].trim();
+    if (!cleanName) return 'AS';
     const parts = cleanName.split(' ');
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0][0] + (parts[parts.length - 1][0] || '')).toUpperCase();
   };
 
   // Filter incharges based on search term, region, and status
   const filteredIncharges = useMemo(() => {
-    return incharges.map(inc => {
+    return (incharges || []).filter(Boolean).map(inc => {
+      const incFirstName = inc.shortName || (inc.name ? inc.name.split(' ')[0] : '') || '';
       // Dynamic recalculation of agents assigned to this incharge
-      const assignedAgentsList = agents.filter(a => a.inchargeId === inc.id || a.incharge?.includes(inc.shortName || inc.name.split(' ')[0]));
+      const assignedAgentsList = (agents || []).filter(a => a && (a.inchargeId === inc.id || (incFirstName && a.incharge?.includes(incFirstName))));
       const totalFarmersUnderIncharge = assignedAgentsList.reduce((acc, a) => acc + (a.farmers || 0), 0);
       return {
         ...inc,
         agents: assignedAgentsList.length,
-        farmers: totalFarmersUnderIncharge > 0 ? totalFarmersUnderIncharge : inc.farmers
+        farmers: totalFarmersUnderIncharge > 0 ? totalFarmersUnderIncharge : (inc.farmers || 0)
       };
     }).filter(inc => {
-      const term = searchTerm.toLowerCase();
+      const term = (searchTerm || '').toLowerCase();
       const matchesSearch =
         !term ||
         inc.name?.toLowerCase().includes(term) ||
@@ -175,13 +155,15 @@ const InchargesList = () => {
   // Helper: Get active agents reporting to an incharge
   const getAssignedAgents = (incharge) => {
     if (!incharge) return [];
-    return agents.filter(a => a.inchargeId === incharge.id || a.incharge?.includes(incharge.shortName || incharge.name.split(' ')[0]));
+    const incFirstName = incharge.shortName || (incharge.name ? incharge.name.split(' ')[0] : '') || '';
+    return (agents || []).filter(a => a && (a.inchargeId === incharge.id || (incFirstName && a.incharge?.includes(incFirstName))));
   };
 
   // Helper: Get agents available to assign (not already under this incharge)
   const getAvailableAgentsForAssignment = (incharge) => {
     if (!incharge) return [];
-    return agents.filter(a => a.inchargeId !== incharge.id && !a.incharge?.includes(incharge.shortName || incharge.name.split(' ')[0]));
+    const incFirstName = incharge.shortName || (incharge.name ? incharge.name.split(' ')[0] : '') || '';
+    return (agents || []).filter(a => a && (a.inchargeId !== incharge.id && (!incFirstName || !a.incharge?.includes(incFirstName))));
   };
 
   // Get all detailed farmers reporting under the clicked incharge
@@ -193,27 +175,30 @@ const InchargesList = () => {
     const incReg = (inc.region || '').toLowerCase();
 
     // Assigned agent IDs
-    const assignedAgentIds = agents
-      .filter(a => a.inchargeId === inc.id || a.incharge?.toLowerCase().includes(incName))
+    const assignedAgentIds = (agents || [])
+      .filter(a => a && (a.inchargeId === inc.id || (incName && a.incharge?.toLowerCase().includes(incName))))
       .map(a => a.id);
 
-    const directFarmers = farmers.filter(f => {
+    const directFarmers = (farmers || []).filter(f => {
+      if (!f) return false;
       const fInc = (f.incharge || '').toLowerCase();
-      if (fInc && (fInc.includes(incName) || (inc.shortName && fInc.includes(inc.shortName.toLowerCase())))) return true;
+      if (fInc && ((incName && fInc.includes(incName)) || (inc.shortName && fInc.includes(inc.shortName.toLowerCase())))) return true;
       if (f.agentId && assignedAgentIds.includes(f.agentId)) return true;
-      if (f.locality && f.locality.toLowerCase() === incLoc) return true;
+      if (f.locality && incLoc && f.locality.toLowerCase() === incLoc) return true;
       return false;
     });
 
     if (directFarmers.length > 0) return directFarmers;
 
     // Fallback: match by locality or region
-    const regionalFarmers = farmers.filter(f => 
-      (f.locality && f.locality.toLowerCase().includes(incLoc)) ||
-      (f.region && f.region.toLowerCase().includes(incReg))
+    const regionalFarmers = (farmers || []).filter(f => 
+      f && (
+        (f.locality && incLoc && f.locality.toLowerCase().includes(incLoc)) ||
+        (f.region && incReg && f.region.toLowerCase().includes(incReg))
+      )
     );
 
-    return regionalFarmers.length > 0 ? regionalFarmers : farmers.slice(0, 6);
+    return regionalFarmers.length > 0 ? regionalFarmers : (farmers || []).slice(0, 6);
   }, [selectedInchargeForFarmers, farmers, agents]);
 
   const filteredInchargeFarmers = useMemo(() => {
@@ -290,13 +275,13 @@ const InchargesList = () => {
     setSelectedIncharge(inc);
     setEditForm({
       id: inc.id,
-      name: inc.name,
-      shortName: inc.shortName || inc.name.split('(')[0].trim(),
+      name: inc.name || '',
+      shortName: inc.shortName || (inc.name ? inc.name.split('(')[0].trim() : '') || '',
       role: inc.role || 'Incharge',
-      phone: inc.phone,
-      email: inc.email,
+      phone: inc.phone || '',
+      email: inc.email || '',
       regionId: inc.regionId || 'REG-SOUTH',
-      locality: inc.locality,
+      locality: inc.locality || '',
       status: inc.status || 'ACTIVE'
     });
     setShowEditModal(true);
@@ -930,7 +915,7 @@ const InchargesList = () => {
               <div style={styles.assignAgentCard}>
                 <div style={styles.assignAgentTitle}>
                   <UserPlus size={15} color="#2563EB" />
-                  <span>Assign Field Agent to {selectedIncharge.shortName || selectedIncharge.name.split(' ')[0]}</span>
+                  <span>Assign Field Agent to {selectedIncharge?.shortName || (selectedIncharge?.name ? selectedIncharge.name.split(' ')[0] : '') || 'Incharge'}</span>
                 </div>
 
                 {getAvailableAgentsForAssignment(selectedIncharge).length > 0 ? (

@@ -20,7 +20,14 @@ async function main() {
     console.log('   npm run db:view regions\n');
   } else {
     // Sanitize table name against injection
-    const allowed = ['users', 'regions', 'incharges', 'agents', 'farmers', 'tanks', 'submissions', 'harvests'];
+    const allowed = [
+      'roles', 'users', 'regions', 'incharges',
+      'farmers', 'farmer_assignments', 'ponds', 'culture_cycles',
+      'field_visits', 'water_quality_records', 'biomass_records',
+      'health_records', 'feed_products', 'feed_records',
+      'harvests', 'recommendations', 'notifications', 'audit_logs',
+      'agents', 'tanks', 'submissions', 'pond_crops'
+    ];
     if (!allowed.includes(tableName.toLowerCase())) {
       console.error(`Invalid table name: "${tableName}". Allowed tables: ${allowed.join(', ')}`);
       process.exit(1);

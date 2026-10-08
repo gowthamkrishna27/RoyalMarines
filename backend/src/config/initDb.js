@@ -3,49 +3,68 @@ import { getPool, query } from './database.js';
 
 export const initializeDatabaseSchema = async () => {
   try {
-    console.log('\x1b[36m[Database Init]\x1b[0m Checking tables schema in MySQL...');
 
-    // 1. Users Table
+    // 1. Roles Table
     await query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id VARCHAR(50) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL,
-        username VARCHAR(100) UNIQUE,
-        phone VARCHAR(50),
-        email VARCHAR(255),
-        password VARCHAR(255) NOT NULL,
-        locality VARCHAR(100),
-        region VARCHAR(100),
+      CREATE TABLE IF NOT EXISTS roles (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(30) NOT NULL UNIQUE,
+        description VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 2. Regions Table
+    // 2. Users Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        username VARCHAR(100) UNIQUE,
+        password VARCHAR(255),
+        password_hash VARCHAR(255),
+        name VARCHAR(255),
+        full_name VARCHAR(255),
+        role VARCHAR(50),
+        role_id INT UNSIGNED,
+        phone VARCHAR(50),
+        email VARCHAR(255),
+        locality VARCHAR(150),
+        region VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        last_login_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 3. Regions Table
     await query(`
       CREATE TABLE IF NOT EXISTS regions (
         id VARCHAR(50) PRIMARY KEY,
+        code VARCHAR(50),
         name VARCHAR(100) NOT NULL,
         active_ponds INT DEFAULT 0,
         total_yield VARCHAR(50),
         avg_fcr DECIMAL(4, 2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 3. Incharges Table
+    // 4. Incharges Table
     await query(`
       CREATE TABLE IF NOT EXISTS incharges (
         id VARCHAR(50) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        region_id VARCHAR(50),
+        user_id VARCHAR(50) NULL,
+        region_id VARCHAR(50) NULL,
         email VARCHAR(255),
         phone VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 4. Agents Table
+    // 5. Agents Table
     await query(`
       CREATE TABLE IF NOT EXISTS agents (
         id VARCHAR(50) PRIMARY KEY,
@@ -59,25 +78,36 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 5. Farmers Table
+    // 6. Farmers Table
     await query(`
       CREATE TABLE IF NOT EXISTS farmers (
         id VARCHAR(50) PRIMARY KEY,
+        farmer_code VARCHAR(50),
         name VARCHAR(255) NOT NULL,
-        status VARCHAR(50) DEFAULT 'ACTIVE',
+        phone VARCHAR(50),
+        alternate_phone VARCHAR(50),
+        address TEXT,
+        village VARCHAR(100),
+        mandal VARCHAR(100),
+        district VARCHAR(100),
+        state VARCHAR(100),
+        location VARCHAR(255),
+        latitude DECIMAL(10, 7),
+        longitude DECIMAL(10, 7),
+        acres DECIMAL(10, 2),
+        total_acres DECIMAL(10, 2),
+        water_source VARCHAR(100),
         agent_id VARCHAR(50),
         incharge_id VARCHAR(50),
         assigned_to VARCHAR(50),
         assigned_by VARCHAR(50),
-        phone VARCHAR(50),
-        location VARCHAR(255),
-        water_source VARCHAR(100),
-        acres DECIMAL(6, 2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 6. Tanks / Ponds Table
+    // 7. Tanks / Ponds Table
     await query(`
       CREATE TABLE IF NOT EXISTS tanks (
         id VARCHAR(50) PRIMARY KEY,
@@ -91,15 +121,23 @@ export const initializeDatabaseSchema = async () => {
         abw VARCHAR(50),
         biomass VARCHAR(50),
         fcr VARCHAR(50),
+        size VARCHAR(50),
+        acres VARCHAR(50),
+        area_acres DECIMAL(10, 2),
+        doc INT DEFAULT 0,
         last_test VARCHAR(100),
         next_test VARCHAR(100),
-        size VARCHAR(50),
-        doc INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        salinity VARCHAR(50),
+        species VARCHAR(100),
+        water_source VARCHAR(100),
+        culture_type VARCHAR(100),
+        stocking_date VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 7. Submissions Table
+    // 8. Submissions Table
     await query(`
       CREATE TABLE IF NOT EXISTS submissions (
         id VARCHAR(50) PRIMARY KEY,
@@ -119,40 +157,31 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Ensure coordinates columns exist on existing table
-    try {
-      const existingCols = await query('DESCRIBE submissions');
-      const colNames = existingCols.map((c) => c.Field);
-      if (!colNames.includes('latitude')) {
-        await query('ALTER TABLE submissions ADD COLUMN latitude DECIMAL(10, 8) NULL AFTER data');
-      }
-      if (!colNames.includes('longitude')) {
-        await query('ALTER TABLE submissions ADD COLUMN longitude DECIMAL(11, 8) NULL AFTER latitude');
-      }
-      if (!colNames.includes('locality')) {
-        await query('ALTER TABLE submissions ADD COLUMN locality VARCHAR(255) NULL AFTER longitude');
-      }
-    } catch {
-      // Ignore if columns already added
-    }
-
-    // 8. Harvests Table
+    // 9. Harvests Table
     await query(`
       CREATE TABLE IF NOT EXISTS harvests (
         id VARCHAR(50) PRIMARY KEY,
-        tank_id VARCHAR(50) NOT NULL,
-        farmer_id VARCHAR(50),
-        date VARCHAR(50),
-        quantity_kg DECIMAL(10, 2),
-        count_per_kg INT,
-        quality VARCHAR(50),
-        price_per_kg DECIMAL(10, 2),
-        revenue DECIMAL(12, 2),
+        culture_cycle_id VARCHAR(50) NULL,
+        harvest_code VARCHAR(50) NULL,
+        tank_id VARCHAR(50) NULL,
+        farmer_id VARCHAR(50) NULL,
+        date VARCHAR(50) NULL,
+        harvest_date DATE NULL,
+        harvest_type VARCHAR(50) DEFAULT 'FINAL',
+        quantity_kg DECIMAL(14, 2) NULL,
+        count_per_kg INT NULL,
+        quality VARCHAR(50) NULL,
+        price_per_kg DECIMAL(12, 2) NULL,
+        revenue DECIMAL(16, 2) NULL,
+        total_value DECIMAL(16, 2) NULL,
+        buyer_name VARCHAR(150) NULL,
+        remarks TEXT NULL,
+        recorded_by VARCHAR(50) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified/created successfully.');
+    console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;
   } catch (error) {
     console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
@@ -160,76 +189,22 @@ export const initializeDatabaseSchema = async () => {
   }
 };
 
-/**
- * Explicit database seed function.
- * ONLY called when explicitly requested (e.g. npm run db:seed or db:reset).
- * Never run automatically on server boot.
- */
 export const seedDatabase = async () => {
   try {
     console.log('\x1b[33m[Database Seed]\x1b[0m Explicit seeding requested...');
-    const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" LIMIT 1');
+    const defaultPinHash = await bcrypt.hash('1234', 10);
+    const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" OR username = "admin" LIMIT 1');
     if (!existing) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
       await query(
-        'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        ['ADM001', 'Executive Administrator', 'ADMIN', 'ADM001', '9999999999', 'admin@royalsmarine.com', hashedPassword, null, null]
+        `INSERT INTO users (id, name, full_name, role, role_id, username, phone, email, password, password_hash, locality, region, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+        ['ADM001', 'System Administrator', 'System Administrator', 'ADMIN', 1, 'admin', '9999999999', 'admin@royalsmarine.com', defaultPinHash, defaultPinHash, 'HQ', 'Headquarters']
       );
     }
-    console.log('\x1b[32m[Database Seed]\x1b[0m Explicit seeding completed successfully.');
+    console.log('\x1b[32m[Database Seed]\x1b[0m Seeding completed successfully.');
     return true;
   } catch (error) {
     console.error('\x1b[31m[Database Seed Error]\x1b[0m', error.message);
     return false;
-  }
-};
-
-/**
- * Synchronize all agents and incharges into the users table.
- * Ensures agents and incharges are visible in the users table and can log in with 4-digit PIN '1234'.
- */
-export const syncAgentsAndInchargesToUsers = async () => {
-  try {
-    const defaultPinHash = await bcrypt.hash('1234', 10);
-
-    // 1. Sync Agents -> Users
-    const agents = await query('SELECT * FROM agents');
-    for (const a of agents) {
-      const existing = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [a.id, a.id]);
-      if (!existing || existing.length === 0) {
-        const email = `${a.id.toLowerCase()}@royalsmarine.com`;
-        await query(
-          'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [a.id, a.name, 'AGENT', a.id, a.phone || null, email, defaultPinHash, a.locality || null, 'Bhimavaram']
-        );
-        console.log(`\x1b[32m[User Sync]\x1b[0m Added Agent ${a.id} (${a.name}) into users table.`);
-      } else {
-        await query(
-          'UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), locality = COALESCE(?, locality), role = ? WHERE id = ?',
-          [a.name, a.phone, a.locality, 'AGENT', a.id]
-        );
-      }
-    }
-
-    // 2. Sync Incharges -> Users
-    const incharges = await query('SELECT * FROM incharges');
-    for (const inc of incharges) {
-      const existing = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [inc.id, inc.id]);
-      if (!existing || existing.length === 0) {
-        const email = inc.email || `${inc.id.toLowerCase()}@royalsmarine.com`;
-        await query(
-          'INSERT INTO users (id, name, role, username, phone, email, password, locality, region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [inc.id, inc.name, 'ASM', inc.id, inc.phone || null, email, defaultPinHash, null, inc.region_id || 'Bhimavaram']
-        );
-        console.log(`\x1b[32m[User Sync]\x1b[0m Added Incharge ${inc.id} (${inc.name}) into users table.`);
-      } else {
-        await query(
-          'UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role = ? WHERE id = ?',
-          [inc.name, inc.phone, inc.email, 'ASM', inc.id]
-        );
-      }
-    }
-  } catch (err) {
-    console.error('\x1b[31m[User Sync Error]\x1b[0m Failed syncing agents and incharges to users:', err.message);
   }
 };

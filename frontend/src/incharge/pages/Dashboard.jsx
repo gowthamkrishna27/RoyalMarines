@@ -394,13 +394,30 @@ const Dashboard = () => {
     setRemindedOverdueMap(newMap);
   };
 
-  // Map Coordinates for Incharge cluster ponds
-  const mapTanks = [
-    { id: 'T003', name: 'Tank 1', farmer: 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
-    { id: 'T008', name: 'Tank 1', farmer: 'Siva', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
-    { id: 'T001', name: 'Tank 1', farmer: 'Ashok', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
-    { id: 'T002', name: 'Tank 2', farmer: 'Ashok', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
-  ];
+  // Map Coordinates for Incharge cluster ponds with exact database coordinates
+  const mapTanks = (activeTanksList.slice(0, 8)).map((t, idx) => {
+    const rawTank = (db?.tanks || []).find(rt => rt.id === t.id);
+    const farmer = (db?.farmers || []).find(f => f.id === t.farmerId);
+    const lat = (rawTank?.latitude != null && !isNaN(Number(rawTank.latitude)))
+      ? Number(rawTank.latitude)
+      : ((farmer?.latitude != null && !isNaN(Number(farmer.latitude))) ? Number(farmer.latitude) : null);
+    const lng = (rawTank?.longitude != null && !isNaN(Number(rawTank.longitude)))
+      ? Number(rawTank.longitude)
+      : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
+
+    return {
+      id: t.id,
+      name: t.name,
+      farmer: t.farmer,
+      latitude: lat,
+      longitude: lng,
+      location: rawTank?.location || farmer?.location || t.locality,
+      distance: `${(idx + 1) * 350}m away`,
+      status: t.status,
+      due: t.status === 'Test Due' || t.status === 'Due',
+      species: rawTank?.species || 'Vannamei'
+    };
+  });
 
   useEffect(() => {
     const existingGPS = getStoredGPS(180000);

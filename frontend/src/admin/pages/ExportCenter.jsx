@@ -28,9 +28,9 @@ const ExportCenter = () => {
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedFarmer, setSelectedFarmer] = useState('');
 
-  const incharges = getIncharges();
-  const agents = selectedIncharge ? getAgentsByIncharge(selectedIncharge) : [];
-  const farmers = selectedAgent ? getFarmersByAgent(selectedAgent) : [];
+  const incharges = getIncharges(db);
+  const agents = selectedIncharge ? getAgentsByIncharge(selectedIncharge, db) : [];
+  const farmers = selectedAgent ? getFarmersByAgent(selectedAgent, db) : [];
 
   const handleDownload = () => {
     downloadAquaEnterpriseWorkbook(db, selectedAgent || null, selectedFarmer || 'ALL', 'Royals_Marine_Export');
@@ -39,13 +39,18 @@ const ExportCenter = () => {
       return;
     }
 
-    const farmer = getFarmerById(selectedFarmer);
-    const tanks = getTanksByFarmer(selectedFarmer);
+    const farmer = getFarmerById(selectedFarmer, db);
+    const tanks = getTanksByFarmer(selectedFarmer, db);
+
+    if (!farmer) {
+      alert("Selected farmer data could not be found.");
+      return;
+    }
 
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "FARMER DETAILS\n";
     csvContent += "Name,Phone,Village,Acres,Agent,Incharge,Region,Status\n";
-    csvContent += `${farmer.name},${farmer.phone},${farmer.village},${farmer.acres},${farmer.agent},${farmer.incharge},${farmer.region},${farmer.status}\n\n`;
+    csvContent += `${farmer.name || 'Farmer'},${farmer.phone || 'N/A'},${farmer.village || 'N/A'},${farmer.acres || 'N/A'},${farmer.agent || 'N/A'},${farmer.incharge || 'N/A'},${farmer.region || 'N/A'},${farmer.status || 'Active'}\n\n`;
 
     csvContent += "TANKS\n";
     csvContent += "Tank Name,Culture Cycle,ABW (g),Biomass (kg),FCR,Weekly Compliance (%)\n";

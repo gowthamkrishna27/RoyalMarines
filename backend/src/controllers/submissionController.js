@@ -18,6 +18,8 @@ export const createSubmission = async (req, res) => {
     agentId, 
     id, 
     date, 
+    submissionTime,
+    accuracy,
     status,
     latitude,
     longitude,
@@ -30,17 +32,26 @@ export const createSubmission = async (req, res) => {
     return sendError(res, 'tankId and data are required', 400);
   }
 
+  const resolvedUserId = req.user?.id || req.body.userId || req.body.agentId || agentId || null;
+  const resolvedUserName = req.user?.name || req.body.userName || req.body.agentName || null;
+  const resolvedRole = req.user?.role || req.body.role || (resolvedUserId && String(resolvedUserId).startsWith('INC') ? 'Incharge' : 'Agent');
+
   const submission = await store.createSubmission({
     id: id || req.body.id,
-    agentId: req.user?.id || req.body.agentId || agentId || null,
+    agentId: resolvedUserId,
+    userId: resolvedUserId,
+    userName: resolvedUserName,
+    role: resolvedRole,
     farmerId: farmerId || '',
     tankId,
     testType: testType || 'Water Quality Test',
     date: date || new Date().toISOString().split('T')[0],
+    submissionTime: submissionTime || req.body.submissionTime || null,
     status: status || 'PENDING_VERIFICATION',
     data,
     latitude: latitude ?? gps?.latitude ?? coordinates?.latitude ?? data?.gps?.latitude,
     longitude: longitude ?? gps?.longitude ?? coordinates?.longitude ?? data?.gps?.longitude,
+    accuracy: accuracy ?? gps?.accuracy ?? coordinates?.accuracy ?? data?.gps?.accuracy,
     locality: locality ?? gps?.locality ?? coordinates?.locality ?? data?.gps?.locality,
   });
 

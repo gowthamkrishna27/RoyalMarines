@@ -1,26 +1,30 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSession } from '../agent/utils/agentAuth';
 import { apiClient } from '../utils/apiClient';
+import { adminFarmers, adminTanks } from '../admin/utils/adminMockData';
 
-// --- Initial Data Seed ---
+// --- Initial Data Seed (Aligned with MySQL Database) ---
 
 const initialRegions = [
-  { id: 'REG001', name: 'Bhimavaram' },
-  { id: 'REG002', name: 'Kakinada' }
+  { id: 'REG001', code: 'REG001', name: 'Bhimavaram' },
+  { id: 'REG002', code: 'REG002', name: 'Kakinada' },
+  { id: 'REG003', code: 'REG003', name: 'Narasapuram' }
 ];
 
 const initialIncharges = [
-  { id: 'INC001', name: 'Ravi Kumar', regionId: 'REG001', email: 'incharge@example.com' }
+  { id: 'INC001', name: 'Ravi Kumar', regionId: 'REG001', email: 'ravi@royalsmarine.com', phone: '9121006439' },
+  { id: 'INC002', name: 'Rajesh Varma', regionId: 'REG002', email: 'rajesh@royalsmarine.com', phone: '9121006440' },
+  { id: '1', name: 'Bharadwaj Reddy', regionId: 'REG001', email: 'bharadwaj@royalsmarine.com', phone: '9121006438' }
 ];
 
 const initialAgents = [
   { id: 'agent001', name: 'Ramesh', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
   { id: 'agent002', name: 'Suresh', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
-  { id: 'agent003', name: 'Mahesh', phone: '9000000003', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Akuruvu' }
+  { id: 'agent003', name: 'Mahesh', phone: '9000000003', inchargeId: 'INC002', status: 'ACTIVE', locality: 'Akuruvu' }
 ];
 
-const initialFarmers = [];
-const initialTanks = [];
+const initialFarmers = adminFarmers;
+const initialTanks = adminTanks;
 const initialSubmissions = [];
 
 // --- Context Definition ---
@@ -32,11 +36,13 @@ const normalizeTanks = (tanks) => {
   if (!Array.isArray(tanks)) return [];
   const countMap = {};
   return tanks.map(tank => {
-    const fId = tank.farmerId || 'UNKNOWN';
+    let fId = tank.farmerId || tank.farmer_id || 'UNKNOWN';
+    if (fId === '1' || fId === 'FAR001') fId = 'F001';
     countMap[fId] = (countMap[fId] || 0) + 1;
     return {
       ...tank,
-      name: `Tank ${countMap[fId]}`
+      farmerId: tank.farmerId || tank.farmer_id || fId,
+      name: tank.name || `Tank ${countMap[fId]}`
     };
   });
 };
@@ -57,7 +63,7 @@ const getInitialDb = () => {
 
   if (typeof window === 'undefined') return fallbackDb;
 
-  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10', 'aqua_feed_mock_database_v11', 'agent_harvest_store'].forEach(k => {
+  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10', 'aqua_feed_mock_database_v11', 'agent_harvest_store', 'royal_admin_incharges_data', 'royal_admin_agents_data', 'royal_admin_farmers_data'].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) {}
   });
 
@@ -357,18 +363,18 @@ export const MockDataProvider = ({ children }) => {
       const apiRegions = regionsRes.status === 'fulfilled' && regionsRes.value?.data ? regionsRes.value.data : null;
       const apiIncharges = inchargesRes.status === 'fulfilled' && inchargesRes.value?.data ? inchargesRes.value.data : null;
 
-      if (apiFarmers || apiTanks || apiSubs) {
+      if (apiFarmers || apiTanks || apiSubs || apiAgents || apiRegions || apiIncharges) {
         setDb(prev => {
-          const mergedFarmers = apiFarmers && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
-          const rawTanks = apiTanks && apiTanks.length > 0 ? apiTanks : prev.tanks;
+          const mergedFarmers = Array.isArray(apiFarmers) && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
+          const rawTanks = Array.isArray(apiTanks) && apiTanks.length > 0 ? apiTanks : prev.tanks;
           const mergedTanks = normalizeTanks(rawTanks);
-          const mergedSubs = apiSubs ? apiSubs : prev.submissions;
-          const mergedHarvests = apiHarvests ? apiHarvests : prev.harvests;
-          const mergedAgents = apiAgents && apiAgents.length > 0 ? apiAgents : prev.agents;
-          const mergedRegions = apiRegions && apiRegions.length > 0 ? apiRegions : prev.regions;
-          const mergedIncharges = apiIncharges && apiIncharges.length > 0 ? apiIncharges : prev.incharges;
+          const mergedSubs = Array.isArray(apiSubs) && apiSubs.length > 0 ? apiSubs : prev.submissions;
+          const mergedHarvests = Array.isArray(apiHarvests) && apiHarvests.length > 0 ? apiHarvests : prev.harvests;
+          const mergedAgents = Array.isArray(apiAgents) && apiAgents.length > 0 ? apiAgents : prev.agents;
+          const mergedRegions = Array.isArray(apiRegions) && apiRegions.length > 0 ? apiRegions : prev.regions;
+          const mergedIncharges = Array.isArray(apiIncharges) && apiIncharges.length > 0 ? apiIncharges : prev.incharges;
 
-          return {
+          const updatedDb = {
             ...prev,
             farmers: mergedFarmers,
             tanks: mergedTanks,
@@ -378,6 +384,15 @@ export const MockDataProvider = ({ children }) => {
             regions: mergedRegions,
             incharges: mergedIncharges,
           };
+
+          try {
+            localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(updatedDb));
+            localStorage.removeItem('royal_admin_incharges_data');
+            localStorage.removeItem('royal_admin_agents_data');
+            localStorage.removeItem('royal_admin_farmers_data');
+          } catch (e) {}
+
+          return updatedDb;
         });
         setDbConnected(true);
       }
@@ -450,37 +465,43 @@ export const MockDataProvider = ({ children }) => {
 
   // --- Selectors ---
 
-  const getAgentById = (id) => (db?.agents || []).find(a => a.id === id);
+  const getAgentById = (id) => (db?.agents || []).find(a => a.id === id || a.username === id);
 
   const getFarmersByAgentId = (agentId) => {
     if (!db || !db.farmers) return [];
-    return db.farmers.filter(f => f.agentId === agentId);
+    return db.farmers.filter(f => f.agentId === agentId || f.agent_id === agentId);
   };
 
-  const getFarmerById = (id) => db.farmers.find(f => f.id === id);
+  const getFarmerById = (id) => {
+    if (!db || !db.farmers || !id) return null;
+    return db.farmers.find(f => 
+      f.id === id || 
+      f.farmer_code === id || 
+      ((id === '1' || id === 'F001' || id === 'FAR001') && (f.id === '1' || f.id === 'F001' || f.farmer_code === 'FAR001'))
+    );
+  };
 
   const getTanksByFarmerId = (farmerId) => {
-    if (!db || !db.tanks) return [];
-    const fTanks = db.tanks.filter(t => t.farmerId === farmerId);
+    if (!db || !db.tanks || !farmerId) return [];
+    const fTanks = db.tanks.filter(t => 
+      t.farmerId === farmerId || 
+      t.farmer_id === farmerId || 
+      ((farmerId === '1' || farmerId === 'F001' || farmerId === 'FAR001') && (t.farmerId === '1' || t.farmerId === 'F001' || t.farmer_id === 'F001'))
+    );
     return fTanks.map((t, idx) => ({
       ...t,
-      name: `Tank ${idx + 1}`
+      name: t.name || `Tank ${idx + 1}`
     }));
   };
 
   const getTankById = (id) => {
-    if (!db || !db.tanks) return null;
-    const tank = db.tanks.find(t => t.id === id);
+    if (!db || !db.tanks || !id) return null;
+    const tank = db.tanks.find(t => t.id === id || String(t.id).toLowerCase() === String(id).toLowerCase());
     if (!tank) return null;
-    const farmerTanks = db.tanks.filter(t => t.farmerId === tank.farmerId);
-    const tankIndex = farmerTanks.findIndex(t => t.id === id);
-    return {
-      ...tank,
-      name: `Tank ${tankIndex >= 0 ? tankIndex + 1 : 1}`
-    };
+    return tank;
   };
 
-  const getSubmissionsByAgentId = (agentId) => db.submissions.filter(s => s.agentId === agentId);
+  const getSubmissionsByAgentId = (agentId) => (db?.submissions || []).filter(s => s.agentId === agentId || s.userId === agentId);
 
   const getAgentNotifications = (agentId) => (db.notifications || []).filter(n => n.agentId === agentId);
 
@@ -529,18 +550,20 @@ export const MockDataProvider = ({ children }) => {
   // Advanced Selectors for Incharge Dashboard & Scope
   const getAgentsByInchargeId = (inchargeId = 'INC001') => {
     if (!db || !db.agents) return [];
-    return db.agents.filter(a => a.inchargeId === inchargeId || !a.inchargeId);
+    return db.agents.filter(a => a.inchargeId === inchargeId || a.incharge_id === inchargeId || !a.inchargeId);
   };
 
   const getFarmersByInchargeId = (inchargeId = 'INC001') => {
     if (!db || !db.farmers) return [];
     const inchargeAgentIds = (db.agents || [])
-      .filter(a => a.inchargeId === inchargeId)
+      .filter(a => a.inchargeId === inchargeId || a.incharge_id === inchargeId)
       .map(a => a.id);
     return db.farmers
       .filter(f =>
         f.inchargeId === inchargeId ||
+        f.incharge_id === inchargeId ||
         (f.agentId && inchargeAgentIds.includes(f.agentId)) ||
+        (f.agent_id && inchargeAgentIds.includes(f.agent_id)) ||
         !f.inchargeId
       )
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
@@ -715,11 +738,16 @@ export const MockDataProvider = ({ children }) => {
       farmerId: submissionData.farmerId,
       tankId: submissionData.tankId,
       testType: submissionData.testType || 'Water Quality Test',
-      agentId: submissionData.agentId || 'agent001',
+      agentId: submissionData.agentId || submissionData.userId || 'agent001',
+      userId: submissionData.userId || submissionData.agentId || 'agent001',
+      userName: submissionData.userName || submissionData.agentName || null,
+      role: submissionData.role || (submissionData.submittedBy || 'Agent'),
       date: newSubmission.date,
-      latitude: submissionData.latitude || submissionData.gps?.latitude || 16.5449,
-      longitude: submissionData.longitude || submissionData.gps?.longitude || 81.5212,
-      locality: submissionData.locality || submissionData.gps?.locality || 'Chinnamiram, Bhimavaram',
+      submissionTime: submissionData.submissionTime || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      accuracy: submissionData.accuracy || submissionData.gps?.accuracy || null,
+      latitude: submissionData.latitude || submissionData.gps?.latitude || null,
+      longitude: submissionData.longitude || submissionData.gps?.longitude || null,
+      locality: submissionData.locality || submissionData.gps?.locality || null,
       data: submissionData.data || submissionData
     }).catch(() => {});
     showToast('Record submitted for verification!');
@@ -1212,9 +1240,21 @@ export const MockDataProvider = ({ children }) => {
     const farmer = (db?.farmers || []).find(f => f.id === farmerId);
     const tank = (db?.tanks || []).find(t => t.id === tankId);
 
+    const resolvedUserId = entryData.userId || entryData.agentId || agentId || 'agent001';
+    const resolvedUserName = entryData.userName || entryData.agentName || null;
+    const resolvedRole = entryData.role || (entryData.submittedBy || (String(resolvedUserId).startsWith('INC') ? 'Incharge' : 'Agent'));
+    const resolvedLatitude = entryData.latitude != null ? entryData.latitude : (gps?.latitude != null ? gps.latitude : null);
+    const resolvedLongitude = entryData.longitude != null ? entryData.longitude : (gps?.longitude != null ? gps.longitude : null);
+    const resolvedAccuracy = entryData.accuracy != null ? entryData.accuracy : (gps?.accuracy != null ? gps.accuracy : null);
+    const resolvedTime = entryData.submissionTime || entryData.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
     const newRecord = {
       id: subId,
-      agentId,
+      submissionId: subId,
+      agentId: resolvedUserId,
+      userId: resolvedUserId,
+      userName: resolvedUserName,
+      role: resolvedRole,
       farmerId,
       tankId,
       recordType,
@@ -1228,18 +1268,22 @@ export const MockDataProvider = ({ children }) => {
                     (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
                       recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
       date: formattedDate,
+      submissionTime: resolvedTime,
       submittedAgo: 'Just now',
       status: 'PENDING_VERIFICATION',
       data,
       notes,
       photo,
-      gps: gps || {
-        latitude: 16.5449,
-        longitude: 81.5212,
-        accuracy: 8,
-        locality: farmer ? farmer.location : 'Bhimavaram',
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
+      accuracy: resolvedAccuracy,
+      gps: gps || (resolvedLatitude && resolvedLongitude ? {
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
+        accuracy: resolvedAccuracy,
+        locality: entryData.locality || (farmer ? farmer.location : 'Aquaculture Zone'),
         verified: true
-      },
+      } : null),
       offline: !!offline,
       createdAt: new Date().toISOString()
     };
@@ -1293,12 +1337,17 @@ export const MockDataProvider = ({ children }) => {
       tankId: newRecord.tankId,
       testType: newRecord.testType,
       agentId: newRecord.agentId,
+      userId: newRecord.userId,
+      userName: newRecord.userName,
+      role: newRecord.role,
       date: newRecord.date,
+      submissionTime: newRecord.submissionTime,
       status: newRecord.status,
       data: newRecord.data,
-      latitude: newRecord.gps?.latitude || 16.5449,
-      longitude: newRecord.gps?.longitude || 81.5212,
-      locality: newRecord.gps?.locality || (farmer ? farmer.location : 'Bhimavaram')
+      latitude: newRecord.latitude,
+      longitude: newRecord.longitude,
+      accuracy: newRecord.accuracy,
+      locality: newRecord.gps?.locality || (farmer ? farmer.location : 'Aquaculture Zone')
     }).catch(() => {});
 
     if (recordType === 'HARVEST_ENTRY' || recordType === 'HARVEST') {

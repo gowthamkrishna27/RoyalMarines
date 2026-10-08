@@ -12,9 +12,9 @@ import {
 const FarmersList = () => {
   const navigate = useNavigate();
   const { db, createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
-  const regions = getRegions();
-  const allAgents = getAgents();
-  const allIncharges = getIncharges();
+  const regions = useMemo(() => getRegions(db), [db]);
+  const allAgents = useMemo(() => getAgents(db), [db]);
+  const allIncharges = useMemo(() => getIncharges(db), [db]);
 
   // Load farmers from DB
   const [farmers, setFarmers] = useState([]);

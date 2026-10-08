@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
 import { getRegions, getIncharges, getAgents, getFarmers, getTanks } from '../utils/adminMockData';
+import { useMockData } from '../../context/MockDataContext';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, Scale, Wheat, Filter, Calendar, Map, MapPin, User, Users, Droplet, UserCircle } from 'lucide-react';
 
