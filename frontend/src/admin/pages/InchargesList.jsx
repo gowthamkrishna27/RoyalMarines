@@ -12,18 +12,40 @@ const InchargesList = () => {
   const navigate = useNavigate();
   const regions = getRegions();
 
-  // 1. Load Incharges from localStorage or fallback mock data
-  const [incharges, setIncharges] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_incharges_data');
-    if (saved) {
+  // 1. Load Incharges from API
+  const [incharges, setIncharges] = useState([]);
+
+  useEffect(() => {
+    const fetchIncharges = async () => {
       try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getIncharges();
+        const response = await fetch('/api/analytics/incharges');
+        const data = await response.json();
+        if (data.success && data.data) {
+          const dbIncharges = data.data.map(dbI => ({
+            id: dbI.id,
+            name: dbI.name || 'Unknown',
+            shortName: (dbI.name || '').split(' ')[0],
+            role: `Incharge - ${dbI.region || 'Unknown'}`,
+            regionId: dbI.region_id || dbI.regionId || 'REG-1',
+            region: dbI.region || 'Unknown Region',
+            locality: dbI.region || 'Unknown',
+            phone: dbI.phone,
+            email: dbI.email || `${(dbI.name || '').toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
+            status: 'ACTIVE',
+            // Default stats for mock compat
+            agentsManaged: 0,
+            farmersScope: 0,
+            activeTanks: 0,
+            performanceScore: 0
+          }));
+          setIncharges(dbIncharges);
+        }
+      } catch (error) {
+        console.error('Failed to fetch incharges:', error);
       }
-    }
-    return getIncharges();
-  });
+    };
+    fetchIncharges();
+  }, []);
 
   // 2. Load Agents from localStorage or fallback mock data
   const [agents, setAgents] = useState(() => {
@@ -37,11 +59,6 @@ const InchargesList = () => {
     }
     return getAgents();
   });
-
-  // Save to localStorage on change
-  useEffect(() => {
-    localStorage.setItem('royal_admin_incharges_data', JSON.stringify(incharges));
-  }, [incharges]);
 
   useEffect(() => {
     localStorage.setItem('royal_admin_agents_data', JSON.stringify(agents));
@@ -530,76 +547,7 @@ const InchargesList = () => {
       {/* ────────────────────────────────────────────────
           3. UNIFIED STICKY FILTER TOOLBAR (44px Height, 12px Radius)
           ──────────────────────────────────────────────── */}
-      <div style={styles.stickyFilterToolbar}>
-        {/* Search Input */}
-        <div style={styles.searchBox}>
-          <Search size={15} style={styles.searchIcon} />
-          <input
-            type="text"
-            placeholder="Search ASM, ID, region, email, phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={styles.searchInput}
-            aria-label="Search ASM personnel"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              style={styles.clearSearchBtn}
-              title="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
 
-        {/* Filters Controls */}
-        <div style={styles.filterControls}>
-          {/* Region Select */}
-          <div style={styles.selectWrapper}>
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              style={styles.filterSelect}
-              aria-label="Filter by region"
-            >
-              <option value="ALL">All Regions</option>
-              {regions.map(r => (
-                <option key={r.id} value={r.name}>{r.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} style={styles.selectArrow} />
-          </div>
-
-          {/* Status Select */}
-          <div style={styles.selectWrapper}>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={styles.filterSelect}
-              aria-label="Filter by status"
-            >
-              <option value="ALL">All Status</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-            </select>
-            <ChevronDown size={14} style={styles.selectArrow} />
-          </div>
-
-          {/* Reset Filters */}
-          {hasActiveFilters && (
-            <button
-              style={styles.resetButton}
-              onClick={handleResetFilters}
-              title="Reset all filters"
-            >
-              <RotateCcw size={13} />
-              <span>Reset</span>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* ────────────────────────────────────────────────
           4. PERSONNEL TABLE (16px Radius White Card)

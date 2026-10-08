@@ -5,11 +5,19 @@ import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 import { TrendingUp, Scale, Wheat, Filter, Calendar, Map, MapPin, User, Users, Droplet, UserCircle } from 'lucide-react';
 
 const Analytics = () => {
-  const regions = getRegions();
-  const incharges = getIncharges();
-  const agents = getAgents();
-  const farmers = getFarmers();
-  const allTanks = getTanks();
+  const [regions, setRegions] = useState([]);
+  const [incharges, setIncharges] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+
+  React.useEffect(() => {
+    fetch('/api/analytics/regions').then(r => r.json()).then(d => d.success && setRegions(d.data));
+    fetch('/api/analytics/incharges').then(r => r.json()).then(d => d.success && setIncharges(d.data));
+    fetch('/api/analytics/agents').then(r => r.json()).then(d => d.success && setAgents(d.data));
+    fetch('/api/farmers').then(r => r.json()).then(d => d.success && setFarmers(d.data));
+    fetch('/api/tanks').then(r => r.json()).then(d => d.success && setAllTanks(d.data));
+  }, []);
 
   const [filters, setFilters] = useState({
     date: 'This Month',

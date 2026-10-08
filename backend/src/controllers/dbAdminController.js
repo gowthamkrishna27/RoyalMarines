@@ -687,13 +687,13 @@ export const getDashboardMetrics = async (req, res) => {
     };
 
     try {
-      const userRoles = await query('SELECT role, COUNT(*) as c FROM users GROUP BY role');
-      userRoles.forEach((r) => {
-        const role = (r.role || '').toUpperCase();
-        if (role === 'ADMIN') domainStats.usersByRole.admin = Number(r.c);
-        else if (role === 'ASM' || role === 'INCHARGE') domainStats.usersByRole.asm += Number(r.c);
-        else if (role === 'AGENT') domainStats.usersByRole.agent += Number(r.c);
-      });
+      const [ic] = await query('SELECT COUNT(*) as c FROM incharges');
+      domainStats.usersByRole.asm = Number(ic?.c || 0);
+
+      const [ac] = await query('SELECT COUNT(*) as c FROM agents');
+      domainStats.usersByRole.agent = Number(ac?.c || 0);
+
+      domainStats.usersByRole.admin = 1; // Default or fetch from users where role_id=1
 
       const [fc] = await query('SELECT COUNT(*) as c FROM farmers');
       domainStats.farmersCount = Number(fc?.c || 0);

@@ -16,13 +16,35 @@ const FarmersList = () => {
   const allAgents = getAgents();
   const allIncharges = getIncharges();
 
-  // Load farmers reactively from unified data context
-  const [farmers, setFarmers] = useState(() => getFarmers());
+  // Load farmers from DB
+  const [farmers, setFarmers] = useState([]);
 
-  // Keep farmers in sync whenever db changes
   useEffect(() => {
-    setFarmers(getFarmers());
-  }, [db]);
+    const fetchFarmers = async () => {
+      try {
+        const response = await fetch('/api/farmers');
+        const data = await response.json();
+        if (data.success && data.data) {
+          const formattedFarmers = data.data.map(f => ({
+            ...f,
+            name: f.name || 'Unknown Farmer',
+            phone: f.phone || '',
+            village: f.village || f.locality || '',
+            locality: f.locality || '',
+            region: f.region_name || 'Unknown',
+            agent: f.agent_name || 'Unassigned',
+            tanks: f.tanks_count || f.tanks || 0,
+            activePonds: f.active_ponds || 0,
+            status: f.status || 'ACTIVE'
+          }));
+          setFarmers(formattedFarmers);
+        }
+      } catch (error) {
+        console.error('Failed to fetch farmers:', error);
+      }
+    };
+    fetchFarmers();
+  }, []);
 
   // Filters state
   const [searchTerm, setSearchTerm] = useState('');

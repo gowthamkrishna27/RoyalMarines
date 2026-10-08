@@ -28,18 +28,44 @@ const AgentsList = () => {
     return getIncharges();
   });
 
-  // 2. Load Agents from localStorage or fallback
-  const [agents, setAgents] = useState(() => {
-    const saved = localStorage.getItem('royal_admin_agents_data');
-    if (saved) {
+  // 2. Load Agents from API
+  const [agents, setAgents] = useState([]);
+
+  useEffect(() => {
+    const fetchAgents = async () => {
       try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return getAgents();
+        const response = await fetch('/api/analytics/agents');
+        const data = await response.json();
+        if (data.success && data.data) {
+          const dbAgents = data.data.map(dbA => ({
+            id: dbA.id,
+            name: dbA.name,
+            shortName: dbA.name,
+            role: 'Field Agent',
+            inchargeId: dbA.incharge_id || dbA.inchargeId,
+            incharge: dbA.incharge || 'Assigned Incharge',
+            regionId: dbA.regionId || 'REG-1',
+            region: dbA.region || 'Unknown Region',
+            locality: dbA.locality,
+            assignedArea: dbA.locality || 'Unknown Area',
+            phone: dbA.phone,
+            email: dbA.email || `${dbA.name.toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
+            status: dbA.status,
+            farmers: dbA.farmersCount || 0,
+            tanks: dbA.tanksCount || 0,
+            siteVisits: dbA.siteVisits || 0,
+            activePonds: dbA.activePonds || 0,
+            compliance: dbA.complianceRate || 0,
+            tests: dbA.tests || 0
+          }));
+          setAgents(dbAgents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error);
       }
-    }
-    return getAgents();
-  });
+    };
+    fetchAgents();
+  }, []);
 
   // 3. Load Farmers from localStorage or fallback
   const [farmersList] = useState(() => {
@@ -65,11 +91,6 @@ const AgentsList = () => {
   const [selectedAgentForDueTests, setSelectedAgentForDueTests] = useState(null);
   const [dueModalSearch, setDueModalSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
-
-  // Persist to localStorage
-  useEffect(() => {
-    localStorage.setItem('royal_admin_agents_data', JSON.stringify(agents));
-  }, [agents]);
 
   // Filters and search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -390,7 +411,7 @@ const AgentsList = () => {
   }, 0);
 
   // 1. Handle Add Agent
-  const handleAddAgentSubmit = (e) => {
+  const handleAddAgentSubmit = async (e) => {
     e.preventDefault();
     if (!newAgent.name.trim() || !newAgent.assignedArea.trim()) return;
 
@@ -402,6 +423,24 @@ const AgentsList = () => {
     const dedicatedIncharge = getInchargeForLocality(newAgent.locality, selectedRegionObj.id);
 
     const fullName = `${newAgent.name.trim()} (${newAgent.roleSuffix.trim()})`;
+
+    try {
+      await fetch('/api/db-admin/tables/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newId,
+          name: fullName,
+          phone: newAgent.phone.trim(),
+          incharge_id: dedicatedIncharge.id,
+          locality: newAgent.locality,
+          active_ponds: 0,
+          status: 'ACTIVE'
+        })
+      });
+    } catch (err) {
+      console.error('Failed to save agent to DB:', err);
+    }
 
     const createdAgent = {
       id: newId,
@@ -712,67 +751,7 @@ const AgentsList = () => {
           )}
         </div>
 
-        {/* Filter Selects & Sort Controls */}
-        <div style={styles.filterControls}>
-          {/* Region Select */}
-          <div style={styles.selectWrapper}>
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              style={styles.filterSelect}
-              aria-label="Filter by region"
-            >
-              <option value="ALL">All Regions</option>
-              {regions.map(r => (
-                <option key={r.id} value={r.name}>{r.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} style={styles.selectArrow} />
-          </div>
 
-          {/* Status Select */}
-          <div style={styles.selectWrapper}>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={styles.filterSelect}
-              aria-label="Filter by status"
-            >
-              <option value="ALL">All Status</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-            </select>
-            <ChevronDown size={14} style={styles.selectArrow} />
-          </div>
-
-          {/* Sort Select */}
-          <div style={styles.selectWrapper}>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              style={styles.filterSelect}
-              aria-label="Sort agents"
-            >
-              <option value="NAME">Sort: Name (A-Z)</option>
-              <option value="FARMERS">Sort: Farmers (High-Low)</option>
-              <option value="TESTS">Sort: Tests (High-Low)</option>
-              <option value="DUE">Sort: Due Tests</option>
-            </select>
-            <ChevronDown size={14} style={styles.selectArrow} />
-          </div>
-
-          {/* Reset Filters */}
-          {hasActiveFilters && (
-            <button
-              style={styles.resetButton}
-              onClick={handleResetFilters}
-              title="Reset all filters"
-            >
-              <RotateCcw size={13} />
-              <span>Reset</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* ────────────────────────────────────────────────

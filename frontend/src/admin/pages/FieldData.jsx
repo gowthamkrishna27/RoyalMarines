@@ -13,10 +13,17 @@ const FieldData = () => {
   const submissions = db?.submissions || [];
   const location = useLocation();
 
-  const incharges = getIncharges();
-  const allAgents = getAgents();
-  const allFarmers = getFarmers();
-  const allTanks = getTanks();
+  const [incharges, setIncharges] = useState([]);
+  const [allAgents, setAllAgents] = useState([]);
+  const [allFarmers, setAllFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+
+  React.useEffect(() => {
+    fetch('/api/analytics/incharges').then(r => r.json()).then(d => d.success && setIncharges(d.data));
+    fetch('/api/analytics/agents').then(r => r.json()).then(d => d.success && setAllAgents(d.data));
+    fetch('/api/farmers').then(r => r.json()).then(d => d.success && setAllFarmers(d.data));
+    fetch('/api/tanks').then(r => r.json()).then(d => d.success && setAllTanks(d.data));
+  }, []);
 
   const [filters, setFilters] = useState({
     incharge: '',

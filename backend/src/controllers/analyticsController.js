@@ -61,13 +61,24 @@ export const getAgents = async (req, res) => {
 export const getIncharges = async (req, res) => {
   if (isDbConnected()) {
     try {
-      const rows = await query('SELECT * FROM incharges');
+      const rows = await query(`
+        SELECT i.*, 
+               COALESCE(u.full_name, i.name) as name, 
+               COALESCE(u.phone, i.phone) as phone, 
+               COALESCE(u.email, i.email) as email, 
+               r.name as region, r.code as region_code 
+        FROM incharges i 
+        LEFT JOIN users u ON i.user_id = u.id 
+        LEFT JOIN regions r ON i.region_id = r.id
+      `);
       const enriched = rows.map((r) => ({
         ...r,
         regionId: r.region_id,
       }));
       return sendSuccess(res, enriched, 'Incharges list retrieved from database');
-    } catch {}
+    } catch (e) {
+      console.error('Error fetching incharges:', e);
+    }
   }
   return sendSuccess(res, store.incharges, 'Incharges list retrieved');
 };
