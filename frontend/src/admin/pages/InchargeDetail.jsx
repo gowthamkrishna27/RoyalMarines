@@ -11,7 +11,26 @@ const InchargeDetail = () => {
   const { db } = useMockData();
   const [activeTab, setActiveTab] = useState('agents');
 
-  const incharge = getInchargeById(inchargeId, db);
+  const inchargeFromContext = getInchargeById(inchargeId, db);
+  const [directIncharge, setDirectIncharge] = useState(null);
+  const [loadingDirect, setLoadingDirect] = useState(false);
+
+  useEffect(() => {
+    if (!inchargeFromContext && inchargeId) {
+      setLoadingDirect(true);
+      fetch(`/api/analytics/incharges/${inchargeId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setDirectIncharge(data.data);
+          }
+        })
+        .catch(err => console.error('Failed to fetch incharge detail:', err))
+        .finally(() => setLoadingDirect(false));
+    }
+  }, [inchargeFromContext, inchargeId]);
+
+  const incharge = inchargeFromContext || directIncharge;
   const agents = getAgentsByIncharge(inchargeId, db);
   const farmers = getFarmersByIncharge(inchargeId, db);
   const tanks = getTanksByIncharge(inchargeId, db);
@@ -20,10 +39,10 @@ const InchargeDetail = () => {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
-          Loading Incharge Details...
+          {loadingDirect ? 'Loading Incharge Details from MySQL Database...' : 'Incharge Not Found'}
         </h3>
         <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
-          Retrieving real-time records from the aquaculture database.
+          {loadingDirect ? 'Retrieving real-time records from the aquaculture database.' : 'The requested ASM record could not be found.'}
         </p>
         <button
           onClick={() => navigate('/admin/incharges')}
@@ -44,10 +63,10 @@ const InchargeDetail = () => {
   }
 
   const kpis = [
-    { title: 'Assigned Technicians', value: agents.length, icon: <HardHat size={20} />, color: '#10b981', bg: '#ecfdf5' },
-    { title: 'Assigned Farmers', value: farmers.length, icon: <Sprout size={20} />, color: '#f59e0b', bg: '#fffbeb' },
-    { title: 'Assigned Tanks / Ponds', value: tanks.length, icon: <Database size={20} />, color: '#8b5cf6', bg: '#f5f3ff' },
-    { title: 'Cluster Compliance', value: `${incharge.compliance}%`, icon: <CheckSquare size={20} />, color: '#38bdf8', bg: '#f0f9ff' },
+    { title: 'Assigned Technicians', value: incharge.agentsCount !== undefined ? incharge.agentsCount : agents.length, icon: <HardHat size={20} />, color: '#10b981', bg: '#ecfdf5' },
+    { title: 'Assigned Farmers', value: incharge.farmersCount !== undefined ? incharge.farmersCount : farmers.length, icon: <Sprout size={20} />, color: '#f59e0b', bg: '#fffbeb' },
+    { title: 'Assigned Tanks / Ponds', value: incharge.tanksCount !== undefined ? incharge.tanksCount : tanks.length, icon: <Database size={20} />, color: '#8b5cf6', bg: '#f5f3ff' },
+    { title: 'Cluster Compliance', value: `${incharge.compliance || 95}%`, icon: <CheckSquare size={20} />, color: '#38bdf8', bg: '#f0f9ff' },
   ];
 
   return (
@@ -55,6 +74,7 @@ const InchargeDetail = () => {
       <PageHeader
         title={`Incharge: ${incharge.name}`}
       />
+
       <div className="content-inner">
 
         {/* Incharge KPIs */}
@@ -269,12 +289,12 @@ const InchargeDetail = () => {
                 <tbody>
                   {tanks.map((tank) => (
                     <tr key={tank.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                      <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{tank.name || 'Tank 1'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '500' }}>{tank.farmer || tank.farmerName || 'Assigned Farmer'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.acres ? `${tank.acres} Acres` : '3.0 Acres'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>Day {tank.doc || 45}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.biomass ? `${tank.biomass} kg` : '1200 kg'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.waterSource || 'Borewell / Creek'}</td>
+                      <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{tank.name || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '500' }}>{tank.farmer || tank.farmerName || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.acres ? `${tank.acres} Acres` : (tank.size || '-')}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.doc != null ? `Day ${tank.doc}` : '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.biomass ? `${tank.biomass} kg` : '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.waterSource || tank.water_source || '-'}</td>
                       <td style={{ padding: '16px' }}>
                         <span style={{
                           padding: '4px 10px',

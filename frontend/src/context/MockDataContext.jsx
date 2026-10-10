@@ -1,30 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSession } from '../agent/utils/agentAuth';
 import { apiClient } from '../utils/apiClient';
-import { adminFarmers, adminTanks } from '../admin/utils/adminMockData';
-
-// --- Initial Data Seed (Aligned with MySQL Database) ---
-
-const initialRegions = [
-  { id: 'REG001', code: 'REG001', name: 'Bhimavaram' },
-  { id: 'REG002', code: 'REG002', name: 'Kakinada' },
-  { id: 'REG003', code: 'REG003', name: 'Narasapuram' }
-];
-
-const initialIncharges = [
-  { id: 'INC001', name: 'Ravi Kumar', regionId: 'REG001', email: 'ravi@royalsmarine.com', phone: '9121006439' },
-  { id: 'INC002', name: 'Rajesh Varma', regionId: 'REG002', email: 'rajesh@royalsmarine.com', phone: '9121006440' },
-  { id: '1', name: 'Bharadwaj Reddy', regionId: 'REG001', email: 'bharadwaj@royalsmarine.com', phone: '9121006438' }
-];
-
-const initialAgents = [
-  { id: 'agent001', name: 'Ramesh', phone: '9000000001', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Chinnamiram' },
-  { id: 'agent002', name: 'Suresh', phone: '9000000002', inchargeId: 'INC001', status: 'ACTIVE', locality: 'Bhimavaram' },
-  { id: 'agent003', name: 'Mahesh', phone: '9000000003', inchargeId: 'INC002', status: 'ACTIVE', locality: 'Akuruvu' }
-];
-
-const initialFarmers = adminFarmers;
-const initialTanks = adminTanks;
+// Zero mock data - Initial state is empty arrays until populated by MySQL APIs
+const initialRegions = [];
+const initialIncharges = [];
+const initialAgents = [];
+const initialFarmers = [];
+const initialTanks = [];
 const initialSubmissions = [];
 
 // --- Context Definition ---
@@ -49,12 +31,13 @@ const normalizeTanks = (tanks) => {
 
 const getInitialDb = () => {
   const fallbackDb = {
-    regions: initialRegions,
-    incharges: initialIncharges,
-    agents: initialAgents,
-    farmers: initialFarmers,
-    tanks: normalizeTanks(initialTanks),
-    submissions: initialSubmissions,
+    regions: [],
+    incharges: [],
+    agents: [],
+    farmers: [],
+    tanks: [],
+    submissions: [],
+    harvests: [],
     cultureCycles: [],
     drafts: [],
     notifications: [],
@@ -67,22 +50,6 @@ const getInitialDb = () => {
     try { localStorage.removeItem(k); } catch (e) {}
   });
 
-  try {
-    const savedData = localStorage.getItem('aqua_feed_clean_database_v1');
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      if (parsed) {
-        parsed.tanks = normalizeTanks(parsed.tanks || []);
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Error parsing storage:', e);
-  }
-
-  try {
-    localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(fallbackDb));
-  } catch (e) {}
   return fallbackDb;
 };
 
@@ -355,47 +322,33 @@ export const MockDataProvider = ({ children }) => {
         apiClient.get('/analytics/incharges'),
       ]);
 
-      const apiFarmers = farmersRes.status === 'fulfilled' && farmersRes.value?.data ? farmersRes.value.data : null;
-      const apiTanks = tanksRes.status === 'fulfilled' && tanksRes.value?.data ? tanksRes.value.data : null;
-      const apiSubs = subsRes.status === 'fulfilled' && subsRes.value?.data ? subsRes.value.data : null;
-      const apiHarvests = harvestsRes.status === 'fulfilled' && harvestsRes.value?.data ? harvestsRes.value.data : null;
-      const apiAgents = agentsRes.status === 'fulfilled' && agentsRes.value?.data ? agentsRes.value.data : null;
-      const apiRegions = regionsRes.status === 'fulfilled' && regionsRes.value?.data ? regionsRes.value.data : null;
-      const apiIncharges = inchargesRes.status === 'fulfilled' && inchargesRes.value?.data ? inchargesRes.value.data : null;
+      const apiFarmers = farmersRes.status === 'fulfilled' && Array.isArray(farmersRes.value?.data) ? farmersRes.value.data : [];
+      const apiTanks = tanksRes.status === 'fulfilled' && Array.isArray(tanksRes.value?.data) ? tanksRes.value.data : [];
+      const apiSubs = subsRes.status === 'fulfilled' && Array.isArray(subsRes.value?.data) ? subsRes.value.data : [];
+      const apiHarvests = harvestsRes.status === 'fulfilled' && Array.isArray(harvestsRes.value?.data) ? harvestsRes.value.data : [];
+      const apiAgents = agentsRes.status === 'fulfilled' && Array.isArray(agentsRes.value?.data) ? agentsRes.value.data : [];
+      const apiRegions = regionsRes.status === 'fulfilled' && Array.isArray(regionsRes.value?.data) ? regionsRes.value.data : [];
+      const apiIncharges = inchargesRes.status === 'fulfilled' && Array.isArray(inchargesRes.value?.data) ? inchargesRes.value.data : [];
 
-      if (apiFarmers || apiTanks || apiSubs || apiAgents || apiRegions || apiIncharges) {
-        setDb(prev => {
-          const mergedFarmers = Array.isArray(apiFarmers) && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
-          const rawTanks = Array.isArray(apiTanks) && apiTanks.length > 0 ? apiTanks : prev.tanks;
-          const mergedTanks = normalizeTanks(rawTanks);
-          const mergedSubs = Array.isArray(apiSubs) && apiSubs.length > 0 ? apiSubs : prev.submissions;
-          const mergedHarvests = Array.isArray(apiHarvests) && apiHarvests.length > 0 ? apiHarvests : prev.harvests;
-          const mergedAgents = Array.isArray(apiAgents) && apiAgents.length > 0 ? apiAgents : prev.agents;
-          const mergedRegions = Array.isArray(apiRegions) && apiRegions.length > 0 ? apiRegions : prev.regions;
-          const mergedIncharges = Array.isArray(apiIncharges) && apiIncharges.length > 0 ? apiIncharges : prev.incharges;
+      setDb(prev => {
+        const updatedDb = {
+          ...prev,
+          farmers: apiFarmers,
+          tanks: normalizeTanks(apiTanks),
+          submissions: apiSubs,
+          harvests: apiHarvests,
+          agents: apiAgents,
+          regions: apiRegions,
+          incharges: apiIncharges,
+        };
 
-          const updatedDb = {
-            ...prev,
-            farmers: mergedFarmers,
-            tanks: mergedTanks,
-            submissions: mergedSubs,
-            harvests: mergedHarvests,
-            agents: mergedAgents,
-            regions: mergedRegions,
-            incharges: mergedIncharges,
-          };
+        try {
+          localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(updatedDb));
+        } catch (e) {}
 
-          try {
-            localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(updatedDb));
-            localStorage.removeItem('royal_admin_incharges_data');
-            localStorage.removeItem('royal_admin_agents_data');
-            localStorage.removeItem('royal_admin_farmers_data');
-          } catch (e) {}
-
-          return updatedDb;
-        });
-        setDbConnected(true);
-      }
+        return updatedDb;
+      });
+      setDbConnected(true);
     } catch (err) {
       console.warn('[MockDataContext] Live DB fetch error:', err.message);
       setDbConnected(false);
@@ -1461,8 +1414,11 @@ export const MockDataProvider = ({ children }) => {
       logActivity,
       addNotification,
       markNotificationRead,
-      markAllNotificationsRead
+      markAllNotificationsRead,
+      refreshDb: fetchDataFromDb,
+      fetchDataFromDb
     }}>
+
       {children}
       {toastMessage && (
         <div style={{

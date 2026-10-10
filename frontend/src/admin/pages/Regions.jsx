@@ -50,31 +50,38 @@ const Regions = () => {
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
+  const allTanks = useMemo(() => db?.tanks || [], [db]);
+  const allHarvests = useMemo(() => db?.harvests || [], [db]);
+  const allSubmissions = useMemo(() => db?.submissions || [], [db]);
+
+  // Selected region for Bar Graph drill-down (null = all regions view)
+  const [selectedGraphRegion, setSelectedGraphRegion] = useState(null);
+
   // Helper to find Incharge object
   const getInchargeDetails = (inchargeName, localityName, regionName) => {
-    if (!inchargeName) return allIncharges[0];
+    if (!inchargeName) return null;
     let found = allIncharges.find(inc =>
       inc.name === inchargeName ||
       inc.shortName === inchargeName ||
-      inchargeName.toLowerCase().includes(inc.shortName?.toLowerCase() || '___')
+      (inc.shortName && inchargeName.toLowerCase().includes(inc.shortName.toLowerCase()))
     );
     if (!found && localityName) {
       found = allIncharges.find(inc => inc.locality?.toLowerCase() === localityName.toLowerCase());
     }
-    return found || allIncharges[0];
+    return found || null;
   };
 
   // Helper to find Field Agent object
   const getAgentDetails = (agentName, agentId, localityName) => {
     if (agentId) {
-      const byId = agents.find(ag => ag.id === agentId);
+      const byId = agents.find(ag => String(ag.id) === String(agentId));
       if (byId) return byId;
     }
     if (agentName) {
       const byName = agents.find(ag =>
         ag.name === agentName ||
         ag.shortName === agentName ||
-        agentName.toLowerCase().includes(ag.shortName?.toLowerCase() || '___')
+        (ag.shortName && agentName.toLowerCase().includes(ag.shortName.toLowerCase()))
       );
       if (byName) return byName;
     }
@@ -82,7 +89,7 @@ const Regions = () => {
       const byLoc = agents.find(ag => ag.locality?.toLowerCase() === localityName.toLowerCase());
       if (byLoc) return byLoc;
     }
-    return agents[0];
+    return null;
   };
 
   // Helper to match Farmer Region
@@ -239,25 +246,79 @@ const Regions = () => {
   // Metric for Bar Graph below the farmers table
   const [barMetric, setBarMetric] = useState('ACRES'); // 'ACRES' | 'TANKS' | 'FCR'
 
-  // Prepare Bar Graph data for the current active list of farmers (sorted A to Z)
+  // Prepare Bar Graph data:
+  // If selectedGraphRegion is null -> Group by actual regions from MySQL
+  // If selectedGraphRegion is set -> Drill down to display only farmers belonging to that region
   const barChartData = React.useMemo(() => {
-    return filteredAndSortedFarmers.map(f => {
-      const acresVal = f.totalAcres || parseFloat(f.acres) || 0;
-      const tanksCount = f.tanks || f.tankBreakdown?.length || 1;
-      const fcrVal = f.tankBreakdown?.[0]?.fcr || 1.35;
+    if (selectedGraphRegion) {
+      // Drill-down: Farmers belonging to selectedGraphRegion
+      const regionFarmers = farmers.filter(f =>
+        matchesFarmerRegion(f, selectedGraphRegion.name) ||
+        String(f.regionId) === String(selectedGraphRegion.id)
+      );
+
+      return regionFarmers.map(f => {
+        const acresVal = f.totalAcres || parseFloat(f.acres) || 0;
+        const farmerTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+        const tanksCount = f.tanks || (farmerTanks.length > 0 ? farmerTanks.length : 0);
+
+        // Real FCR from farmer harvests or tanks, zero mock fallback
+        const farmerHarvests = allHarvests.filter(h => String(h.farmerId) === String(f.id) || h.farmerName === f.name);
+        const validHarvestFcrs = farmerHarvests.map(h => parseFloat(h.fcr)).filter(v => v > 0);
+        const validTankFcrs = farmerTanks.map(t => parseFloat(t.fcr)).filter(v => v > 0);
+        const allFcrs = [...validHarvestFcrs, ...validTankFcrs];
+        const avgFcr = allFcrs.length > 0 ? allFcrs.reduce((a, b) => a + b, 0) / allFcrs.length : 0;
+
+        return {
+          id: f.id,
+          name: f.name,
+          shortName: f.name.length > 18 ? f.name.substring(0, 16) + '…' : f.name,
+          acres: Number(acresVal.toFixed(1)),
+          tanks: tanksCount,
+          fcr: avgFcr > 0 ? Number(avgFcr.toFixed(2)) : 0,
+          locality: f.locality || '-',
+          village: f.assignedArea || f.village || '-',
+          isDrillDown: true
+        };
+      });
+    }
+
+    // Default: Grouped by actual regions from MySQL
+    return regions.map(reg => {
+      const regFarmers = farmers.filter(f =>
+        matchesFarmerRegion(f, reg.name) ||
+        String(f.regionId) === String(reg.id)
+      );
+
+      const totalAcres = regFarmers.reduce((sum, f) => {
+        return sum + (f.totalAcres || parseFloat(f.acres) || 0);
+      }, 0);
+
+      const totalTanks = regFarmers.reduce((sum, f) => {
+        const farmerTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+        return sum + (f.tanks || (farmerTanks.length > 0 ? farmerTanks.length : 0));
+      }, 0);
+
+      // Real FCR across this region's farmers
+      const regHarvests = allHarvests.filter(h =>
+        regFarmers.some(f => String(f.id) === String(h.farmerId) || f.name === h.farmerName)
+      );
+      const validFcrs = regHarvests.map(h => parseFloat(h.fcr)).filter(v => v > 0);
+      const avgFcr = validFcrs.length > 0 ? validFcrs.reduce((a, b) => a + b, 0) / validFcrs.length : 0;
 
       return {
-        id: f.id,
-        name: f.name,
-        shortName: f.name.length > 18 ? f.name.substring(0, 16) + '…' : f.name,
-        acres: Number(acresVal.toFixed(1)),
-        tanks: tanksCount,
-        fcr: Number(fcrVal.toFixed(2)),
-        locality: f.locality,
-        village: f.assignedArea || f.village
+        id: reg.id,
+        name: reg.name,
+        shortName: reg.name.length > 16 ? reg.name.substring(0, 14) + '…' : reg.name,
+        acres: Number(totalAcres.toFixed(1)),
+        tanks: totalTanks,
+        fcr: avgFcr > 0 ? Number(avgFcr.toFixed(2)) : 0,
+        farmersCount: regFarmers.length,
+        rawRegion: reg,
+        isDrillDown: false
       };
     });
-  }, [filteredAndSortedFarmers]);
+  }, [selectedGraphRegion, regions, farmers, allTanks, allHarvests]);
 
   // Handle Excel Export for Current Filtered List
   const handleExportFilteredExcel = () => {
@@ -454,7 +515,7 @@ const Regions = () => {
                           style={styles.inchargeTextRowClickable}
                           onClick={() => {
                             const incObj = getInchargeDetails(farmer.incharge, farmer.locality, farmer.region);
-                            setSelectedInchargeDetails(incObj);
+                            if (incObj) setSelectedInchargeDetails(incObj);
                           }}
                           title={`Click to view full details for Incharge: ${farmer.incharge}`}
                         >
@@ -465,7 +526,7 @@ const Regions = () => {
                           style={styles.agentTextRowClickable}
                           onClick={() => {
                             const agObj = getAgentDetails(farmer.agent, farmer.agentId, farmer.locality);
-                            setSelectedAgentDetails(agObj);
+                            if (agObj) setSelectedAgentDetails(agObj);
                           }}
                           title={`Click to view full details for Field Agent: ${farmer.agent}`}
                         >
@@ -474,8 +535,6 @@ const Regions = () => {
                         </div>
                       </div>
                     </td>
-
-
 
                     {/* Total Land & Tanks */}
                     <td style={styles.td}>
@@ -540,9 +599,41 @@ const Regions = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BarChart3 size={18} color="#2563eb" />
               <h2 style={styles.chartTitle}>
-                Farmers Cultivation &amp; Acreage Distribution (Bar Graph)
+                {selectedGraphRegion
+                  ? `Cultivation & Acreage: ${selectedGraphRegion.name} Farmers`
+                  : 'Farmers Cultivation & Acreage Distribution by Region'}
               </h2>
             </div>
+            {selectedGraphRegion ? (
+              <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Showing {barChartData.length} farmer(s) in {selectedGraphRegion.name}
+                </span>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 10px',
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setSelectedGraphRegion(null)}
+                >
+                  ← Back to Regions
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                Grouped across all {regions.length} operational regions. Click any region bar to view its farmers.
+              </div>
+            )}
           </div>
 
           {/* Metric Selector Tabs */}
@@ -598,19 +689,23 @@ const Regions = () => {
                   textAnchor="end"
                 />
                 <YAxis
-                  domain={barMetric === 'FCR' ? [1.0, 1.8] : [0, 'auto']}
+                  domain={[0, 'auto']}
                   axisLine={{ stroke: '#cbd5e1' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#334155', fontWeight: 500 }}
                 />
                 <RechartsTooltip
                   formatter={(value) => [
-                    barMetric === 'ACRES' ? `${value} Acres` : barMetric === 'TANKS' ? `${value} Tanks` : `${value} FCR`,
+                    barMetric === 'ACRES' ? `${value} Acres` : barMetric === 'TANKS' ? `${value} Tanks` : `${value || 0} FCR`,
                     barMetric === 'ACRES' ? 'Cultivated Land' : barMetric === 'TANKS' ? 'Active Tanks' : 'Feed Conversion Ratio'
                   ]}
                   labelFormatter={(label, payload) => {
                     const item = payload?.[0]?.payload;
-                    return item ? `${item.name} (${item.locality} • ${item.village})` : label;
+                    if (!item) return label;
+                    if (item.isDrillDown) {
+                      return `${item.name} (${item.locality || ''} • ${item.village || ''})`;
+                    }
+                    return `${item.name} (${item.farmersCount} Farmers - Click to View)`;
                   }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                 />
@@ -619,6 +714,12 @@ const Regions = () => {
                   fill={barMetric === 'ACRES' ? '#2563eb' : barMetric === 'TANKS' ? '#16a34a' : '#0284c7'}
                   radius={[6, 6, 0, 0]}
                   maxBarSize={48}
+                  style={{ cursor: !selectedGraphRegion ? 'pointer' : 'default' }}
+                  onClick={(entry) => {
+                    if (!selectedGraphRegion && entry && entry.rawRegion) {
+                      setSelectedGraphRegion(entry.rawRegion);
+                    }
+                  }}
                 >
                   {barChartData.map((entry, index) => (
                     <Cell
@@ -638,7 +739,7 @@ const Regions = () => {
           </div>
         ) : (
           <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '13.5px' }}>
-            No farmer data available for the bar graph in current selection.
+            No records available for the bar graph in current selection.
           </div>
         )}
       </div>
@@ -731,9 +832,9 @@ const Regions = () => {
                           <span style={styles.tankAcresBadge}>{tank.acres} Ac</span>
                         </div>
                         <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
-                          <div>DOC: <strong>{tank.doc || 50} Days</strong></div>
-                          <div>ABW: <strong>{tank.abw || 16}g</strong> • FCR: <strong>{tank.fcr || 1.32}</strong></div>
-                          <div>Hatchery: <strong>{tank.hatcheryName || 'Apex Marine'}</strong></div>
+                          <div>DOC: <strong>{tank.doc != null ? `${tank.doc} Days` : '-'}</strong></div>
+                          <div>ABW: <strong>{tank.abw ? (String(tank.abw).includes('g') ? tank.abw : `${tank.abw}g`) : '-'}</strong> • FCR: <strong>{tank.fcr ?? '-'}</strong></div>
+                          {tank.hatcheryName && <div>Hatchery: <strong>{tank.hatcheryName}</strong></div>}
                         </div>
                       </div>
                     ))
@@ -801,56 +902,65 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 6 Block Info Grid */}
-              <div style={styles.modalInfoGrid}>
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.phone || '+91 9876543211'}</span>
-                </div>
+              {(() => {
+                const incRegion = selectedInchargeDetails.region || '';
+                const incShort = selectedInchargeDetails.shortName?.toLowerCase() || selectedInchargeDetails.name?.toLowerCase() || '';
+                const incAgents = agents.filter(a => matchesFarmerRegion(a, incRegion) || (a.incharge && a.incharge.toLowerCase().includes(incShort)));
+                const incFarmers = farmers.filter(f => matchesFarmerRegion(f, incRegion) || (f.incharge && f.incharge.toLowerCase().includes(incShort)));
+                const incTanksCount = incFarmers.reduce((sum, f) => {
+                  const fTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+                  return sum + (f.tanks || (fTanks.length > 0 ? fTanks.length : 0));
+                }, 0);
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.email || `${selectedInchargeDetails.shortName?.toLowerCase().replace(/\s+/g, '') || 'incharge'}.inc@royalsmarine.com`}</span>
-                </div>
+                return (
+                  <>
+                    <div style={styles.modalInfoGrid}>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.phone || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ASSIGNED REGION</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.region || 'Coastal Andhra'}</span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.email || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>HEADQUARTERS LOCALITY</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 800 }}>
-                    {selectedInchargeDetails.locality || 'Nellore'}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ASSIGNED REGION</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.region || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>FIELD AGENTS UNDER INCHARGE</span>
-                  <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#0f172a' }}>
-                    {selectedInchargeDetails.agents || 2} Agents Assigned
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>HEADQUARTERS LOCALITY</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 800 }}>
+                          {selectedInchargeDetails.locality || '-'}
+                        </span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>JURISDICTION OVERVIEW</span>
-                  <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#16a34a' }}>
-                    {selectedInchargeDetails.farmers || 3} Farmers • {selectedInchargeDetails.tanks || 6} Tanks
-                  </span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>FIELD AGENTS UNDER INCHARGE</span>
+                        <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#0f172a' }}>
+                          {incAgents.length} Agents Assigned
+                        </span>
+                      </div>
 
-              {/* Status & Compliance Highlight */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
-                <div style={styles.kpiMiniBadge}>
-                  <ShieldCheck size={16} color="#16a34a" />
-                  <span>Sampling Compliance: <strong>{selectedInchargeDetails.compliance || 95}%</strong></span>
-                </div>
-                <div style={styles.kpiMiniBadge}>
-                  <Check size={16} color="#2563eb" />
-                  <span>Locality Status: <strong>{selectedInchargeDetails.status || 'ACTIVE'}</strong></span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>JURISDICTION OVERVIEW</span>
+                        <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#16a34a' }}>
+                          {incFarmers.length} Farmers • {incTanksCount} Tanks
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                      <div style={styles.kpiMiniBadge}>
+                        <Check size={16} color="#2563eb" />
+                        <span>Locality Status: <strong>{selectedInchargeDetails.status || 'ACTIVE'}</strong></span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
@@ -901,68 +1011,74 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 6 Block Info Grid */}
-              <div style={styles.modalInfoGrid}>
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.phone || '+91 9876543213'}</span>
-                </div>
+              {(() => {
+                const agId = String(selectedAgentDetails.id);
+                const agShort = selectedAgentDetails.shortName?.toLowerCase() || selectedAgentDetails.name?.toLowerCase() || '';
+                const agFarmers = farmers.filter(f => String(f.agentId) === agId || (f.agent && f.agent.toLowerCase().includes(agShort)));
+                const agTanksCount = agFarmers.reduce((sum, f) => {
+                  const fTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+                  return sum + (f.tanks || (fTanks.length > 0 ? fTanks.length : 0));
+                }, 0);
+                const agSubmissions = allSubmissions.filter(s => String(s.agentId) === agId);
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.email || `${selectedAgentDetails.shortName?.toLowerCase().replace(/\s+/g, '') || 'agent'}.agt@royalsmarine.com`}</span>
-                </div>
+                return (
+                  <>
+                    <div style={styles.modalInfoGrid}>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.phone || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>REGION &amp; LOCALITY</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.locality}, {selectedAgentDetails.region || 'Coastal Andhra'}</span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.email || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>REPORTING INCHARGE</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 700 }}>
-                    {selectedAgentDetails.incharge}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>REGION &amp; LOCALITY</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.locality || '-'}, {selectedAgentDetails.region || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ASSIGNED PARTICULAR AREA / ZONE</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#0284c7', fontWeight: 800 }}>
-                    {selectedAgentDetails.assignedArea || `${selectedAgentDetails.locality} Area`}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>REPORTING INCHARGE</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 700 }}>
+                          {selectedAgentDetails.incharge || '-'}
+                        </span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ALLOCATED FARMERS &amp; TANKS</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#16a34a', fontWeight: 800 }}>
-                    {selectedAgentDetails.farmers || 2} Farmers • {selectedAgentDetails.tanks || 4} Tanks
-                  </span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ASSIGNED PARTICULAR AREA / ZONE</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#0284c7', fontWeight: 800 }}>
+                          {selectedAgentDetails.assignedArea || selectedAgentDetails.locality || '-'}
+                        </span>
+                      </div>
 
-              {/* 3 Metric Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginTop: '14px' }}>
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                    {selectedAgentDetails.siteVisits || 6}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Site Visits</div>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ALLOCATED FARMERS &amp; TANKS</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#16a34a', fontWeight: 800 }}>
+                          {agFarmers.length} Farmers • {agTanksCount} Tanks
+                        </span>
+                      </div>
+                    </div>
 
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>
-                    {selectedAgentDetails.tests || 45}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Tests Submitted</div>
-                </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '14px' }}>
+                      <div style={styles.agentMetricCard}>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                          {agFarmers.length}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Assigned Farmers</div>
+                      </div>
 
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#16a34a' }}>
-                    {selectedAgentDetails.compliance || 95}%
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Field Compliance</div>
-                </div>
-              </div>
+                      <div style={styles.agentMetricCard}>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>
+                          {agSubmissions.length}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Field Submissions</div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>

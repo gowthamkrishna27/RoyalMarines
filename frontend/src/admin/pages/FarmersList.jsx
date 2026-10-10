@@ -17,32 +17,49 @@ const FarmersList = () => {
   const allIncharges = useMemo(() => getIncharges(db), [db]);
 
   // Load farmers from DB
-  const [farmers, setFarmers] = useState([]);
+  const [farmers, setFarmers] = useState(() => db?.farmers || []);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
-    const fetchFarmers = async () => {
-      try {
-        const response = await fetch('/api/farmers');
-        const data = await response.json();
-        if (data.success && data.data) {
-          const formattedFarmers = data.data.map(f => ({
-            ...f,
-            name: f.name || 'Unknown Farmer',
-            phone: f.phone || '',
-            village: f.village || f.locality || '',
-            locality: f.locality || '',
-            region: f.region_name || 'Unknown',
-            agent: f.agent_name || 'Unassigned',
-            tanks: f.tanks_count || f.tanks || 0,
-            activePonds: f.active_ponds || 0,
-            status: f.status || 'ACTIVE'
-          }));
-          setFarmers(formattedFarmers);
-        }
-      } catch (error) {
-        console.error('Failed to fetch farmers:', error);
+    if (db?.farmers && db.farmers.length > 0) {
+      setFarmers(db.farmers);
+    }
+  }, [db?.farmers]);
+
+  const fetchFarmers = async () => {
+    try {
+      setLoading(true);
+      setFetchError(null);
+      const response = await fetch('/api/farmers');
+      if (!response.ok) {
+        throw new Error('Database connection failed');
       }
-    };
+      const data = await response.json();
+      if (data.success && data.data) {
+        const formattedFarmers = data.data.map(f => ({
+          ...f,
+          name: f.name || 'Unknown Farmer',
+          phone: f.phone || '',
+          village: f.village || f.locality || '',
+          locality: f.locality || '',
+          region: f.region_name || 'Unknown',
+          agent: f.agent_name || 'Unassigned',
+          tanks: f.tanks_count || f.tanks || 0,
+          activePonds: f.active_ponds || 0,
+          status: f.status || 'ACTIVE'
+        }));
+        setFarmers(formattedFarmers);
+      }
+    } catch (error) {
+      console.error('Failed to fetch farmers:', error);
+      setFetchError('Unable to load farmers from database. Please check connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchFarmers();
   }, []);
 
@@ -544,7 +561,27 @@ const FarmersList = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.length > 0 ? (
+              {loading && farmers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                    Loading farmers from database...
+                  </td>
+                </tr>
+              ) : fetchError && farmers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#DC2626' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span>{fetchError}</span>
+                      <button
+                        onClick={fetchFarmers}
+                        style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #DC2626', background: '#FEE2E2', color: '#DC2626', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length > 0 ? (
                 filtered.map((item, index) => {
                   const totalAcresVal = item.totalAcres || parseFloat(item.acres) || 0;
                   const tankCount = item.tanks || 1;
