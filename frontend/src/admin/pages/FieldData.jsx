@@ -203,17 +203,7 @@ const FieldData = () => {
               </div>
             </div>
 
-            {/* Tank Filter */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Tank</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px' }}>
-                <Droplet size={15} color="#94a3b8" />
-                <select style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: '#1e293b' }} value={filters.tank} onChange={(e) => handleFilterChange('tank', e.target.value)}>
-                  <option value="">All Tanks</option>
-                  {availableTanks.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
+
           </div>
 
         </div>
