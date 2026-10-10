@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getAdminSession } from '../utils/adminAuth';
-import { Bell, Search, LogOut, User, Menu, X } from 'lucide-react';
+import { Bell, LogOut, User, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/topnavlogo.png';
 import { useMockData } from '../../context/MockDataContext';
@@ -10,55 +10,11 @@ const AdminHeader = ({ onToggleSidebar }) => {
   const navigate = useNavigate();
   const mockData = useMockData();
 
-  const [searchTerm, setSearchTerm] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_auth_session');
     navigate('/admin-login');
-  };
-
-  // Search logic across farmers, tanks, and agents
-  const db = mockData?.db;
-
-  const filteredFarmers =
-    db?.farmers
-      ?.filter(
-        (f) =>
-          f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          f.phone?.includes(searchTerm) ||
-          f.id?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      .slice(0, 3) || [];
-
-  const filteredTanks =
-    db?.tanks
-      ?.filter(
-        (t) =>
-          t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.id?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      .slice(0, 3) || [];
-
-  const filteredAgents =
-    db?.agents
-      ?.filter(
-        (a) =>
-          a.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          a.locality?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      .slice(0, 3) || [];
-
-  const hasResults =
-    searchTerm.trim().length > 0 &&
-    (filteredFarmers.length > 0 ||
-      filteredTanks.length > 0 ||
-      filteredAgents.length > 0);
-
-  const clearSearch = () => {
-    setSearchTerm('');
-    setShowSearchResults(false);
   };
 
   return (
@@ -88,133 +44,6 @@ const AdminHeader = ({ onToggleSidebar }) => {
         </div>
       </div>
 
-      {/* CENTER - SEARCH */}
-      <div className="hidden md:flex relative flex-1 max-w-lg mx-6">
-        <div style={styles.searchBar} className="w-full">
-          <Search
-            size={18}
-            color="#64748B"
-            style={{ flexShrink: 0 }}
-          />
-
-          <input
-            type="text"
-            placeholder="Search Farmer, Tank, Agent..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setShowSearchResults(true);
-            }}
-            onFocus={() => setShowSearchResults(true)}
-            style={styles.searchInput}
-          />
-
-          {searchTerm && (
-            <button
-              onClick={clearSearch}
-              style={styles.clearBtn}
-              type="button"
-              aria-label="Clear search"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-
-        {/* SEARCH DROPDOWN */}
-        {showSearchResults && searchTerm.trim().length > 0 && (
-          <div style={styles.searchDropdown}>
-            {hasResults ? (
-              <>
-                {/* FARMERS */}
-                {filteredFarmers.length > 0 && (
-                  <div style={styles.dropdownSection}>
-                    <div style={styles.dropdownSectionHeader}>
-                      Farmers
-                    </div>
-
-                    {filteredFarmers.map((farmer) => (
-                      <div
-                        key={farmer.id}
-                        style={styles.dropdownItem}
-                        onClick={() => {
-                          navigate(`/admin/farmers/${farmer.id}`);
-                          clearSearch();
-                        }}
-                      >
-                        <span style={styles.itemTitle}>
-                          {farmer.name}
-                        </span>
-                        <span style={styles.itemSub}>
-                          {farmer.phone} • {farmer.location}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* TANKS */}
-                {filteredTanks.length > 0 && (
-                  <div style={styles.dropdownSection}>
-                    <div style={styles.dropdownSectionHeader}>
-                      Tanks
-                    </div>
-
-                    {filteredTanks.map((tank) => (
-                      <div
-                        key={tank.id}
-                        style={styles.dropdownItem}
-                        onClick={() => {
-                          navigate(`/admin/tanks/${tank.id}`);
-                          clearSearch();
-                        }}
-                      >
-                        <span style={styles.itemTitle}>
-                          {tank.name} ({tank.id})
-                        </span>
-                        <span style={styles.itemSub}>
-                          ABW: {tank.abw} • Status: {tank.testStatus}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* AGENTS */}
-                {filteredAgents.length > 0 && (
-                  <div style={styles.dropdownSection}>
-                    <div style={styles.dropdownSectionHeader}>
-                      Agents
-                    </div>
-
-                    {filteredAgents.map((agent) => (
-                      <div
-                        key={agent.id}
-                        style={styles.dropdownItem}
-                        onClick={() => {
-                          navigate(`/admin/agents/${agent.id}`);
-                          clearSearch();
-                        }}
-                      >
-                        <span style={styles.itemTitle}>
-                          {agent.name}
-                        </span>
-                        <span style={styles.itemSub}>
-                          {agent.locality}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={styles.noResults}>
-                No records found for "{searchTerm}"
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* RIGHT CONTROLS */}
       <div style={styles.rightControls}>

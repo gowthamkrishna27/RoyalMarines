@@ -314,7 +314,13 @@ const AgentDetail = () => {
             <CheckSquare size={20} />
           </div>
           <div>
-            <div style={styles.kpiValue}>{agent.tests || 45}</div>
+            <div style={styles.kpiValue}>
+              {(db?.submissions || []).filter(s =>
+                s.agentId === agent?.id ||
+                s.agentId === agentId ||
+                (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))
+              ).length}
+            </div>
             <div style={styles.kpiLabel}>Telemetry Tests Submitted</div>
           </div>
         </div>
@@ -324,7 +330,18 @@ const AgentDetail = () => {
             <UserCheck size={20} />
           </div>
           <div>
-            <div style={styles.kpiValue}>{agent.compliance || 95}%</div>
+            <div style={styles.kpiValue}>
+              {(() => {
+                const totalTanksCount = allocatedFarmers.reduce((acc, f) => acc + (f.tanks || f.tankBreakdown?.length || 1), 0);
+                const subsCount = (db?.submissions || []).filter(s =>
+                  s.agentId === agent?.id ||
+                  s.agentId === agentId ||
+                  (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))
+                ).length;
+                if (totalTanksCount === 0) return '-';
+                return `${Math.min(100, Math.round((subsCount / totalTanksCount) * 100))}%`;
+              })()}
+            </div>
             <div style={styles.kpiLabel}>Field Sampling Compliance</div>
           </div>
         </div>

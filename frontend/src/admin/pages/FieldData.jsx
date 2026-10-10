@@ -90,42 +90,7 @@ const FieldData = () => {
     return true;
   });
 
-  // Re-inject dummy logic if a specific agent is selected
-  const selectedAgentObj = allAgents.find(a => (a.name || '').split(' (')[0] === filters.agent);
-  if (selectedAgentObj && selectedAgentObj.tests) {
-    const expectedTests = selectedAgentObj.tests;
-    const currentCompleted = filteredSubmissions.filter(s => s.status === 'COMPLETED').length;
-
-    if (currentCompleted < expectedTests) {
-      const needed = expectedTests - currentCompleted;
-      const testTypes = ['Water Analysis', 'Feed Test', 'Medication', 'Disease Observation'];
-      const farmerNames = ['Ashok', 'Ravi', 'Kumar', 'Siva', 'Ganesh'];
-      const formattedAgentId = `agent${(selectedAgentObj.id || '').split('-').pop().padStart(3, '0')}`;
-
-      for (let i = 0; i < needed; i++) {
-        const dummySub = {
-          id: `SUB-GEN-${(selectedAgentObj.id || '').split('-').pop()}-${i}`,
-          agentId: formattedAgentId,
-          farmerId: filters.farmer || farmerNames[i % 5],
-          tankId: filters.tank || `Tank ${(i % 10) + 1}`,
-          testType: testTypes[i % testTypes.length],
-          date: new Date(Date.now() - (i * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
-          status: 'COMPLETED',
-          submittedAgo: `${(i % 24) + 1} hours ago`,
-          data: {
-            abw: `${(10 + (i % 15))}g`,
-            waterQuality: { salinity: '15', ph: '7.8', do: '5.2', waterColor: 'Greenish' },
-            biomass: `${1000 + (i * 50)}`,
-            fcr: (1.1 + (i % 10) * 0.05).toFixed(2)
-          }
-        };
-
-        filteredSubmissions.push(dummySub);
-      }
-    }
-  }
-
-  filteredSubmissions.sort((a, b) => new Date(b.date) - new Date(a.date));
+  filteredSubmissions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   return (
     <div style={styles.container}>
@@ -242,32 +207,37 @@ const FieldData = () => {
                   const abw = parseFloat(abwStr.toString().replace('g', ''));
                   const dynamicBiomass = calculateBiomass(seedStockingLak, abw) || parseInt(item.data?.biomass) || 1200;
 
-                  // Extract feed if available, otherwise estimate from old FCR to calculate dynamically
+                  // Extract feed if available from database record
                   const feedStr = item.data?.cumulativeFeed || item.data?.feed || tank.feed;
                   let cumulativeFeed = parseFloat(feedStr);
-                  if (isNaN(cumulativeFeed)) {
-                    cumulativeFeed = dynamicBiomass * parseFloat(item.data?.fcr || 1.2);
-                  }
-                  const dynamicFcr = calculateFCR(cumulativeFeed, dynamicBiomass);
+                  const dynamicFcr = (!isNaN(cumulativeFeed) && dynamicBiomass > 0)
+                    ? calculateFCR(cumulativeFeed, dynamicBiomass)
+                    : (item.data?.fcr ? Number(item.data.fcr).toFixed(2) : '-');
 
                   const farmerObj = (db?.farmers || []).find(f => f.id === item.farmerId || f.name === item.farmerId) || allFarmers.find(f => f.id === item.farmerId || f.name === item.farmerId) || {};
-                  const farmerNameToDisplay = farmerObj.name || item.farmerId;
+                  const farmerNameToDisplay = farmerObj.name || item.farmerId || '-';
+
+                  const phVal = item.data?.waterQuality?.ph ?? item.data?.ph;
+                  const salVal = item.data?.waterQuality?.salinity ?? item.data?.salinity;
+                  const wqDisplay = phVal || salVal
+                    ? `${phVal ? `pH: ${phVal}` : ''}${phVal && salVal ? ' | ' : ''}${salVal ? `${salVal} ppt` : ''}`
+                    : '-';
 
                   return (
                     <tr key={item.id} style={styles.tr}>
                       <td style={{ ...styles.td, fontWeight: 700, color: '#1d4ed8' }}>{item.id}</td>
-                      <td style={styles.td}>{item.date} <span style={{ color: '#94a3b8', fontSize: '11px' }}>({item.submittedAgo})</span></td>
-                      <td style={{ ...styles.td, fontWeight: 600 }}>{tank.name || item.tankId}</td>
+                      <td style={styles.td}>{item.date || '-'} <span style={{ color: '#94a3b8', fontSize: '11px' }}>{item.submittedAgo ? `(${item.submittedAgo})` : ''}</span></td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>{tank.name || item.tankId || '-'}</td>
                       <td style={styles.td}>{farmerNameToDisplay}</td>
-                      <td style={styles.td}>{item.agentId}</td>
+                      <td style={styles.td}>{item.agentId || '-'}</td>
                       <td style={styles.td}>
-                        <span style={styles.typeBadge}>{item.testType}</span>
+                        <span style={styles.typeBadge}>{item.testType || 'Water Test'}</span>
                       </td>
                       <td style={styles.td}>
-                        pH: {item.data?.waterQuality?.ph || '7.8'} | {item.data?.waterQuality?.salinity || '15'} ppt
+                        {wqDisplay}
                       </td>
                       <td style={styles.td}>
-                        {dynamicBiomass.toLocaleString()} kg (FCR: {dynamicFcr})
+                        {dynamicBiomass > 0 ? `${dynamicBiomass.toLocaleString()} kg` : '-'} {dynamicFcr !== '-' ? `(FCR: ${dynamicFcr})` : ''}
                       </td>
                       <td style={styles.td}>
                         <span style={{

@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X, TestTube, Bell, Check, Clock, Filter, Plus
+  Search, X, TestTube, Bell, Check, Clock, Filter, Plus, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 import { useMockData } from '../../context/MockDataContext';
 import { getRegions } from '../utils/adminMockData';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
-import GPSRouteTracking from './GPSRouteTracking';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -22,40 +21,44 @@ const AdminDashboard = () => {
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
-  // Retrieve all tanks first
+  // Retrieve all tanks first from MySQL database
   const allTanks = db?.tanks || [];
 
-  // Real or fallback statistics aligned with the dashboard design
+  // Real database statistics
   const totalFarmers = db?.farmers?.length || 0;
   const totalTanks = allTanks.length || 0;
-  const activeTanks = allTanks.filter(t => t.status !== 'Harvested').length || 0;
-  const harvestedTanks = allTanks.filter(t => t.status === 'Harvested').length || 0;
-  const totalIncharges = db?.incharges?.length || 3;
-  const totalRegionsCount = regions.length || 3;
-  const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
+  const activeTanks = allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
+  const harvestedTanks = allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
+  const totalIncharges = db?.incharges?.length || 0;
 
-  // Calculate Due and Overdue Tests across all tanks
+  // Real Average ABW calculated from active tanks
+  const validAbwTanks = allTanks.filter(t => parseFloat(t.abw) > 0);
+  const avgAbwVal = validAbwTanks.length > 0 
+    ? (validAbwTanks.reduce((sum, t) => sum + parseFloat(t.abw), 0) / validAbwTanks.length).toFixed(1) + 'g'
+    : '0.0g';
+
+  // Real Due and Overdue Tests across all tanks
   const dueAndOverdueTanks = allTanks
-    .filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue' || !t.lastTest || t.testStatus === 'Pending'))
+    .filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase()))
     .map((t, idx) => {
-      const farmer = mockData?.getFarmerById ? mockData.getFarmerById(t.farmerId) : (db?.farmers || []).find(f => f.id === t.farmerId);
-      const agent = mockData?.getAgentById ? mockData.getAgentById(t.agentId) : (db?.agents || []).find(a => a.id === t.agentId);
-      const isOverdue = t.testStatus === 'Overdue' || idx % 3 === 0;
-      const testType = idx % 3 === 0 ? 'Water Analysis (DO, pH, Salinity)' : idx % 3 === 1 ? 'Feed Conversion & Consumption Audit' : 'Biomass & Disease Check';
+      const farmer = (db?.farmers || []).find(f => String(f.id) === String(t.farmerId));
+      const agent = (db?.agents || []).find(a => String(a.id) === String(t.agentId));
+      const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
+      const testType = 'Routine Water & Telemetry Audit';
 
       return {
         id: t.id,
-        tankName: t.name || `Tank ${t.id.replace(/\D/g, '') || idx + 1}`,
+        tankName: t.name || `Tank ${idx + 1}`,
         farmerName: farmer ? farmer.name : (t.farmerName || 'Farmer'),
-        phone: farmer ? (farmer.phone || '+91 98480 12345') : '+91 98480 12345',
-        locality: farmer ? (farmer.location || farmer.village || farmer.locality || 'Bhimavaram') : 'Bhimavaram',
-        agentName: agent ? agent.name : (t.agentId ? 'Ramesh' : 'Direct Supervisor'),
-        agentPhone: agent ? (agent.phone || '+91 98765 43210') : '+91 98765 43210',
-        doc: t.doc || (35 + (idx * 6)),
-        abw: t.abw || '18.5g',
+        phone: farmer ? (farmer.phone || '') : '',
+        locality: farmer ? (farmer.location || farmer.village || farmer.locality || '') : (t.location || ''),
+        agentName: agent ? agent.name : (t.agent_name || 'Assigned Staff'),
+        agentPhone: agent ? (agent.phone || '') : '',
+        doc: t.doc || 0,
+        abw: t.abw ? (String(t.abw).includes('g') ? t.abw : `${t.abw}g`) : '0.0g',
         size: t.size || '2.5 Acres',
-        lastTest: t.lastTest || '18 Aug 2026',
-        nextDue: t.nextTest || '25 Aug 2026',
+        lastTest: t.lastTest || t.last_test || 'Pending',
+        nextDue: t.nextTest || t.next_test || 'Due This Week',
         isOverdue: isOverdue,
         testType: testType,
         urgency: isOverdue ? 'CRITICAL_OVERDUE' : 'DUE_THIS_WEEK'
@@ -76,43 +79,49 @@ const AdminDashboard = () => {
     return matchesTab && matchesSearch;
   });
 
-  // Harvest Records History State
-  const [harvestRecords, setHarvestRecords] = useState([
-    { id: 'REC-3', doc: 60, date: 'Mar 1, 2026', type: 'Partial Harvest', fcr: '1.90', abw: '24.5g', farmerName: 'Ashok', name: 'Tank 1' },
-    { id: 'REC-2', doc: 45, date: 'Feb 15, 2026', type: 'Partial Harvest', fcr: '1.45', abw: '18.2g', farmerName: 'Ashok', name: 'Tank 1' },
-    { id: 'REC-1', doc: 30, date: 'Jan 31, 2026', type: 'Normal', fcr: '1.16', abw: '11.4g', farmerName: 'Ashok', name: 'Tank 1' }
-  ]);
+  // Harvest & FCR Records directly from real MySQL database
+  const liveHarvests = db?.harvests || [];
   const [docInput, setDocInput] = useState('');
   const [showHarvestedModal, setShowHarvestedModal] = useState(false);
+  const [showAllHarvests, setShowAllHarvests] = useState(false);
 
-  const handleAddRecord = () => {
-    if (!docInput) return;
-    const docValue = parseInt(docInput);
-    if (isNaN(docValue)) return;
+  // When DOC is entered: specific DOC details 1st, then descending order DOC farmers; otherwise all farmers
+  const filteredHarvests = useMemo(() => {
+    const trimmed = String(docInput || '').trim();
+    if (!trimmed) {
+      // Otherwise display all farmers
+      return liveHarvests;
+    }
 
-    const newRecord = {
-      id: `REC-${Date.now()}`,
-      doc: docValue,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      type: 'Record',
-      fcr: (1.1 + (docValue * 0.012)).toFixed(2),
-      abw: `${(docValue * 0.4).toFixed(1)}g`,
-      farmerName: 'Ashok',
-      name: 'Tank 1',
-      isNew: true
-    };
+    const targetDoc = parseInt(trimmed, 10);
+    if (isNaN(targetDoc)) {
+      return liveHarvests;
+    }
 
-    setHarvestRecords(prev => [newRecord, ...prev]);
-    setDocInput('');
-  };
+    // 1. That specific DOC details 1st
+    const exactMatches = liveHarvests
+      .filter(r => Number(r.doc) === targetDoc)
+      .sort((a, b) => new Date(b.date || b.harvest_date || 0) - new Date(a.date || a.harvest_date || 0));
 
-  const displayedHarvestRecords = docInput
-    ? [...harvestRecords].filter(r => r.doc <= parseInt(docInput || '0')).sort((a, b) => b.doc - a.doc)
-    : harvestRecords;
+    // 2. Later on: descending order DOC farmers
+    const lowerDescending = liveHarvests
+      .filter(r => Number(r.doc) < targetDoc)
+      .sort((a, b) => {
+        const diff = (Number(b.doc) || 0) - (Number(a.doc) || 0);
+        if (diff !== 0) return diff;
+        return new Date(b.date || b.harvest_date || 0) - new Date(a.date || a.harvest_date || 0);
+      });
+
+    return [...exactMatches, ...lowerDescending];
+  }, [liveHarvests, docInput]);
+
+  // Initially show ONLY 5 records, or all remaining records if present and expanded
+  const displayedHarvestRecords = showAllHarvests
+    ? filteredHarvests
+    : filteredHarvests.slice(0, 5);
 
   return (
     <div style={styles.dashboardContainer}>
-
 
       {/* 1. Header Section */}
       <div style={styles.headerSection}>
@@ -198,7 +207,7 @@ const AdminDashboard = () => {
               <Activity size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>16.4g</div>
+          <div style={styles.kpiValue}>{avgAbwVal}</div>
           <div style={styles.kpiSubtext}>Mean Body Weight</div>
         </div>
 
@@ -241,14 +250,14 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* 3. Harvest & FCR Records Section */}
+      {/* 3. Combined Harvest & FCR Records Section */}
       <div style={styles.sectionCard}>
         <div style={styles.sectionHeader}>
           <div>
             <div style={styles.sectionTitleRow}>
               <TrendingUp size={20} color="#2563EB" />
               <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
-              <span style={styles.countBadge}>{harvestRecords.length} Records</span>
+              <span style={styles.countBadge}>{filteredHarvests.length} Total Records</span>
             </div>
           </div>
 
@@ -258,22 +267,29 @@ const AdminDashboard = () => {
               <input
                 type="number"
                 style={styles.docInput}
-                placeholder="e.g. 75"
+                placeholder="e.g. 65"
                 value={docInput}
                 onChange={e => setDocInput(e.target.value)}
               />
+              {docInput && (
+                <button
+                  type="button"
+                  onClick={() => setDocInput('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94A3B8',
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Clear DOC filter to show all farmers"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
-
-            {docInput && (
-              <button
-                type="button"
-                style={styles.addRecordBtn}
-                onClick={handleAddRecord}
-              >
-                <Plus size={14} />
-                <span>Add Record</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -286,7 +302,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Harvest Records Table */}
+        {/* Combined Harvest + FCR Records Table */}
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -297,43 +313,78 @@ const AdminDashboard = () => {
                 <th style={styles.th}>FCR</th>
                 <th style={styles.th}>DOC</th>
                 <th style={styles.th}>Date</th>
-                <th style={styles.th}>Type</th>
+                <th style={styles.th}>Quality / Type</th>
               </tr>
             </thead>
             <tbody>
               {displayedHarvestRecords.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={styles.emptyTableTd}>
-                    No harvest records found matching DOC {docInput}.
+                    No harvest or FCR records found.
                   </td>
                 </tr>
               ) : (
-                displayedHarvestRecords.map((record) => (
-                  <tr key={record.id} style={styles.tableRow}>
-                    <td style={styles.tdPrimary}>
-                      <span style={{ fontWeight: 600 }}>{record.farmerName}</span>
-                      {record.isNew && (
-                        <span style={styles.newBadge}>NEW</span>
-                      )}
-                    </td>
-                    <td style={styles.td}>{record.name}</td>
-                    <td style={styles.tdWeight}>{record.abw}</td>
-                    <td style={styles.tdFcr}>{record.fcr}</td>
-                    <td style={styles.tdDoc}>{record.doc}</td>
-                    <td style={styles.tdDate}>{record.date}</td>
-                    <td style={styles.td}>
-                      <span style={styles.typeChip}>{record.type}</span>
-                    </td>
-                  </tr>
-                ))
+                displayedHarvestRecords.map((record) => {
+                  const displayAbw = record.abw ? (String(record.abw).includes('g') ? record.abw : `${record.abw}g`) : (record.countPerKg ? `${(1000 / record.countPerKg).toFixed(1)}g` : '-');
+                  return (
+                    <tr key={record.id} style={styles.tableRow}>
+                      <td style={styles.tdPrimary}>
+                        <span style={{ fontWeight: 600 }}>{record.farmerName || record.farmer_name || '-'}</span>
+                      </td>
+                      <td style={styles.td}>{record.tankName || record.tank_name || record.tankId || '-'}</td>
+                      <td style={styles.tdWeight}>{displayAbw}</td>
+                      <td style={styles.tdFcr}>{record.fcr ? Number(record.fcr).toFixed(2) : '-'}</td>
+                      <td style={styles.tdDoc}>{record.doc != null ? record.doc : '-'}</td>
+                      <td style={styles.tdDate}>{record.date || record.harvest_date || '-'}</td>
+                      <td style={styles.td}>
+                        <span style={styles.typeChip}>{record.quality || record.harvest_type || 'Harvest'}</span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* 4. Live Map & Tracking Section */}
-      <GPSRouteTracking />
+        {/* ONE Show More / Show Less button - reveals remaining records in place if present */}
+        {filteredHarvests.length > 5 && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{
+                padding: '10px 28px',
+                backgroundColor: '#03358F',
+                color: '#FFFFFF',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(3, 53, 143, 0.2)',
+                transition: 'all 0.2s ease'
+              }}
+              onClick={() => setShowAllHarvests(prev => !prev)}
+            >
+              {showAllHarvests ? (
+                <>
+                  <span>Show Less</span>
+                  <ChevronUp size={16} />
+                </>
+              ) : (
+                <>
+                  <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
+                  <ChevronDown size={16} />
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Due & Overdue Tests Comprehensive Organization Modal */}
       {showDueTestsModal && (

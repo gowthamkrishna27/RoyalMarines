@@ -75,11 +75,19 @@ const MapBoundsController = ({ markers, selectedMarkerId, markerRefs }) => {
   return null;
 };
 
+// Helper to format today's date in local YYYY-MM-DD
+const getTodayDateStr = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const SubmissionLocationMap = () => {
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedUserId, setSelectedUserId] = useState('ALL');
-  const [selectedDate, setSelectedDate] = useState('today');
-  const [customDateValue, setCustomDateValue] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
 
   const [submissions, setSubmissions] = useState([]);
   const [fieldStaff, setFieldStaff] = useState([]);
@@ -126,9 +134,8 @@ const SubmissionLocationMap = () => {
         queryParams.set('userId', selectedUserId);
       }
       
-      const effectiveDate = selectedDate === 'custom' ? customDateValue : selectedDate;
-      if (effectiveDate && effectiveDate !== 'ALL') {
-        queryParams.set('date', effectiveDate);
+      if (selectedDate && selectedDate !== 'ALL') {
+        queryParams.set('date', selectedDate);
       }
 
       const res = await apiClient.get(`/admin/submission-locations?${queryParams.toString()}`);
@@ -153,7 +160,7 @@ const SubmissionLocationMap = () => {
 
   useEffect(() => {
     fetchLocations();
-  }, [selectedRole, selectedUserId, selectedDate, customDateValue]);
+  }, [selectedRole, selectedUserId, selectedDate]);
 
   // Handle Role Filter Change
   const handleRoleChange = (e) => {
@@ -290,32 +297,17 @@ const SubmissionLocationMap = () => {
 
         <div style={styles.filterGroup}>
           <label style={styles.filterLabel}>
-            <Calendar size={14} style={{ marginRight: 6, color: '#64748B' }} />
+            <Calendar size={14} style={{ marginRight: 6, color: '#0284C7' }} />
             Date
           </label>
-          <select
+          <input
+            type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            style={styles.select}
-          >
-            <option value="today">Today (07 Oct 2026)</option>
-            <option value="2026-10-06">Yesterday (06 Oct 2026)</option>
-            <option value="ALL">All Recorded Dates</option>
-            <option value="custom">Custom Date Pick...</option>
-          </select>
+            style={styles.calendarInput}
+            title="Click calendar icon to choose date"
+          />
         </div>
-
-        {selectedDate === 'custom' && (
-          <div style={styles.filterGroup}>
-            <label style={styles.filterLabel}>Select Date</label>
-            <input
-              type="date"
-              value={customDateValue}
-              onChange={(e) => setCustomDateValue(e.target.value)}
-              style={styles.dateInput}
-            />
-          </div>
-        )}
 
         <div style={styles.filterStatusWrapper}>
           <span style={styles.filterStatusText}>
@@ -752,6 +744,18 @@ const styles = {
     backgroundColor: '#FFFFFF',
     fontSize: '13px',
     color: '#1E293B'
+  },
+  calendarInput: {
+    padding: '8px 12px',
+    borderRadius: '8px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    fontSize: '13.5px',
+    color: '#1E293B',
+    fontWeight: '500',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit'
   },
   filterStatusWrapper: {
     marginLeft: 'auto',

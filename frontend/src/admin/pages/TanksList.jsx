@@ -57,21 +57,29 @@ const TanksList = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{item.name}</td>
-                    <td style={{ padding: '16px', fontSize: '14px' }}>{item.farmer}</td>
-                    <td style={{ padding: '16px', fontSize: '14px' }}>{item.region}</td>
-                    <td style={{ padding: '16px', fontSize: '14px' }}>{item.currentCycle}</td>
-                    <td style={{ padding: '16px', fontSize: '14px', color: '#f59e0b', fontWeight: 600 }}>{item.abw}g</td>
-                    <td style={{ padding: '16px', fontSize: '14px', color: '#38bdf8', fontWeight: 600 }}>{item.biomass}kg</td>
-                    <td style={{ padding: '16px', textAlign: 'right' }}>
-                      <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => navigate(`/admin/tanks/${item.id}`)}>
-                        <Eye size={16} /> View
-                      </button>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                      No tanks found in database.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{item.name}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{item.farmer || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{item.region || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{item.currentCycle || item.cultureCycle || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#f59e0b', fontWeight: 600 }}>{item.abw != null && item.abw !== '' ? `${item.abw}g` : '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#38bdf8', fontWeight: 600 }}>{item.biomass != null && item.biomass !== '' ? `${item.biomass}kg` : '-'}</td>
+                      <td style={{ padding: '16px', textAlign: 'right' }}>
+                        <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => navigate(`/admin/tanks/${item.id}`)}>
+                          <Eye size={16} /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
