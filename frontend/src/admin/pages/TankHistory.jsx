@@ -98,12 +98,12 @@ const TankHistory = () => {
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px' }}>Tank Basic Information</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-4" style={{ gap: '20px' }}>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Tank Size</div><div style={{ fontSize: '15px', fontWeight: 600 }}>1.2 Acres</div></div>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Soil Type</div><div style={{ fontSize: '15px', fontWeight: 600 }}>Clay Loam</div></div>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Hatchery</div><div style={{ fontSize: '15px', fontWeight: 600 }}>CP Hatcheries</div></div>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Seed Date</div><div style={{ fontSize: '15px', fontWeight: 600 }}>15 Jun 2026</div></div>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Seed Stocking</div><div style={{ fontSize: '15px', fontWeight: 600 }}>150,000 PL</div></div>
-                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Feed Type</div><div style={{ fontSize: '15px', fontWeight: 600 }}>Grower Pellet</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Tank Size</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.acres ? `${tank.acres} Acres` : (tank.size || '-')}</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Soil Type</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.soilType || tank.soil_type || '-'}</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Hatchery</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.hatcheryName || tank.hatchery_name || '-'}</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Seed Date</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.seedDate || tank.seed_date || '-'}</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Seed Stocking</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.seedStockingLak != null ? `${tank.seedStockingLak} Lakhs` : (tank.stockingCount ? `${tank.stockingCount} PL` : '-')}</div></div>
+                <div><div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Feed Type</div><div style={{ fontSize: '15px', fontWeight: 600 }}>{tank.feedType || tank.feed_type || '-'}</div></div>
               </div>
             </div>
           )}
@@ -111,43 +111,61 @@ const TankHistory = () => {
           {activeTab === 'water' && (
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px' }}>Historical Water Quality</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Date</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>DOC</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Salinity (ppt)</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>pH</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Ammonia</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>DO</th>
-                      <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Mock records */}
-                    {['22 Aug 2026', '15 Aug 2026', '08 Aug 2026'].map((date, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{date}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{68 - (i * 7)}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>15</td>
-                        <td style={{ padding: '12px', fontSize: '14px', color: i === 0 ? 'var(--status-red)' : 'inherit', fontWeight: i === 0 ? 600 : 'normal' }}>{i === 0 ? '8.9' : '7.8'}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>0.1</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>4.5</td>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{
-                            padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600,
-                            backgroundColor: i === 0 ? '#fef2f2' : '#dcfce7',
-                            color: i === 0 ? 'var(--status-red)' : 'var(--status-green)',
-                          }}>
-                            {i === 0 ? 'Warning: High pH' : 'Normal'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {(() => {
+                const tankSubmissions = (db?.submissions || []).filter(s =>
+                  String(s.tankId) === String(tank.id) || s.tank_name === tank.name
+                );
+
+                if (tankSubmissions.length === 0) {
+                  return (
+                    <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+                      No historical water quality records found for this tank in the database.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Date</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>DOC</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Salinity (ppt)</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>pH</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Ammonia</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>DO</th>
+                          <th style={{ padding: '12px', fontWeight: 600, fontSize: '13px' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tankSubmissions.map((s) => {
+                          const isWarning = s.ph && (parseFloat(s.ph) > 8.5 || parseFloat(s.ph) < 7.0);
+                          return (
+                            <tr key={s.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                              <td style={{ padding: '12px', fontSize: '14px' }}>{s.date || s.submission_date || '-'}</td>
+                              <td style={{ padding: '12px', fontSize: '14px' }}>{s.doc ?? '-'}</td>
+                              <td style={{ padding: '12px', fontSize: '14px' }}>{s.salinity != null ? s.salinity : (s.water_salinity != null ? s.water_salinity : '-')}</td>
+                              <td style={{ padding: '12px', fontSize: '14px', color: isWarning ? 'var(--status-red)' : 'inherit', fontWeight: isWarning ? 600 : 'normal' }}>{s.ph ?? '-'}</td>
+                              <td style={{ padding: '12px', fontSize: '14px' }}>{s.ammonia ?? '-'}</td>
+                              <td style={{ padding: '12px', fontSize: '14px' }}>{s.do != null ? `${s.do} mg/L` : (s.dissolved_oxygen != null ? `${s.dissolved_oxygen} mg/L` : '-')}</td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600,
+                                  backgroundColor: isWarning ? '#fef2f2' : '#dcfce7',
+                                  color: isWarning ? 'var(--status-red)' : 'var(--status-green)',
+                                }}>
+                                  {isWarning ? 'Warning: High pH' : 'Normal'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAgents, getIncharges, getRegions, getFarmers } from '../utils/adminMockData';
 import { useMockData } from '../../context/MockDataContext';
@@ -12,53 +12,117 @@ import {
 
 const AgentsList = () => {
   const navigate = useNavigate();
-  const { db, addNotification } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
+  const { db, refreshDb, addNotification } = useMockData();
+  const [dbRegions, setDbRegions] = useState([]);
 
-  // 1. Load Incharges from live context
-  const [incharges, setIncharges] = useState(() => getIncharges(db));
-
-  // 2. Load Agents from API
-  const [agents, setAgents] = useState([]);
-
+  // Fetch live regions directly from database
   useEffect(() => {
-    const fetchAgents = async () => {
+    const fetchLiveRegions = async () => {
       try {
-        const response = await fetch('/api/analytics/agents');
-        const data = await response.json();
-        if (data.success && data.data) {
-          const dbAgents = data.data.map(dbA => ({
-            id: dbA.id,
-            name: dbA.name,
-            shortName: dbA.name,
-            role: 'Field Agent',
-            inchargeId: dbA.incharge_id || dbA.inchargeId,
-            incharge: dbA.incharge || 'Assigned Incharge',
-            regionId: dbA.regionId || 'REG-1',
-            region: dbA.region || 'Unknown Region',
-            locality: dbA.locality,
-            assignedArea: dbA.locality || 'Unknown Area',
-            phone: dbA.phone,
-            email: dbA.email || `${dbA.name.toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
-            status: dbA.status,
-            farmers: dbA.farmersCount || 0,
-            tanks: dbA.tanksCount || 0,
-            siteVisits: dbA.siteVisits || 0,
-            activePonds: dbA.activePonds || 0,
-            compliance: dbA.complianceRate || 0,
-            tests: dbA.tests || 0
+        const res = await fetch('/api/analytics/regions');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          const mapped = data.data.map(r => ({
+            id: String(r.code || r.id),
+            code: r.code || r.id,
+            name: r.name,
+            localities: [
+              { id: `LOC-${r.code || r.id}`, name: r.name }
+            ]
           }));
-          setAgents(dbAgents);
+          setDbRegions(mapped);
         }
-      } catch (error) {
-        console.error('Failed to fetch agents:', error);
+      } catch (err) {
+        console.error('Failed to fetch live regions:', err);
       }
     };
-    fetchAgents();
+    fetchLiveRegions();
   }, []);
+
+  const regions = useMemo(() => {
+    const fromContext = getRegions(db);
+    if (fromContext && fromContext.length > 0) return fromContext;
+    if (dbRegions && dbRegions.length > 0) return dbRegions;
+    return [];
+  }, [db, dbRegions]);
+
+  // 1. Load Incharges from live MySQL API
+  const [incharges, setIncharges] = useState([]);
+
+  const fetchIncharges = useCallback(async () => {
+    try {
+      const response = await fetch('/api/analytics/incharges');
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data)) {
+        const seen = new Set();
+        const uniqueData = data.data.filter(dbI => {
+          if (!dbI || !dbI.id || seen.has(String(dbI.id))) return false;
+          seen.add(String(dbI.id));
+          return true;
+        });
+        setIncharges(uniqueData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch incharges in AgentsList:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIncharges();
+  }, [fetchIncharges]);
+
+  // 2. Load Agents from live MySQL API
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/analytics/agents');
+      const data = await response.json();
+      if (data.success && data.data) {
+        const dbAgents = data.data.map(dbA => ({
+          id: dbA.id,
+          name: dbA.name,
+          shortName: dbA.name,
+          role: 'Field Agent',
+          inchargeId: dbA.incharge_id || dbA.inchargeId,
+          incharge: dbA.incharge || 'Assigned Incharge',
+          regionId: dbA.regionId || 'REG-1',
+          region: dbA.region || 'Unknown Region',
+          locality: dbA.locality,
+          assignedArea: dbA.locality || 'Unknown Area',
+          phone: dbA.phone,
+          email: dbA.email || `${String(dbA.name || '').toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
+          status: dbA.status,
+          farmers: dbA.farmersCount || 0,
+          tanks: dbA.tanksCount || 0,
+          siteVisits: dbA.siteVisits || 0,
+          activePonds: dbA.activePonds || 0,
+          compliance: dbA.complianceRate || 0,
+          tests: dbA.tests || 0
+        }));
+        setAgents(dbAgents);
+      }
+    } catch (error) {
+      console.error('Failed to fetch agents:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [fetchAgents]);
 
   // 3. Load Farmers from live context
   const [farmersList, setFarmersList] = useState(() => getFarmers(db));
+
+  useEffect(() => {
+    setFarmersList(getFarmers(db));
+  }, [db]);
+
 
   const [selectedAgentForFarmers, setSelectedAgentForFarmers] = useState(null);
   const [farmerModalSearch, setFarmerModalSearch] = useState('');
@@ -116,19 +180,20 @@ const AgentsList = () => {
   };
 
   // Default initial locality and incharge
-  const defaultRegion = regions[1] || regions[0] || { id: 'REG-COASTAL', name: 'Coastal Andhra' };
+  const defaultRegion = regions[0] || { id: 'REG001', name: 'Bhimavaram Delta' };
   const defaultLocalities = getLocalitiesForRegion(defaultRegion.id);
-  const defaultLocalityName = defaultLocalities[0]?.name || 'Nellore';
+  const defaultLocalityName = defaultLocalities[0]?.name || defaultRegion.name || 'Bhimavaram';
 
   // New Agent Form state
   const [newAgent, setNewAgent] = useState({
     name: '',
-    roleSuffix: 'Field Agent - Mypadu',
+    roleSuffix: 'Field Agent',
     phone: '+91 ',
     email: '',
     regionId: defaultRegion.id,
     locality: defaultLocalityName,
-    assignedArea: 'Mypadu Coastal Area'
+    inchargeId: '',
+    assignedArea: ''
   });
 
   // Edit Agent Form state
@@ -140,6 +205,7 @@ const AgentsList = () => {
     email: '',
     regionId: defaultRegion.id,
     locality: defaultLocalityName,
+    inchargeId: '',
     assignedArea: '',
     status: 'ACTIVE'
   });
@@ -148,9 +214,11 @@ const AgentsList = () => {
   const [transferData, setTransferData] = useState({
     regionId: defaultRegion.id,
     locality: defaultLocalityName,
-    assignedArea: 'Mypadu Coastal Area',
+    inchargeId: '',
+    assignedArea: '',
     reason: ''
   });
+
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -228,69 +296,37 @@ const AgentsList = () => {
   const filteredAgentTests = useMemo(() => {
     if (!selectedAgentForTests) return [];
     const ag = selectedAgentForTests;
-    const agFirstName = (ag.shortName || ag.name || '').split(' ')[0].toLowerCase();
+    const agId = String(ag.id);
     const agNameLower = (ag.name || '').toLowerCase();
     const rawSubs = (db?.submissions || []).filter(s =>
-      s.agentId === ag.id ||
-      (agFirstName && s.agentName?.toLowerCase().includes(agFirstName)) ||
-      (agNameLower.includes('mahesh') && s.agentId === 'agent003') ||
-      (agNameLower.includes('ramesh') && s.agentId === 'agent001') ||
-      (agNameLower.includes('suresh') && s.agentId === 'agent002')
+      String(s.agentId) === agId ||
+      (s.agent_name && s.agent_name.toLowerCase() === agNameLower) ||
+      (s.agentName && s.agentName.toLowerCase() === agNameLower)
     );
 
-    const farmers = (db?.farmers || []).filter(f =>
-      f.agentId === ag.id ||
-      (ag.name.toLowerCase().includes('mahesh') && f.agentId === 'agent003') ||
-      (ag.name.toLowerCase().includes('ramesh') && f.agentId === 'agent001') ||
-      (ag.name.toLowerCase().includes('suresh') && f.agentId === 'agent002')
-    );
-    const farmerNames = farmers.length > 0 ? farmers.map(f => f.name) : ['Ashok', 'Ravi', 'Krishna', 'Siva', 'Subba Rao'];
+    const result = rawSubs.map((s, i) => {
+      const farmer = (db?.farmers || []).find(f => String(f.id) === String(s.farmerId)) || { name: s.farmer_name || s.farmerName || '-' };
+      const tank = (db?.tanks || []).find(t => String(t.id) === String(s.tankId)) || { name: s.tank_name || s.tankName || 'Tank' };
+      const paramsSummary = [
+        s.ph != null ? `pH: ${s.ph}` : null,
+        s.salinity != null ? `Salinity: ${s.salinity} ppt` : null,
+        s.do != null ? `DO: ${s.do} mg/L` : null,
+        s.abw != null ? `ABW: ${s.abw}g` : null
+      ].filter(Boolean).join(' • ') || 'Routine Audit';
 
-    const testTypes = [
-      { type: 'Water Telemetry Analysis', category: 'WATER', icon: '💧', params: 'pH: 7.8 • DO: 6.2 mg/L • Salinity: 18 ppt • Temp: 29.4°C' },
-      { type: 'Weekly Feed & Biomass Sampling', category: 'FEED', icon: '⚖️', params: 'ABW: 16.4g • Feed Consumption: 85 kg/day • FCR: 1.18' },
-      { type: 'Soil & Alkaline Tray Audit', category: 'WATER', icon: '🧪', params: 'Alkalinity: 140 ppm • Ammonia: 0.02 ppm • Nitrite: 0.01 ppm' },
-      { type: 'Shrimp Health & Swimming Biocheck', category: 'HEALTH', icon: '🦐', params: 'Gut Fullness: 95% • Activity: Active • Zero Disease Symptoms' }
-    ];
-
-    const result = [...rawSubs.map((s, i) => {
-      const farmer = (db?.farmers || []).find(f => f.id === s.farmerId) || { name: s.farmerId || farmerNames[i % farmerNames.length] };
-      const tank = (db?.tanks || []).find(t => t.id === s.tankId) || { name: `Tank ${(i % 3) + 1}`, doc: 45 + (i * 3) };
-      const tt = testTypes[i % testTypes.length];
       return {
-        id: s.id || `TEST-RM-${ag.id}-${100 + i}`,
-        date: s.date || '2026-08-24',
-        time: s.time || '09:30 AM',
+        id: s.id || `SUB-${i + 1}`,
+        date: s.date || s.submission_date || '-',
+        time: s.time || '',
         farmerName: farmer.name,
-        tankName: tank.name || 'Tank 1',
-        doc: tank.doc || (45 + i),
-        testType: s.type || tt.type,
-        category: tt.category,
-        params: s.params || tt.params,
-        status: 'VERIFIED'
+        tankName: tank.name || '-',
+        doc: s.doc ?? '-',
+        testType: s.type || s.remarks || 'Water Telemetry Analysis',
+        category: 'WATER',
+        params: paramsSummary,
+        status: s.status || 'VERIFIED'
       };
-    })];
-
-    const targetCount = ag.tests || 42;
-    for (let i = result.length; i < targetCount; i++) {
-      const tt = testTypes[i % testTypes.length];
-      const fName = farmerNames[i % farmerNames.length];
-      const dayOffset = Math.floor(i / 3);
-      const dateObj = new Date(2026, 7, 24 - dayOffset);
-      const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      result.push({
-        id: `TEST-RM-${ag.name.substring(0,3).toUpperCase()}-${200 + i}`,
-        date: dateStr,
-        time: `${(8 + (i % 8)).toString().padStart(2, '0')}:${(15 * (i % 4)).toString().padStart(2, '0')} ${i % 2 === 0 ? 'AM' : 'PM'}`,
-        farmerName: fName,
-        tankName: `Tank ${(i % 2) + 1}`,
-        doc: 30 + ((i * 2) % 65),
-        testType: tt.type,
-        category: tt.category,
-        params: tt.params,
-        status: 'VERIFIED'
-      });
-    }
+    });
 
     return result.filter(item => {
       const matchesFilter = testsModalFilter === 'ALL' || item.category === testsModalFilter;
@@ -298,7 +334,7 @@ const AgentsList = () => {
       if (!testsModalSearch) return true;
       const term = testsModalSearch.toLowerCase();
       return (
-        item.id.toLowerCase().includes(term) ||
+        String(item.id).toLowerCase().includes(term) ||
         item.farmerName.toLowerCase().includes(term) ||
         item.tankName.toLowerCase().includes(term) ||
         item.testType.toLowerCase().includes(term) ||
@@ -311,68 +347,35 @@ const AgentsList = () => {
   const filteredAgentDueTests = useMemo(() => {
     if (!selectedAgentForDueTests) return [];
     const ag = selectedAgentForDueTests;
-    const farmers = (db?.farmers || []).filter(f =>
-      f.agentId === ag.id ||
-      (ag.name.toLowerCase().includes('mahesh') && f.agentId === 'agent003') ||
-      (ag.name.toLowerCase().includes('ramesh') && f.agentId === 'agent001') ||
-      (ag.name.toLowerCase().includes('suresh') && f.agentId === 'agent002')
-    );
-    const farmerIds = farmers.map(f => f.id);
+    const agId = String(ag.id);
+    const farmers = (db?.farmers || []).filter(f => String(f.agentId) === agId);
+    const farmerIds = farmers.map(f => String(f.id));
 
     const agentTanks = (db?.tanks || []).filter(t =>
-      (farmerIds.includes(t.farmerId) || t.agentId === ag.id) &&
-      t.status !== 'Harvested' &&
-      (t.testStatus === 'Due' || t.testStatus === 'Overdue')
+      (farmerIds.includes(String(t.farmerId)) || String(t.agentId) === agId) &&
+      (t.status || '').toUpperCase() !== 'HARVESTED' &&
+      ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())
     );
 
-    let list = [];
-    if (agentTanks.length > 0) {
-      list = agentTanks.map((t, idx) => {
-        const farmer = farmers.find(f => f.id === t.farmerId) || (db?.farmers || []).find(f => f.id === t.farmerId) || { name: 'Local Farmer', phone: ag.phone, locality: ag.locality };
-        const isOverdue = t.testStatus === 'Overdue' || idx === 0;
-        return {
-          tankId: t.id,
-          tankName: t.name || `Tank ${idx + 1}`,
-          farmerId: farmer.id,
-          farmerName: farmer.name,
-          farmerPhone: farmer.phone || ag.phone,
-          farmerLocality: farmer.location || farmer.locality || ag.locality,
-          doc: t.doc || 45,
-          abw: t.abw || '16.5g',
-          acres: t.size || '10 Acres',
-          testType: idx % 2 === 0 ? 'Routine Water Quality & Ammonia Telemetry' : 'Weekly Feed Conversion & Biomass Audit',
-          isOverdue: isOverdue,
-          dueDate: isOverdue ? '18 Aug 2026' : '26 Aug 2026',
-          daysText: isOverdue ? 'Overdue by 5 days' : 'Due this cycle'
-        };
-      });
-    } else {
-      const dueCount = ag.dueTests !== undefined ? ag.dueTests : (ag.name === 'Mahesh' ? 1 : ag.name === 'Ramesh' ? 3 : 2);
-      const testTypesList = [
-        'Routine Water Quality & Dissolved Oxygen Telemetry',
-        'Weekly Feed Conversion & Biomass Audit',
-        'Soil Composition & Ammonia Tray Analysis'
-      ];
-      for (let i = 0; i < dueCount; i++) {
-        const f = farmers[i % (farmers.length || 1)] || { id: `F00${i+1}`, name: i === 0 ? 'Krishna' : i === 1 ? 'Ramesh' : 'Ashok', phone: '+91 9876543219', locality: ag.locality, acres: '28 Acres' };
-        const isOverdue = i === 0 && (ag.name === 'Ramesh' || ag.name === 'Suresh');
-        list.push({
-          tankId: `T-DUE-${ag.id}-${i + 1}`,
-          tankName: `Tank ${i + 1}`,
-          farmerId: f.id,
-          farmerName: f.name,
-          farmerPhone: f.phone,
-          farmerLocality: f.locality || ag.locality,
-          doc: 38 + (i * 12),
-          abw: `${12 + (i * 4)}g`,
-          acres: `${10 + (i * 5)} Acres`,
-          testType: testTypesList[i % testTypesList.length],
-          isOverdue: isOverdue,
-          dueDate: isOverdue ? '18 Aug 2026' : '26 Aug 2026',
-          daysText: isOverdue ? 'Overdue by 4 days' : 'Due this cycle'
-        });
-      }
-    }
+    const list = agentTanks.map((t, idx) => {
+      const farmer = farmers.find(f => String(f.id) === String(t.farmerId)) || (db?.farmers || []).find(f => String(f.id) === String(t.farmerId)) || { name: t.farmerName || 'Farmer', phone: ag.phone, locality: ag.locality };
+      const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
+      return {
+        tankId: t.id,
+        tankName: t.name || `Tank ${idx + 1}`,
+        farmerId: farmer.id,
+        farmerName: farmer.name,
+        farmerPhone: farmer.phone || ag.phone || '-',
+        farmerLocality: farmer.location || farmer.locality || ag.locality || '-',
+        doc: t.doc ?? '-',
+        abw: t.abw ? (String(t.abw).includes('g') ? t.abw : `${t.abw}g`) : '-',
+        acres: t.size || (t.acres ? `${t.acres} Acres` : '-'),
+        testType: 'Routine Water Quality & Telemetry Audit',
+        isOverdue: isOverdue,
+        dueDate: t.nextTest || t.next_test || (isOverdue ? 'Overdue' : 'Due This Week'),
+        daysText: isOverdue ? 'Overdue' : 'Due this cycle'
+      };
+    });
 
     if (!dueModalSearch) return list;
     const term = dueModalSearch.toLowerCase();
@@ -390,76 +393,82 @@ const AgentsList = () => {
   const totalAssignedFarmers = agents.reduce((acc, a) => acc + (a.farmers || 0), 0);
   const totalTestsCompleted = agents.reduce((acc, a) => acc + (a.tests || 0), 0);
   const totalDueTests = agents.reduce((acc, a) => {
-    const due = a.dueTests !== undefined ? a.dueTests : (a.tanks ? Math.ceil(a.tanks / 2) : 2);
-    return acc + due;
+    const agentAssignedTanks = (db?.tanks || []).filter(t => String(t.agentId) === String(a.id) || (db?.farmers || []).some(f => String(f.agentId) === String(a.id) && String(f.id) === String(t.farmerId)));
+    const realDueCount = agentAssignedTanks.filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())).length;
+    return acc + realDueCount;
   }, 0);
 
   // 1. Handle Add Agent
   const handleAddAgentSubmit = async (e) => {
     e.preventDefault();
-    if (!newAgent.name.trim() || !newAgent.assignedArea.trim()) return;
-
-    const nextNumber = agents.length + 1;
-    const newId = `EMP-AGT-${String(nextNumber).padStart(2, '0')}`;
-    const selectedRegionObj = regions.find(r => r.id === newAgent.regionId) || defaultRegion;
-
-    // Strict 1-to-1 Rule: 1 Locality has only 1 Incharge
-    const dedicatedIncharge = getInchargeForLocality(newAgent.locality, selectedRegionObj.id);
-
-    const fullName = `${newAgent.name.trim()} (${newAgent.roleSuffix.trim()})`;
+    if (!newAgent.name.trim() || isSubmitting) return;
 
     try {
-      await fetch('/api/db-admin/tables/agents', {
+      setIsSubmitting(true);
+      const selectedRegionObj = regions.find(r => r.id === newAgent.regionId) || defaultRegion;
+      const targetIncharge = incharges.find(i => i.id === newAgent.inchargeId) || incharges[0];
+      const fullName = newAgent.name.trim();
+
+      const payload = {
+        name: fullName,
+        phone: newAgent.phone.trim(),
+        email: newAgent.email.trim(),
+        inchargeId: newAgent.inchargeId || targetIncharge?.id || null,
+        locality: newAgent.locality || selectedRegionObj.name || 'Coastal Andhra',
+        assignedArea: (newAgent.assignedArea || '').trim(),
+        region: selectedRegionObj.name || '',
+        status: 'ACTIVE'
+      };
+
+      const res = await fetch('/api/analytics/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: newId,
-          name: fullName,
-          phone: newAgent.phone.trim(),
-          incharge_id: dedicatedIncharge.id,
-          locality: newAgent.locality,
-          active_ponds: 0,
-          status: 'ACTIVE'
-        })
+        body: JSON.stringify(payload)
       });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Field Agent ${fullName} assigned under ${targetIncharge?.name || 'Incharge'} saved to database!`);
+        setShowAddModal(false);
+        setNewAgent({
+          name: '',
+          roleSuffix: 'Field Agent',
+          phone: '+91 ',
+          email: '',
+          regionId: defaultRegion.id,
+          locality: defaultLocalityName,
+          inchargeId: '',
+          assignedArea: ''
+        });
+        await fetchAgents();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to save agent to database');
+      }
     } catch (err) {
       console.error('Failed to save agent to DB:', err);
+      showToast('Error connecting to database to save agent');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    const createdAgent = {
-      id: newId,
-      name: fullName,
-      shortName: newAgent.name.trim(),
-      role: newAgent.roleSuffix.trim(),
-      inchargeId: dedicatedIncharge.id,
-      incharge: dedicatedIncharge.name,
-      regionId: selectedRegionObj.id,
-      region: selectedRegionObj.name,
-      locality: newAgent.locality,
-      assignedArea: newAgent.assignedArea.trim(),
-      phone: newAgent.phone.trim(),
-      email: newAgent.email.trim() || `${newAgent.name.trim().toLowerCase().replace(/\s+/g, '')}.agt@royalsmarine.com`,
-      farmers: 1,
-      tanks: 2,
-      siteVisits: 0,
-      tests: 12,
-      compliance: 90.0,
-      status: 'ACTIVE'
-    };
-
-    setAgents(prev => [createdAgent, ...prev]);
-    showToast(`Field Agent ${createdAgent.name} assigned under ${dedicatedIncharge.name} for ${createdAgent.assignedArea}!`);
-    setShowAddModal(false);
-
+  const openAddModal = () => {
+    const regObj = regions[0] || defaultRegion;
+    const locs = getLocalitiesForRegion(regObj.id);
+    const firstLoc = locs[0]?.name || defaultLocalityName;
+    const matchingInc = incharges.find(i => i.regionId === regObj.id || i.region?.toLowerCase() === (regObj.name || '').toLowerCase()) || incharges[0];
     setNewAgent({
       name: '',
-      roleSuffix: 'Field Agent - Mypadu',
+      roleSuffix: 'Field Agent',
       phone: '+91 ',
       email: '',
-      regionId: defaultRegion.id,
-      locality: defaultLocalityName,
-      assignedArea: 'Mypadu Coastal Area'
+      regionId: regObj.id,
+      locality: firstLoc,
+      inchargeId: matchingInc?.id || '',
+      assignedArea: ''
     });
+    setShowAddModal(true);
   };
 
   // 2. Open Edit Agent Modal
@@ -476,105 +485,112 @@ const AgentsList = () => {
       email: ag.email || '',
       regionId: regObj.id,
       locality: ag.locality || defaultLocalityName,
+      inchargeId: ag.inchargeId || (incharges.find(i => i.name === ag.incharge)?.id) || incharges[0]?.id || '',
       assignedArea: ag.assignedArea || 'Designated Area',
       status: ag.status || 'ACTIVE'
     });
     setShowEditModal(true);
   };
 
-  // Handle Edit Agent Submit
-  const handleEditAgentSubmit = (e) => {
+  // Handle Edit Agent Submit (Reassign / Relocate / Edit)
+  const handleEditAgentSubmit = async (e) => {
     e.preventDefault();
-    if (!editAgentForm.name.trim() || !selectedAgent) return;
+    if (!editAgentForm.name.trim() || !selectedAgent || isSubmitting) return;
 
-    const selectedRegionObj = regions.find(r => r.id === editAgentForm.regionId) || defaultRegion;
-    const dedicatedIncharge = getInchargeForLocality(editAgentForm.locality, selectedRegionObj.id);
-    const fullName = `${editAgentForm.name.trim()} (${editAgentForm.roleSuffix.trim()})`;
+    try {
+      setIsSubmitting(true);
+      const selectedRegionObj = regions.find(r => r.id === editAgentForm.regionId) || defaultRegion;
+      const targetIncharge = incharges.find(i => i.id === editAgentForm.inchargeId);
+      const fullName = editAgentForm.name.trim();
 
-    const updatedAgent = {
-      ...selectedAgent,
-      name: fullName,
-      shortName: editAgentForm.name.trim(),
-      role: editAgentForm.roleSuffix.trim(),
-      phone: editAgentForm.phone.trim(),
-      email: editAgentForm.email.trim(),
-      regionId: selectedRegionObj.id,
-      region: selectedRegionObj.name,
-      locality: editAgentForm.locality,
-      assignedArea: editAgentForm.assignedArea.trim(),
-      inchargeId: dedicatedIncharge.id,
-      incharge: dedicatedIncharge.name,
-      status: editAgentForm.status
-    };
+      const payload = {
+        name: fullName,
+        phone: editAgentForm.phone.trim(),
+        email: editAgentForm.email.trim(),
+        inchargeId: editAgentForm.inchargeId || null,
+        locality: editAgentForm.locality,
+        assignedArea: editAgentForm.assignedArea.trim(),
+        status: editAgentForm.status
+      };
 
-    setAgents(prev => prev.map(a => a.id === selectedAgent.id ? updatedAgent : a));
+      const res = await fetch(`/api/analytics/agents/${selectedAgent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
 
-    // Also update agent references in saved farmers
-    const savedFarmers = localStorage.getItem('royal_admin_farmers_data');
-    if (savedFarmers) {
-      try {
-        const parsed = JSON.parse(savedFarmers);
-        const updatedFarmers = parsed.map(f => {
-          if (f.agentId === selectedAgent.id) {
-            return {
-              ...f,
-              agent: updatedAgent.name,
-              incharge: dedicatedIncharge.name,
-              locality: updatedAgent.locality,
-              region: updatedAgent.region
-            };
-          }
-          return f;
-        });
-        localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedFarmers));
-      } catch (err) { }
+      if (result.success) {
+        showToast(`Agent ${fullName} updated successfully in database!`);
+        setShowEditModal(false);
+        await fetchAgents();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to update agent in database');
+      }
+    } catch (err) {
+      console.error('Failed to update agent in DB:', err);
+      showToast('Error connecting to database to update agent');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    showToast(`Agent ${updatedAgent.name} updated successfully!`);
-    setShowEditModal(false);
   };
 
-  // 3. Handle Transfer
+  // 3. Handle Transfer / Relocate Agent
   const openTransferModal = (ag, e) => {
     if (e) e.stopPropagation();
     setSelectedAgent(ag);
-    const targetRegion = regions.find(r => r.id !== ag.regionId) || regions[0];
-    const targetLoc = targetRegion.localities?.[0]?.name || '';
+    const targetRegion = regions.find(r => r.id !== ag.regionId) || regions[0] || defaultRegion;
+    const targetLoc = targetRegion.localities?.[0]?.name || targetRegion.name || '';
+    const targetIncharge = incharges.find(i => i.regionId === targetRegion.id || i.region === targetRegion.name) || incharges[0];
 
     setTransferData({
       regionId: targetRegion.id,
       locality: targetLoc,
+      inchargeId: targetIncharge?.id || '',
       assignedArea: ag.assignedArea || 'Designated Area',
       reason: ''
     });
     setShowTransferModal(true);
   };
 
-  const handleTransferSubmit = (e) => {
+  const handleTransferSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedAgent) return;
+    if (!selectedAgent || isSubmitting) return;
 
-    const selectedRegionObj = regions.find(r => r.id === transferData.regionId) || defaultRegion;
-    const dedicatedIncharge = getInchargeForLocality(transferData.locality, selectedRegionObj.id);
+    try {
+      setIsSubmitting(true);
+      const selectedRegionObj = regions.find(r => r.id === transferData.regionId) || defaultRegion;
+      const targetIncharge = incharges.find(i => i.id === transferData.inchargeId);
 
-    setAgents(prev => prev.map(ag => {
-      if (ag.id === selectedAgent.id) {
-        return {
-          ...ag,
-          regionId: selectedRegionObj.id,
-          region: selectedRegionObj.name,
-          locality: transferData.locality,
-          assignedArea: transferData.assignedArea.trim(),
-          inchargeId: dedicatedIncharge.id,
-          incharge: dedicatedIncharge.name
-        };
+      const payload = {
+        locality: transferData.locality,
+        assignedArea: transferData.assignedArea.trim(),
+        inchargeId: transferData.inchargeId || null
+      };
+
+      const res = await fetch(`/api/analytics/agents/${selectedAgent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Transferred ${selectedAgent.name} under ${targetIncharge?.name || 'Incharge'} in database!`);
+        setShowTransferModal(false);
+        setSelectedAgent(null);
+        await fetchAgents();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to transfer agent in database');
       }
-      return ag;
-    }));
-
-    showToast(`Transferred ${selectedAgent.shortName || selectedAgent.name} under ${dedicatedIncharge.name} (${transferData.assignedArea})`);
-    setShowTransferModal(false);
-    setSelectedAgent(null);
+    } catch (err) {
+      console.error('Failed to transfer agent in DB:', err);
+      showToast('Error connecting to database to transfer agent');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 4. Handle Deactivate / Reactivate
@@ -584,26 +600,36 @@ const AgentsList = () => {
     setShowDeactivateModal(true);
   };
 
-  const handleToggleStatus = () => {
-    if (!selectedAgent) return;
+  const handleToggleStatus = async () => {
+    if (!selectedAgent || isSubmitting) return;
 
-    const newStatus = selectedAgent.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    setAgents(prev => prev.map(ag => {
-      if (ag.id === selectedAgent.id) {
-        return { ...ag, status: newStatus };
+    try {
+      setIsSubmitting(true);
+      const newStatus = selectedAgent.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      const res = await fetch(`/api/analytics/agents/${selectedAgent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`${selectedAgent.name} marked as ${newStatus} in database.`);
+        setShowDeactivateModal(false);
+        setSelectedAgent(null);
+        await fetchAgents();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to update agent status in database');
       }
-      return ag;
-    }));
-
-    showToast(`${selectedAgent.name} marked as ${newStatus}`);
-    setShowDeactivateModal(false);
-    setSelectedAgent(null);
+    } catch (err) {
+      console.error('Failed to toggle status in DB:', err);
+      showToast('Error connecting to database');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Active incharge lookup for current modal selections
-  const currentModalIncharge = getInchargeForLocality(newAgent.locality, newAgent.regionId);
-  const editModalIncharge = getInchargeForLocality(editAgentForm.locality, editAgentForm.regionId);
-  const transferModalIncharge = getInchargeForLocality(transferData.locality, transferData.regionId);
 
   return (
     <div style={styles.pageContainer}>
@@ -620,7 +646,7 @@ const AgentsList = () => {
         <div style={styles.headerRight}>
           <button
             style={styles.primaryButton}
-            onClick={() => setShowAddModal(true)}
+            onClick={openAddModal}
             aria-label="Add new Field Agent"
           >
             <Plus size={16} strokeWidth={2.5} />
@@ -761,7 +787,8 @@ const AgentsList = () => {
                   const activeInc = getInchargeForLocality(ag.locality, ag.regionId);
                   const isAlternate = index % 2 === 1;
                   const isActive = (ag.status || 'ACTIVE') === 'ACTIVE';
-                  const dueCount = ag.dueTests !== undefined ? ag.dueTests : (ag.tanks ? Math.ceil(ag.tanks / 2) : 2);
+                  const agentAssignedTanks = (db?.tanks || []).filter(t => String(t.agentId) === String(ag.id) || (db?.farmers || []).some(f => String(f.agentId) === String(ag.id) && String(f.id) === String(t.farmerId)));
+                  const dueCount = ag.dueTests !== undefined ? ag.dueTests : agentAssignedTanks.filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())).length;
 
                   return (
                     <tr
@@ -787,11 +814,11 @@ const AgentsList = () => {
                         <div style={styles.contactCell}>
                           <div style={styles.contactItem}>
                             <Phone size={12} style={styles.contactIcon} />
-                            <span style={styles.contactPhone}>{ag.phone}</span>
+                            <span style={styles.contactPhone}>{ag.phone || '-'}</span>
                           </div>
                           <div style={styles.contactItem}>
                             <Mail size={12} style={styles.contactIcon} />
-                            <span style={styles.contactEmail}>{ag.email}</span>
+                            <span style={styles.contactEmail}>{ag.email || '-'}</span>
                           </div>
                         </div>
                       </td>
@@ -802,7 +829,7 @@ const AgentsList = () => {
                           <div style={styles.villageRow}>
                             <MapPin size={12} style={styles.locationIcon} />
                             <span style={styles.villageText}>
-                              {ag.assignedArea || `${ag.locality} Sub-Sector`}
+                              {ag.assignedArea || ag.locality || '-'}
                             </span>
                           </div>
                           <div
@@ -819,7 +846,7 @@ const AgentsList = () => {
                       {/* 4. Region Column */}
                       <td style={styles.td}>
                         <span style={styles.regionBadge}>
-                          {ag.locality || ag.region || 'Coastal'}
+                          {ag.locality || ag.region || '-'}
                         </span>
                       </td>
 
@@ -835,7 +862,7 @@ const AgentsList = () => {
                           }}
                           title={`Click to view test records conducted by ${ag.shortName || ag.name}`}
                         >
-                          <span style={styles.testsNumber}>{ag.tests || 42}</span>
+                          <span style={styles.testsNumber}>{ag.tests || 0}</span>
                           <span style={styles.testsCaption}>Tests</span>
                         </button>
                       </td>
@@ -1068,22 +1095,30 @@ const AgentsList = () => {
                   </div>
                 </div>
 
-                {/* Auto Dedicated Incharge */}
+                {/* Select / Reassign Reporting Incharge (ASM) */}
                 <div>
                   <label style={styles.formLabel}>
-                    Reporting Incharge (Head for {editAgentForm.locality})
+                    Reporting Incharge (ASM) <span style={{ color: '#DC2626' }}>*</span>
                   </label>
-                  <div style={styles.autoInchargeCard}>
-                    <Building2 size={16} color="#2563EB" />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
-                        {editModalIncharge?.name || 'Regional Incharge'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Dedicated Incharge for {editAgentForm.locality}
-                      </div>
-                    </div>
-                  </div>
+                  <select
+                    style={styles.formSelect}
+                    value={editAgentForm.inchargeId}
+                    onChange={(e) => setEditAgentForm({ ...editAgentForm, inchargeId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Regional Incharge (ASM) --</option>
+                    {incharges.map(inc => {
+                      const isSameRegion = inc.regionId === editAgentForm.regionId || inc.region?.toLowerCase() === (regions.find(r => r.id === editAgentForm.regionId)?.name || '').toLowerCase();
+                      return (
+                        <option key={inc.id} value={inc.id}>
+                          {inc.name} ({inc.region || 'Regional Head'}) {isSameRegion ? '★ In this region' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#64748B', marginTop: '3px', display: 'block' }}>
+                    Reassign this agent to any ASM. Multiple ASMs can supervise within the same region.
+                  </span>
                 </div>
 
                 {/* Assigned Particular Area & Status */}
@@ -1124,9 +1159,11 @@ const AgentsList = () => {
                 <button
                   type="submit"
                   style={styles.primaryButton}
+                  disabled={isSubmitting}
                 >
-                  Save Agent Details
+                  {isSubmitting ? 'Saving Changes...' : 'Save Agent Details'}
                 </button>
+
               </div>
             </form>
           </div>
@@ -1223,10 +1260,12 @@ const AgentsList = () => {
                         const regId = e.target.value;
                         const locs = getLocalitiesForRegion(regId);
                         const firstLoc = locs[0]?.name || '';
+                        const matchingInc = incharges.find(i => i.regionId === regId || i.region?.toLowerCase() === (regions.find(r => r.id === regId)?.name || '').toLowerCase());
                         setNewAgent({
                           ...newAgent,
                           regionId: regId,
-                          locality: firstLoc
+                          locality: firstLoc,
+                          inchargeId: matchingInc ? matchingInc.id : newAgent.inchargeId
                         });
                       }}
                     >
@@ -1250,22 +1289,30 @@ const AgentsList = () => {
                   </div>
                 </div>
 
-                {/* Dedicated Incharge for this Locality */}
+                {/* Reporting Incharge (ASM) Dropdown */}
                 <div>
                   <label style={styles.formLabel}>
-                    Reporting Incharge (Dedicated Head for {newAgent.locality})
+                    Reporting Incharge (ASM) <span style={{ color: '#DC2626' }}>*</span>
                   </label>
-                  <div style={styles.autoInchargeCard}>
-                    <Building2 size={16} color="#2563EB" />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
-                        {currentModalIncharge?.name || 'Assigned Regional Incharge'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Sole Incharge in charge of {newAgent.locality}
-                      </div>
-                    </div>
-                  </div>
+                  <select
+                    style={styles.formSelect}
+                    value={newAgent.inchargeId}
+                    onChange={(e) => setNewAgent({ ...newAgent, inchargeId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Incharge (ASM) --</option>
+                    {incharges.map(inc => {
+                      const isSameRegion = inc.regionId === newAgent.regionId || inc.region?.toLowerCase() === (regions.find(r => r.id === newAgent.regionId)?.name || '').toLowerCase();
+                      return (
+                        <option key={inc.id} value={inc.id}>
+                          {inc.name} ({inc.region || 'Regional Head'}) {isSameRegion ? '★ In this region' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#64748B', marginTop: '3px', display: 'block' }}>
+                    Select which ASM supervises this agent. If a region has multiple ASMs, select the appropriate supervisor.
+                  </span>
                 </div>
 
                 {/* Particular Area Assignment */}
@@ -1296,8 +1343,9 @@ const AgentsList = () => {
                 <button
                   type="submit"
                   style={styles.primaryButton}
+                  disabled={isSubmitting}
                 >
-                  Create Field Agent
+                  {isSubmitting ? 'Creating Field Agent...' : 'Create Field Agent'}
                 </button>
               </div>
             </form>
@@ -1349,10 +1397,12 @@ const AgentsList = () => {
                     onChange={(e) => {
                       const regId = e.target.value;
                       const locs = getLocalitiesForRegion(regId);
+                      const matchingInc = incharges.find(i => i.regionId === regId || i.region?.toLowerCase() === (regions.find(r => r.id === regId)?.name || '').toLowerCase());
                       setTransferData({
                         ...transferData,
                         regionId: regId,
-                        locality: locs[0]?.name || ''
+                        locality: locs[0]?.name || '',
+                        inchargeId: matchingInc ? matchingInc.id : transferData.inchargeId
                       });
                     }}
                   >
@@ -1376,20 +1426,30 @@ const AgentsList = () => {
                   </select>
                 </div>
 
-                {/* Auto Assigned Incharge */}
+                {/* Select New Reporting Incharge (ASM) */}
                 <div>
-                  <label style={styles.formLabel}>New Reporting Incharge (Sole Locality Head)</label>
-                  <div style={styles.autoInchargeCard}>
-                    <Building2 size={16} color="#2563EB" />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
-                        {transferModalIncharge?.name || 'Regional Incharge'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Incharge for {transferData.locality}
-                      </div>
-                    </div>
-                  </div>
+                  <label style={styles.formLabel}>
+                    New Reporting Incharge (ASM) <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <select
+                    style={styles.formSelect}
+                    value={transferData.inchargeId}
+                    onChange={(e) => setTransferData({ ...transferData, inchargeId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Target Incharge (ASM) --</option>
+                    {incharges.map(inc => {
+                      const isSameRegion = inc.regionId === transferData.regionId || inc.region?.toLowerCase() === (regions.find(r => r.id === transferData.regionId)?.name || '').toLowerCase();
+                      return (
+                        <option key={inc.id} value={inc.id}>
+                          {inc.name} ({inc.region || 'Regional Head'}) {isSameRegion ? '★ In this destination region' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#64748B', marginTop: '3px', display: 'block' }}>
+                    Select which ASM supervises this agent in the new region.
+                  </span>
                 </div>
 
                 {/* New Area */}
@@ -1417,8 +1477,9 @@ const AgentsList = () => {
                 <button
                   type="submit"
                   style={styles.primaryButton}
+                  disabled={isSubmitting}
                 >
-                  Confirm Transfer
+                  {isSubmitting ? 'Relocating Agent...' : 'Confirm Transfer'}
                 </button>
               </div>
             </form>

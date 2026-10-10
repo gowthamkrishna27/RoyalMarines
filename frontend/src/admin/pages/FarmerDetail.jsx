@@ -34,51 +34,17 @@ const FarmerDetail = () => {
     }
   }, [db, farmerId]);
 
-  // Load and construct tanks with individual specifications
+  // Load tanks for this farmer strictly from real database
   const [tanksList, setTanksList] = useState(() => {
-    const rawTanks = farmer?.tankBreakdown || getTanksByFarmer(farmer?.id, db) || [];
-    const sourceTanks = rawTanks.length > 0 ? rawTanks : [
-      {
-        id: `T-${farmer?.id || '349'}-1`,
-        name: 'Tank 1',
-        acres: farmer?.totalAcres || parseFloat(farmer?.acres) || 4.5,
-        doc: 65,
-        abw: 24.5,
-        biomass: 3800,
-        fcr: 1.30
-      }
-    ];
-
-    return sourceTanks.map((t, idx) => {
-      const acres = parseFloat(t.acres) || 4.0;
-      const abw = t.abw || (20.0 + idx * 3.5);
-      const seedStockingLak = t.seedStockingLak || parseFloat((acres * 0.8).toFixed(1));
-      const biomass = calculateBiomass(seedStockingLak, abw);
-      const feed = t.feed || (biomass * (t.fcr || 1.30)); // fallback feed if not present in mock
-      const fcr = calculateFCR(feed, biomass);
-
-      return {
-        id: t.id || `T-${farmer?.id || '349'}-${idx + 1}`,
-        name: t.name || `Tank ${idx + 1}`,
-        acres,
-        doc: t.doc || (50 + idx * 5),
-        abw,
-        biomass,
-        fcr,
-        feed,
-        currentCycle: t.currentCycle || `Cycle 1 (2026)`,
-        compliance: t.compliance || 100,
-        waterSource: t.waterSource || farmer?.waterSource || (idx % 2 === 0 ? 'Creek / Estuary' : 'Sea / Coastal Canal'),
-        salinity: t.salinity || (14 + (idx * 2)),
-        soilType: t.soilType || (idx % 3 === 0 ? 'Clay Loam' : idx % 3 === 1 ? 'Loam' : 'Clay'),
-        hatcheryName: t.hatcheryName || (idx % 2 === 0 ? 'Apex Marine Hatcheries (Nellore)' : 'BMR Marine SPF Hatchery'),
-        brooder: t.brooder || (idx % 2 === 0 ? 'Kona Bay (USA)' : 'Syaqua (Thailand)'),
-        seedDate: t.seedDate || `2026-05-${10 + idx * 5}`,
-        seedStockingLak,
-        feedType: t.feedType || (idx % 2 === 0 ? 'Premium Pellets (Royal Pro)' : 'Functional Feed (Aqua Boost)')
-      };
-    });
+    return (db?.tanks || []).filter(t => String(t.farmerId) === String(farmerId));
   });
+
+  useEffect(() => {
+    if (farmerId && db?.tanks) {
+      const realTanks = (db.tanks || []).filter(t => String(t.farmerId) === String(farmerId));
+      setTanksList(realTanks);
+    }
+  }, [db?.tanks, farmerId]);
 
   const [activeTankIndex, setActiveTankIndex] = useState(0);
   const [growthMetric, setGrowthMetric] = useState('ABW'); // 'ABW', 'BIOMASS', 'FCR', 'FEED'
@@ -86,16 +52,7 @@ const FarmerDetail = () => {
   const [showEditTankModal, setShowEditTankModal] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
 
-  const activeTank = tanksList[activeTankIndex] || tanksList[0] || {
-    id: `T-${farmer?.id || '1'}-1`,
-    name: 'Tank 1',
-    acres: farmer?.totalAcres || 4.5,
-    doc: 65,
-    abw: 24.5,
-    biomass: 3800,
-    fcr: 1.30,
-    salinity: 16
-  };
+  const activeTank = tanksList[activeTankIndex] || tanksList[0] || null;
 
   // Edit Tank Form State
   const [editTankForm, setEditTankForm] = useState({
@@ -207,119 +164,65 @@ const FarmerDetail = () => {
     ? (farmer.agent.split(' ')[0] + ' ' + (farmer.agent.split(' ')[1] || ''))
     : 'Assigned Tech';
 
-  const waterQualityLogs = [
-    {
-      id: 1,
-      doc: activeTank.doc || 65,
-      date: '2026-08-20',
-      agent: agentShortName,
-      salinity: baseSal,
-      ph: 7.9,
-      alkalinity: 145,
-      hardness: baseSal * 300,
-      ammonia: 0.05,
-      nitrite: 0.02,
-      potassium: parseFloat((baseSal * 10.7).toFixed(1)),
-      do: 5.8,
-      h2s: 0.00,
-      cl: 0.01,
-      fe: 0.01,
-      waterColor: 'Light Green'
-    },
-    {
-      id: 2,
-      doc: (activeTank.doc || 65) - 10,
-      date: '2026-08-10',
-      agent: agentShortName,
-      salinity: Math.max(1, baseSal - 1),
-      ph: 8.1,
-      alkalinity: 150,
-      hardness: Math.max(1, baseSal - 1) * 300,
-      ammonia: 0.08,
-      nitrite: 0.03,
-      potassium: parseFloat(((Math.max(1, baseSal - 1)) * 10.7).toFixed(1)),
-      do: 5.4,
-      h2s: 0.00,
-      cl: 0.01,
-      fe: 0.01,
-      waterColor: 'Greenish Brown'
-    },
-    {
-      id: 3,
-      doc: (activeTank.doc || 65) - 20,
-      date: '2026-07-31',
-      agent: agentShortName,
-      salinity: Math.max(1, baseSal - 2),
-      ph: 8.0,
-      alkalinity: 140,
-      hardness: Math.max(1, baseSal - 2) * 300,
-      ammonia: 0.04,
-      nitrite: 0.01,
-      potassium: parseFloat(((Math.max(1, baseSal - 2)) * 10.7).toFixed(1)),
-      do: 6.2,
-      h2s: 0.00,
-      cl: 0.00,
-      fe: 0.01,
-      waterColor: 'Light Green'
-    },
-    {
-      id: 4,
-      doc: (activeTank.doc || 65) - 30,
-      date: '2026-07-21',
-      agent: agentShortName,
-      salinity: Math.max(1, baseSal - 3),
-      ph: 7.8,
-      alkalinity: 135,
-      hardness: Math.max(1, baseSal - 3) * 300,
-      ammonia: 0.02,
-      nitrite: 0.01,
-      potassium: parseFloat(((Math.max(1, baseSal - 3)) * 10.7).toFixed(1)),
-      do: 6.6,
-      h2s: 0.00,
-      cl: 0.00,
-      fe: 0.00,
-      waterColor: 'Clear Green'
-    },
-    {
-      id: 5,
-      doc: 20,
-      date: '2026-07-06',
-      agent: agentShortName,
-      salinity: Math.max(1, baseSal - 3),
-      ph: 7.7,
-      alkalinity: 130,
-      hardness: Math.max(1, baseSal - 3) * 300,
-      ammonia: 0.01,
-      nitrite: 0.00,
-      potassium: parseFloat(((Math.max(1, baseSal - 3)) * 10.7).toFixed(1)),
-      do: 7.1,
-      h2s: 0.00,
-      cl: 0.00,
-      fe: 0.00,
-      waterColor: 'Clear'
-    }
-  ];
+  // Real submissions for this farmer/tank from MySQL database
+  const tankSubmissions = React.useMemo(() => {
+    if (!farmer) return [];
+    const allSubs = db?.submissions || [];
+    return allSubs.filter(s => {
+      const matchesFarmer = String(s.farmerId) === String(farmer.id) || s.farmer_name === farmer.name;
+      if (!matchesFarmer) return false;
+      if (!activeTank) return true;
+      return String(s.tankId) === String(activeTank.id) || s.tank_name === activeTank.name;
+    });
+  }, [db?.submissions, farmer, activeTank]);
 
-  // Historical growth sampling data
-  const docDays = [10, 20, 30, 40, 50, 60, 70];
-  const growthData = docDays.map(doc => {
-    const entry = { doc: `DOC ${doc}`, docNum: doc };
-    const tankAcres = activeTank.acres || 4.0;
-    const baseABW = (doc / 70) * (activeTank.abw || 24.0);
+  const waterQualityLogs = React.useMemo(() => {
+    return tankSubmissions.map((s, idx) => ({
+      id: s.id || idx + 1,
+      doc: s.doc ?? '-',
+      date: s.date || s.submission_date || '-',
+      agent: s.agent_name || s.agentName || farmer?.agent || '-',
+      salinity: s.salinity != null ? s.salinity : (s.water_salinity != null ? s.water_salinity : '-'),
+      ph: s.ph != null ? s.ph : (s.water_ph != null ? s.water_ph : '-'),
+      alkalinity: s.alkalinity != null ? s.alkalinity : '-',
+      hardness: s.hardness != null ? s.hardness : '-',
+      ammonia: s.ammonia != null ? s.ammonia : '-',
+      nitrite: s.nitrite != null ? s.nitrite : '-',
+      potassium: s.potassium != null ? s.potassium : '-',
+      do: s.do != null ? s.do : (s.dissolved_oxygen != null ? s.dissolved_oxygen : '-'),
+      h2s: s.h2s ?? '-',
+      cl: s.cl ?? '-',
+      fe: s.fe ?? '-',
+      waterColor: s.waterColor || s.water_color || '-'
+    }));
+  }, [tankSubmissions, farmer]);
 
-    const abwVal = parseFloat(baseABW.toFixed(2));
-    const biomassVal = calculateBiomass(activeTank.seedStockingLak, abwVal);
-    const hypotheticalFcr = 0.88 + (doc / 70) * 0.44;
-    const feedVal = Math.round(biomassVal * hypotheticalFcr);
-    const fcrVal = parseFloat(calculateFCR(feedVal, biomassVal));
+  // Real growth sampling data from MySQL submissions and harvests
+  const growthData = React.useMemo(() => {
+    const validPoints = tankSubmissions
+      .filter(s => s.doc != null && (s.abw != null && parseFloat(s.abw) > 0))
+      .sort((a, b) => (Number(a.doc) || 0) - (Number(b.doc) || 0));
 
-    entry.abw = abwVal;
-    entry.biomass = biomassVal;
-    entry.fcr = fcrVal;
-    entry.feed = feedVal;
+    return validPoints.map(s => {
+      const docNum = Number(s.doc) || 0;
+      const abwVal = parseFloat(s.abw) || 0;
+      const seedStocking = parseFloat(activeTank?.seedStockingLak) || 1;
+      const biomassVal = calculateBiomass(seedStocking, abwVal);
+      const morningFeed = parseFloat(s.feed_intake_morning) || 0;
+      const eveningFeed = parseFloat(s.feed_intake_evening) || 0;
+      const feedVal = morningFeed + eveningFeed;
+      const fcrVal = feedVal > 0 && biomassVal > 0 ? parseFloat(calculateFCR(feedVal, biomassVal)) : (parseFloat(activeTank?.fcr) || 0);
 
-    return entry;
-  });
+      return {
+        doc: `DOC ${docNum}`,
+        docNum,
+        abw: abwVal,
+        biomass: biomassVal,
+        fcr: fcrVal,
+        feed: feedVal
+      };
+    });
+  }, [tankSubmissions, activeTank]);
 
   // Helper to generate visual ASCII / Progress bar for Excel cells
   const generateProgressBar = (current, max, length = 12) => {
@@ -751,52 +654,58 @@ const FarmerDetail = () => {
         </div>
 
         {/* Tank Specifications Grid */}
-        <div style={styles.specsGrid}>
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>TANK SIZE</span>
-            <span style={styles.specPrimaryValue}>{activeTank.acres} Acres</span>
-          </div>
+        {activeTank ? (
+          <div style={styles.specsGrid}>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>TANK SIZE</span>
+              <span style={styles.specPrimaryValue}>{activeTank.acres ? `${activeTank.acres} Acres` : (activeTank.size || '-')}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>SOURCE OF WATER</span>
-            <span style={styles.specPrimaryValue}>{activeTank.waterSource || farmer.waterSource || 'Creek / Estuary'}</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>SOURCE OF WATER</span>
+              <span style={styles.specPrimaryValue}>{activeTank.waterSource || activeTank.water_source || farmer.waterSource || '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>SALINITY</span>
-            <span style={styles.specPrimaryValue}>{activeTank.salinity} ppt</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>SALINITY</span>
+              <span style={styles.specPrimaryValue}>{activeTank.salinity != null ? `${activeTank.salinity} ppt` : '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>SOIL TYPE</span>
-            <span style={styles.specPrimaryValue}>{activeTank.soilType || 'Clay Loam'}</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>SOIL TYPE</span>
+              <span style={styles.specPrimaryValue}>{activeTank.soilType || activeTank.soil_type || '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>HATCHERY NAME</span>
-            <span style={styles.specPrimaryValue}>{activeTank.hatcheryName || 'Apex Hatcheries'}</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>HATCHERY NAME</span>
+              <span style={styles.specPrimaryValue}>{activeTank.hatcheryName || activeTank.hatchery_name || '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>BROODER LINEAGE</span>
-            <span style={styles.specPrimaryValue}>{activeTank.brooder || 'Kona Bay'}</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>BROODER LINEAGE</span>
+              <span style={styles.specPrimaryValue}>{activeTank.brooder || '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>SEED DATE</span>
-            <span style={styles.specPrimaryValue}>{activeTank.seedDate || '2026-05-15'}</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>SEED DATE</span>
+              <span style={styles.specPrimaryValue}>{activeTank.seedDate || activeTank.seed_date || '-'}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>SEED STOCKING</span>
-            <span style={styles.specPrimaryValue}>{activeTank.seedStockingLak} Lakhs</span>
-          </div>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>SEED STOCKING</span>
+              <span style={styles.specPrimaryValue}>{activeTank.seedStockingLak != null ? `${activeTank.seedStockingLak} Lakhs` : (activeTank.stockingCount ? `${activeTank.stockingCount} Seed` : '-')}</span>
+            </div>
 
-          <div style={styles.specItemCard}>
-            <span style={styles.specLabel}>FEED TYPE</span>
-            <span style={styles.specPrimaryValue}>{activeTank.feedType || 'Premium Pellets'}</span>
+            <div style={styles.specItemCard}>
+              <span style={styles.specLabel}>FEED TYPE</span>
+              <span style={styles.specPrimaryValue}>{activeTank.feedType || activeTank.feed_type || '-'}</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
+            No cultivation tanks registered for this farmer in the database.
+          </div>
+        )}
       </div>
 
       {/* 4. Section: Tank Growth Graph Trajectory */}
@@ -804,7 +713,7 @@ const FarmerDetail = () => {
         <div style={styles.sectionHeaderRow}>
           <div>
             <h3 style={styles.sectionCardTitle}>
-              {activeTank.name} Growth Trajectory &amp; Feed Curve
+              {activeTank ? activeTank.name : 'Tank'} Growth Trajectory &amp; Feed Curve
             </h3>
           </div>
 
@@ -850,84 +759,90 @@ const FarmerDetail = () => {
         </div>
 
         {/* Growth Graph */}
-        <div style={{ height: '260px', marginTop: '12px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            {growthMetric === 'BIOMASS' || growthMetric === 'FEED' ? (
-              <AreaChart data={growthData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="areaGradientSimple" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="doc"
-                  axisLine={{ stroke: '#e2e8f0' }}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                />
-                <YAxis
-                  axisLine={{ stroke: '#e2e8f0' }}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                  unit=" kg"
-                />
-                <RechartsTooltip
-                  contentStyle={{
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                    backgroundColor: '#ffffff'
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey={growthMetric.toLowerCase()}
-                  name={growthMetric === 'BIOMASS' ? 'Estimated Biomass' : 'Feed Intake'}
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#areaGradientSimple)"
-                />
-              </AreaChart>
-            ) : (
-              <LineChart data={growthData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="doc"
-                  axisLine={{ stroke: '#e2e8f0' }}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                />
-                <YAxis
-                  domain={growthMetric === 'FCR' ? [0.8, 2.0] : [0, 'auto']}
-                  axisLine={{ stroke: '#e2e8f0' }}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
-                  unit={growthMetric === 'ABW' ? 'g' : ''}
-                />
-                <RechartsTooltip
-                  contentStyle={{
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                    backgroundColor: '#ffffff'
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey={growthMetric.toLowerCase()}
-                  name={growthMetric === 'ABW' ? 'Body Weight (ABW)' : 'FCR Ratio'}
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  dot={{ r: 4, strokeWidth: 2, fill: '#ffffff', stroke: '#2563eb' }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+        {growthData.length > 0 ? (
+          <div style={{ height: '260px', marginTop: '12px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              {growthMetric === 'BIOMASS' || growthMetric === 'FEED' ? (
+                <AreaChart data={growthData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="areaGradientSimple" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="doc"
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                  />
+                  <YAxis
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    unit=" kg"
+                  />
+                  <RechartsTooltip
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                      backgroundColor: '#ffffff'
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={growthMetric.toLowerCase()}
+                    name={growthMetric === 'BIOMASS' ? 'Estimated Biomass' : 'Feed Intake'}
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#areaGradientSimple)"
+                  />
+                </AreaChart>
+              ) : (
+                <LineChart data={growthData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="doc"
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                  />
+                  <YAxis
+                    domain={growthMetric === 'FCR' ? [0.8, 2.0] : [0, 'auto']}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    unit={growthMetric === 'ABW' ? 'g' : ''}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                      backgroundColor: '#ffffff'
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={growthMetric.toLowerCase()}
+                    name={growthMetric === 'ABW' ? 'Body Weight (ABW)' : 'FCR Ratio'}
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, strokeWidth: 2, fill: '#ffffff', stroke: '#2563eb' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '13.5px' }}>
+            No growth trajectory sampling records available for this tank in the database.
+          </div>
+        )}
       </div>
 
       {/* 5. Section: Water Quality Parameters (Clean Table) */}
@@ -935,7 +850,7 @@ const FarmerDetail = () => {
         <div style={styles.sectionHeaderRow}>
           <div>
             <h3 style={styles.sectionCardTitle}>
-              {activeTank.name} Water Quality Telemetry
+              {activeTank ? activeTank.name : 'Tank'} Water Quality Telemetry
             </h3>
           </div>
 
@@ -946,93 +861,99 @@ const FarmerDetail = () => {
         </div>
 
         {/* Water Quality Table */}
-        <div style={{ overflowX: 'auto', marginTop: '10px' }}>
-          <table style={styles.qualityTable}>
-            <thead>
-              <tr style={styles.qualityTheadRow}>
-                <th style={styles.qualityTh}>DOC / DATE</th>
-                <th style={styles.qualityTh}>AGENT</th>
-                <th style={styles.qualityTh}>SALINITY</th>
-                <th style={styles.qualityTh}>pH</th>
-                <th style={styles.qualityTh}>ALKALINITY</th>
-                <th style={styles.qualityTh}>HARDNESS</th>
-                <th style={styles.qualityTh}>AMMONIA</th>
-                <th style={styles.qualityTh}>NITRITE</th>
-                <th style={styles.qualityTh}>POTASSIUM</th>
-                <th style={styles.qualityTh}>DO</th>
-                <th style={styles.qualityTh}>H2S</th>
-                <th style={styles.qualityTh}>Cl</th>
-                <th style={styles.qualityTh}>Fe</th>
-                <th style={styles.qualityTh}>COLOR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {waterQualityLogs.map((log) => {
-                const isCriticalDO = log.do < 4.0;
-                const isCriticalAmmonia = log.ammonia > 0.5;
-                const isCriticalNitrite = log.nitrite > 0.25;
+        {waterQualityLogs.length > 0 ? (
+          <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+            <table style={styles.qualityTable}>
+              <thead>
+                <tr style={styles.qualityTheadRow}>
+                  <th style={styles.qualityTh}>DOC / DATE</th>
+                  <th style={styles.qualityTh}>AGENT</th>
+                  <th style={styles.qualityTh}>SALINITY</th>
+                  <th style={styles.qualityTh}>pH</th>
+                  <th style={styles.qualityTh}>ALKALINITY</th>
+                  <th style={styles.qualityTh}>HARDNESS</th>
+                  <th style={styles.qualityTh}>AMMONIA</th>
+                  <th style={styles.qualityTh}>NITRITE</th>
+                  <th style={styles.qualityTh}>POTASSIUM</th>
+                  <th style={styles.qualityTh}>DO</th>
+                  <th style={styles.qualityTh}>H2S</th>
+                  <th style={styles.qualityTh}>Cl</th>
+                  <th style={styles.qualityTh}>Fe</th>
+                  <th style={styles.qualityTh}>COLOR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {waterQualityLogs.map((log) => {
+                  const isCriticalDO = log.do !== '-' && parseFloat(log.do) < 4.0;
+                  const isCriticalAmmonia = log.ammonia !== '-' && parseFloat(log.ammonia) > 0.5;
+                  const isCriticalNitrite = log.nitrite !== '-' && parseFloat(log.nitrite) > 0.25;
 
-                return (
-                  <tr key={log.id} style={styles.qualityTr}>
-                    <td style={styles.qualityTd}>
-                      <span style={{ fontWeight: 700, color: '#0f172a' }}>DOC {log.doc}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{log.date}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ fontWeight: 500, color: '#334155' }}>{log.agent}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span>{log.salinity} ppt</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span>{log.ph}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span>{log.alkalinity} ppm</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span>{log.hardness} ppm</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ color: isCriticalAmmonia ? '#dc2626' : '#334155', fontWeight: isCriticalAmmonia ? 700 : 500 }}>
-                        {log.ammonia}
-                      </span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ color: isCriticalNitrite ? '#dc2626' : '#334155', fontWeight: isCriticalNitrite ? 700 : 500 }}>
-                        {log.nitrite}
-                      </span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span>{log.potassium} ppm</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      {isCriticalDO ? (
-                        <span style={styles.criticalDOBadge}>
-                          {log.do} mg/L
+                  return (
+                    <tr key={log.id} style={styles.qualityTr}>
+                      <td style={styles.qualityTd}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>DOC {log.doc}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{log.date}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ fontWeight: 500, color: '#334155' }}>{log.agent}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span>{log.salinity !== '-' ? `${log.salinity} ppt` : '-'}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span>{log.ph}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span>{log.alkalinity !== '-' ? `${log.alkalinity} ppm` : '-'}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span>{log.hardness !== '-' ? `${log.hardness} ppm` : '-'}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ color: isCriticalAmmonia ? '#dc2626' : '#334155', fontWeight: isCriticalAmmonia ? 700 : 500 }}>
+                          {log.ammonia}
                         </span>
-                      ) : (
-                        <span>{log.do} mg/L</span>
-                      )}
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ color: '#64748b' }}>{log.h2s}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ color: '#64748b' }}>{log.cl}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={{ color: '#64748b' }}>{log.fe}</span>
-                    </td>
-                    <td style={styles.qualityTd}>
-                      <span style={styles.colorPill}>{log.waterColor}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ color: isCriticalNitrite ? '#dc2626' : '#334155', fontWeight: isCriticalNitrite ? 700 : 500 }}>
+                          {log.nitrite}
+                        </span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span>{log.potassium !== '-' ? `${log.potassium} ppm` : '-'}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        {isCriticalDO ? (
+                          <span style={styles.criticalDOBadge}>
+                            {log.do} mg/L
+                          </span>
+                        ) : (
+                          <span>{log.do !== '-' ? `${log.do} mg/L` : '-'}</span>
+                        )}
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ color: '#64748b' }}>{log.h2s}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ color: '#64748b' }}>{log.cl}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={{ color: '#64748b' }}>{log.fe}</span>
+                      </td>
+                      <td style={styles.qualityTd}>
+                        <span style={styles.colorPill}>{log.waterColor}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '13.5px' }}>
+            No water quality telemetry records found for this tank in the database.
+          </div>
+        )}
       </div>
 
       {/* Modal: Edit Tank Details */}
