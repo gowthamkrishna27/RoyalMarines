@@ -54,7 +54,7 @@ export const createFarmer = async (req, res) => {
       agentId: agentId || null,
       inchargeId: inchargeId || null,
       assignedTo: assignedTo || (agentId ? 'Agent' : inchargeId ? 'Incharge' : 'Unassigned'),
-      assignedBy: req.user?.role || 'Admin',
+      assignedBy: req.user?.role || (assignedTo === 'Incharge' ? 'Incharge' : 'Admin'),
     });
 
     return sendSuccess(res, newFarmer, 'Farmer registered successfully', 201);

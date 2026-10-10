@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getAsmBasePath } from '../utils/asmNavigation';
+import { getInchargeSession } from '../utils/inchargeAuth';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
 
@@ -15,6 +16,8 @@ const MyFarmers = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const base = getAsmBasePath(location.pathname);
+  const session = getInchargeSession ? getInchargeSession() : null;
+  const currentInchargeId = session?.inchargeId || session?.id || 'INC001';
   const { db, getMyFarmersByInchargeId, getTanksByFarmerId, getAgentsByInchargeId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,12 +28,12 @@ const MyFarmers = () => {
   const [selectedHarvestTank, setSelectedHarvestTank] = useState(null);
 
   // Incharge / ASM assigned farmers
-  const inchargeFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
+  const inchargeFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId(currentInchargeId) : [];
   const farmerList = inchargeFarmers.length > 0
     ? inchargeFarmers
-    : (db?.farmers || []).filter(f => f.inchargeId === 'INC001' && (!f.agentId || f.assignedTo === 'Incharge'));
+    : (db?.farmers || []).filter(f => (f.inchargeId === currentInchargeId || f.inchargeId === 'INC001') && (!f.agentId || f.assignedTo === 'Incharge'));
 
-  const inchargeAgents = getAgentsByInchargeId ? getAgentsByInchargeId('INC001') : (db?.agents || []);
+  const inchargeAgents = getAgentsByInchargeId ? getAgentsByInchargeId(currentInchargeId) : (db?.agents || []);
 
   const farmerItems = farmerList.map((farmer, fIdx) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);

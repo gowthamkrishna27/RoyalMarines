@@ -117,9 +117,9 @@ class DataStore {
         params.push(filter.regionId, filter.regionId, filter.regionId, filter.regionId, partial);
       }
       if (filter.search) {
-        sql += ' AND (LOWER(f.name) LIKE ? OR LOWER(f.location) LIKE ? OR f.phone LIKE ? OR f.farmer_code LIKE ?)';
+        sql += ' AND (LOWER(f.name) LIKE ? OR LOWER(f.location) LIKE ? OR LOWER(f.village) LIKE ? OR f.phone LIKE ? OR f.farmer_code LIKE ?)';
         const term = `%${filter.search.toLowerCase()}%`;
-        params.push(term, term, term, term);
+        params.push(term, term, term, term, term);
       }
       sql += ' ORDER BY f.created_at DESC, f.id ASC';
       if (filter.limit && !isNaN(Number(filter.limit))) {
@@ -132,16 +132,22 @@ class DataStore {
         ...r,
         id: String(r.id),
         farmerCode: r.farmer_code || r.id,
+        name: r.name,
+        phone: r.phone || '',
         agentId: r.agent_id,
-        agent: r.agent_name || r.assigned_to || '',
+        agent: r.agent_name || r.assigned_to || 'Unassigned',
+        agent_name: r.agent_name || r.assigned_to || 'Unassigned',
         inchargeId: r.incharge_id,
         incharge: r.incharge_name || '',
         assignedTo: r.assigned_to,
         assignedBy: r.assigned_by,
-        waterSource: r.water_source,
-        region: r.region_name || '',
+        waterSource: r.water_source || 'Borewell',
+        region: r.region_name || r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : r.mandal?.includes('Kakinada') ? 'Kakinada' : r.mandal?.includes('Narasapuram') ? 'Narasapuram' : 'Bhimavaram'),
+        region_name: r.region_name || '',
         regionId: r.region_id || '',
-        totalAcres: r.acres ? Number(r.acres) : (r.total_acres ? Number(r.total_acres) : 0),
+        location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : 'Bhimavaram'),
+        village: r.village || r.location || '',
+        totalAcres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
         acres: r.acres ? `${r.acres} Acres` : (r.total_acres ? `${r.total_acres} Acres` : '0 Acres'),
         status: r.status || 'ACTIVE',
       }));
@@ -457,22 +463,35 @@ class DataStore {
       farmer_id: data.farmerId,
       agent_id: data.agentId || null,
       incharge_id: data.inchargeId || null,
-      assigned_to: data.assignedTo || 'Agent',
-      status: 'ACTIVE',
+      assigned_to: data.assignedTo || (data.agentId ? 'Agent' : data.inchargeId ? 'Incharge' : 'Unassigned'),
+      status: data.status || 'ACTIVE',
       test_status: data.testStatus || 'Due',
-      abw: data.abw ? String(data.abw) : null,
-      biomass: data.biomass ? String(data.biomass) : null,
-      fcr: data.fcr ? String(data.fcr) : null,
-      last_test: data.lastTest || null,
+      abw: data.abw ? String(data.abw) : '16.5g',
+      biomass: data.biomass ? String(data.biomass) : '1500kg',
+      fcr: data.fcr ? String(data.fcr) : '1.20',
+      last_test: data.lastTest || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       next_test: data.nextTest || 'In 7 Days',
       size: data.size || (data.acres ? `${data.acres} Acres` : '2.5 Acres'),
       doc: data.doc != null && data.doc !== '' ? Number(data.doc) : 1,
+      salinity: data.salinity || '15 ppt',
+      species: data.species || 'Vannamei',
+      culture_type: data.cultureType || 'Semi-Intensive',
+      stocking_date: data.stockingDate || new Date().toISOString().split('T')[0],
+      latitude: data.latitude != null ? parseFloat(data.latitude) : null,
+      longitude: data.longitude != null ? parseFloat(data.longitude) : null,
+      location: data.location || null,
     };
 
     try {
       await query(
-        `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date, latitude, longitude, location) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
+           assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
+           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc),
+           salinity=VALUES(salinity), species=VALUES(species), culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date),
+           latitude=VALUES(latitude), longitude=VALUES(longitude), location=VALUES(location)`,
         [
           newTank.id,
           newTank.name,
@@ -489,6 +508,13 @@ class DataStore {
           newTank.next_test,
           newTank.size,
           newTank.doc,
+          newTank.salinity,
+          newTank.species,
+          newTank.culture_type,
+          newTank.stocking_date,
+          newTank.latitude,
+          newTank.longitude,
+          newTank.location,
         ]
       );
       return this.getTankById(newTank.id);
@@ -516,6 +542,13 @@ class DataStore {
       if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
       if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
       if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
+      if (updates.salinity !== undefined) { fields.push('salinity = ?'); params.push(updates.salinity); }
+      if (updates.species !== undefined) { fields.push('species = ?'); params.push(updates.species); }
+      if (updates.cultureType !== undefined) { fields.push('culture_type = ?'); params.push(updates.cultureType); }
+      if (updates.stockingDate !== undefined) { fields.push('stocking_date = ?'); params.push(updates.stockingDate); }
+      if (updates.latitude !== undefined) { fields.push('latitude = ?'); params.push(updates.latitude); }
+      if (updates.longitude !== undefined) { fields.push('longitude = ?'); params.push(updates.longitude); }
+      if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
 
       if (fields.length > 0) {
         params.push(id);

@@ -754,8 +754,11 @@ export const MockDataProvider = ({ children }) => {
         ? Math.max(...prev.tanks.map(t => parseInt((t.id || '').replace(/\D/g, '')) || 0)) + 1
         : 1;
 
-      const targetAgentId = agentId || farmerData.agentId || 'agent001';
+      const isAssignedToIncharge = farmerData.assignedTo === 'Incharge' || (!agentId && !farmerData.agentId && (farmerData.inchargeId || farmerData.role === 'INCHARGE' || farmerData.role === 'ASM'));
+      const targetAgentId = isAssignedToIncharge ? null : (agentId || farmerData.agentId || 'agent001');
       const targetInchargeId = farmerData.inchargeId || (targetAgentId ? (prev.agents?.find(a => a.id === targetAgentId)?.inchargeId || 'INC001') : 'INC001');
+      const assignedTo = isAssignedToIncharge ? 'Incharge' : (farmerData.assignedTo || (targetAgentId ? 'Agent' : 'Incharge'));
+      const assignedBy = farmerData.assignedBy || (isAssignedToIncharge ? 'Incharge' : (targetAgentId ? 'Agent' : 'Incharge'));
 
       const newTanks = (tanksData || []).map((tankData, index) => {
         const tankNum = startTankNum + index;
@@ -765,6 +768,8 @@ export const MockDataProvider = ({ children }) => {
           farmerId: newFarmerId,
           agentId: targetAgentId,
           inchargeId: targetInchargeId,
+          assignedTo: assignedTo,
+          assignedBy: assignedBy,
           status: 'ACTIVE',
           testStatus: 'Due',
           isOverdue: false,
@@ -791,8 +796,8 @@ export const MockDataProvider = ({ children }) => {
         status: farmerData.status || 'ACTIVE',
         agentId: targetAgentId,
         inchargeId: targetInchargeId,
-        assignedTo: targetAgentId ? 'Agent' : 'Incharge',
-        assignedBy: farmerData.assignedBy || (targetAgentId ? 'Agent' : 'Incharge'),
+        assignedTo: assignedTo,
+        assignedBy: assignedBy,
         phone: farmerData.phone,
         location: farmerData.location || (farmerData.village ? `${farmerData.village}${farmerData.area ? `, ${farmerData.area}` : ''}` : 'Bhimavaram'),
         village: farmerData.village || farmerData.location || 'Bhimavaram',

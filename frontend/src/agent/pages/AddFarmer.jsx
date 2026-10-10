@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, UserPlus, MapPin, RefreshCw, 
   CheckCircle, Plus, Trash2, ShieldCheck, Save 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
+import { getInchargeSession, isInchargeAuthenticated } from '../../asm/utils/inchargeAuth';
 import { captureDeviceGPS, getStoredGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
 
 const AddFarmer = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const session = getSession();
+  const inchargeSession = getInchargeSession();
   const { createFarmerWithTanks } = useMockData();
+
+  // Detect whether current page is in Incharge / ASM context
+  const isIncharge = location.pathname.startsWith('/incharge') || 
+                     location.pathname.startsWith('/asm') || 
+                     (!session && (isInchargeAuthenticated() || !!inchargeSession));
+  const inchargeBasePath = location.pathname.startsWith('/asm') ? '/asm' : '/incharge';
 
   const [step, setStep] = useState(1);
 
@@ -166,7 +175,6 @@ const AddFarmer = () => {
   };
 
   const handleFinalSave = () => {
-    const agentId = session?.agentId || 'agent001';
     const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
     const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
       ? parseFloat(farmerForm.extent) 
@@ -188,8 +196,34 @@ const AddFarmer = () => {
       gps: gpsData,
     };
 
-    const createdFarmerId = createFarmerWithTanks(agentId, farmerPayload, tanksData);
-    navigate('/farmers');
+    if (isIncharge) {
+      const inchargeId = inchargeSession?.inchargeId || inchargeSession?.id || 'INC001';
+      farmerPayload.inchargeId = inchargeId;
+      farmerPayload.agentId = null;
+      farmerPayload.assignedTo = 'Incharge';
+      farmerPayload.assignedBy = 'Incharge';
+
+      createFarmerWithTanks(null, farmerPayload, tanksData);
+      navigate(`${inchargeBasePath}/my-farmers`);
+    } else {
+      const agentId = session?.agentId || 'agent001';
+      farmerPayload.agentId = agentId;
+      farmerPayload.assignedTo = 'Agent';
+      farmerPayload.assignedBy = 'Agent';
+
+      createFarmerWithTanks(agentId, farmerPayload, tanksData);
+      navigate('/farmers');
+    }
+  };
+
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else if (isIncharge) {
+      navigate(`${inchargeBasePath}/my-farmers`);
+    } else {
+      navigate(-1);
+    }
   };
 
   return (
@@ -199,13 +233,14 @@ const AddFarmer = () => {
         <button 
           className="transition-all duration-150 hover:opacity-80 active:scale-95 cursor-pointer"
           style={styles.backLink}
-          onClick={() => step === 2 ? setStep(1) : navigate(-1)}
+          onClick={handleBack}
         >
           <ArrowLeft size={16} />
           <span>{step === 2 ? 'Back to Farmer Info' : 'Back'}</span>
         </button>
 
         <div style={styles.stepBadge}>
+          {isIncharge && <span style={{ marginRight: '6px', color: '#1A2FB8', fontWeight: '700' }}>[Incharge]</span>}
           Step {step} of 2: {step === 1 ? 'Farmer Details' : 'Tank Setup'}
         </div>
       </div>
@@ -219,7 +254,11 @@ const AddFarmer = () => {
             </div>
             <div>
               <h2 style={styles.title}>Register New Farmer</h2>
-              <p style={styles.subtitle}>Enter farmer demographics and capture farm GPS location</p>
+              <p style={styles.subtitle}>
+                {isIncharge
+                  ? 'Enter farmer demographics and pond details (Assigned directly to Incharge)'
+                  : 'Enter farmer demographics and capture farm GPS location'}
+              </p>
             </div>
           </div>
 

@@ -5,19 +5,22 @@ import {
   ChevronRight, X 
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { getInchargeSession } from '../utils/inchargeAuth';
 
 const MyFarmers = () => {
   const navigate = useNavigate();
+  const session = getInchargeSession ? getInchargeSession() : null;
+  const currentInchargeId = session?.inchargeId || session?.id || 'INC001';
   const { db, getMyFarmersByInchargeId, getTanksByFarmerId } = useMockData();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('ALL');
 
-  // Incharge / ASM assigned farmers only (Personal farmers assigned directly to Incharge INC001)
-  const inchargeFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
+  // Incharge / ASM assigned farmers only (Personal farmers assigned directly to Incharge)
+  const inchargeFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId(currentInchargeId) : [];
   const farmerList = inchargeFarmers.length > 0 
     ? inchargeFarmers 
-    : (db?.farmers || []).filter(f => f.inchargeId === 'INC001' && (!f.agentId || f.assignedTo === 'Incharge'));
+    : (db?.farmers || []).filter(f => (f.inchargeId === currentInchargeId || f.inchargeId === 'INC001') && (!f.agentId || f.assignedTo === 'Incharge'));
 
   const farmerItems = farmerList.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
