@@ -387,7 +387,7 @@ class DataStore {
       farmerId: data.farmerId,
       agentId: data.agentId || null,
       inchargeId: data.inchargeId || null,
-      assignedTo: data.assignedTo || 'Agent',
+      assignedTo: data.assignedTo || (data.agentId ? 'Agent' : data.inchargeId ? 'Incharge' : 'Unassigned'),
       status: data.status || 'ACTIVE',
       testStatus: data.testStatus || 'Due',
       abw: data.abw || '16.5g',
