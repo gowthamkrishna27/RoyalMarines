@@ -23,6 +23,7 @@ const AddFarmer = () => {
   const inchargeBasePath = location.pathname.startsWith('/asm') ? '/asm' : '/incharge';
 
   const [step, setStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [farmerForm, setFarmerForm] = useState({
     name: '',
@@ -175,44 +176,50 @@ const AddFarmer = () => {
   };
 
   const handleFinalSave = () => {
-    const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
-    const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
-      ? parseFloat(farmerForm.extent) 
-      : calculatedAcres;
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
+      const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
+        ? parseFloat(farmerForm.extent) 
+        : calculatedAcres;
 
-    const farmerPayload = {
-      name: farmerForm.name.trim(),
-      phone: farmerForm.phone.trim(),
-      alternatePhone: farmerForm.alternatePhone.trim(),
-      village: farmerForm.village.trim(),
-      area: farmerForm.mandal.trim() || farmerForm.village.trim(),
-      district: farmerForm.district,
-      address: farmerForm.address,
-      waterSource: farmerForm.waterSource,
-      acres: finalAcres,
-      extent: finalAcres,
-      numberOfTanks: tanksData.length.toString(),
-      status: farmerForm.status,
-      gps: gpsData,
-    };
+      const farmerPayload = {
+        name: farmerForm.name.trim(),
+        phone: farmerForm.phone.trim(),
+        alternatePhone: farmerForm.alternatePhone.trim(),
+        village: farmerForm.village.trim(),
+        area: farmerForm.mandal.trim() || farmerForm.village.trim(),
+        district: farmerForm.district,
+        address: farmerForm.address,
+        waterSource: farmerForm.waterSource,
+        acres: finalAcres,
+        extent: finalAcres,
+        numberOfTanks: tanksData.length.toString(),
+        status: farmerForm.status,
+        gps: gpsData,
+      };
 
-    if (isIncharge) {
-      const inchargeId = inchargeSession?.inchargeId || inchargeSession?.id || 'INC001';
-      farmerPayload.inchargeId = inchargeId;
-      farmerPayload.agentId = null;
-      farmerPayload.assignedTo = 'Incharge';
-      farmerPayload.assignedBy = 'Incharge';
+      if (isIncharge) {
+        const inchargeId = inchargeSession?.inchargeId || inchargeSession?.id || 'INC001';
+        farmerPayload.inchargeId = inchargeId;
+        farmerPayload.agentId = null;
+        farmerPayload.assignedTo = 'Incharge';
+        farmerPayload.assignedBy = 'Incharge';
 
-      createFarmerWithTanks(null, farmerPayload, tanksData);
-      navigate(`${inchargeBasePath}/my-farmers`);
-    } else {
-      const agentId = session?.agentId || 'agent001';
-      farmerPayload.agentId = agentId;
-      farmerPayload.assignedTo = 'Agent';
-      farmerPayload.assignedBy = 'Agent';
+        createFarmerWithTanks(null, farmerPayload, tanksData);
+        navigate(`${inchargeBasePath}/my-farmers`);
+      } else {
+        const agentId = session?.agentId || 'agent001';
+        farmerPayload.agentId = agentId;
+        farmerPayload.assignedTo = 'Agent';
+        farmerPayload.assignedBy = 'Agent';
 
-      createFarmerWithTanks(agentId, farmerPayload, tanksData);
-      navigate('/farmers');
+        createFarmerWithTanks(agentId, farmerPayload, tanksData);
+        navigate('/farmers');
+      }
+    } catch (err) {
+      setIsSaving(false);
     }
   };
 
@@ -601,12 +608,17 @@ const AddFarmer = () => {
 
             <button
               type="button"
+              disabled={isSaving}
               className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
-              style={styles.saveAllBtn}
+              style={{
+                ...styles.saveAllBtn,
+                opacity: isSaving ? 0.6 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer'
+              }}
               onClick={handleFinalSave}
             >
               <Save size={15} />
-              <span>Save Farmer & {tanksData.length} Tanks</span>
+              <span>{isSaving ? 'Saving...' : `Save Farmer & ${tanksData.length} Tanks`}</span>
             </button>
           </div>
         </div>

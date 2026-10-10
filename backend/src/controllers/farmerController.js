@@ -22,13 +22,32 @@ export const getFarmerById = async (req, res) => {
 };
 
 export const createFarmer = async (req, res) => {
-  const { name, phone, location, waterSource, acres, agentId, inchargeId, assignedTo } = req.body;
+  const { id, name, phone, location, waterSource, acres, agentId, inchargeId, assignedTo } = req.body;
 
   if (!name) {
     return sendError(res, 'Farmer name is required', 400);
   }
 
+  // Check if farmer already exists in store/database
+  const existing = await store.getFarmers({ search: phone || name });
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+  const cleanName = (name || '').trim().toLowerCase();
+  const duplicate = existing.find(f => {
+    const fPhone = (f.phone || '').replace(/\D/g, '');
+    if (cleanPhone && fPhone && cleanPhone === fPhone) return true;
+    if ((f.name || '').trim().toLowerCase() === cleanName && 
+        (!location || !f.location || f.location.toLowerCase() === location.toLowerCase())) {
+      return true;
+    }
+    return false;
+  });
+
+  if (duplicate) {
+    return sendSuccess(res, duplicate, 'Farmer already registered', 200);
+  }
+
   const newFarmer = await store.createFarmer({
+    id: id || undefined,
     name,
     phone: phone || '',
     location: location || '',

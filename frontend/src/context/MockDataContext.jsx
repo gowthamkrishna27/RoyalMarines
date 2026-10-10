@@ -47,12 +47,34 @@ const normalizeTanks = (tanks) => {
   });
 };
 
+// Helper to deduplicate farmers by ID or (name + phone/village)
+export const deduplicateFarmers = (farmers) => {
+  if (!Array.isArray(farmers)) return [];
+  const seenIds = new Set();
+  const seenIdentity = new Set();
+  return farmers.filter(f => {
+    if (!f) return false;
+    const id = String(f.id || '').trim();
+    const cleanPhone = (f.phone || '').replace(/\D/g, '');
+    const cleanName = (f.name || '').trim().toLowerCase();
+    const cleanLoc = (f.village || f.location || '').trim().toLowerCase();
+    const identity = `${cleanName}_${cleanPhone || cleanLoc}`;
+
+    if (id && seenIds.has(id)) return false;
+    if (identity && seenIdentity.has(identity)) return false;
+
+    if (id) seenIds.add(id);
+    if (identity) seenIdentity.add(identity);
+    return true;
+  });
+};
+
 const getInitialDb = () => {
   const fallbackDb = {
     regions: initialRegions,
     incharges: initialIncharges,
     agents: initialAgents,
-    farmers: initialFarmers,
+    farmers: deduplicateFarmers(initialFarmers),
     tanks: normalizeTanks(initialTanks),
     submissions: initialSubmissions,
     cultureCycles: [],
@@ -72,7 +94,11 @@ const getInitialDb = () => {
     if (savedData) {
       const parsed = JSON.parse(savedData);
       if (parsed) {
+        parsed.farmers = deduplicateFarmers(parsed.farmers || []);
         parsed.tanks = normalizeTanks(parsed.tanks || []);
+        try {
+          localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(parsed));
+        } catch (e) {}
         return parsed;
       }
     }
@@ -365,7 +391,8 @@ export const MockDataProvider = ({ children }) => {
 
       if (apiFarmers || apiTanks || apiSubs || apiAgents || apiRegions || apiIncharges) {
         setDb(prev => {
-          const mergedFarmers = Array.isArray(apiFarmers) && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
+          const rawFarmers = Array.isArray(apiFarmers) && apiFarmers.length > 0 ? apiFarmers : prev.farmers;
+          const mergedFarmers = deduplicateFarmers(rawFarmers);
           const rawTanks = Array.isArray(apiTanks) && apiTanks.length > 0 ? apiTanks : prev.tanks;
           const mergedTanks = normalizeTanks(rawTanks);
           const mergedSubs = Array.isArray(apiSubs) && apiSubs.length > 0 ? apiSubs : prev.submissions;
@@ -572,9 +599,10 @@ export const MockDataProvider = ({ children }) => {
   // Personal Incharge Farmers (Assigned directly by Admin to Incharge or registered by Incharge)
   const getMyFarmersByInchargeId = (inchargeId = 'INC001') => {
     if (!db || !db.farmers) return [];
-    return db.farmers
+    const list = db.farmers
       .filter(f => (f.inchargeId === inchargeId && (!f.agentId || f.assignedTo === 'Incharge')) || (!f.agentId && f.inchargeId === inchargeId))
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+    return deduplicateFarmers(list);
   };
 
   // Personal Incharge Tanks (Tanks under Incharge's personal farmers or direct incharge supervision)
@@ -792,6 +820,26 @@ export const MockDataProvider = ({ children }) => {
   const createFarmerWithTanks = (agentId, farmerData, tanksData = []) => {
     let newFarmerId = null;
     setDb(prev => {
+      // Check for duplicate farmer by phone or (name + location)
+      const cleanPhone = (farmerData.phone || '').replace(/\D/g, '');
+      const cleanName = (farmerData.name || '').trim().toLowerCase();
+      const cleanLoc = (farmerData.village || farmerData.location || '').trim().toLowerCase();
+
+      const existingFarmer = (prev.farmers || []).find(f => {
+        const fPhone = (f.phone || '').replace(/\D/g, '');
+        if (cleanPhone && fPhone && cleanPhone === fPhone) return true;
+        const fName = (f.name || '').trim().toLowerCase();
+        const fLoc = (f.village || f.location || '').trim().toLowerCase();
+        if (cleanName && fName && cleanName === fName && (cleanLoc === fLoc || !cleanLoc || !fLoc)) return true;
+        return false;
+      });
+
+      if (existingFarmer) {
+        newFarmerId = existingFarmer.id;
+        showToast(`Farmer ${farmerData.name} is already registered!`);
+        return prev;
+      }
+
       const nextFarmerNum = prev.farmers.length > 0
         ? Math.max(...prev.farmers.map(f => parseInt((f.id || '').replace(/\D/g, '')) || 0)) + 1
         : 1;
@@ -862,7 +910,7 @@ export const MockDataProvider = ({ children }) => {
 
       return {
         ...prev,
-        farmers: [...prev.farmers, newFarmer],
+        farmers: deduplicateFarmers([...prev.farmers, newFarmer]),
         tanks: [...prev.tanks, ...newTanks],
         activities: [
           {

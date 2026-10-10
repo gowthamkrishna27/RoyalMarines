@@ -16,11 +16,29 @@ const MyFarmers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('ALL');
 
-  // Incharge / ASM assigned farmers only (Personal farmers assigned directly to Incharge)
   const inchargeFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId(currentInchargeId) : [];
-  const farmerList = inchargeFarmers.length > 0 
+  const rawFarmerList = inchargeFarmers.length > 0 
     ? inchargeFarmers 
     : (db?.farmers || []).filter(f => (f.inchargeId === currentInchargeId || f.inchargeId === 'INC001') && (!f.agentId || f.assignedTo === 'Incharge'));
+
+  // Ensure absolutely no duplicate farmer cards are shown
+  const seenFarmerIds = new Set();
+  const seenFarmerIdentities = new Set();
+  const farmerList = rawFarmerList.filter(f => {
+    if (!f) return false;
+    const fId = String(f.id || '').trim();
+    const cleanPhone = (f.phone || '').replace(/\D/g, '');
+    const cleanName = (f.name || '').trim().toLowerCase();
+    const cleanLoc = (f.village || f.location || '').trim().toLowerCase();
+    const identityKey = `${cleanName}_${cleanPhone || cleanLoc}`;
+
+    if (fId && seenFarmerIds.has(fId)) return false;
+    if (seenFarmerIdentities.has(identityKey)) return false;
+
+    if (fId) seenFarmerIds.add(fId);
+    seenFarmerIdentities.add(identityKey);
+    return true;
+  });
 
   const farmerItems = farmerList.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
