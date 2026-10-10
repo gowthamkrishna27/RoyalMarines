@@ -246,30 +246,6 @@ const FarmLeafletMap = ({
         },
       }[statusKey];
 
-      // Realistic Rectangular Water Body Dimensions (scaled by pond acreage ~1.0–2.5 acres)
-      const baseAcres = parseFloat(tank.acres || tank.size || '1.5') || 1.5;
-      const scale = Math.sqrt(Math.max(0.6, Math.min(3.5, baseAcres)) / 1.5);
-      const dLat = 0.00032 * scale; // ~35m half-lat
-      const dLng = 0.00042 * scale; // ~45m half-lng
-
-      const pondBounds = [
-        [pLat + dLat, pLng - dLng],
-        [pLat + dLat, pLng + dLng],
-        [pLat - dLat, pLng + dLng],
-        [pLat - dLat, pLng - dLng],
-      ];
-
-      // A. RENDER WATER BODY POLYGON (Dyke / Bund Outline & Water Fill)
-      const baseFillOpacity = isSelected ? (mapType === 'satellite' ? 0.58 : 0.48) : (mapType === 'satellite' ? 0.38 : 0.30);
-      const pondPolygon = L.polygon(pondBounds, {
-        color: isSelected ? '#1A2FB8' : themeColors.stroke,
-        weight: isSelected ? 3.5 : 2.2,
-        fillColor: themeColors.fill,
-        fillOpacity: baseFillOpacity,
-        dashArray: isDue ? '5, 4' : (isOverdue ? '3, 3' : null),
-        className: 'aquaculture-pond-water-polygon',
-      }).addTo(polygonsLayer);
-
       const onSelect = () => {
         setInternalSelectedTank(tank);
         if (handleSelect) handleSelect(tank);
@@ -277,20 +253,6 @@ const FarmLeafletMap = ({
           mapInstanceRef.current.flyTo([pLat, pLng], 16.5, { animate: true, duration: 0.5 });
         }
       };
-
-      pondPolygon.on('click', onSelect);
-      pondPolygon.on('mouseover', () => {
-        pondPolygon.setStyle({
-          fillOpacity: 0.65,
-          weight: 3.5,
-        });
-      });
-      pondPolygon.on('mouseout', () => {
-        pondPolygon.setStyle({
-          fillOpacity: baseFillOpacity,
-          weight: isSelected ? 3.5 : 2.2,
-        });
-      });
 
       // B. CENTER STATUS BADGE (Floating Aquaculture Card Pin)
       const badgeIcon = L.divIcon({
