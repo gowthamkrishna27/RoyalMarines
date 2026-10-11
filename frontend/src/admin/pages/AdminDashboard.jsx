@@ -33,7 +33,7 @@ const AdminDashboard = () => {
 
   // Real Average ABW calculated from active tanks
   const validAbwTanks = allTanks.filter(t => parseFloat(t.abw) > 0);
-  const avgAbwVal = validAbwTanks.length > 0 
+  const avgAbwVal = validAbwTanks.length > 0
     ? (validAbwTanks.reduce((sum, t) => sum + parseFloat(t.abw), 0) / validAbwTanks.length).toFixed(1) + 'g'
     : '0.0g';
 
@@ -125,9 +125,9 @@ const AdminDashboard = () => {
 
       {/* 1. Header Section */}
       <div style={styles.headerSection}>
-        <div style={styles.headerBadge}>ORGANIZATION-WIDE CONTROL CENTER</div>
+        <div style={styles.headerBadge}></div>
         <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
-        <p style={styles.headerSubtitle}>Real-time feed performance, FCR analytics, crop health, and multi-region operations.</p>
+        <p style={styles.headerSubtitle}></p>
       </div>
 
       {/* 2. KPI Stat Cards Row */}
