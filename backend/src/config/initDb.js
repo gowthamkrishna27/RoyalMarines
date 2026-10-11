@@ -181,6 +181,17 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Ensure pond-tank linkage for analytical consistency across legacy and v2 schemas
+    try {
+      await query(`
+        UPDATE ponds 
+        SET tank_id = CONCAT('TANK', LPAD(id, 3, '0')) 
+        WHERE id BETWEEN 1 AND 60 AND (tank_id IS NULL OR tank_id = '')
+      `);
+    } catch (linkErr) {
+      // ignore if columns are not present during initial migration
+    }
+
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;
   } catch (error) {
