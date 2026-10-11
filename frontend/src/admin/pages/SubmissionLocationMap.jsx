@@ -22,10 +22,10 @@ const createMarkerIcon = (role, isSelected = false) => {
       <svg viewBox="0 0 36 44" width="36" height="44" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(15, 23, 42, 0.4));">
         <path d="M18 0C8.06 0 0 8.06 0 18C0 31.5 18 44 18 44C18 44 36 31.5 36 18C36 8.06 27.94 0 18 0Z" fill="${darkColor}"/>
         <circle cx="18" cy="18" r="14" fill="${primaryColor}"/>
-        ${isAgent 
-          ? `<circle cx="18" cy="18" r="6" fill="#FFFFFF"/>`
-          : `<polygon points="18,11 20.2,15.5 25.1,16.2 21.6,19.6 22.4,24.5 18,22.2 13.6,24.5 14.4,19.6 10.9,16.2 15.8,15.5" fill="#FFFFFF"/>`
-        }
+        ${isAgent
+      ? `<circle cx="18" cy="18" r="6" fill="#FFFFFF"/>`
+      : `<polygon points="18,11 20.2,15.5 25.1,16.2 21.6,19.6 22.4,24.5 18,22.2 13.6,24.5 14.4,19.6 10.9,16.2 15.8,15.5" fill="#FFFFFF"/>`
+    }
       </svg>
     </div>
   `;
@@ -133,7 +133,7 @@ const SubmissionLocationMap = () => {
       if (selectedUserId && selectedUserId !== 'ALL') {
         queryParams.set('userId', selectedUserId);
       }
-      
+
       if (selectedDate && selectedDate !== 'ALL') {
         queryParams.set('date', selectedDate);
       }
@@ -143,7 +143,7 @@ const SubmissionLocationMap = () => {
         // Filter out records without valid coordinates
         const validCoords = res.data.filter(
           item => item.latitude != null && item.longitude != null &&
-                  !isNaN(item.latitude) && !isNaN(item.longitude)
+            !isNaN(item.latitude) && !isNaN(item.longitude)
         );
         setSubmissions(validCoords);
       } else {
@@ -223,7 +223,6 @@ const SubmissionLocationMap = () => {
               </span>
             </div>
             <p style={styles.headerSubtitle}>
-              Live geographic visualization of field test & record submissions across aquaculture clusters
             </p>
           </div>
         </div>
@@ -466,9 +465,7 @@ const SubmissionLocationMap = () => {
             <h3 style={styles.tableTitle}>
               {selectedDate === 'today' ? "Today's Submissions" : 'Submissions List'}
             </h3>
-            <p style={styles.tableSubtitle}>
-              Click "View" on any record to center the map on that submission location
-            </p>
+            <p style={styles.tableSubtitle}></p>
           </div>
           <span style={styles.tableCountBadge}>
             {submissions.length} Total Record{submissions.length === 1 ? '' : 's'}
