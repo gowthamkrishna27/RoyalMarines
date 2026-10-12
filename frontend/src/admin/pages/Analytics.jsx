@@ -9,7 +9,7 @@ const Analytics = () => {
   const [agents, setAgents] = useState([]);
   const [farmers, setFarmers] = useState([]);
   const [allTanks, setAllTanks] = useState([]);
-  
+
   const [dashboardData, setDashboardData] = useState(null);
   const [chartInterval, setChartInterval] = useState('Weekly');
   const [isLoading, setIsLoading] = useState(false);
@@ -63,127 +63,78 @@ const Analytics = () => {
   };
 
   const availableLocalities = useMemo(() => {
-    const set = new Set();
-    if (!filters.region) {
-      agents.forEach(a => a.locality && set.add(a.locality));
-      allTanks.forEach(t => {
-        const loc = t.locality || (t.location ? t.location.split(',')[0].trim() : '');
-        if (loc) set.add(loc);
-      });
-      return Array.from(set).sort();
-    }
+    if (!filters.region) return [];
     const region = regions.find(r => r.name === filters.region);
-    if (region?.localities && Array.isArray(region.localities)) {
-      region.localities.forEach(l => {
-        const name = typeof l === 'string' ? l : l.name;
-        if (name) set.add(name);
-      });
-    }
-    agents.filter(a => a.region === filters.region).forEach(a => a.locality && set.add(a.locality));
-    allTanks.filter(t => t.region === filters.region).forEach(t => {
-      const loc = t.locality || (t.location ? t.location.split(',')[0].trim() : '');
-      if (loc) set.add(loc);
-    });
-    return Array.from(set).sort();
-  }, [filters.region, regions, agents, allTanks]);
+    return region ? region.localities.map(l => l.name) : [];
+  }, [filters.region, regions]);
 
   const availableIncharges = useMemo(() => {
     let filtered = incharges;
     if (filters.region) filtered = filtered.filter(i => i.region === filters.region);
-    if (filters.locality) {
-      const namesInLocality = new Set();
-      agents.filter(a => a.locality?.toLowerCase() === filters.locality.toLowerCase()).forEach(a => a.incharge && namesInLocality.add(a.incharge));
-      allTanks.filter(t => (t.locality?.toLowerCase() === filters.locality.toLowerCase() || t.location?.toLowerCase().includes(filters.locality.toLowerCase()))).forEach(t => t.incharge && namesInLocality.add(t.incharge));
-      if (namesInLocality.size > 0) {
-        filtered = filtered.filter(i => namesInLocality.has(i.name) || i.locality?.toLowerCase() === filters.locality.toLowerCase());
-      }
-    }
-    return filtered.map(i => i.name).filter(Boolean);
-  }, [filters.region, filters.locality, incharges, agents, allTanks]);
+    if (filters.locality) filtered = filtered.filter(i => i.locality === filters.locality);
+    return filtered.map(i => i.name);
+  }, [filters.region, filters.locality, incharges]);
 
   const availableAgents = useMemo(() => {
     let filtered = agents;
     if (filters.region) filtered = filtered.filter(a => a.region === filters.region);
-    if (filters.locality) filtered = filtered.filter(a => a.locality?.toLowerCase() === filters.locality.toLowerCase());
+    if (filters.locality) filtered = filtered.filter(a => a.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(a => a.incharge === filters.incharge);
-    return filtered.map(a => a.name).filter(Boolean);
+    return filtered.map(a => a.name);
   }, [filters.region, filters.locality, filters.incharge, agents]);
 
   const availableFarmers = useMemo(() => {
     let filtered = farmers;
     if (filters.region) filtered = filtered.filter(f => f.region === filters.region);
-    if (filters.locality) {
-      filtered = filtered.filter(f => 
-        (f.locality && f.locality.toLowerCase().includes(filters.locality.toLowerCase())) ||
-        (f.village && f.village.toLowerCase().includes(filters.locality.toLowerCase())) ||
-        (f.location && f.location.toLowerCase().includes(filters.locality.toLowerCase()))
-      );
-    }
+    if (filters.locality) filtered = filtered.filter(f => f.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(f => f.incharge === filters.incharge);
-    if (filters.agent) filtered = filtered.filter(f => f.agent === filters.agent || f.agent_name === filters.agent);
-    return filtered.map(f => f.name).filter(Boolean);
+    if (filters.agent) filtered = filtered.filter(f => f.agent === filters.agent);
+    return filtered.map(f => f.name);
   }, [filters.region, filters.locality, filters.incharge, filters.agent, farmers]);
 
   const availableTanks = useMemo(() => {
     let filtered = allTanks;
     if (filters.region) filtered = filtered.filter(t => t.region === filters.region);
-    if (filters.locality) {
-      filtered = filtered.filter(t => 
-        (t.locality && t.locality.toLowerCase().includes(filters.locality.toLowerCase())) ||
-        (t.location && t.location.toLowerCase().includes(filters.locality.toLowerCase()))
-      );
-    }
+    if (filters.locality) filtered = filtered.filter(t => t.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(t => t.incharge === filters.incharge);
     if (filters.agent) filtered = filtered.filter(t => t.agent === filters.agent);
-    if (filters.farmer) filtered = filtered.filter(t => t.farmer === filters.farmer || t.farmerName === filters.farmer);
-    return filtered.map(t => ({ id: t.id, name: t.name || t.id, label: `${t.name || 'Tank'} (${t.id})` }));
+    if (filters.farmer) filtered = filtered.filter(t => t.farmer === filters.farmer);
+    return filtered.map(t => t.id);
   }, [filters.region, filters.locality, filters.incharge, filters.agent, filters.farmer, allTanks]);
 
   const filteredTanks = useMemo(() => {
     return allTanks.filter(t => {
       if (filters.region && t.region !== filters.region) return false;
-      if (filters.locality) {
-        const matchesLoc = (t.locality && t.locality.toLowerCase().includes(filters.locality.toLowerCase())) ||
-          (t.location && t.location.toLowerCase().includes(filters.locality.toLowerCase()));
-        if (!matchesLoc) return false;
-      }
+      if (filters.locality && t.locality !== filters.locality) return false;
       if (filters.incharge && t.incharge !== filters.incharge) return false;
       if (filters.agent && t.agent !== filters.agent) return false;
-      if (filters.farmer && (t.farmer !== filters.farmer && t.farmerName !== filters.farmer)) return false;
+      if (filters.farmer && t.farmer !== filters.farmer) return false;
       if (filters.tank && t.id !== filters.tank) return false;
       return true;
     });
   }, [filters, allTanks]);
 
   useEffect(() => {
-    if (allTanks.length === 0) return;
-
     if (filteredTanks.length > 0) {
       setIsLoading(true);
       const tankIds = filteredTanks.map(t => t.id).join(',');
-      const dateParam = encodeURIComponent(filters.date || 'All Time');
-      fetch(`/api/analytics/dashboard-data?interval=${chartInterval}&dateRange=${dateParam}&tankIds=${tankIds}`)
+      fetch(`/api/analytics/dashboard-data?interval=${chartInterval}&tankIds=${tankIds}`)
         .then(r => r.json())
         .then(d => {
           if (d.success) setDashboardData(d.data);
           setIsLoading(false);
         })
         .catch(err => {
-          console.error('[Dashboard fetch error]', err);
+          console.error(err);
           setIsLoading(false);
         });
     } else {
-      setDashboardData({
-        waterQuality: [],
-        trend: [],
-        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 }
-      });
-      setIsLoading(false);
+      setDashboardData(null);
     }
-  }, [filteredTanks, chartInterval, filters.date, allTanks.length]);
+  }, [filteredTanks, chartInterval]);
 
   const kpis = dashboardData?.kpis || {
-    abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0
+    abw: 0, fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0
   };
 
   const trendData = dashboardData?.trend || [];
@@ -196,38 +147,8 @@ const Analytics = () => {
 
         {/* Filters */}
         <div className="card" style={{ marginBottom: '24px', padding: '16px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>
-              <Filter size={15} color="#2563eb" />
-              <span>Database Filters</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b' }}>
-                Showing <strong style={{ color: '#0f172a' }}>{filteredTanks.length}</strong> of {allTanks.length} tanks from DB
-              </span>
-              <button
-                style={{ 
-                  padding: '6px 14px', 
-                  fontSize: '11px', 
-                  fontWeight: 600, 
-                  backgroundColor: '#f1f5f9', 
-                  color: '#475569', 
-                  border: 'none', 
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#e2e8f0'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#f1f5f9'}
-                onClick={() => setFilters({ date: 'All Time', region: '', locality: '', incharge: '', agent: '', farmer: '', tank: '' })}
-              >
-                Reset Filters
-              </button>
-            </div>
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px', alignItems: 'flex-end' }}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px', alignItems: 'flex-end' }}>
-            
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '4px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Date Range</label>
               <div className="input-field" style={{ margin: 0, padding: '8px 12px' }}>
@@ -236,11 +157,11 @@ const Analytics = () => {
                   style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', fontSize: '12px' }}
                   value={filters.date} onChange={(e) => handleFilterChange('date', e.target.value)}
                 >
-                  <option>All Time</option>
-                  <option>This Month</option>
                   <option>This Week</option>
                   <option>Last Week</option>
+                  <option>This Month</option>
                   <option>This Quarter</option>
+                  <option>All Time</option>
                 </select>
               </div>
             </div>
@@ -261,11 +182,12 @@ const Analytics = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '4px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Locality</label>
-              <div className="input-field" style={{ margin: 0, padding: '8px 12px' }}>
+              <div className="input-field" style={{ margin: 0, padding: '8px 12px', opacity: filters.region ? 1 : 0.6 }}>
                 <MapPin size={14} />
                 <select
                   style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', fontSize: '12px' }}
                   value={filters.locality} onChange={(e) => handleFilterChange('locality', e.target.value)}
+                  disabled={!filters.region}
                 >
                   <option value="">All Localities</option>
                   {availableLocalities.map(l => <option key={l} value={l}>{l}</option>)}
@@ -324,17 +246,37 @@ const Analytics = () => {
                   value={filters.tank} onChange={(e) => handleFilterChange('tank', e.target.value)}
                 >
                   <option value="">All Tanks</option>
-                  {availableTanks.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  {availableTanks.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', height: '100%', alignItems: 'center' }}>
+              <button
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#e2e8f0'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#f1f5f9'}
+                onClick={() => setFilters({ date: 'This Month', region: '', locality: '', incharge: '', agent: '', farmer: '', tank: '' })}
+              >
+                Reset Filters
+              </button>
+            </div>
           </div>
         </div>
 
         {/* KPI Cards */}
         <div className="grid md:grid-cols-4" style={{ gap: '20px', marginBottom: '24px' }}>
-          
+
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{ padding: '8px', backgroundColor: '#eef2ff', color: '#6366f1', borderRadius: '8px' }}><Droplet size={20} /></div>
@@ -348,7 +290,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#f0fdf4', color: '#22c55e', borderRadius: '8px' }}><Scale size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Biomass</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{Number(kpis.totalBiomass || 0).toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.totalBiomass.toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -356,7 +298,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#fffbeb', color: '#f59e0b', borderRadius: '8px' }}><Wheat size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Feed Consumed</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{Number(kpis.feed || 0).toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.feed.toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -380,7 +322,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#f0f9ff', color: '#0ea5e9', borderRadius: '8px' }}><FileSpreadsheet size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Harvest</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{Number(kpis.totalHarvest || 0).toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.totalHarvest.toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -409,12 +351,12 @@ const Analytics = () => {
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Biomass vs Feed Consumption</h3>
               <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '6px', padding: '2px' }}>
                 {['Daily', 'Weekly', 'Monthly'].map(period => (
-                  <button 
+                  <button
                     key={period}
-                    style={{ 
-                      padding: '4px 12px', 
-                      fontSize: '11px', 
-                      fontWeight: 600, 
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '11px',
+                      fontWeight: 600,
                       background: chartInterval === period ? '#fff' : 'transparent',
                       color: chartInterval === period ? '#0f172a' : '#64748b',
                       border: 'none',
@@ -429,7 +371,7 @@ const Analytics = () => {
                 ))}
               </div>
             </div>
-            
+
             <div style={{ height: '300px' }}>
               {isLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '14px' }}>Loading...</div>
@@ -491,7 +433,7 @@ const Analytics = () => {
                 </div>
               )}
             </div>
-            
+
             {waterQualityData.length > 0 && (
               <div style={{ display: 'flex', gap: '24px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
                 <div>
