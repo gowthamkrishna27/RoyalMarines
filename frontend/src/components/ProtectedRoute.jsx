@@ -41,10 +41,10 @@ export const InchargeProtectedRoute = AsmProtectedRoute;
  */
 export const AgentProtectedRoute = ({ children }) => {
   if (!hasValidToken()) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/agent-login" replace />;
   }
   if (!isAuthenticated() && !isInchargeAuthenticated() && !isAdminAuthenticated()) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/agent-login" replace />;
   }
   return children;
 };

@@ -16,7 +16,6 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const { db, markNotificationRead, markAllNotificationsRead } = useMockData();
   const [session, setSession] = useState(getSession());
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
@@ -33,13 +32,8 @@ const Layout = ({ children }) => {
     const handleProfileUpdate = () => setSession(getSession());
     window.addEventListener('agentProfileUpdated', handleProfileUpdate);
 
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
     return () => {
       window.removeEventListener('agentProfileUpdated', handleProfileUpdate);
-      clearInterval(timer);
     };
   }, []);
 
@@ -48,40 +42,69 @@ const Layout = ({ children }) => {
     setIsDrawerOpen(false);
   }, [location.pathname]);
 
+const HeaderDateTimeBadge = React.memo(({ isMobile = false }) => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const formatDate = (date) => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-    const dayName = days[date.getDay()];
-    const dayNum = date.getDate();
-    const monthName = months[date.getMonth()];
-    return `${dayName} ${dayNum} ${monthName}`;
+    return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`;
   };
 
   const formatTime = (date) => {
     let hours = date.getHours();
     const minutes = date.getMinutes();
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
+    hours = hours % 12 || 12;
     const minStr = minutes < 10 ? '0' + minutes : minutes;
     const hourStr = hours < 10 ? '0' + hours : hours;
     return `${hourStr}:${minStr} ${ampm}`;
   };
 
+  if (isMobile) {
+    return (
+      <div style={styles.mobileDateTimeBadge}>
+        <Clock size={13} color="#2563EB" style={{ flexShrink: 0 }} />
+        <span style={styles.mobileDateText}>{formatDate(time)}</span>
+        <span style={styles.pipeDivider}>|</span>
+        <span style={styles.mobileTimeText}>{formatTime(time)}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.dateTimeRow}>
+      <Clock size={13} color="#2563EB" />
+      <span style={styles.dateText}>{formatDate(time)}</span>
+      <span style={styles.pipeDivider}>|</span>
+      <span style={styles.timeText}>{formatTime(time)}</span>
+    </div>
+  );
+});
+
   const handleLogout = () => {
     if (window.confirm('Log out of Technician Portal?')) {
       clearSession();
-      navigate('/login');
+      navigate('/agent-login');
     }
   };
 
+  const prefix = location.pathname.startsWith('/agent') 
+    ? '/agent' 
+    : (location.pathname.startsWith('/technician') ? '/technician' : '');
+
   const drawerNavItems = [
-    { name: 'Home', path: '/dashboard', icon: Home },
-    { name: 'My Farmers', path: '/farmers', icon: Users },
-    { name: 'Harvest Management', path: '/harvest', icon: Scale },
-    { name: 'Field History', path: '/tests', icon: Clock },
-    { name: 'Reports', path: '/reports', icon: FileText },
-    { name: 'Technician Profile', path: '/profile', icon: User },
+    { name: 'Home', path: prefix ? `${prefix}/dashboard` : '/dashboard', icon: Home },
+    { name: 'My Farmers', path: prefix ? `${prefix}/farmers` : '/farmers', icon: Users },
+    { name: 'Harvest Management', path: prefix ? `${prefix}/harvest` : '/harvest', icon: Scale },
+    { name: 'Field History', path: prefix ? `${prefix}/tests` : '/tests', icon: Clock },
+    { name: 'Reports', path: prefix ? `${prefix}/reports` : '/reports', icon: FileText },
+    { name: 'Technician Profile', path: prefix ? `${prefix}/profile` : '/profile', icon: User },
   ];
 
   return (
@@ -151,7 +174,7 @@ const Layout = ({ children }) => {
               <div style={styles.drawerLinksList}>
                 {drawerNavItems.map((item) => {
                   const Icon = item.icon;
-                  const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                  const active = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
                   return (
                     <button
                       key={item.name}
@@ -196,7 +219,7 @@ const Layout = ({ children }) => {
           <header className="agent-mobile-header">
             <div style={styles.mobileHeaderLeft}>
               <div 
-                onClick={() => navigate('/dashboard')} 
+                onClick={() => navigate(prefix ? `${prefix}/dashboard` : '/dashboard')} 
                 style={styles.mobileLogoContainer}
                 title="Royals Marine"
               >
@@ -209,19 +232,13 @@ const Layout = ({ children }) => {
             </div>
 
             <div style={styles.mobileHeaderRight}>
-              {/* Date & Time Compact Badge (Matching Photo 3) */}
-              <div style={styles.mobileDateTimeBadge}>
-                <Clock size={13} color="#2563EB" style={{ flexShrink: 0 }} />
-                <span style={styles.mobileDateText}>{formatDate(currentTime)}</span>
-                <span style={styles.pipeDivider}>|</span>
-                <span style={styles.mobileTimeText}>{formatTime(currentTime)}</span>
-              </div>
-
+              {/* Date & Time Compact Badge */}
+              <HeaderDateTimeBadge isMobile />
 
               <button
                 type="button"
                 style={{ ...styles.profileRoundBtn, width: '32px', height: '32px' }}
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate(prefix ? `${prefix}/profile` : '/profile')}
                 title="Profile & Settings"
                 aria-label="Profile"
               >
@@ -233,19 +250,14 @@ const Layout = ({ children }) => {
           {/* Desktop Top Header (>= 1024px) */}
           <header className="agent-desktop-header">
             <div style={styles.desktopHeaderRight}>
-              <div style={styles.dateTimeRow}>
-                <Clock size={13} color="#2563EB" />
-                <span style={styles.dateText}>{formatDate(currentTime)}</span>
-                <span style={styles.pipeDivider}>|</span>
-                <span style={styles.timeText}>{formatTime(currentTime)}</span>
-              </div>
+              <HeaderDateTimeBadge />
 
 
               <button
                 type="button"
                 className="transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-md cursor-pointer"
                 style={styles.profileRoundBtn}
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate(prefix ? `${prefix}/profile` : '/profile')}
                 title="Profile & Settings"
                 aria-label="Profile"
               >
@@ -269,12 +281,14 @@ const Layout = ({ children }) => {
       </div>
 
       {/* Global Quick Record Modal accessible from drawer */}
-      <QuickRecordModal 
-        isOpen={isQuickRecordOpen}
-        onClose={() => setIsQuickRecordOpen(false)}
-        preselectedTankId={selectedTankForQuickRecord}
-        initialType={selectedTypeForQuickRecord}
-      />
+      {isQuickRecordOpen && (
+        <QuickRecordModal 
+          isOpen={isQuickRecordOpen}
+          onClose={() => setIsQuickRecordOpen(false)}
+          preselectedTankId={selectedTankForQuickRecord}
+          initialType={selectedTypeForQuickRecord}
+        />
+      )}
 
       {/* Slide-out Notification Drawer */}
       {isNotificationDrawerOpen && (

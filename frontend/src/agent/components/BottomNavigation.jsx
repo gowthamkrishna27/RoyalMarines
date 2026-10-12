@@ -8,10 +8,14 @@ const BottomNavigation = () => {
   const location = useLocation();
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
+  const prefix = location.pathname.startsWith('/agent') 
+    ? '/agent' 
+    : (location.pathname.startsWith('/technician') ? '/technician' : '');
+
   const navItems = [
     { 
       label: 'Home', 
-      path: '/dashboard', 
+      path: prefix ? `${prefix}/dashboard` : '/dashboard', 
       icon: Home, 
       exactMatch: [
         '/dashboard', 
@@ -30,7 +34,7 @@ const BottomNavigation = () => {
     },
     { 
       label: 'Farmers', 
-      path: '/farmers', 
+      path: prefix ? `${prefix}/farmers` : '/farmers', 
       icon: Users, 
       exactMatch: [
         '/farmers', 
@@ -51,7 +55,7 @@ const BottomNavigation = () => {
     },
     { 
       label: 'History', 
-      path: '/tests', 
+      path: prefix ? `${prefix}/tests` : '/tests', 
       icon: Clock, 
       exactMatch: [
         '/tests', 
@@ -74,7 +78,7 @@ const BottomNavigation = () => {
     },
     { 
       label: 'Reports', 
-      path: '/reports', 
+      path: prefix ? `${prefix}/reports` : '/reports', 
       icon: FileText, 
       exactMatch: [
         '/reports', 
@@ -314,10 +318,12 @@ const BottomNavigation = () => {
         </div>
       </nav>
 
-      <QuickRecordModal 
-        isOpen={isRecordModalOpen}
-        onClose={() => setIsRecordModalOpen(false)}
-      />
+      {isRecordModalOpen && (
+        <QuickRecordModal 
+          isOpen={isRecordModalOpen}
+          onClose={() => setIsRecordModalOpen(false)}
+        />
+      )}
     </>
   );
 };

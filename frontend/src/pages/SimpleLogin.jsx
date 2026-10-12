@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import topnavlogo from '../assets/topnavlogo.png';
 import loginBg from '../assets/Serene Aquaculture Pond at Sunrise.png';
@@ -9,6 +9,7 @@ import { isAdminAuthenticated } from '../admin/utils/adminAuth';
 
 const SimpleLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [identifier, setIdentifier] = useState('');
   const [pinBoxes, setPinBoxes] = useState(['', '', '', '']);
@@ -24,20 +25,41 @@ const SimpleLogin = () => {
       authUserRole = (u.role || '').toUpperCase();
     } catch (e) {}
 
-    if (authUserRole === 'ADMIN' && isAdminAuthenticated()) {
-      navigate('/admin/dashboard', { replace: true });
+    const path = location.pathname;
+    const isAgentRoute = path === '/agent-login' || path.startsWith('/agent') || path.startsWith('/technician');
+    const isAsmRoute = path === '/asm-login' || path === '/incharge-login' || path.startsWith('/asm') || path.startsWith('/incharge');
+
+    // Never auto-forward to Admin when visiting Agent-specific login
+    if (isAgentRoute) {
+      if ((authUserRole === 'AGENT' || authUserRole === 'TECHNICIAN' || !authUserRole) && isAuthenticated()) {
+        navigate('/dashboard', { replace: true });
+      }
+      return;
+    }
+
+    // Never auto-forward to Admin when visiting ASM-specific login
+    if (isAsmRoute) {
+      if ((authUserRole === 'ASM' || authUserRole === 'INCHARGE' || !authUserRole) && isInchargeAuthenticated()) {
+        navigate('/asm/dashboard', { replace: true });
+      }
+      return;
+    }
+
+    // Generic /login routing
+    if ((authUserRole === 'AGENT' || authUserRole === 'TECHNICIAN') && isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
     } else if ((authUserRole === 'ASM' || authUserRole === 'INCHARGE') && isInchargeAuthenticated()) {
       navigate('/asm/dashboard', { replace: true });
-    } else if (authUserRole === 'AGENT' && isAuthenticated()) {
+    } else if (authUserRole === 'ADMIN' && isAdminAuthenticated()) {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (isAuthenticated()) {
       navigate('/dashboard', { replace: true });
     } else if (isInchargeAuthenticated()) {
       navigate('/asm/dashboard', { replace: true });
-    } else if (isAuthenticated()) {
-      navigate('/dashboard', { replace: true });
     } else if (isAdminAuthenticated()) {
       navigate('/admin/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const handlePinChange = (val, index) => {
     const digit = val.replace(/[^0-9]/g, '').slice(-1);

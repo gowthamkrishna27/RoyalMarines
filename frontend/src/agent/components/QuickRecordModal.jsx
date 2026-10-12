@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
@@ -11,7 +11,7 @@ import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/g
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-const QuickRecordModal = ({
+const QuickRecordModalInner = ({
   isOpen,
   onClose,
   initialType = 'WATER_QUALITY',
@@ -178,25 +178,48 @@ const QuickRecordModal = ({
     }
   }, [selectedFarmerId]);
 
-  // Pre-fill DOC and Seed when tank changes
+  // Pre-fill initial DOC and Seed only when tank is first loaded or explicitly switched
+  const prevTankKeyRef = useRef(null);
   useEffect(() => {
+    if (!selectedTankId || tanks.length === 0) return;
+    const tankKey = `${selectedFarmerId}_${selectedTankId}`;
+    if (prevTankKeyRef.current === tankKey) return;
+
     const t = tanks.find(x => x.id === selectedTankId);
-    if (t?.doc) {
+    if (t) {
+      prevTankKeyRef.current = tankKey;
+
+      let initialDoc = '';
+      if (t.doc !== undefined && t.doc !== null && t.doc !== '') {
+        initialDoc = String(t.doc);
+      } else if (t.stockingDate) {
+        const diffDays = Math.floor((new Date() - new Date(t.stockingDate)) / 86400000);
+        initialDoc = String(Math.max(0, diffDays));
+      }
+
+      const initialSeed = t.seedStocked 
+        ? String((parseFloat(t.seedStocked) / 100000).toFixed(1)) 
+        : (t.seed ? String(t.seed) : (t.seedStockingLak ? String(t.seedStockingLak) : ''));
+
       setWaterForm(prev => ({
         ...prev,
-        doc: prev.doc || String(t.doc)
+        doc: initialDoc
       }));
       setFeedForm(prev => ({
         ...prev,
-        doc: prev.doc || String(t.doc),
-        seed: prev.seed || (t.seedStocked ? String((parseFloat(t.seedStocked) / 100000).toFixed(1)) : (t.seed ? String(t.seed) : ''))
+        doc: initialDoc,
+        seed: initialSeed
       }));
       setDiseaseForm(prev => ({
         ...prev,
-        doc: prev.doc || String(t.doc)
+        doc: initialDoc
+      }));
+      setHarvestForm(prev => ({
+        ...prev,
+        doc: initialDoc
       }));
     }
-  }, [selectedTankId, tanks]);
+  }, [selectedFarmerId, selectedTankId, tanks]);
 
   // Load GPS
   useEffect(() => {
@@ -238,8 +261,6 @@ const QuickRecordModal = ({
       return next;
     });
   };
-
-  if (!isOpen) return null;
 
   // Selected Tank Status Check
   const selectedTank = tanks.find(t => t.id === selectedTankId);
@@ -609,7 +630,7 @@ const QuickRecordModal = ({
                     onChange={(e) => handleFeedChange('doc', e.target.value)}
                     placeholder="e.g. 77"
                     style={styles.input}
-                    min="1"
+                    min="0"
                     required
                   />
                 </div>
@@ -804,10 +825,10 @@ const QuickRecordModal = ({
                   <input
                     type="number"
                     value={diseaseForm.doc}
-                    onChange={(e) => setDiseaseForm({ ...diseaseForm, doc: e.target.value })}
+                    onChange={(e) => setDiseaseForm(prev => ({ ...prev, doc: e.target.value }))}
                     placeholder="e.g. 77"
                     style={styles.input}
-                    min="1"
+                    min="0"
                     required
                   />
                 </div>
@@ -992,10 +1013,10 @@ const QuickRecordModal = ({
                   <input
                     type="number"
                     value={waterForm.doc}
-                    onChange={(e) => setWaterForm({ ...waterForm, doc: e.target.value })}
+                    onChange={(e) => setWaterForm(prev => ({ ...prev, doc: e.target.value }))}
                     placeholder="e.g. 45"
                     style={styles.input}
-                    min="1"
+                    min="0"
                     required
                   />
                 </div>
@@ -1702,4 +1723,9 @@ const styles = {
   },
 };
 
-export default QuickRecordModal;
+const QuickRecordModal = (props) => {
+  if (!props.isOpen) return null;
+  return <QuickRecordModalInner {...props} />;
+};
+
+export default React.memo(QuickRecordModal);
