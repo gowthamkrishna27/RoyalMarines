@@ -1,48 +1,75 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X, TestTube, Bell, Check, Clock, Filter, Plus, ChevronDown, ChevronUp
+  Search, X, TestTube, Bell, Check, Clock, Filter, Plus, ChevronDown, ChevronUp, RefreshCw
 } from 'lucide-react';
 
-import { useMockData } from '../../context/MockDataContext';
-import { getRegions } from '../utils/adminMockData';
+import adminService from '../utils/adminService';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const mockData = useMockData();
-  const db = mockData?.db;
-  const regions = getRegions(db);
+
+  const [summary, setSummary] = useState(null);
+  const [allTanks, setAllTanks] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [incharges, setIncharges] = useState([]);
+  const [liveHarvests, setLiveHarvests] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [showDueTestsModal, setShowDueTestsModal] = useState(false);
   const [dueTab, setDueTab] = useState('ALL'); // 'ALL' | 'OVERDUE' | 'DUE'
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
-  // Retrieve all tanks first from MySQL database
-  const allTanks = db?.tanks || [];
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const [sum, tks, fms, ags, incs, hrvs] = await Promise.all([
+        adminService.getSummary(),
+        adminService.getTanks(),
+        adminService.getFarmers(),
+        adminService.getAgents(),
+        adminService.getIncharges(),
+        adminService.getHarvests()
+      ]);
+      setSummary(sum);
+      setAllTanks(tks);
+      setFarmers(fms);
+      setAgents(ags);
+      setIncharges(incs);
+      setLiveHarvests(hrvs);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Could not connect to database API. Click to retry.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Real database statistics
-  const totalFarmers = db?.farmers?.length || 0;
-  const totalTanks = allTanks.length || 0;
-  const activeTanks = allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
-  const harvestedTanks = allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
-  const totalIncharges = db?.incharges?.length || 0;
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
 
-  // Real Average ABW calculated from active tanks
-  const validAbwTanks = allTanks.filter(t => parseFloat(t.abw) > 0);
-  const avgAbwVal = validAbwTanks.length > 0
-    ? (validAbwTanks.reduce((sum, t) => sum + parseFloat(t.abw), 0) / validAbwTanks.length).toFixed(1) + 'g'
-    : '0.0g';
+  // Real database statistics derived directly from MySQL API
+  const totalFarmers = summary?.totalFarmers ?? farmers.length;
+  const totalTanks = summary?.totalTanks ?? allTanks.length;
+  const activeTanks = summary?.activeTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
+  const harvestedTanks = summary?.harvestedTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
+  const totalIncharges = summary?.totalIncharges ?? incharges.length;
+  const avgAbwVal = summary?.avgAbw || '0.0g';
 
   // Real Due and Overdue Tests across all tanks
   const dueAndOverdueTanks = allTanks
     .filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase()))
     .map((t, idx) => {
-      const farmer = (db?.farmers || []).find(f => String(f.id) === String(t.farmerId));
-      const agent = (db?.agents || []).find(a => String(a.id) === String(t.agentId));
+      const farmer = farmers.find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+      const agent = agents.find(a => String(a.id) === String(t.agentId || t.agent_id));
       const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
       const testType = 'Routine Water & Telemetry Audit';
 
@@ -79,8 +106,6 @@ const AdminDashboard = () => {
     return matchesTab && matchesSearch;
   });
 
-  // Harvest & FCR Records directly from real MySQL database
-  const liveHarvests = db?.harvests || [];
   const [docInput, setDocInput] = useState('');
   const [showHarvestedModal, setShowHarvestedModal] = useState(false);
   const [showAllHarvests, setShowAllHarvests] = useState(false);
@@ -89,7 +114,6 @@ const AdminDashboard = () => {
   const filteredHarvests = useMemo(() => {
     const trimmed = String(docInput || '').trim();
     if (!trimmed) {
-      // Otherwise display all farmers
       return liveHarvests;
     }
 

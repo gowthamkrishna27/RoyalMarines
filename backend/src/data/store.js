@@ -997,13 +997,14 @@ class DataStore {
           al.id, 
           al.created_at, 
           al.action, 
-          al.table_name, 
+          al.module, 
           al.record_id,
-          COALESCE(u.name, u.full_name, 'System Administrator') as user_name,
-          COALESCE(u.role, 'Admin') as role,
-          COALESCE(u.locality, 'Coastal Andhra') as region
+          COALESCE(u.full_name, 'System Administrator') as user_name,
+          COALESCE(r.display_name, r.name, 'Admin') as role,
+          COALESCE(al.ip_address, '127.0.0.1') as ip_address
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
+        LEFT JOIN users u ON al.performed_by = u.id
+        LEFT JOIN roles r ON u.role_id = r.id
         ORDER BY al.created_at DESC
         LIMIT 100
       `);
@@ -1012,10 +1013,10 @@ class DataStore {
         time: r.created_at ? new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
         user: r.user_name,
         role: r.role,
-        action: `${r.action} on ${r.table_name}`,
-        detail: `Record ID #${r.record_id}`,
-        module: r.table_name?.toUpperCase() || 'SYSTEM',
-        region: r.region,
+        action: `${r.action} on ${r.module}`,
+        detail: `Record ID #${r.record_id || r.id}`,
+        module: r.module?.toUpperCase() || 'SYSTEM',
+        region: 'Coastal Andhra',
       }));
     } catch (err) {
       console.error('[DB Error in getActivityLogs]', err.message);
@@ -1338,19 +1339,18 @@ class DataStore {
       let sql = `
         SELECT 
           i.id,
-          COALESCE(MAX(i.name), MAX(u.name), MAX(u.full_name), 'Incharge') as name,
-          COALESCE(MAX(i.email), MAX(u.email), '') as email,
-          COALESCE(MAX(i.phone), MAX(u.phone), '') as phone,
-          COALESCE(MAX(i.region_id), MAX(r.id), '') as region_id,
-          COALESCE(MAX(r.name), 'Coastal Andhra') as region_name,
-          COALESCE(MAX(u.locality), MAX(r.name), 'Coastal Andhra') as locality,
-          COALESCE(MAX(u.status), 'ACTIVE') as status,
+          i.name,
+          COALESCE(i.email, '') as email,
+          COALESCE(i.phone, '') as phone,
+          COALESCE(i.region_id, r.id, '') as region_id,
+          COALESCE(r.name, 'Coastal Andhra') as region_name,
+          COALESCE(r.name, 'Coastal Andhra') as locality,
+          'ACTIVE' as status,
           COUNT(DISTINCT a.id) as agents_count,
           COUNT(DISTINCT f.id) as farmers_count,
           COUNT(DISTINCT t.id) as tanks_count
         FROM incharges i 
-        LEFT JOIN users u ON (i.user_id = u.id OR i.id = u.id)
-        LEFT JOIN regions r ON (r.id = i.region_id OR (r.code = i.region_id AND NOT EXISTS (SELECT 1 FROM regions r2 WHERE r2.id = i.region_id)))
+        LEFT JOIN regions r ON (r.id = i.region_id OR r.code = i.region_id)
         LEFT JOIN agents a ON a.incharge_id = i.id
         LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
         LEFT JOIN tanks t ON (t.incharge_id = i.id OR t.farmer_id = f.id)
@@ -1365,7 +1365,7 @@ class DataStore {
         sql += ' AND (i.region_id = ? OR r.code = ? OR r.id = ?)';
         params.push(filter.regionId, filter.regionId, filter.regionId);
       }
-      sql += ' GROUP BY i.id ORDER BY name ASC';
+      sql += ' GROUP BY i.id, i.name, i.email, i.phone, i.region_id, r.id, r.name ORDER BY i.name ASC';
       const rows = await query(sql, params);
       const seen = new Set();
       const uniqueRows = [];

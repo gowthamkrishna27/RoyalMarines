@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getIncharges, getRegions, getAgents, getFarmers } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import {
   Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Edit,
@@ -11,58 +10,32 @@ import {
 
 const InchargesList = () => {
   const navigate = useNavigate();
-  const { db, refreshDb } = useMockData();
-  const [dbRegions, setDbRegions] = useState([]);
-
-  // Fetch live regions directly from database
-  useEffect(() => {
-    const fetchLiveRegions = async () => {
-      try {
-        const res = await fetch('/api/analytics/regions');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          const mapped = data.data.map(r => ({
-            id: String(r.code || r.id),
-            code: r.code || r.id,
-            name: r.name,
-            localities: [
-              { id: `LOC-${r.code || r.id}`, name: r.name }
-            ]
-          }));
-          setDbRegions(mapped);
-        }
-      } catch (err) {
-        console.error('Failed to fetch live regions:', err);
-      }
-    };
-    fetchLiveRegions();
-  }, []);
-
-  const regions = useMemo(() => {
-    const fromContext = getRegions(db);
-    if (fromContext && fromContext.length > 0) return fromContext;
-    if (dbRegions && dbRegions.length > 0) return dbRegions;
-    return [];
-  }, [db, dbRegions]);
-
-  // 1. Load Incharges from live MySQL API
+  const [regions, setRegions] = useState([]);
   const [incharges, setIncharges] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [farmers, setFarmers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchIncharges = useCallback(async () => {
+  // Fetch live incharges, regions, agents, and farmers from MySQL API
+  const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/analytics/incharges');
-      const data = await response.json();
-      if (data.success && data.data) {
+      const [incRes, regRes, agentRes, farmerRes] = await Promise.allSettled([
+        adminService.getIncharges(),
+        adminService.getRegions(),
+        adminService.getAgents(),
+        adminService.getFarmers()
+      ]);
+
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) {
         const seen = new Set();
-        const uniqueData = data.data.filter(dbI => {
+        const uniqueData = incRes.value.filter(dbI => {
           if (!dbI || !dbI.id || seen.has(String(dbI.id))) return false;
           seen.add(String(dbI.id));
           return true;
         });
-        const dbIncharges = uniqueData.map(dbI => ({
+        const mappedIncharges = uniqueData.map(dbI => ({
           id: String(dbI.id),
           name: dbI.name || 'Unknown',
           shortName: (dbI.name || '').split(' ')[0],
@@ -78,27 +51,44 @@ const InchargesList = () => {
           activeTanks: Number(dbI.tanksCount || 0),
           performanceScore: 92
         }));
-        setIncharges(dbIncharges);
+        setIncharges(mappedIncharges);
+      } else {
+        setIncharges([]);
+      }
+
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+
+      if (agentRes.status === 'fulfilled' && Array.isArray(agentRes.value)) {
+        setAgents(agentRes.value);
+      } else {
+        setAgents([]);
+      }
+
+      if (farmerRes.status === 'fulfilled' && Array.isArray(farmerRes.value)) {
+        setFarmers(farmerRes.value);
+      } else {
+        setFarmers([]);
       }
     } catch (error) {
-      console.error('Failed to fetch incharges from MySQL:', error);
+      console.error('[InchargesList] Failed to fetch data from database:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchIncharges();
-  }, [fetchIncharges]);
-
-  // 2. Load Agents & Farmers from live context
-  const [agents, setAgents] = useState(() => getAgents(db));
-  const [farmers, setFarmers] = useState(() => getFarmers(db));
+  const fetchIncharges = fetchAllData;
 
   useEffect(() => {
-    setAgents(getAgents(db));
-    setFarmers(getFarmers(db));
-  }, [db]);
+    fetchAllData();
+  }, [fetchAllData]);
 
 
   // Filter and search state
@@ -252,7 +242,7 @@ const InchargesList = () => {
       )
     );
 
-    return regionalFarmers.length > 0 ? regionalFarmers : (farmers || []).slice(0, 6);
+    return regionalFarmers;
   }, [selectedInchargeForFarmers, farmers, agents]);
 
   const filteredInchargeFarmers = useMemo(() => {

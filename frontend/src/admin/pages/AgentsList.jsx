@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAgents, getIncharges, getRegions, getFarmers } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import {
   Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Shield,
@@ -12,116 +11,54 @@ import {
 
 const AgentsList = () => {
   const navigate = useNavigate();
-  const { db, refreshDb, addNotification } = useMockData();
-  const [dbRegions, setDbRegions] = useState([]);
-
-  // Fetch live regions directly from database
-  useEffect(() => {
-    const fetchLiveRegions = async () => {
-      try {
-        const res = await fetch('/api/analytics/regions');
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          const mapped = data.data.map(r => ({
-            id: String(r.code || r.id),
-            code: r.code || r.id,
-            name: r.name,
-            localities: [
-              { id: `LOC-${r.code || r.id}`, name: r.name }
-            ]
-          }));
-          setDbRegions(mapped);
-        }
-      } catch (err) {
-        console.error('Failed to fetch live regions:', err);
-      }
-    };
-    fetchLiveRegions();
-  }, []);
-
-  const regions = useMemo(() => {
-    const fromContext = getRegions(db);
-    if (fromContext && fromContext.length > 0) return fromContext;
-    if (dbRegions && dbRegions.length > 0) return dbRegions;
-    return [];
-  }, [db, dbRegions]);
-
-  // 1. Load Incharges from live MySQL API
+  const [regions, setRegions] = useState([]);
   const [incharges, setIncharges] = useState([]);
-
-  const fetchIncharges = useCallback(async () => {
-    try {
-      const response = await fetch('/api/analytics/incharges');
-      const data = await response.json();
-      if (data.success && Array.isArray(data.data)) {
-        const seen = new Set();
-        const uniqueData = data.data.filter(dbI => {
-          if (!dbI || !dbI.id || seen.has(String(dbI.id))) return false;
-          seen.add(String(dbI.id));
-          return true;
-        });
-        setIncharges(uniqueData);
-      }
-    } catch (err) {
-      console.error('Failed to fetch incharges in AgentsList:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchIncharges();
-  }, [fetchIncharges]);
-
-  // 2. Load Agents from live MySQL API
   const [agents, setAgents] = useState([]);
+  const [farmersList, setFarmersList] = useState([]);
+  const [tanksList, setTanksList] = useState([]);
+  const [submissionsList, setSubmissionsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchAgents = useCallback(async () => {
+  const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/analytics/agents');
-      const data = await response.json();
-      if (data.success && data.data) {
-        const dbAgents = data.data.map(dbA => ({
-          id: dbA.id,
-          name: dbA.name,
-          shortName: dbA.name,
-          role: 'Field Agent',
-          inchargeId: dbA.incharge_id || dbA.inchargeId,
-          incharge: dbA.incharge || 'Assigned Incharge',
-          regionId: dbA.regionId || 'REG-1',
-          region: dbA.region || 'Unknown Region',
-          locality: dbA.locality,
-          assignedArea: dbA.locality || 'Unknown Area',
-          phone: dbA.phone,
-          email: dbA.email || `${String(dbA.name || '').toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
-          status: dbA.status,
-          farmers: dbA.farmersCount || 0,
-          tanks: dbA.tanksCount || 0,
-          siteVisits: dbA.siteVisits || 0,
-          activePonds: dbA.activePonds || 0,
-          compliance: dbA.complianceRate || 0,
-          tests: dbA.tests || 0
+      const [agRes, incRes, regRes, farRes, tkRes, subRes] = await Promise.allSettled([
+        adminService.getAgents(),
+        adminService.getIncharges(),
+        adminService.getRegions(),
+        adminService.getFarmers(),
+        adminService.getTanks(),
+        adminService.getSubmissions()
+      ]);
+
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAgents(agRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setIncharges(incRes.value);
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
         }));
-        setAgents(dbAgents);
+        setRegions(mappedRegs);
       }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setFarmersList(farRes.value);
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) setTanksList(tkRes.value);
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setSubmissionsList(subRes.value);
+    } catch (err) {
+      console.error('[AgentsList] Failed to fetch live data:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAgents();
-  }, [fetchAgents]);
-
-  // 3. Load Farmers from live context
-  const [farmersList, setFarmersList] = useState(() => getFarmers(db));
+  const fetchAgents = fetchAllData;
+  const fetchIncharges = fetchAllData;
 
   useEffect(() => {
-    setFarmersList(getFarmers(db));
-  }, [db]);
+    fetchAllData();
+  }, [fetchAllData]);
 
 
   const [selectedAgentForFarmers, setSelectedAgentForFarmers] = useState(null);
@@ -298,15 +235,15 @@ const AgentsList = () => {
     const ag = selectedAgentForTests;
     const agId = String(ag.id);
     const agNameLower = (ag.name || '').toLowerCase();
-    const rawSubs = (db?.submissions || []).filter(s =>
+    const rawSubs = (submissionsList || []).filter(s =>
       String(s.agentId) === agId ||
       (s.agent_name && s.agent_name.toLowerCase() === agNameLower) ||
       (s.agentName && s.agentName.toLowerCase() === agNameLower)
     );
 
     const result = rawSubs.map((s, i) => {
-      const farmer = (db?.farmers || []).find(f => String(f.id) === String(s.farmerId)) || { name: s.farmer_name || s.farmerName || '-' };
-      const tank = (db?.tanks || []).find(t => String(t.id) === String(s.tankId)) || { name: s.tank_name || s.tankName || 'Tank' };
+      const farmer = (farmersList || []).find(f => String(f.id) === String(s.farmerId)) || { name: s.farmer_name || s.farmerName || '-' };
+      const tank = (tanksList || []).find(t => String(t.id) === String(s.tankId)) || { name: s.tank_name || s.tankName || 'Tank' };
       const paramsSummary = [
         s.ph != null ? `pH: ${s.ph}` : null,
         s.salinity != null ? `Salinity: ${s.salinity} ppt` : null,
@@ -341,24 +278,24 @@ const AgentsList = () => {
         item.params.toLowerCase().includes(term)
       );
     });
-  }, [selectedAgentForTests, db, testsModalFilter, testsModalSearch]);
+  }, [selectedAgentForTests, submissionsList, farmersList, tanksList, testsModalFilter, testsModalSearch]);
 
   // Compute due tests for the selected agent
   const filteredAgentDueTests = useMemo(() => {
     if (!selectedAgentForDueTests) return [];
     const ag = selectedAgentForDueTests;
     const agId = String(ag.id);
-    const farmers = (db?.farmers || []).filter(f => String(f.agentId) === agId);
+    const farmers = (farmersList || []).filter(f => String(f.agentId) === agId);
     const farmerIds = farmers.map(f => String(f.id));
 
-    const agentTanks = (db?.tanks || []).filter(t =>
+    const agentTanks = (tanksList || []).filter(t =>
       (farmerIds.includes(String(t.farmerId)) || String(t.agentId) === agId) &&
       (t.status || '').toUpperCase() !== 'HARVESTED' &&
       ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())
     );
 
     const list = agentTanks.map((t, idx) => {
-      const farmer = farmers.find(f => String(f.id) === String(t.farmerId)) || (db?.farmers || []).find(f => String(f.id) === String(t.farmerId)) || { name: t.farmerName || 'Farmer', phone: ag.phone, locality: ag.locality };
+      const farmer = farmers.find(f => String(f.id) === String(t.farmerId)) || (farmersList || []).find(f => String(f.id) === String(t.farmerId)) || { name: t.farmerName || 'Farmer', phone: ag.phone, locality: ag.locality };
       const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
       return {
         tankId: t.id,
@@ -385,7 +322,7 @@ const AgentsList = () => {
       item.testType.toLowerCase().includes(term) ||
       item.farmerLocality.toLowerCase().includes(term)
     );
-  }, [selectedAgentForDueTests, db, dueModalSearch]);
+  }, [selectedAgentForDueTests, farmersList, tanksList, dueModalSearch]);
 
   // Summary Metrics calculations
   const totalAgentsCount = agents.length;
@@ -393,7 +330,7 @@ const AgentsList = () => {
   const totalAssignedFarmers = agents.reduce((acc, a) => acc + (a.farmers || 0), 0);
   const totalTestsCompleted = agents.reduce((acc, a) => acc + (a.tests || 0), 0);
   const totalDueTests = agents.reduce((acc, a) => {
-    const agentAssignedTanks = (db?.tanks || []).filter(t => String(t.agentId) === String(a.id) || (db?.farmers || []).some(f => String(f.agentId) === String(a.id) && String(f.id) === String(t.farmerId)));
+    const agentAssignedTanks = (tanksList || []).filter(t => String(t.agentId) === String(a.id) || (farmersList || []).some(f => String(f.agentId) === String(a.id) && String(f.id) === String(t.farmerId)));
     const realDueCount = agentAssignedTanks.filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())).length;
     return acc + realDueCount;
   }, 0);
@@ -787,7 +724,7 @@ const AgentsList = () => {
                   const activeInc = getInchargeForLocality(ag.locality, ag.regionId);
                   const isAlternate = index % 2 === 1;
                   const isActive = (ag.status || 'ACTIVE') === 'ACTIVE';
-                  const agentAssignedTanks = (db?.tanks || []).filter(t => String(t.agentId) === String(ag.id) || (db?.farmers || []).some(f => String(f.agentId) === String(ag.id) && String(f.id) === String(t.farmerId)));
+                  const agentAssignedTanks = (tanksList || []).filter(t => String(t.agentId) === String(ag.id) || (farmersList || []).some(f => String(f.agentId) === String(ag.id) && String(f.id) === String(t.farmerId)));
                   const dueCount = ag.dueTests !== undefined ? ag.dueTests : agentAssignedTanks.filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase())).length;
 
                   return (

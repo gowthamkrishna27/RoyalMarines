@@ -1,17 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PageHeader from '../components/PageHeader';
 import { Download, Table, CheckSquare, FileSpreadsheet } from 'lucide-react';
-import {
-  getIncharges,
-  getAgentsByIncharge,
-  getFarmersByAgent,
-  getFarmersByIncharge,
-  getFarmerById,
-  getTanksByFarmer,
-  calculateBiomass,
-  calculateFCR
-} from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
+import { adminService } from '../utils/adminService';
 import {
   downloadAquaEnterpriseWorkbook,
   downloadSamplingExcel,
@@ -19,7 +10,45 @@ import {
 } from '../../utils/excelReportGenerator';
 
 const ExportCenter = () => {
-  const { db } = useMockData();
+  const [liveDb, setLiveDb] = useState({
+    incharges: [],
+    agents: [],
+    farmers: [],
+    tanks: [],
+    submissions: [],
+    harvests: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks(),
+      adminService.getSubmissions(),
+      adminService.getHarvests()
+    ]).then(([incRes, agRes, farRes, tkRes, subRes, harRes]) => {
+      if (!isMounted) return;
+      setLiveDb({
+        incharges: incRes.status === 'fulfilled' && Array.isArray(incRes.value) ? incRes.value : [],
+        agents: agRes.status === 'fulfilled' && Array.isArray(agRes.value) ? agRes.value : [],
+        farmers: farRes.status === 'fulfilled' && Array.isArray(farRes.value) ? farRes.value : [],
+        tanks: tkRes.status === 'fulfilled' && Array.isArray(tkRes.value) ? tkRes.value : [],
+        submissions: subRes.status === 'fulfilled' && Array.isArray(subRes.value) ? subRes.value : [],
+        harvests: harRes.status === 'fulfilled' && Array.isArray(harRes.value) ? harRes.value : []
+      });
+      setLoading(false);
+    }).catch(err => {
+      console.error('[ExportCenter] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => { isMounted = false; };
+  }, []);
+
   const [selectedFields, setSelectedFields] = useState({
     farmerDetails: true,
     tankDetails: true,
@@ -37,26 +66,31 @@ const ExportCenter = () => {
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedFarmer, setSelectedFarmer] = useState('');
 
-  const incharges = useMemo(() => getIncharges(db), [db]);
+  const incharges = liveDb.incharges;
   const agents = useMemo(() => {
-    return selectedIncharge ? getAgentsByIncharge(selectedIncharge, db) : [];
-  }, [selectedIncharge, db]);
+    if (!selectedIncharge) return liveDb.agents;
+    const targetInc = incharges.find(i => String(i.id) === String(selectedIncharge) || i.name === selectedIncharge);
+    const incName = targetInc ? (targetInc.shortName || targetInc.name || '').toLowerCase() : selectedIncharge.toLowerCase();
+    return liveDb.agents.filter(a => String(a.inchargeId) === String(selectedIncharge) || (incName && a.incharge?.toLowerCase().includes(incName)));
+  }, [selectedIncharge, liveDb.agents, incharges]);
 
-  // When agent is selected, show only that agent's farmers.
-  // When incharge is selected (and no agent selected), show only that incharge's farmers!
   const farmers = useMemo(() => {
     if (selectedAgent) {
-      return getFarmersByAgent(selectedAgent, db);
+      const targetAgent = agents.find(a => String(a.id) === String(selectedAgent) || a.name === selectedAgent);
+      const agName = targetAgent ? (targetAgent.shortName || targetAgent.name || '').toLowerCase() : selectedAgent.toLowerCase();
+      return liveDb.farmers.filter(f => String(f.agentId) === String(selectedAgent) || (agName && f.agent?.toLowerCase().includes(agName)));
     }
     if (selectedIncharge) {
-      return getFarmersByIncharge(selectedIncharge, db);
+      const targetInc = incharges.find(i => String(i.id) === String(selectedIncharge) || i.name === selectedIncharge);
+      const incName = targetInc ? (targetInc.shortName || targetInc.name || '').toLowerCase() : selectedIncharge.toLowerCase();
+      return liveDb.farmers.filter(f => String(f.inchargeId) === String(selectedIncharge) || (incName && f.incharge?.toLowerCase().includes(incName)));
     }
-    return [];
-  }, [selectedAgent, selectedIncharge, db]);
+    return liveDb.farmers;
+  }, [selectedAgent, selectedIncharge, liveDb.farmers, agents, incharges]);
 
   const handleDownload = () => {
     downloadAquaEnterpriseWorkbook(
-      db,
+      liveDb,
       selectedAgent || null,
       selectedFarmer || 'ALL',
       'Royals_Marine_Export',
@@ -67,8 +101,8 @@ const ExportCenter = () => {
 
     // If a specific farmer is chosen, also generate their single-farmer summary CSV
     if (selectedFarmer) {
-      const farmer = getFarmerById(selectedFarmer, db);
-      const tanks = getTanksByFarmer(selectedFarmer, db);
+      const farmer = liveDb.farmers.find(f => String(f.id) === String(selectedFarmer));
+      const tanks = liveDb.tanks.filter(t => String(t.farmerId) === String(selectedFarmer));
 
       if (farmer) {
         let csvContent = "data:text/csv;charset=utf-8,";
@@ -87,13 +121,13 @@ const ExportCenter = () => {
           const feed = tank.feed || (biomass * (tank.fcr || 1.30));
           const fcr = calculateFCR(feed, biomass);
 
-          csvContent += `${tank.name},${tank.currentCycle},${abw},${biomass},${fcr},${tank.compliance}\n`;
+          csvContent += `${tank.name},${tank.currentCycle || tank.cultureCycle || '-'},${abw},${biomass},${fcr},${tank.compliance || '-'}\n`;
         });
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `${farmer.name.replace(/\s+/g, '_')}_data.csv`);
+        link.setAttribute("download", `${(farmer.name || 'Farmer').replace(/\s+/g, '_')}_data.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

@@ -67,26 +67,10 @@ const getInitialDb = () => {
 
   if (typeof window === 'undefined') return fallbackDb;
 
-  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10', 'aqua_feed_mock_database_v11', 'agent_harvest_store', 'royal_admin_incharges_data', 'royal_admin_agents_data', 'royal_admin_farmers_data'].forEach(k => {
+  ['aqua_feed_mock_database_v7', 'aqua_feed_mock_database_v8', 'aqua_feed_mock_database_v9', 'aqua_feed_mock_database_v10', 'aqua_feed_mock_database_v11', 'agent_harvest_store', 'royal_admin_incharges_data', 'royal_admin_agents_data', 'royal_admin_farmers_data', 'aqua_feed_clean_database_v1'].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) { }
   });
 
-  try {
-    const savedData = localStorage.getItem('aqua_feed_clean_database_v1');
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      if (parsed) {
-        parsed.tanks = normalizeTanks(parsed.tanks || []);
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Error parsing storage:', e);
-  }
-
-  try {
-    localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(fallbackDb));
-  } catch (e) { }
   return fallbackDb;
 };
 
@@ -367,37 +351,31 @@ export const MockDataProvider = ({ children }) => {
       const apiRegions = regionsRes.status === 'fulfilled' && Array.isArray(regionsRes.value?.data) ? regionsRes.value.data : [];
       const apiIncharges = inchargesRes.status === 'fulfilled' && Array.isArray(inchargesRes.value?.data) ? inchargesRes.value.data : [];
 
-      if (apiFarmers.length > 0 || apiTanks.length > 0 || apiSubs.length > 0 || apiAgents.length > 0 || apiRegions.length > 0 || apiIncharges.length > 0) {
-        setDb(prev => {
-          const rawFarmers = apiFarmers.length > 0 ? apiFarmers : prev.farmers;
-          const mergedFarmers = deduplicateFarmers(rawFarmers);
-          const rawTanks = apiTanks.length > 0 ? apiTanks : prev.tanks;
-          const mergedTanks = normalizeTanks(rawTanks);
-          const mergedSubs = apiSubs.length > 0 ? apiSubs : prev.submissions;
-          const mergedHarvests = apiHarvests.length > 0 ? apiHarvests : prev.harvests;
-          const mergedAgents = apiAgents.length > 0 ? apiAgents : prev.agents;
-          const mergedRegions = apiRegions.length > 0 ? apiRegions : prev.regions;
-          const mergedIncharges = apiIncharges.length > 0 ? apiIncharges : prev.incharges;
+      setDb(prev => {
+        const rawFarmers = farmersRes.status === 'fulfilled' ? apiFarmers : prev.farmers;
+        const mergedFarmers = deduplicateFarmers(rawFarmers);
+        const rawTanks = tanksRes.status === 'fulfilled' ? apiTanks : prev.tanks;
+        const mergedTanks = normalizeTanks(rawTanks);
+        const mergedSubs = subsRes.status === 'fulfilled' ? apiSubs : prev.submissions;
+        const mergedHarvests = harvestsRes.status === 'fulfilled' ? apiHarvests : prev.harvests;
+        const mergedAgents = agentsRes.status === 'fulfilled' ? apiAgents : prev.agents;
+        const mergedRegions = regionsRes.status === 'fulfilled' ? apiRegions : prev.regions;
+        const mergedIncharges = inchargesRes.status === 'fulfilled' ? apiIncharges : prev.incharges;
 
-          const updatedDb = {
-            ...prev,
-            farmers: mergedFarmers,
-            tanks: mergedTanks,
-            submissions: mergedSubs,
-            harvests: mergedHarvests,
-            agents: mergedAgents,
-            regions: mergedRegions,
-            incharges: mergedIncharges,
-          };
+        const updatedDb = {
+          ...prev,
+          farmers: mergedFarmers,
+          tanks: mergedTanks,
+          submissions: mergedSubs,
+          harvests: mergedHarvests,
+          agents: mergedAgents,
+          regions: mergedRegions,
+          incharges: mergedIncharges,
+        };
 
-          try {
-            localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(updatedDb));
-          } catch (e) { }
-
-          return updatedDb;
-        });
-        setDbConnected(true);
-      }
+        return updatedDb;
+      });
+      setDbConnected(true);
     } catch (err) {
       console.warn('[MockDataContext] Live DB fetch error:', err.message);
       setDbConnected(false);

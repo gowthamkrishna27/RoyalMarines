@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAgentById, getAgents, getFarmers, getRegions, getIncharges } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import {
   ArrowLeft, Edit, Phone, Mail, MapPin, Building,
@@ -12,23 +11,40 @@ import {
 const AgentDetail = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-
-  // 1. Load Agent from live context
-  const [agent, setAgent] = useState(() => getAgentById(agentId, db) || null);
-
-  // 2. Load Farmers from live context
-  const [farmersList, setFarmersList] = useState(() => getFarmers(db));
+  const [regions, setRegions] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
+  const [agent, setAgent] = useState(null);
+  const [farmersList, setFarmersList] = useState([]);
+  const [submissionsList, setSubmissionsList] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (db) {
-      const a = getAgentById(agentId, db);
-      if (a) setAgent(a);
-      setFarmersList(getFarmers(db));
-    }
-  }, [db, agentId]);
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getSubmissions()
+    ]).then(([agRes, farRes, regRes, incRes, subRes]) => {
+      if (!isMounted) return;
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) {
+        const found = agRes.value.find(a => String(a.id) === String(agentId));
+        setAgent(found || null);
+      }
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setFarmersList(farRes.value);
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) setRegions(regRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setSubmissionsList(subRes.value);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[AgentDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => { isMounted = false; };
+  }, [agentId]);
 
   const [toastMessage, setToastMessage] = useState('');
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
@@ -315,7 +331,7 @@ const AgentDetail = () => {
           </div>
           <div>
             <div style={styles.kpiValue}>
-              {(db?.submissions || []).filter(s =>
+              {(submissionsList || []).filter(s =>
                 s.agentId === agent?.id ||
                 s.agentId === agentId ||
                 (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))
@@ -333,7 +349,7 @@ const AgentDetail = () => {
             <div style={styles.kpiValue}>
               {(() => {
                 const totalTanksCount = allocatedFarmers.reduce((acc, f) => acc + (f.tanks || f.tankBreakdown?.length || 1), 0);
-                const subsCount = (db?.submissions || []).filter(s =>
+                const subsCount = (submissionsList || []).filter(s =>
                   s.agentId === agent?.id ||
                   s.agentId === agentId ||
                   (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))

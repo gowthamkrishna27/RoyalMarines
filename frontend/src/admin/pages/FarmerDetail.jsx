@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFarmerById, getFarmers, getTanksByFarmer, calculateBiomass, calculateFCR } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import {
   Database, Download, TrendingUp, Activity,
@@ -16,35 +16,40 @@ import {
 const FarmerDetail = () => {
   const { farmerId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
 
-  // Load farmer from live context
-  const [farmer, setFarmer] = useState(() => getFarmerById(farmerId, db) || null);
+  const [farmer, setFarmer] = useState(null);
+  const [tanksList, setTanksList] = useState([]);
+  const [submissionsList, setSubmissionsList] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (farmerId) {
-      const f = getFarmerById(farmerId, db);
-      if (f) {
-        setFarmer(f);
-        const rawTanks = f.tankBreakdown || getTanksByFarmer(f.id, db) || [];
-        if (rawTanks.length > 0) {
-          setTanksList(rawTanks);
-        }
+    let isMounted = true;
+    if (!farmerId) return;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getFarmers(),
+      adminService.getTanks(),
+      adminService.getSubmissions()
+    ]).then(([farRes, tkRes, subRes]) => {
+      if (!isMounted) return;
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
+        const found = farRes.value.find(f => String(f.id) === String(farmerId));
+        setFarmer(found || null);
       }
-    }
-  }, [db, farmerId]);
-
-  // Load tanks for this farmer strictly from real database
-  const [tanksList, setTanksList] = useState(() => {
-    return (db?.tanks || []).filter(t => String(t.farmerId) === String(farmerId));
-  });
-
-  useEffect(() => {
-    if (farmerId && db?.tanks) {
-      const realTanks = (db.tanks || []).filter(t => String(t.farmerId) === String(farmerId));
-      setTanksList(realTanks);
-    }
-  }, [db?.tanks, farmerId]);
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) {
+        const farmerTanks = tkRes.value.filter(t => String(t.farmerId) === String(farmerId));
+        setTanksList(farmerTanks);
+      }
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) {
+        setSubmissionsList(subRes.value);
+      }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[FarmerDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, [farmerId]);
 
   const [activeTankIndex, setActiveTankIndex] = useState(0);
   const [growthMetric, setGrowthMetric] = useState('ABW'); // 'ABW', 'BIOMASS', 'FCR', 'FEED'
@@ -167,14 +172,14 @@ const FarmerDetail = () => {
   // Real submissions for this farmer/tank from MySQL database
   const tankSubmissions = React.useMemo(() => {
     if (!farmer) return [];
-    const allSubs = db?.submissions || [];
+    const allSubs = submissionsList || [];
     return allSubs.filter(s => {
       const matchesFarmer = String(s.farmerId) === String(farmer.id) || s.farmer_name === farmer.name;
       if (!matchesFarmer) return false;
       if (!activeTank) return true;
       return String(s.tankId) === String(activeTank.id) || s.tank_name === activeTank.name;
     });
-  }, [db?.submissions, farmer, activeTank]);
+  }, [submissionsList, farmer, activeTank]);
 
   const waterQualityLogs = React.useMemo(() => {
     return tankSubmissions.map((s, idx) => ({

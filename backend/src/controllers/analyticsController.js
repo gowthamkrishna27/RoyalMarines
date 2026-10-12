@@ -64,113 +64,111 @@ export const getDashboardData = async (req, res) => {
     }
 
     if (!tankIds || !Array.isArray(tankIds) || tankIds.length === 0) {
-      return sendSuccess(res, { waterQuality: [], trend: [], kpis: { abw: 0, fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 } }, 'Empty filters');
+      return sendSuccess(res, { 
+        waterQuality: [], 
+        trend: [], 
+        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 } 
+      }, 'Empty filters');
     }
 
     const inClause = tankIds.map(t => "'" + t.replace(/'/g, "''") + "'").join(',');
 
-    let dateFormat = '%Y-%m-%d';
-    if (interval === 'Weekly') dateFormat = '%Y-%u';
-    if (interval === 'Monthly') dateFormat = '%Y-%m';
-    if (interval === 'Daily') dateFormat = '%Y-%m-%d';
-
+    // 1. Fetch real submissions for Water Quality (DO & pH) from submissions.data JSON
     const wqQuery = `
       SELECT 
-        DATE_FORMAT(wq.created_at, ?) as period,
-        ROUND(AVG(wq.dissolved_oxygen_mg_l), 2) as do,
-        ROUND(AVG(wq.ph), 2) as ph
-      FROM water_quality_records wq
-      JOIN field_visits fv ON wq.visit_id = fv.id
-      JOIN culture_cycles cc ON fv.culture_cycle_id = cc.id
-      JOIN ponds p ON cc.pond_id = p.id
-      WHERE p.tank_id IN (${inClause})
-      GROUP BY period
-      ORDER BY MIN(wq.created_at) ASC
+        s.id,
+        s.tank_id,
+        s.date,
+        s.created_at,
+        s.data
+      FROM submissions s
+      WHERE s.tank_id IN (${inClause})
+      ORDER BY s.created_at ASC, s.id ASC
     `;
+    const subRows = await query(wqQuery);
 
-    const feedQuery = `
-      SELECT 
-        DATE_FORMAT(fr.created_at, ?) as period,
-        SUM(fr.quantity_kg) as feed
-      FROM feed_records fr
-      JOIN culture_cycles cc ON fr.culture_cycle_id = cc.id
-      JOIN ponds p ON cc.pond_id = p.id
-      WHERE p.tank_id IN (${inClause})
-      GROUP BY period
-      ORDER BY MIN(fr.created_at) ASC
-    `;
-
-    const biomassQuery = `
-      SELECT 
-        DATE_FORMAT(br.created_at, ?) as period,
-        SUM(br.estimated_biomass_kg) as biomass
-      FROM biomass_records br
-      JOIN field_visits fv ON br.visit_id = fv.id
-      JOIN culture_cycles cc ON fv.culture_cycle_id = cc.id
-      JOIN ponds p ON cc.pond_id = p.id
-      WHERE p.tank_id IN (${inClause})
-      GROUP BY period
-      ORDER BY MIN(br.created_at) ASC
-    `;
-
-    const [wqData, feedData, biomassData] = await Promise.all([
-      query(wqQuery, [dateFormat]),
-      query(feedQuery, [dateFormat]),
-      query(biomassQuery, [dateFormat])
-    ]);
-
-    const wqFormatted = wqData.map(d => ({
-      day: d.period,
-      do: Number(d.do) || null,
-      ph: Number(d.ph) || null
-    })).filter(d => d.do !== null && d.ph !== null);
-
-    const trendMap = {};
-    feedData.forEach(d => { trendMap[d.period] = { period: d.period, feed: Number(d.feed) || 0, biomass: 0 }; });
-    biomassData.forEach(d => {
-      if (!trendMap[d.period]) trendMap[d.period] = { period: d.period, feed: 0, biomass: 0 };
-      trendMap[d.period].biomass = Number(d.biomass) || 0;
+    const wqFormatted = [];
+    subRows.forEach(sub => {
+      const raw = typeof sub.data === 'string' ? JSON.parse(sub.data || '{}') : (sub.data || {});
+      const phVal = parseFloat(raw.ph ?? raw.pH ?? raw.waterQuality?.ph ?? raw.waterQuality?.pH);
+      const doVal = parseFloat(raw.do ?? raw.DO ?? raw.dissolvedOxygen ?? raw.waterQuality?.do ?? raw.waterQuality?.dissolvedOxygen);
+      if (!isNaN(phVal) || !isNaN(doVal)) {
+        wqFormatted.push({
+          day: sub.date || (sub.created_at ? new Date(sub.created_at).toISOString().split('T')[0] : 'Recorded'),
+          do: !isNaN(doVal) ? Number(doVal.toFixed(2)) : null,
+          ph: !isNaN(phVal) ? Number(phVal.toFixed(2)) : null,
+        });
+      }
     });
 
-    const finalTrendData = Object.values(trendMap).sort((a, b) => a.period.localeCompare(b.period)).map((d, index) => ({
-      week: interval === 'Weekly' ? 'Week ' + (index + 1) : d.period,
-      biomass: d.biomass,
-      feed: d.feed
+    // 2. Fetch real harvests for the tanks
+    const harvestQuery = `
+      SELECT 
+        DATE_FORMAT(COALESCE(harvest_date, date, created_at), '%Y-%m-%d') as period,
+        COALESCE(SUM(quantity_kg), 0) as harvested_biomass
+      FROM harvests
+      WHERE tank_id IN (${inClause})
+      GROUP BY period
+      ORDER BY MIN(COALESCE(harvest_date, created_at)) ASC
+    `;
+    const harvestRows = await query(harvestQuery);
+
+    const trendData = harvestRows.map((h, idx) => ({
+      week: interval === 'Weekly' ? `Week ${idx + 1}` : h.period,
+      biomass: Number(h.harvested_biomass || 0),
+      feed: 0
     }));
 
-    const kpisQuery = `
+    // 3. Calculate genuine KPIs from real tanks, harvests, submissions
+    const kpiTankQuery = `
       SELECT 
-        (SELECT SUM(quantity_kg) FROM feed_records fr JOIN culture_cycles cc ON fr.culture_cycle_id = cc.id JOIN ponds p ON cc.pond_id = p.id WHERE p.tank_id IN (${inClause})) as totalFeed,
-        (SELECT SUM(estimated_biomass_kg) FROM biomass_records br JOIN field_visits fv ON br.visit_id = fv.id JOIN culture_cycles cc ON fv.culture_cycle_id = cc.id JOIN ponds p ON cc.pond_id = p.id WHERE p.tank_id IN (${inClause})) as totalBiomass,
-        (SELECT AVG(average_weight_g) FROM biomass_records br JOIN field_visits fv ON br.visit_id = fv.id JOIN culture_cycles cc ON fv.culture_cycle_id = cc.id JOIN ponds p ON cc.pond_id = p.id WHERE p.tank_id IN (${inClause})) as avgAbw,
-        (SELECT COUNT(*) FROM tanks WHERE status = 'ACTIVE' AND id IN (${inClause})) as activeTanks,
-        (SELECT SUM(quantity_kg) FROM harvests h WHERE h.tank_id IN (${inClause})) as totalHarvest,
-        (SELECT COUNT(*) FROM submissions WHERE status = 'PENDING_VERIFICATION' AND tank_id IN (${inClause})) as pending
+        COUNT(DISTINCT CASE WHEN UPPER(status) = 'ACTIVE' THEN id END) as activeTanks,
+        COUNT(DISTINCT id) as totalTanks,
+        COALESCE(SUM(CAST(REGEXP_REPLACE(biomass, '[^0-9.]', '') AS DECIMAL(12,2))), 0) as totalBiomass,
+        COALESCE(AVG(CASE WHEN CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(8,2)) > 0 THEN CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(8,2)) END), 0) as avgAbw,
+        COALESCE(AVG(CASE WHEN CAST(REGEXP_REPLACE(fcr, '[^0-9.]', '') AS DECIMAL(6,2)) > 0 THEN CAST(REGEXP_REPLACE(fcr, '[^0-9.]', '') AS DECIMAL(6,2)) END), 0) as avgFcr
+      FROM tanks
+      WHERE id IN (${inClause})
     `;
-    const [kpiRows] = await query(kpisQuery);
+    const [tankKpi] = await query(kpiTankQuery);
 
-    const testQuery = `SELECT COUNT(*) as c FROM tanks WHERE test_status = 'Completed' AND id IN (${inClause})`;
-    const [testRows] = await query(testQuery);
+    const [harvestKpi] = await query(`
+      SELECT COALESCE(SUM(quantity_kg), 0) as totalHarvest 
+      FROM harvests 
+      WHERE tank_id IN (${inClause})
+    `);
 
-    const compliance = tankIds.length > 0 ? Math.round((testRows.c / tankIds.length) * 100) : 0;
+    const [subKpi] = await query(`
+      SELECT COUNT(id) as pending 
+      FROM submissions 
+      WHERE UPPER(status) IN ('PENDING', 'PENDING_VERIFICATION') AND tank_id IN (${inClause})
+    `);
 
-    const totalFeed = Number(kpiRows.totalFeed) || 0;
-    const totalBiomass = Number(kpiRows.totalBiomass) || 0;
-    const avgAbw = Number(kpiRows.avgAbw) || 0;
-    const fcr = totalBiomass > 0 ? (totalFeed / totalBiomass).toFixed(2) : '0.00';
+    const [testRows] = await query(`
+      SELECT COUNT(*) as completedCount 
+      FROM tanks 
+      WHERE LOWER(test_status) = 'completed' AND id IN (${inClause})
+    `);
+
+    const compliance = tankIds.length > 0 ? Math.round(((testRows?.completedCount || 0) / tankIds.length) * 100) : 0;
+    const totalBiomass = Number(tankKpi?.totalBiomass) || 0;
+    const avgAbw = Number(tankKpi?.avgAbw) || 0;
+    const avgFcr = Number(tankKpi?.avgFcr) || 0;
+    const calculatedFeed = totalBiomass > 0 && avgFcr > 0 ? Math.round(totalBiomass * avgFcr) : 0;
+    const fcrDisplay = avgFcr > 0 ? avgFcr.toFixed(2) : '0.00';
 
     const kpis = {
-      abw: avgAbw.toFixed(1),
-      fcr,
-      feed: totalFeed,
-      activeTanks: kpiRows.activeTanks || 0,
+      abw: avgAbw > 0 ? avgAbw.toFixed(1) : '0.0',
+      fcr: fcrDisplay,
+      feed: calculatedFeed,
+      activeTanks: Number(tankKpi?.activeTanks || 0),
       totalBiomass: totalBiomass,
-      totalHarvest: Number(kpiRows.totalHarvest || 0),
-      compliance: compliance + '%',
-      pending: kpiRows.pending || 0
+      totalHarvest: Number(harvestKpi?.totalHarvest || 0),
+      compliance: `${compliance}%`,
+      pending: Number(subKpi?.pending || 0)
     };
 
-    return sendSuccess(res, { waterQuality: wqFormatted, trend: finalTrendData, kpis }, 'Dashboard data generated');
+    return sendSuccess(res, { waterQuality: wqFormatted, trend: trendData, kpis }, 'Dashboard data generated');
   } catch (err) {
     console.error('[DB Error in getDashboardData]', err.message);
     return res.status(500).json({ success: false, message: 'Server error' });

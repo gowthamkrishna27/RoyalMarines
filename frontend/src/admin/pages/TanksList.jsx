@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getTanks } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import { Search, Filter, Eye } from 'lucide-react';
 
 const TanksList = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { db } = useMockData();
-  const [tanks, setTanks] = useState(() => getTanks(db));
+  const [tanks, setTanks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    setTanks(getTanks(db));
-  }, [db]);
+    let isMounted = true;
+    setLoading(true);
+    adminService.getTanks().then(data => {
+      if (!isMounted) return;
+      setTanks(Array.isArray(data) ? data : []);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[TanksList] Failed to fetch tanks:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   const filtered = tanks.filter(t =>
     (t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

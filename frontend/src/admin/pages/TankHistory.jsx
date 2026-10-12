@@ -1,16 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTankById } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import { Database, Droplet, Wheat, Pill, Bug, Fish, MapPin, CheckSquare, History } from 'lucide-react';
 
 const TankHistory = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const tank = getTankById(tankId, db);
+  const [tank, setTank] = useState(null);
+  const [submissionsList, setSubmissionsList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('basic');
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!tankId) return;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getTanks(),
+      adminService.getSubmissions()
+    ]).then(([tkRes, subRes]) => {
+      if (!isMounted) return;
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) {
+        const found = tkRes.value.find(t => String(t.id) === String(tankId));
+        setTank(found || null);
+      }
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) {
+        setSubmissionsList(subRes.value);
+      }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[TankHistory] Failed to load tank history:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, [tankId]);
 
   if (!tank) {
     return (
@@ -112,7 +136,7 @@ const TankHistory = () => {
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px' }}>Historical Water Quality</h3>
               {(() => {
-                const tankSubmissions = (db?.submissions || []).filter(s =>
+                const tankSubmissions = (submissionsList || []).filter(s =>
                   String(s.tankId) === String(tank.id) || s.tank_name === tank.name
                 );
 

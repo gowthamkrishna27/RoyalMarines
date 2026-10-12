@@ -1,14 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
-import { getRegions } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import { Filter, Calendar, Map, CheckSquare } from 'lucide-react';
 
 const WeeklyTests = () => {
-  const { db, isLoadingDb, dbConnected } = useMockData();
-  const regions = getRegions(db);
+  const [regions, setRegions] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRegionFilter, setSelectedRegionFilter] = useState('All Regions');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All Statuses');
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    Promise.allSettled([
+      adminService.getRegions(),
+      adminService.getTanks()
+    ]).then(([regRes, tkRes]) => {
+      if (!isMounted) return;
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        setRegions(regRes.value);
+      }
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) {
+        setAllTanks(tkRes.value);
+      }
+      setIsLoading(false);
+    }).catch(err => {
+      console.error('[WeeklyTests] Failed to load data:', err);
+      if (isMounted) setIsLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   const filteredRegions = regions.filter((r) => {
     if (selectedRegionFilter !== 'All Regions' && r.name !== selectedRegionFilter) return false;
@@ -70,7 +92,7 @@ const WeeklyTests = () => {
         {/* Compliance Table */}
         <div className="card">
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px' }}>Regional Compliance Summary</h3>
-          {isLoadingDb ? (
+          {isLoading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
               Loading compliance metrics from database...
             </div>
@@ -93,7 +115,6 @@ const WeeklyTests = () => {
                 </thead>
                 <tbody>
                   {filteredRegions.map((region) => {
-                    const allTanks = db?.tanks || [];
                     const regionTanks = allTanks.filter(t => 
                       String(t.regionId) === String(region.id) || 
                       String(t.region).toLowerCase() === String(region.name).toLowerCase() ||

@@ -1,11 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import { useMockData } from '../../context/MockDataContext';
-import {
-  getTankById, calculateBiomass, calculateFCR, getAgentById,
-  getIncharges, getAgents, getFarmers, getTanks
-} from '../utils/adminMockData';
+import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
+import { adminService } from '../utils/adminService';
 import {
   Search, Filter, Calendar, FileText, CheckCircle2, Clock, User, Users,
   UserCircle, Droplet, X, TestTube, MapPin, ShieldCheck, Activity,
@@ -164,22 +161,38 @@ const extractRecordParameters = (record, tank, farmer) => {
 };
 
 const FieldData = () => {
-  const mockData = useMockData();
-  const db = mockData?.db;
-  const submissions = db?.submissions || [];
   const location = useLocation();
 
+  const [submissions, setSubmissions] = useState([]);
   const [incharges, setIncharges] = useState([]);
   const [allAgents, setAllAgents] = useState([]);
   const [allFarmers, setAllFarmers] = useState([]);
   const [allTanks, setAllTanks] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/analytics/incharges').then(r => r.json()).then(d => d.success && setIncharges(d.data));
-    fetch('/api/analytics/agents').then(r => r.json()).then(d => d.success && setAllAgents(d.data));
-    fetch('/api/farmers').then(r => r.json()).then(d => d.success && setAllFarmers(d.data));
-    fetch('/api/tanks').then(r => r.json()).then(d => d.success && setAllTanks(d.data));
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getSubmissions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
+    ]).then(([subRes, incRes, agRes, farRes, tkRes]) => {
+      if (!isMounted) return;
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setSubmissions(subRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setIncharges(incRes.value);
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAllAgents(agRes.value);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setAllFarmers(farRes.value);
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) setAllTanks(tkRes.value);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[FieldData] Failed to fetch data:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -403,7 +416,7 @@ const FieldData = () => {
                     ? calculateFCR(cumulativeFeed, dynamicBiomass)
                     : (item.data?.fcr ? Number(item.data.fcr).toFixed(2) : '-');
 
-                  const farmerObj = (db?.farmers || []).find(f => f.id === item.farmerId || f.name === item.farmerId) || allFarmers.find(f => f.id === item.farmerId || f.name === item.farmerId) || {};
+                  const farmerObj = allFarmers.find(f => f.id === item.farmerId || f.name === item.farmerId) || {};
                   const farmerNameToDisplay = farmerObj.name || item.farmerId || '-';
 
                   const phVal = item.data?.waterQuality?.ph ?? item.data?.ph;
@@ -471,8 +484,8 @@ const FieldData = () => {
 
       {/* Parameter Details Modal Dialog */}
       {selectedRecord && createPortal((() => {
-        const tank = getTankById(selectedRecord.tankId) || {};
-        const farmerObj = (db?.farmers || []).find(f => f.id === selectedRecord.farmerId || f.name === selectedRecord.farmerId) || allFarmers.find(f => f.id === selectedRecord.farmerId || f.name === selectedRecord.farmerId) || {};
+        const tank = allTanks.find(t => t.id === selectedRecord.tankId) || {};
+        const farmerObj = allFarmers.find(f => f.id === selectedRecord.farmerId || f.name === selectedRecord.farmerId) || {};
         const farmerName = farmerObj.name || selectedRecord.farmerId || '-';
         const tankName = tank.name || selectedRecord.tankId || 'Tank';
         const agentName = selectedRecord.userName || selectedRecord.agentName || selectedRecord.agentId || 'Field Agent';

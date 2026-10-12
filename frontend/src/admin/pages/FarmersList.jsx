@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFarmers, getRegions, getAgents, getIncharges, calculateBiomass, calculateFCR } from '../utils/adminMockData';
+import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
+import { adminService } from '../utils/adminService';
 import { useMockData } from '../../context/MockDataContext';
 import {
   Search, Plus, Trash2, CheckCircle2, X, MapPin, Phone,
@@ -11,48 +12,54 @@ import {
 
 const FarmersList = () => {
   const navigate = useNavigate();
-  const { db, createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
-  const allAgents = useMemo(() => getAgents(db), [db]);
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-
-  // Load farmers from DB
-  const [farmers, setFarmers] = useState(() => db?.farmers || []);
+  const { createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
+  const [regions, setRegions] = useState([]);
+  const [allAgents, setAllAgents] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
+  const [farmers, setFarmers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
-  useEffect(() => {
-    if (db?.farmers && db.farmers.length > 0) {
-      setFarmers(db.farmers);
-    }
-  }, [db?.farmers]);
-
-  const fetchFarmers = async () => {
+  const fetchAllData = async () => {
     try {
       setLoading(true);
       setFetchError(null);
-      const response = await fetch('/api/farmers');
-      if (!response.ok) {
-        throw new Error('Database connection failed');
-      }
-      const data = await response.json();
-      if (data.success && data.data) {
-        const formattedFarmers = data.data.map(f => ({
+      const [farRes, regRes, agRes, incRes] = await Promise.allSettled([
+        adminService.getFarmers(),
+        adminService.getRegions(),
+        adminService.getAgents(),
+        adminService.getIncharges()
+      ]);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
+        const formattedFarmers = farRes.value.map(f => ({
           ...f,
           name: f.name || 'Unknown Farmer',
           phone: f.phone || '',
           village: f.village || f.locality || '',
           locality: f.locality || '',
           region: f.region || f.region_name || 'Unknown',
-          agent: f.agent_name || 'Unassigned',
+          agent: f.agent_name || f.agent || 'Unassigned',
           tanks: f.tanks_count || f.tanks || 0,
           activePonds: f.active_ponds || 0,
           status: f.status || 'ACTIVE'
         }));
         setFarmers(formattedFarmers);
+      } else {
+        setFarmers([]);
       }
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAllAgents(agRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
     } catch (error) {
-      console.error('Failed to fetch farmers:', error);
+      console.error('[FarmersList] Failed to fetch data from database:', error);
       setFetchError('Unable to load farmers from database. Please check connection.');
     } finally {
       setLoading(false);
@@ -60,7 +67,7 @@ const FarmersList = () => {
   };
 
   useEffect(() => {
-    fetchFarmers();
+    fetchAllData();
   }, []);
 
   // Filters state

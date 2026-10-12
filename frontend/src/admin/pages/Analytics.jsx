@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, Scale, Wheat, Filter, Calendar, Map, MapPin, User, Users, Droplet, UserCircle, AlertCircle, FileSpreadsheet, Activity, CheckSquare } from 'lucide-react';
+import { adminService } from '../utils/adminService';
 
 const Analytics = () => {
   const [regions, setRegions] = useState([]);
@@ -15,11 +16,22 @@ const Analytics = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/analytics/regions').then(r => r.json()).then(d => d.success && setRegions(d.data));
-    fetch('/api/analytics/incharges').then(r => r.json()).then(d => d.success && setIncharges(d.data));
-    fetch('/api/analytics/agents').then(r => r.json()).then(d => d.success && setAgents(d.data));
-    fetch('/api/farmers').then(r => r.json()).then(d => d.success && setFarmers(d.data));
-    fetch('/api/tanks').then(r => r.json()).then(d => d.success && setAllTanks(d.data));
+    let isMounted = true;
+    Promise.allSettled([
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
+    ]).then(([r, i, a, f, t]) => {
+      if (!isMounted) return;
+      if (r.status === 'fulfilled') setRegions(r.value || []);
+      if (i.status === 'fulfilled') setIncharges(i.value || []);
+      if (a.status === 'fulfilled') setAgents(a.value || []);
+      if (f.status === 'fulfilled') setFarmers(f.value || []);
+      if (t.status === 'fulfilled') setAllTanks(t.value || []);
+    });
+    return () => { isMounted = false; };
   }, []);
 
   const [filters, setFilters] = useState({
@@ -115,22 +127,28 @@ const Analytics = () => {
   }, [filters, allTanks]);
 
   useEffect(() => {
+    let isMounted = true;
     if (filteredTanks.length > 0) {
       setIsLoading(true);
-      const tankIds = filteredTanks.map(t => t.id).join(',');
-      fetch(`/api/analytics/dashboard-data?interval=${chartInterval}&tankIds=${tankIds}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.success) setDashboardData(d.data);
+      const tankIds = filteredTanks.map(t => t.id);
+      adminService.getDashboardData(tankIds, chartInterval)
+        .then(data => {
+          if (!isMounted) return;
+          setDashboardData(data);
           setIsLoading(false);
         })
         .catch(err => {
-          console.error(err);
-          setIsLoading(false);
+          console.error('[Analytics] Failed to fetch dashboard data:', err);
+          if (isMounted) setIsLoading(false);
         });
     } else {
-      setDashboardData(null);
+      setDashboardData({
+        waterQuality: [],
+        trend: [],
+        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 }
+      });
     }
+    return () => { isMounted = false; };
   }, [filteredTanks, chartInterval]);
 
   const kpis = dashboardData?.kpis || {
@@ -282,7 +300,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#eef2ff', color: '#6366f1', borderRadius: '8px' }}><Droplet size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Active Tanks</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.activeTanks}</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{Number(kpis.activeTanks) || 0}</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -290,7 +308,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#f0fdf4', color: '#22c55e', borderRadius: '8px' }}><Scale size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Biomass</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.totalBiomass.toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{(Number(kpis.totalBiomass) || 0).toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -298,7 +316,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#fffbeb', color: '#f59e0b', borderRadius: '8px' }}><Wheat size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Feed Consumed</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.feed.toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{(Number(kpis.feed) || 0).toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -306,7 +324,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#fdf4ff', color: '#d946ef', borderRadius: '8px' }}><Activity size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Average FCR</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.fcr}</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.fcr ? String(kpis.fcr) : '0.00'}</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -314,7 +332,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#f8fafc', color: '#475569', borderRadius: '8px' }}><TrendingUp size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Average ABW</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.abw} g</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.abw && !isNaN(parseFloat(kpis.abw)) ? `${kpis.abw} g` : '0.0 g'}</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -322,7 +340,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#f0f9ff', color: '#0ea5e9', borderRadius: '8px' }}><FileSpreadsheet size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Harvest</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.totalHarvest.toLocaleString()} kg</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{(Number(kpis.totalHarvest) || 0).toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -330,7 +348,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#ecfdf5', color: '#10b981', borderRadius: '8px' }}><CheckSquare size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Test Compliance</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.compliance}</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.compliance || '0%'}</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
@@ -338,7 +356,7 @@ const Analytics = () => {
               <div style={{ padding: '8px', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '8px' }}><AlertCircle size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Pending Verification</div>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#ef4444' }}>{kpis.pending}</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#ef4444' }}>{Number(kpis.pending) || 0}</div>
           </div>
         </div>
 
@@ -439,13 +457,13 @@ const Analytics = () => {
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Avg DO</div>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>
-                    {(waterQualityData.reduce((acc, curr) => acc + curr.do, 0) / waterQualityData.length).toFixed(2)}
+                    {(waterQualityData.reduce((acc, curr) => acc + (Number(curr.do) || 0), 0) / (waterQualityData.filter(d => d.do !== null).length || 1)).toFixed(2)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Avg pH</div>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>
-                    {(waterQualityData.reduce((acc, curr) => acc + curr.ph, 0) / waterQualityData.length).toFixed(2)}
+                    {(waterQualityData.reduce((acc, curr) => acc + (Number(curr.ph) || 0), 0) / (waterQualityData.filter(d => d.ph !== null).length || 1)).toFixed(2)}
                   </div>
                 </div>
               </div>

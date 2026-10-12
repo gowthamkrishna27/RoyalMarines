@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { getRegions, getFarmers, getAgents, getIncharges } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import {
   MapPin, Plus, FileSpreadsheet, Search, Check, X,
   Layers, Compass, Building, User, Phone, Droplets,
@@ -15,19 +14,50 @@ import {
 
 const Regions = () => {
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const [regions, setRegions] = useState(() => getRegions(db));
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-  const [agents, setAgents] = useState(() => getAgents(db));
-  const [farmers, setFarmers] = useState(() => getFarmers(db));
+  const [regions, setRegions] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+  const [allHarvests, setAllHarvests] = useState([]);
+  const [allSubmissions, setAllSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (db) {
-      setRegions(getRegions(db));
-      setAgents(getAgents(db));
-      setFarmers(getFarmers(db));
-    }
-  }, [db]);
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks(),
+      adminService.getHarvests(),
+      adminService.getSubmissions()
+    ]).then(([regRes, incRes, agRes, farRes, tkRes, harRes, subRes]) => {
+      if (!isMounted) return;
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAgents(agRes.value);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setFarmers(farRes.value);
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) setAllTanks(tkRes.value);
+      if (harRes.status === 'fulfilled' && Array.isArray(harRes.value)) setAllHarvests(harRes.value);
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setAllSubmissions(subRes.value);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[Regions] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Geographic Filter States
   const [selectedRegion, setSelectedRegion] = useState('ALL');
@@ -43,7 +73,7 @@ const Regions = () => {
   // Add Locality Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [newLocalityName, setNewLocalityName] = useState('');
-  const [targetRegionId, setTargetRegionId] = useState(regions[1]?.id || regions[0]?.id);
+  const [targetRegionId, setTargetRegionId] = useState('');
   const [successToast, setSuccessToast] = useState('');
 
   const showToast = (msg) => {
@@ -51,9 +81,11 @@ const Regions = () => {
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
-  const allTanks = useMemo(() => db?.tanks || [], [db]);
-  const allHarvests = useMemo(() => db?.harvests || [], [db]);
-  const allSubmissions = useMemo(() => db?.submissions || [], [db]);
+  useEffect(() => {
+    if (regions.length > 0 && !targetRegionId) {
+      setTargetRegionId(regions[0]?.id || '');
+    }
+  }, [regions, targetRegionId]);
 
   // Selected region for Bar Graph drill-down (null = all regions view)
   const [selectedGraphRegion, setSelectedGraphRegion] = useState(null);

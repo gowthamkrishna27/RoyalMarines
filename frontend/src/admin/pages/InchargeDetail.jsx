@@ -1,48 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getInchargeById, getAgentsByIncharge, getFarmersByIncharge, getTanksByIncharge } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import { HardHat, Sprout, Database, CheckSquare, Eye, Users, Droplets, MapPin, Phone } from 'lucide-react';
 
 const InchargeDetail = () => {
   const { inchargeId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
   const [activeTab, setActiveTab] = useState('agents');
-
-  const inchargeFromContext = getInchargeById(inchargeId, db);
-  const [directIncharge, setDirectIncharge] = useState(null);
-  const [loadingDirect, setLoadingDirect] = useState(false);
+  const [incharge, setIncharge] = useState(null);
+  const [allAgents, setAllAgents] = useState([]);
+  const [allFarmers, setAllFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!inchargeFromContext && inchargeId) {
-      setLoadingDirect(true);
-      fetch(`/api/analytics/incharges/${inchargeId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data) {
-            setDirectIncharge(data.data);
-          }
-        })
-        .catch(err => console.error('Failed to fetch incharge detail:', err))
-        .finally(() => setLoadingDirect(false));
-    }
-  }, [inchargeFromContext, inchargeId]);
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
+    ]).then(([incRes, agRes, farRes, tkRes]) => {
+      if (!isMounted) return;
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) {
+        const found = incRes.value.find(i => String(i.id) === String(inchargeId));
+        setIncharge(found || null);
+      }
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) {
+        setAllAgents(agRes.value);
+      }
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
+        setAllFarmers(farRes.value);
+      }
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) {
+        setAllTanks(tkRes.value);
+      }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[InchargeDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
 
-  const incharge = inchargeFromContext || directIncharge;
-  const agents = getAgentsByIncharge(inchargeId, db);
-  const farmers = getFarmersByIncharge(inchargeId, db);
-  const tanks = getTanksByIncharge(inchargeId, db);
+    return () => { isMounted = false; };
+  }, [inchargeId]);
+
+  const incName = incharge ? (incharge.shortName || incharge.name || '').split('(')[0].trim().toLowerCase() : '';
+  const agents = allAgents.filter(a => a && (String(a.inchargeId) === String(inchargeId) || (incName && a.incharge?.toLowerCase().includes(incName))));
+  const agentIds = agents.map(a => String(a.id));
+  const farmers = allFarmers.filter(f => {
+    if (!f) return false;
+    if (f.inchargeId && String(f.inchargeId) === String(inchargeId)) return true;
+    if (f.incharge && incName && f.incharge.toLowerCase().includes(incName)) return true;
+    if (f.agentId && agentIds.includes(String(f.agentId))) return true;
+    return false;
+  });
+  const farmerIds = farmers.map(f => String(f.id));
+  const tanks = allTanks.filter(t => {
+    if (!t) return false;
+    if (t.inchargeId && String(t.inchargeId) === String(inchargeId)) return true;
+    if (t.farmerId && farmerIds.includes(String(t.farmerId))) return true;
+    if (t.agentId && agentIds.includes(String(t.agentId))) return true;
+    return false;
+  });
 
   if (!incharge) {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
-          {loadingDirect ? 'Loading Incharge Details from MySQL Database...' : 'Incharge Not Found'}
+          {loading ? 'Loading Incharge Details from MySQL Database...' : 'Incharge Not Found'}
         </h3>
         <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
-          {loadingDirect ? 'Retrieving real-time records from the aquaculture database.' : 'The requested ASM record could not be found.'}
+          {loading ? 'Retrieving real-time records from the aquaculture database.' : 'The requested ASM record could not be found.'}
         </p>
         <button
           onClick={() => navigate('/admin/incharges')}
