@@ -455,8 +455,16 @@ const AgentDetail = () => {
 
       {/* Modal 1: Edit Agent Details */}
       {showEditAgentModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '560px' }}>
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowEditAgentModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '560px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -628,8 +636,16 @@ const AgentDetail = () => {
 
       {/* Modal 2: Edit Farmer Details */}
       {showEditFarmerModal && selectedFarmerToEdit && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '520px' }}>
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowEditFarmerModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '520px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={styles.iconCircleGreen}>
@@ -1044,20 +1060,25 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
+    paddingTop: '32px',
+    paddingBottom: '32px',
+    overflowY: 'auto',
     zIndex: 1000
   },
   modalBox: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     maxWidth: '92vw',
-    maxHeight: '90vh',
+    maxHeight: 'calc(100vh - 64px)',
     overflowY: 'auto',
     padding: '24px',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
   },
   modalHeader: {
     display: 'flex',
