@@ -23,6 +23,7 @@ export const useAsmPaths = () => {
     agents: `${base}/agents`,
     myFarmers: `${base}/my-farmers`,
     farmers: `${base}/farmers`,
+    harvest: `${base}/harvest`,
     myTanks: `${base}/my-tanks`,
     tanks: `${base}/tanks`,
     weeklyTests: `${base}/weekly-tests`,

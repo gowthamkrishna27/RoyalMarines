@@ -688,17 +688,17 @@ const WeeklyTests = () => {
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Chlorine (Cl)</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.cl} ppm</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.cl || selectedTestDetail.data.chlorine} ppm</span>
                       <span style={styles.paramCardStatus}>Safe (&lt; 0.02 ppm)</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Iron (Fe)</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.fe} ppm</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.fe || selectedTestDetail.data.iron} ppm</span>
                       <span style={styles.paramCardStatus}>Safe (&lt; 0.02 ppm)</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Water Color</span>
-                      <span style={{ ...styles.paramCardValue, fontSize: '14px', color: '#15803D' }}>{selectedTestDetail.data.waterColor}</span>
+                      <span style={{ ...styles.paramCardValue, fontSize: '14px', color: '#15803D' }}>{selectedTestDetail.data.waterColor || selectedTestDetail.data.waterColour || 'Greenish'}</span>
                       <span style={styles.paramCardStatus}>Healthy Algae Bloom</span>
                     </div>
                   </div>

@@ -18,12 +18,24 @@ const SimpleLogin = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isAdminAuthenticated()) {
+    let authUserRole = null;
+    try {
+      const u = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      authUserRole = (u.role || '').toUpperCase();
+    } catch (e) {}
+
+    if (authUserRole === 'ADMIN' && isAdminAuthenticated()) {
       navigate('/admin/dashboard', { replace: true });
+    } else if ((authUserRole === 'ASM' || authUserRole === 'INCHARGE') && isInchargeAuthenticated()) {
+      navigate('/asm/dashboard', { replace: true });
+    } else if (authUserRole === 'AGENT' && isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
     } else if (isInchargeAuthenticated()) {
-      navigate('/incharge/dashboard', { replace: true });
+      navigate('/asm/dashboard', { replace: true });
     } else if (isAuthenticated()) {
       navigate('/dashboard', { replace: true });
+    } else if (isAdminAuthenticated()) {
+      navigate('/admin/dashboard', { replace: true });
     }
   }, [navigate]);
 
@@ -118,6 +130,8 @@ const SimpleLogin = () => {
 
       // Route based on verified DB role
       if (userRole === 'ADMIN') {
+        localStorage.removeItem('incharge_auth_session');
+        localStorage.removeItem('agent_auth_session');
         // Store admin session
         localStorage.setItem('admin_auth_session', JSON.stringify({
           role: 'admin',
@@ -130,6 +144,8 @@ const SimpleLogin = () => {
         }));
         navigate('/admin/dashboard', { replace: true });
       } else if (userRole === 'ASM' || userRole === 'INCHARGE') {
+        localStorage.removeItem('admin_auth_session');
+        localStorage.removeItem('agent_auth_session');
         // Store incharge/ASM session
         localStorage.setItem('incharge_auth_session', JSON.stringify({
           inchargeId: backendUser.id,
@@ -142,6 +158,8 @@ const SimpleLogin = () => {
         }));
         navigate('/asm/dashboard', { replace: true });
       } else {
+        localStorage.removeItem('admin_auth_session');
+        localStorage.removeItem('incharge_auth_session');
         // Default: Agent
         localStorage.setItem('agent_auth_session', JSON.stringify({
           agentId: backendUser.id,

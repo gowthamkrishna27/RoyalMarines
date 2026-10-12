@@ -1,20 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Scale, User, Phone, MapPin, CheckCircle, Plus, 
   Trash2, Info, FileSpreadsheet, Calendar, Sparkles 
 } from 'lucide-react';
 import { getSession } from '../utils/agentAuth';
+import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
 
-// Initial default harvest store
-const initialHarvestStore = {};
+// Helper to load combined harvest stores
+const loadHarvestStore = () => {
+  try {
+    const cleanStore = JSON.parse(localStorage.getItem('agent_harvest_clean_store') || '{}');
+    const standardStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+    return { ...standardStore, ...cleanStore };
+  } catch (e) {
+    return {};
+  }
+};
 
 const Harvest = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState(null);
-  const { db, getFarmersByAgentId, getTanksByFarmerId } = useMockData();
+  const { 
+    db, 
+    getFarmersByAgentId, 
+    getTanksByFarmerId, 
+    getFarmersByInchargeId, 
+    getMyFarmersByInchargeId 
+  } = useMockData();
+
+  // Detect whether current page is in Incharge / ASM context
+  const isInchargeMode = location.pathname.startsWith('/asm') || 
+                         location.pathname.startsWith('/incharge') || 
+                         (!getSession() && !!getInchargeSession());
 
   // State
   const [farmers, setFarmers] = useState([]);
@@ -24,43 +45,70 @@ const Harvest = () => {
   const [message, setMessage] = useState('');
 
   // Store for harvest data per farmer + tank
-  const [harvestData, setHarvestData] = useState(() => {
-    const saved = localStorage.getItem('agent_harvest_clean_store');
-    return saved ? JSON.parse(saved) : initialHarvestStore;
-  });
+  const [harvestData, setHarvestData] = useState(() => loadHarvestStore());
 
   useEffect(() => {
-    const s = getSession();
-    if (!s) {
-      navigate('/login');
+    const agentSession = getSession();
+    const inchargeSession = getInchargeSession();
+    const isAsm = isInchargeMode || !!inchargeSession;
+    const activeSession = isAsm ? (inchargeSession || agentSession) : (agentSession || inchargeSession);
+
+    if (!activeSession) {
+      if (isInchargeMode) {
+        navigate('/asm-login');
+      } else {
+        navigate('/login');
+      }
       return;
     }
-    setSession(s);
+    setSession(activeSession);
 
-    const agentFarmers = getFarmersByAgentId(s.agentId);
-    setFarmers(agentFarmers);
+    let resolvedFarmers = [];
+    if (isAsm) {
+      const incId = inchargeSession?.inchargeId || 'INC001';
+      resolvedFarmers = (getFarmersByInchargeId && getFarmersByInchargeId(incId)) || [];
+      if (!resolvedFarmers.length && getMyFarmersByInchargeId) {
+        resolvedFarmers = getMyFarmersByInchargeId(incId);
+      }
+    } else {
+      resolvedFarmers = (getFarmersByAgentId && getFarmersByAgentId(activeSession?.agentId)) || [];
+    }
 
-    if (agentFarmers.length > 0) {
-      setSelectedFarmerId(agentFarmers[0].id);
-      const farmerTanks = getTanksByFarmerId(agentFarmers[0].id);
+    if (!resolvedFarmers || resolvedFarmers.length === 0) {
+      resolvedFarmers = db?.farmers || [];
+    }
+
+    setFarmers(resolvedFarmers);
+
+    if (resolvedFarmers.length > 0) {
+      const defaultFarmerId = resolvedFarmers[0].id;
+      setSelectedFarmerId(prev => (prev && resolvedFarmers.some(f => f.id === prev)) ? prev : defaultFarmerId);
+      const targetId = (selectedFarmerId && resolvedFarmers.some(f => f.id === selectedFarmerId)) ? selectedFarmerId : defaultFarmerId;
+      const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(targetId) : [];
       if (farmerTanks.length > 0) {
-        setSelectedTankId(farmerTanks[0].id);
+        setSelectedTankId(prev => (prev && farmerTanks.some(t => t.id === prev)) ? prev : farmerTanks[0].id);
+      } else {
+        setSelectedTankId('');
       }
     }
 
     const handleStoreUpdate = (e) => {
-      if (e.detail) setHarvestData(e.detail);
+      if (e.detail) {
+        setHarvestData(e.detail);
+      } else {
+        setHarvestData(loadHarvestStore());
+      }
     };
 
     window.addEventListener('harvestStoreUpdated', handleStoreUpdate);
     return () => window.removeEventListener('harvestStoreUpdated', handleStoreUpdate);
-  }, [navigate]);
+  }, [navigate, isInchargeMode, db]);
 
   // Update selected tank when farmer changes
   const handleFarmerChange = (farmerId) => {
     setSelectedFarmerId(farmerId);
-    const farmerTanks = getTanksByFarmerId(farmerId);
-    if (farmerTanks.length > 0) {
+    const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : [];
+    if (farmerTanks && farmerTanks.length > 0) {
       setSelectedTankId(farmerTanks[0].id);
     } else {
       setSelectedTankId('');
@@ -145,7 +193,13 @@ const Harvest = () => {
         }
       };
       setHarvestData(updated);
-      localStorage.setItem('agent_harvest_clean_store', JSON.stringify(updated));
+      try {
+        localStorage.setItem('agent_harvest_clean_store', JSON.stringify(updated));
+        localStorage.setItem('agent_harvest_store', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: updated }));
+      } catch (e) {
+        console.error(e);
+      }
       setMessage('Harvest record deleted.');
       setTimeout(() => setMessage(''), 3000);
     }
@@ -160,7 +214,13 @@ const Harvest = () => {
       }
     };
     setHarvestData(updated);
-    localStorage.setItem('agent_harvest_clean_store', JSON.stringify(updated));
+    try {
+      localStorage.setItem('agent_harvest_clean_store', JSON.stringify(updated));
+      localStorage.setItem('agent_harvest_store', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: updated }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -408,15 +468,14 @@ const Harvest = () => {
         isOpen={isRecordModalOpen}
         onClose={() => {
           setIsRecordModalOpen(false);
-          const updatedStore = JSON.parse(localStorage.getItem('agent_harvest_clean_store') || '{}');
-          setHarvestData(updatedStore);
+          setHarvestData(loadHarvestStore());
         }}
         initialType="HARVEST_ENTRY"
+        userRole={isInchargeMode ? 'INCHARGE' : 'AGENT'}
         preselectedFarmerId={selectedFarmerId}
         preselectedTankId={selectedTankId}
         onSuccess={() => {
-          const updatedStore = JSON.parse(localStorage.getItem('agent_harvest_clean_store') || '{}');
-          setHarvestData(updatedStore);
+          setHarvestData(loadHarvestStore());
           setMessage('Harvest record saved successfully!');
           setTimeout(() => setMessage(''), 3000);
         }}

@@ -5,7 +5,7 @@ import {
   ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2, 
   Scale, Wheat, Fish, Activity, TrendingUp, Droplets, 
   Skull, Pill, ClipboardList, Camera, Clock, Lock, 
-  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck
+  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
@@ -20,6 +20,7 @@ const TABS = [
   { id: 'OVERVIEW', label: 'Overview', icon: Layers },
   { id: 'WATER', label: 'Water', icon: Droplets },
   { id: 'FEED', label: 'Feed', icon: Wheat },
+  { id: 'DISEASE', label: 'Disease', icon: Bug },
   { id: 'BIOMASS', label: 'Biomass', icon: Fish },
   { id: 'MEDICATION', label: 'Medication', icon: Pill },
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
@@ -639,7 +640,7 @@ const TankDetails = () => {
       {/* ========================================================= */}
       {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
       {/* ========================================================= */}
-      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
+      {['WATER', 'FEED', 'DISEASE', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
         const tabLabel = TABS.find(t => t.id === activeTab)?.label || 'Test';
         const tabRecords = activeTab === 'REPORTS' ? tankSubmissions : filterSubmissions(activeTab);
 
@@ -656,6 +657,7 @@ const TankDetails = () => {
                     setModalInitialType(
                       activeTab === 'WATER' ? 'WATER_QUALITY' :
                       activeTab === 'FEED' ? 'FEED_ENTRY' :
+                      activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
                       activeTab === 'MEDICATION' ? 'MEDICATION' :
                       activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
                       activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
@@ -767,14 +769,44 @@ const TankDetails = () => {
               {selectedReadRecord.data && (
                 <div style={styles.dataContainer}>
                   <div style={styles.dataHeading}>Logged Field Parameters</div>
-                  {Object.entries(selectedReadRecord.data).map(([k, v]) => (
-                    typeof v === 'object' ? null : (
+                  {Object.entries(selectedReadRecord.data).map(([k, v]) => {
+                    if (v && typeof v === 'object' && !Array.isArray(v)) {
+                      const detected = Object.entries(v);
+                      return (
+                        <div key={k} style={{ ...styles.dataRow, flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                          <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
+                          {detected.length === 0 ? (
+                            <span style={{ ...styles.dataVal, color: '#16A34A', fontWeight: '700' }}>None Detected (Normal)</span>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                              {detected.map(([diseaseName, level]) => (
+                                <span 
+                                  key={diseaseName} 
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    backgroundColor: level === 'Severe' ? '#FEE2E2' : '#FEF3C7',
+                                    color: level === 'Severe' ? '#DC2626' : '#B45309',
+                                    border: level === 'Severe' ? '1px solid #FECACA' : '1px solid #FDE68A'
+                                  }}
+                                >
+                                  {diseaseName}: {level}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
                       <div key={k} style={styles.dataRow}>
                         <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
                         <span style={styles.dataVal}>{String(v)}</span>
                       </div>
-                    )
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
