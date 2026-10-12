@@ -355,7 +355,7 @@ const TakeHarvestModal = ({
                       value={doc}
                       onChange={(e) => setDoc(e.target.value)}
                       placeholder="e.g. 77"
-                      min="1"
+                      min="0"
                       style={{ ...styles.textInput, paddingLeft: '12px' }}
                       required
                     />

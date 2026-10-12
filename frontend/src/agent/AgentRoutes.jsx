@@ -68,8 +68,26 @@ const AgentRoutes = () => {
       <Route path="technician/analytics" element={<MyAnalytics />} />
       <Route path="technician/profile" element={<Profile />} />
 
+      {/* Explicit /agent/* subpaths (for root routing fallback compatibility) */}
+      <Route path="agent" element={<AgentDashboard />} />
+      <Route path="agent/dashboard" element={<AgentDashboard />} />
+      <Route path="agent/farmers" element={<Farmers />} />
+      <Route path="agent/farmers/:farmerId" element={<FarmerDetails />} />
+      <Route path="agent/tanks/:tankId" element={<TankDetails />} />
+      <Route path="agent/ponds/:tankId" element={<TankDetails />} />
+      <Route path="agent/visit/:tankId" element={<SiteVisit />} />
+      <Route path="agent/add-farmer" element={<AddFarmer />} />
+      <Route path="agent/add-tanks" element={<AddTanks />} />
+      <Route path="agent/tests" element={<History />} />
+      <Route path="agent/history" element={<History />} />
+      <Route path="agent/weekly-tests" element={<Tests />} />
+      <Route path="agent/reports" element={<Reports />} />
+      <Route path="agent/harvest" element={<Harvest />} />
+      <Route path="agent/analytics" element={<MyAnalytics />} />
+      <Route path="agent/profile" element={<Profile />} />
+
       {/* Fallback */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Routes>
   );
 };
