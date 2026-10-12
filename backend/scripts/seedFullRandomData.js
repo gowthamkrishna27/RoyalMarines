@@ -303,12 +303,12 @@ async function runSeed() {
 
     // Seed into ponds table
     await query(`
-      INSERT INTO ponds (id, pond_code, farmer_id, name, area_acres, average_depth_ft, latitude, longitude, pond_type, status)
-      VALUES (?, ?, ?, ?, ?, 5.5, ?, ?, 'EARTHEN', 'ACTIVE')
+      INSERT INTO ponds (id, pond_code, farmer_id, name, area_acres, average_depth_ft, latitude, longitude, pond_type, status, tank_id)
+      VALUES (?, ?, ?, ?, ?, 5.5, ?, ?, 'EARTHEN', 'ACTIVE', ?)
       ON DUPLICATE KEY UPDATE
         pond_code=VALUES(pond_code), name=VALUES(name), area_acres=VALUES(area_acres),
-        latitude=VALUES(latitude), longitude=VALUES(longitude), status='ACTIVE'
-    `, [i, `POND_${i}`, (i % farmerRecords.length) + 1, name, pondAcres, pondLat, pondLng]);
+        latitude=VALUES(latitude), longitude=VALUES(longitude), status='ACTIVE', tank_id=VALUES(tank_id)
+    `, [i, `POND_${i}`, (i % farmerRecords.length) + 1, name, pondAcres, pondLat, pondLng, tId]);
 
     // Seed into tanks table
     await query(`

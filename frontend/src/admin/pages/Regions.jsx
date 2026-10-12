@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getRegions, getFarmers, getAgents, getIncharges } from '../utils/adminMockData';
 import { useMockData } from '../../context/MockDataContext';
@@ -745,9 +746,17 @@ const Regions = () => {
       </div>
 
       {/* Modal 1: Comprehensive Farmer Details Modal */}
-      {selectedFarmerDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '680px' }}>
+      {selectedFarmerDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedFarmerDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '680px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleGreen}>
@@ -875,13 +884,22 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 2: Comprehensive Incharge Details Modal */}
-      {selectedInchargeDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '620px' }}>
+      {selectedInchargeDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedInchargeDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '620px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -984,13 +1002,22 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 3: Comprehensive Field Agent Details Modal */}
-      {selectedAgentDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '620px' }}>
+      {selectedAgentDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedAgentDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '620px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -1103,13 +1130,22 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 4: Add Locality */}
-      {showAddModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '480px' }}>
+      {showAddModal && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowAddModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '480px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Plus size={18} color="#2563eb" />
@@ -1165,7 +1201,8 @@ const Regions = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Notification */}
@@ -1627,20 +1664,25 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    zIndex: 1000
+    paddingTop: '32px',
+    paddingBottom: '32px',
+    overflowY: 'auto',
+    zIndex: 99999
   },
   modalBox: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     maxWidth: '92vw',
-    maxHeight: '90vh',
+    maxHeight: 'calc(100vh - 64px)',
     overflowY: 'auto',
     padding: '24px',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
   },
   modalHeader: {
     display: 'flex',
