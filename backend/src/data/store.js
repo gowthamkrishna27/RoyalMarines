@@ -22,7 +22,7 @@ const normalizeUser = (u) => {
 };
 
 class DataStore {
-  constructor() {}
+  constructor() { }
 
   _ensureDb() {
     if (!isDbConnected()) {
@@ -322,7 +322,6 @@ class DataStore {
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
           COALESCE(a.name, '') as agent_name,
-          COALESCE(a.locality, '') as agent_locality,
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id
@@ -366,7 +365,6 @@ class DataStore {
         farmerName: r.farmer_name,
         farmer: r.farmer_name,
         location: r.farmer_location || r.location || '',
-        locality: r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || '',
         agentId: r.agent_id,
         agent: r.agent_name,
         inchargeId: r.incharge_id,
@@ -618,6 +616,10 @@ class DataStore {
         tankId: r.tank_id,
         tankName: r.tank_name,
         testType: r.test_type,
+        submissionTime: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+        time: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+        submission_time: r.submission_time,
+        createdAt: r.created_at,
         submittedAgo: r.submitted_ago || 'Recently',
         data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
       }));
@@ -1304,44 +1306,18 @@ class DataStore {
       }
       sql += ' GROUP BY r.id, r.code, r.name, r.status, r.created_at, r.updated_at, r.active_ponds, r.total_yield, r.avg_fcr ORDER BY r.name ASC';
       const rows = await query(sql, params);
-
-      // Fetch distinct localities for each region
-      let regionLocMap = {};
-      try {
-        const locRows = await query(`
-          SELECT DISTINCT 
-            r.name as region_name,
-            a.locality as locality
-          FROM regions r
-          JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
-          JOIN agents a ON a.incharge_id = i.id
-          WHERE a.locality IS NOT NULL AND a.locality != ''
-        `);
-        for (const loc of locRows) {
-          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
-          regionLocMap[loc.region_name].add(loc.locality);
-        }
-      } catch (locErr) {
-        console.warn('[Warning getting region localities]', locErr.message);
-      }
-
-      return rows.map((r) => {
-        const locSet = regionLocMap[r.name] || new Set();
-        const localities = Array.from(locSet).map(l => ({ name: l }));
-        return {
-          ...r,
-          id: String(r.id),
-          code: r.code || r.id,
-          name: r.name,
-          localities,
-          farmersCount: Number(r.farmers_count || 0),
-          activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
-          tanks: Number(r.actual_tanks_count || r.active_ponds || 0),
-          avgFcr: r.avg_fcr ? Number(r.avg_fcr) : 1.25,
-          totalYield: r.total_yield || '0 Tons',
-          status: r.status || 'ACTIVE',
-        };
-      });
+      return rows.map((r) => ({
+        ...r,
+        id: String(r.id),
+        code: r.code || r.id,
+        name: r.name,
+        farmersCount: Number(r.farmers_count || 0),
+        activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
+        tanks: Number(r.actual_tanks_count || r.active_ponds || 0),
+        avgFcr: r.avg_fcr ? Number(r.avg_fcr) : 1.25,
+        totalYield: r.total_yield || '0 Tons',
+        status: r.status || 'ACTIVE',
+      }));
     } catch (err) {
       console.error('[DB Error in getRegions]', err.message);
       throw new Error(`[DB Error in getRegions]: ${err.message}`);

@@ -10,7 +10,7 @@ const AQUA_HUBS = [
   { name: 'Akividu Wetland Farms', village: 'Akividu', mandal: 'Akividu', district: 'West Godavari', lat: 16.5898, lng: 81.3812, region: 'REG001' },
   { name: 'Kalla Brackish Ponds', village: 'Kalla', mandal: 'Kalla', district: 'West Godavari', lat: 16.5620, lng: 81.4250, region: 'REG001' },
   { name: 'Akuruvu Shrimp Farms', village: 'Akuruvu', mandal: 'Bhimavaram', district: 'West Godavari', lat: 16.5120, lng: 81.4920, region: 'REG001' },
-  
+
   // East Godavari & Kakinada Coastal Hubs
   { name: 'Kakinada Estuary Farms', village: 'Sarpavaram', mandal: 'Kakinada Rural', district: 'Kakinada', lat: 16.9891, lng: 82.2475, region: 'REG002' },
   { name: 'Coringa Coastal Belt', village: 'Coringa', mandal: 'Thallarevu', district: 'Kakinada', lat: 16.8920, lng: 82.3150, region: 'REG002' },
@@ -303,12 +303,12 @@ async function runSeed() {
 
     // Seed into ponds table
     await query(`
-      INSERT INTO ponds (id, pond_code, farmer_id, name, area_acres, average_depth_ft, latitude, longitude, pond_type, status, tank_id)
-      VALUES (?, ?, ?, ?, ?, 5.5, ?, ?, 'EARTHEN', 'ACTIVE', ?)
+      INSERT INTO ponds (id, pond_code, farmer_id, name, area_acres, average_depth_ft, latitude, longitude, pond_type, status)
+      VALUES (?, ?, ?, ?, ?, 5.5, ?, ?, 'EARTHEN', 'ACTIVE')
       ON DUPLICATE KEY UPDATE
         pond_code=VALUES(pond_code), name=VALUES(name), area_acres=VALUES(area_acres),
-        latitude=VALUES(latitude), longitude=VALUES(longitude), status='ACTIVE', tank_id=VALUES(tank_id)
-    `, [i, `POND_${i}`, (i % farmerRecords.length) + 1, name, pondAcres, pondLat, pondLng, tId]);
+        latitude=VALUES(latitude), longitude=VALUES(longitude), status='ACTIVE'
+    `, [i, `POND_${i}`, (i % farmerRecords.length) + 1, name, pondAcres, pondLat, pondLng]);
 
     // Seed into tanks table
     await query(`

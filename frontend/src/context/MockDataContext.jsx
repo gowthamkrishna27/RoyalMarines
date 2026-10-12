@@ -696,11 +696,15 @@ export const MockDataProvider = ({ children }) => {
     };
 
     const submitRecord = (submissionData) => {
+      const resolvedTime = submissionData.submissionTime || submissionData.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
       const newSubmission = {
         id: `SUB${Date.now()}`,
         status: 'PENDING_VERIFICATION',
         submittedAgo: 'Just now',
         date: new Date().toISOString().split('T')[0],
+        submissionTime: resolvedTime,
+        time: resolvedTime,
+        submission_time: resolvedTime,
         ...submissionData
       };
 
@@ -1297,6 +1301,8 @@ export const MockDataProvider = ({ children }) => {
                         recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
         date: formattedDate,
         submissionTime: resolvedTime,
+        time: resolvedTime,
+        submission_time: resolvedTime,
         submittedAgo: 'Just now',
         status: 'PENDING_VERIFICATION',
         data,
