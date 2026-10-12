@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, Send, MapPin, AlertTriangle, Droplet, Fish, Pill, Bug, ChevronRight, Check, Edit3, RefreshCw, Radio } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
+import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 import { captureDeviceGPS, getStoredGPS, requestSubmissionGPS, getDistanceMeters } from '../utils/gpsService';
 
 const STEPS = [
@@ -25,7 +26,7 @@ const SiteVisit = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isIncharge = location.pathname.startsWith('/incharge');
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
   const targetTankUrl = isIncharge ? `/incharge/tanks/${tankId}` : `/tanks/${tankId}`;
   const [tank, setTank] = useState(null);
   const [session, setSession] = useState(null);
@@ -43,7 +44,7 @@ const SiteVisit = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    water: { doc: '', salinity: '', ph: '', alkalinity: '', hardness: '', ammonia: '', nitrite: '', k: '', do: '', h2s: '', chlorine: '', iron: '', waterColour: '' },
+    water: { date: new Date().toISOString().split('T')[0], doc: '', salinity: '', ph: '', alkalinity: '', hardness: '', ammonia: '', nitrite: '', k: '', do: '', h2s: '', chlorine: '', iron: '', waterColour: 'Greenish' },
     feed: { doc: '', seed: '', abw: '', dayFeed: '', cumulativeFeed: '', totalBiomass: '', fcr: '', checkTrayFeed: '', checkTrayTime: '', remarks: '' },
     medication: { treatmentType: '', category: '', product: '', dosage: '', remarks: '' },
     disease: { observations: [], remarks: '' },
@@ -51,7 +52,7 @@ const SiteVisit = () => {
   });
 
   useEffect(() => {
-    const s = getSession();
+    const s = isIncharge ? (getInchargeSession() || getSession()) : (getSession() || getInchargeSession());
     setSession(s);
     
     setTank(getTankById(tankId));
@@ -212,13 +213,24 @@ const SiteVisit = () => {
   };
 
   const updateFormData = (section, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
+    setFormData(prev => {
+      const nextSec = {
         ...prev[section],
         [field]: value
+      };
+      // Auto-compute hardness (salinity * 300) and Potassium K (salinity * 10.7)
+      if (section === 'water' && field === 'salinity') {
+        const num = parseFloat(value);
+        if (!isNaN(num) && num > 0) {
+          nextSec.hardness = String(Math.round(num * 300));
+          nextSec.k = String((num * 10.7).toFixed(1));
+        }
       }
-    }));
+      return {
+        ...prev,
+        [section]: nextSec
+      };
+    });
   };
 
   const toggleDisease = (diseaseStr) => {
@@ -232,6 +244,17 @@ const SiteVisit = () => {
   };
 
   const checkWaterWarning = (field, value) => {
+    const num = parseFloat(value);
+    if (isNaN(num)) return null;
+    if (field === 'salinity' && (num < 0 || num > 30)) return 'Target range: 0 - 30 ppt';
+    if (field === 'ph' && (num < 7.5 || num > 8.5)) return 'Optimal range: 7.5 - 8.5';
+    if (field === 'alkalinity' && (num < 100 || num > 300)) return 'Target range: 100 - 300 ppm';
+    if (field === 'ammonia' && num > 0.5) return 'High Ammonia (> 0.5 ppm)';
+    if (field === 'nitrite' && num > 0.25) return 'High Nitrite (> 0.25 ppm)';
+    if (field === 'do' && num < 4.0) return 'Critical low DO (< 4.0 mg/L)';
+    if (field === 'h2s' && num > 0.02) return 'Toxic H2S detected (> 0.02 ppm)';
+    if ((field === 'chlorine' || field === 'cl') && num > 0.02) return 'High Chlorine (> 0.02 ppm)';
+    if ((field === 'iron' || field === 'fe') && num > 0.02) return 'High Iron (> 0.02 ppm)';
     return null;
   };
 
@@ -286,20 +309,44 @@ const SiteVisit = () => {
     const formattedDate = now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
+    const resolvedUserId = isIncharge
+      ? (session?.inchargeId || session?.id || 'INC001')
+      : (session?.agentId || session?.id || 'agent001');
+    const resolvedUserName = session?.name || (isIncharge ? 'Incharge' : 'Ramesh');
+
+    const enrichedWater = {
+      ...formData.water,
+      cl: formData.water.cl ?? formData.water.chlorine ?? '',
+      chlorine: formData.water.chlorine ?? formData.water.cl ?? '',
+      fe: formData.water.fe ?? formData.water.iron ?? '',
+      iron: formData.water.iron ?? formData.water.fe ?? '',
+      waterColor: formData.water.waterColor ?? formData.water.waterColour ?? 'Greenish',
+      waterColour: formData.water.waterColour ?? formData.water.waterColor ?? 'Greenish',
+    };
+
     submitRecord({
       tankId,
-      agentId: session?.agentId || 'agent001',
-      userId: session?.agentId || 'agent001',
-      userName: session?.name || 'Ramesh',
-      role: 'Agent',
-      formData,
+      farmerId: tank?.farmerId,
+      agentId: resolvedUserId,
+      userId: resolvedUserId,
+      userName: resolvedUserName,
+      role: resolvedRole,
+      submittedBy: resolvedRole,
+      testType: 'Water Analysis',
+      recordType: 'WATER_QUALITY',
+      formData: {
+        ...formData,
+        water: enrichedWater,
+      },
+      data: enrichedWater,
       latitude: locationFix.latitude,
       longitude: locationFix.longitude,
       accuracy: locationFix.accuracy,
       date: formattedDate,
       submissionTime: formattedTime,
       timestamp: now.toISOString(),
-      locality: locationFix.locality || 'Coastal Aquaculture Zone',
+      locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
       gps: {
         latitude: locationFix.latitude,
         longitude: locationFix.longitude,
@@ -311,7 +358,7 @@ const SiteVisit = () => {
       submittedAt: now.toISOString()
     });
     alert('Site Visit submitted successfully! High-accuracy GPS recorded.');
-    navigate('/dashboard');
+    navigate(targetTankUrl);
   };
 
   const renderStepContent = () => {
@@ -503,20 +550,76 @@ const SiteVisit = () => {
       case 1:
         return (
           <div style={styles.stepContainer}>
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              {renderInput('water', 'doc', 'DOC / Date', 'date')}
-              {renderInput('water', 'salinity', 'Salinity (ppt)', 'number')}
-              {renderInput('water', 'ph', 'pH', 'number')}
-              {renderInput('water', 'alkalinity', 'Alkalinity (ppm)', 'number')}
-              {renderInput('water', 'hardness', 'Hardness', 'number')}
-              {renderInput('water', 'ammonia', 'Ammonia', 'number')}
-              {renderInput('water', 'nitrite', 'Nitrite', 'number')}
-              {renderInput('water', 'k', 'Potassium (K)', 'number')}
-              {renderInput('water', 'do', 'DO (mg/L)', 'number')}
-              {renderInput('water', 'h2s', 'H2S', 'number')}
-              {renderInput('water', 'chlorine', 'Chlorine', 'number')}
-              {renderInput('water', 'iron', 'Iron', 'number')}
-              {renderInput('water', 'waterColour', 'Water Colour', 'text', 'e.g. Greenish')}
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8', letterSpacing: '0.5px' }}>
+                WATER QUALITY PARAMETERS
+              </span>
+              <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+                13 Parameters Telemetry
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '14px' }}>
+              {/* 1. Date (Insert Date Box) */}
+              {renderInput('water', 'date', 'Test Date (Insert Date Box)', 'date')}
+
+              {/* 2. DOC */}
+              {renderInput('water', 'doc', 'DOC (Day of Culture)', 'number', 'e.g. 45')}
+
+              {/* 3. Salinity: 0 - 30 ppt */}
+              {renderInput('water', 'salinity', 'Salinity (0 - 30 ppt)', 'number', 'e.g. 15.0')}
+
+              {/* 4. pH: 7.5 to 8.5 */}
+              {renderInput('water', 'ph', 'pH Level (Optimal 7.5 - 8.5)', 'number', 'e.g. 7.8')}
+
+              {/* 5. Alkalinity: 100 - 300 ppm */}
+              {renderInput('water', 'alkalinity', 'Alkalinity (100 - 300 ppm)', 'number', 'e.g. 140')}
+
+              {/* 6. Hardness: Salinity * 300 */}
+              {renderInput('water', 'hardness', 'Hardness (1 Salinity = 300 ppm)', 'number', 'Auto-calculated')}
+
+              {/* 7. Potassium (K): Salinity * 10.7 */}
+              {renderInput('water', 'k', 'Potassium - K (1 Salinity = 10.7 ppm)', 'number', 'Auto-calculated')}
+
+              {/* 8. DO: Target > 4.0 (<4 Alert) */}
+              {renderInput('water', 'do', 'Dissolved Oxygen - DO (>4.0 mg/L)', 'number', 'e.g. 5.5')}
+
+              {/* 9. Ammonia: 0 to >0.5 ppm */}
+              {renderInput('water', 'ammonia', 'Ammonia - NH3 (< 0.5 ppm)', 'number', 'e.g. 0.05')}
+
+              {/* 10. Nitrite: 0 to >0.25 ppm */}
+              {renderInput('water', 'nitrite', 'Nitrite - NO2 (< 0.25 ppm)', 'number', 'e.g. 0.02')}
+
+              {/* 11. H2S: 0 to >0.02 ppm */}
+              {renderInput('water', 'h2s', 'H2S - Hydrogen Sulfide (< 0.02 ppm)', 'number', 'e.g. 0.005')}
+
+              {/* 12. Chlorine: 0 to >0.02 ppm */}
+              {renderInput('water', 'chlorine', 'Chlorine - Cl (< 0.02 ppm)', 'number', 'e.g. 0.004')}
+
+              {/* 13. Iron: 0 to 0.02 ppm */}
+              {renderInput('water', 'iron', 'Iron - Fe (0 - 0.02 ppm)', 'number', 'e.g. 0.01')}
+
+              {/* 14. Water Colour (Bloom condition) */}
+              <div className="input-group">
+                <label style={styles.label}>Water Color (Algae / Bloom Condition)</label>
+                <div className="input-field">
+                  <select 
+                    value={formData.water.waterColour || formData.water.waterColor || 'Greenish'}
+                    onChange={e => {
+                      updateFormData('water', 'waterColour', e.target.value);
+                      updateFormData('water', 'waterColor', e.target.value);
+                    }}
+                    style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '14px', color: '#0F172A' }}
+                  >
+                    <option value="Greenish">Greenish (Optimal Plankton)</option>
+                    <option value="Light Green">Light Green (Healthy Green Algae)</option>
+                    <option value="Golden Brown">Golden Brown (Diatom Bloom)</option>
+                    <option value="Brownish">Brownish (Mixed Algae)</option>
+                    <option value="Dark Green">Dark Green (Dense Bloom)</option>
+                    <option value="Clear / Turbid">Clear / Turbid</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
         );
