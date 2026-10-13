@@ -12,405 +12,302 @@ const normalizeDate = (dateStr) => {
       return d.toISOString().split('T')[0];
     }
   } catch (e) {}
-  return dateStr;
+  return String(dateStr);
 };
 
 /**
- * Filter submissions based on agent, farmer, dateFrom, and dateTo
+ * Helper to safely extract numeric values from strings like '16.5g', '1400kg', '34 Acres'
  */
-export const filterSubmissions = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
+const parseNumeric = (val, defaultVal = 0) => {
+  if (val === null || val === undefined || val === '') return defaultVal;
+  if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+  const cleaned = String(val).replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? defaultVal : parsed;
+};
+
+/**
+ * Resolves farmers, tanks, and submissions according to the selected incharge, agent, and farmer filters.
+ */
+export const resolveScopedData = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
   const normAgentId = (agentId && agentId !== 'ALL' && agentId !== '') ? String(agentId) : null;
   const normFarmerId = (selectedFarmerId && selectedFarmerId !== 'ALL' && selectedFarmerId !== '') ? String(selectedFarmerId) : null;
   const normInchargeId = (inchargeId && inchargeId !== 'ALL' && inchargeId !== '') ? String(inchargeId) : null;
   const normDateFrom = normalizeDate(dateFrom);
   const normDateTo = normalizeDate(dateTo);
 
-  let list = db?.submissions || [];
+  const allFarmers = db?.farmers || [];
+  const allTanks = db?.tanks || [];
+  const allSubmissions = db?.submissions || [];
+  const allHarvests = db?.harvests || [];
+  const allAgents = db?.agents || [];
+  const allIncharges = db?.incharges || [];
 
-  if (normAgentId) {
-    list = list.filter(s => String(s.agentId) === normAgentId);
+  const inchargeObj = normInchargeId ? allIncharges.find(i => String(i.id) === normInchargeId || i.name === normInchargeId) : null;
+  const agentObj = normAgentId ? allAgents.find(a => String(a.id) === normAgentId || a.name === normAgentId) : null;
+  const farmerObj = normFarmerId ? allFarmers.find(f => String(f.id) === normFarmerId) : null;
+
+  // 1. Resolve Farmers in Scope
+  let scopedFarmers = allFarmers;
+  if (normFarmerId) {
+    scopedFarmers = allFarmers.filter(f => String(f.id) === normFarmerId);
+  } else if (normAgentId) {
+    scopedFarmers = allFarmers.filter(f => 
+      String(f.agentId || f.agent_id) === normAgentId || 
+      (agentObj && f.agent && f.agent.toLowerCase().includes(agentObj.name.toLowerCase()))
+    );
   } else if (normInchargeId) {
-    const incAgents = (db?.agents || []).filter(a => String(a.inchargeId || a.incharge_id) === normInchargeId).map(a => String(a.id));
-    const incFarmers = (db?.farmers || []).filter(f => String(f.inchargeId || f.incharge_id) === normInchargeId || (f.agentId && incAgents.includes(String(f.agentId)))).map(f => String(f.id));
-    list = list.filter(s => 
-      incFarmers.includes(String(s.farmerId)) || 
-      incAgents.includes(String(s.agentId)) || 
-      String(s.inchargeId) === normInchargeId
+    const incAgentIds = allAgents
+      .filter(a => String(a.inchargeId || a.incharge_id) === normInchargeId || (inchargeObj && a.incharge && a.incharge.toLowerCase().includes(inchargeObj.name.toLowerCase())))
+      .map(a => String(a.id));
+
+    scopedFarmers = allFarmers.filter(f => 
+      String(f.inchargeId || f.incharge_id) === normInchargeId ||
+      (inchargeObj && f.incharge && f.incharge.toLowerCase().includes(inchargeObj.name.toLowerCase())) ||
+      (f.agentId && incAgentIds.includes(String(f.agentId)))
     );
   }
 
-  if (normFarmerId) {
-    list = list.filter(s => String(s.farmerId) === normFarmerId);
-  }
+  const scopedFarmerIds = new Set(scopedFarmers.map(f => String(f.id)));
 
-  if (normDateFrom) {
-    list = list.filter(s => {
-      const sDate = normalizeDate(s.date || s.createdAt);
-      return !sDate || sDate >= normDateFrom;
-    });
-  }
+  // 2. Resolve Tanks in Scope
+  const scopedTanks = allTanks.filter(t => {
+    const fId = String(t.farmerId || t.farmer_id || '');
+    if (scopedFarmerIds.has(fId)) return true;
+    if (normFarmerId && fId === normFarmerId) return true;
+    return false;
+  });
 
-  if (normDateTo) {
-    list = list.filter(s => {
-      const sDate = normalizeDate(s.date || s.createdAt);
-      return !sDate || sDate <= normDateTo;
-    });
-  }
+  const scopedTankIds = new Set(scopedTanks.map(t => String(t.id)));
 
-  return list;
-};
+  // 3. Resolve Submissions in Scope
+  let scopedSubmissions = allSubmissions.filter(s => {
+    const fId = String(s.farmerId || s.farmer_id || '');
+    const tId = String(s.tankId || s.tank_id || '');
 
-/**
- * Generate Weekly Sampling & Biomass Growth Dataset
- */
-export const generateSamplingReportData = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
-  const normAgentId = (agentId && agentId !== 'ALL' && agentId !== '') ? String(agentId) : null;
-  const normFarmerId = (selectedFarmerId && selectedFarmerId !== 'ALL' && selectedFarmerId !== '') ? String(selectedFarmerId) : null;
-  const normInchargeId = (inchargeId && inchargeId !== 'ALL' && inchargeId !== '') ? String(inchargeId) : null;
-
-  const incAgents = normInchargeId ? (db?.agents || []).filter(a => String(a.inchargeId || a.incharge_id) === normInchargeId).map(a => String(a.id)) : [];
-
-  const farmers = (db?.farmers || []).filter(f => {
-    if (normAgentId && String(f.agentId || f.agent_id) !== normAgentId) return false;
-    if (!normAgentId && normInchargeId) {
-      const matchInc = String(f.inchargeId || f.incharge_id) === normInchargeId || (f.agentId && incAgents.includes(String(f.agentId)));
-      if (!matchInc) return false;
+    if (normFarmerId) {
+      if (fId !== normFarmerId && !scopedTankIds.has(tId)) return false;
+    } else {
+      const matchFarmer = scopedFarmerIds.has(fId);
+      const matchTank = scopedTankIds.has(tId);
+      if (!matchFarmer && !matchTank) return false;
     }
-    if (normFarmerId && String(f.id) !== normFarmerId) return false;
+
+    if (normDateFrom) {
+      const sDate = normalizeDate(s.date || s.createdAt || s.created_at);
+      if (sDate && sDate < normDateFrom) return false;
+    }
+    if (normDateTo) {
+      const sDate = normalizeDate(s.date || s.createdAt || s.created_at);
+      if (sDate && sDate > normDateTo) return false;
+    }
+
     return true;
   });
 
-  const tanks = (db?.tanks || []).filter(t => {
-    return farmers.some(f => f.id === t.farmerId);
-  });
-
-  const candidateTanks = tanks;
-
-  if (candidateTanks.length === 0) {
-    return [];
-  }
-
-  const rows = candidateTanks.map((t, idx) => {
-    const farmer = (db?.farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
-    const tankName = t.name || `Tank ${idx + 1}`;
-    const areaVal = parseFloat(t.acres || t.size) || 1.0;
-    const seedVal = parseInt(t.stockedSeed) || 100000;
-    const densityVal = Number((seedVal / (areaVal * 4046.86)).toFixed(1)) || 25.0;
-    const docVal = t.doc || 35;
-    const presAbw = parseFloat(t.abw) || 14.0;
-    const presCount = Math.round(1000 / (presAbw || 1)) || 70;
-    const lastAbw = Math.max(1, presAbw - 2.0);
-    const lastCount = Math.round(1000 / lastAbw);
-    const growthIncr = Number((presAbw - lastAbw).toFixed(2));
-    const adgWeek = Number((growthIncr / 7).toFixed(2));
-    const overallAdg = Number((presAbw / (docVal || 35)).toFixed(2));
-    const dayFeed = Number((presAbw * 3).toFixed(1));
-    const countNum = 100000;
-    const tcf = Number((presAbw * 80).toFixed(1));
-    const noTcf = Number((presAbw * 7500).toFixed(1));
-    const biomass = parseInt(String(t.biomass || '').replace(/\D/g, '')) || Math.round((countNum * presAbw) / 1000);
-    const survival = Number(((countNum / (seedVal || 1)) * 100).toFixed(2)) || 90.0;
-    const fcr = parseFloat(t.fcr) || Number((tcf / (biomass || 1)).toFixed(2)) || 1.25;
-
-    return {
-      farmerName: farmer ? farmer.name : (t.farmerName || 'Farmer'),
-      tankNo: tankName,
-      area: areaVal,
-      stockedDate: t.stockingDate || t.lastTest || '',
-      seed: seedVal,
-      density: densityVal,
-      doc: docVal,
-      prevDate: '',
-      presDate: t.lastTest || '',
-      dur: 7,
-      presCount,
-      presAbw,
-      lastCount,
-      lastAbw,
-      growthIncr,
-      adgWeek,
-      overallAdg,
-      dayFeed,
-      countNum,
-      tcf,
-      noTcf,
-      biomass,
-      survival,
-      fcr
-    };
-  });
-
-  return rows;
-};
-
-/**
- * Generate Harvest Master Report Dataset strictly from MySQL database records
- */
-export const generateHarvestMasterReportData = (db, agentId = null, selectedFarmerId = 'ALL', inchargeId = null) => {
-  const normAgentId = (agentId && agentId !== 'ALL' && agentId !== '') ? String(agentId) : null;
-  const normFarmerId = (selectedFarmerId && selectedFarmerId !== 'ALL' && selectedFarmerId !== '') ? String(selectedFarmerId) : null;
-  const normInchargeId = (inchargeId && inchargeId !== 'ALL' && inchargeId !== '') ? String(inchargeId) : null;
-
-  const incAgents = normInchargeId ? (db?.agents || []).filter(a => String(a.inchargeId || a.incharge_id) === normInchargeId).map(a => String(a.id)) : [];
-
-  const harvests = (db?.harvests || []).filter(h => {
+  // 4. Resolve Harvests in Scope
+  const scopedHarvests = allHarvests.filter(h => {
     const fId = String(h.farmerId || h.farmer_id || '');
-    if (normFarmerId && fId !== normFarmerId) return false;
-    const farmer = (db?.farmers || []).find(f => String(f.id) === fId);
-    if (normAgentId) {
-      if (farmer && String(farmer.agentId || farmer.agent_id) !== normAgentId) return false;
-    } else if (normInchargeId) {
-      const matchInc = farmer && (String(farmer.inchargeId || farmer.incharge_id) === normInchargeId || incAgents.includes(String(farmer.agentId || farmer.agent_id)));
-      if (!matchInc) return false;
+    const tId = String(h.tankId || h.tank_id || '');
+    if (normFarmerId) {
+      return fId === normFarmerId || scopedTankIds.has(tId);
     }
-    return true;
+    return scopedFarmerIds.has(fId) || scopedTankIds.has(tId);
   });
 
-  if (harvests.length === 0) {
-    return [];
-  }
+  const scopeLabel = `${farmerObj ? farmerObj.name : 'All Scoped Farmers'} • ${agentObj ? agentObj.name : (inchargeObj ? `Incharge: ${inchargeObj.name}` : 'All Staff')}`;
 
-  return harvests.map((h, idx) => {
-    const farmer = (db?.farmers || []).find(f => String(f.id) === String(h.farmerId || h.farmer_id));
-    return {
-      sNo: idx + 1,
-      asm: farmer?.incharge || h.recorded_by || 'ASM',
-      farmerId: String(h.farmerId || h.farmer_id || ''),
-      farmer: h.farmerName || farmer?.name || 'Farmer',
-      phone: farmer?.phone || '',
-      district: farmer?.region || '',
-      village: farmer?.location || farmer?.village || '',
-      brand: 'Hypro+Premium',
-      waterSource: farmer?.waterSource || 'Bore',
-      pondNo: h.tankName || h.tankId || `Tank ${idx + 1}`,
-      pondArea: 1.0,
-      stockingDate: h.date || '',
-      seedStocked: 100000,
-      density: 25.0,
-      partialCount: '',
-      partialQtyKg: '',
-      partialSeed: '',
-      partialCount2: '',
-      partialQtyKg2: '',
-      partialSeed2: '',
-      finalDate: h.date || '',
-      finalDoc: h.doc || 80,
-      finalCount: h.countPerKg || 30,
-      finalQtyKg: h.quantityKg || 0,
-      finalSeed: 0,
-      totalQtyKg: h.quantityKg || 0,
-      cumFeedKg: 0,
-      fcr: h.fcr || '1.25',
-      totalHarvestedSeed: 0,
-      survivalPct: 85,
-      remarks: h.remarks || 'Standard harvest cycle'
-    };
-  });
+  return {
+    inchargeObj,
+    agentObj,
+    farmerObj,
+    scopedFarmers,
+    scopedTanks,
+    scopedSubmissions,
+    scopedHarvests,
+    scopeLabel
+  };
 };
 
 /**
- * Sheet 1: Executive Analysis & Comprehensive KPI Overview
+ * Filter submissions based on agent, farmer, dateFrom, dateTo, and incharge
  */
-export const buildExecutiveSummarySheet = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, filteredSubmissions = []) => {
-  const normAgentId = (agentId && agentId !== 'ALL' && agentId !== '') ? agentId : null;
-  const normFarmerId = (selectedFarmerId && selectedFarmerId !== 'ALL' && selectedFarmerId !== '') ? selectedFarmerId : null;
+export const filterSubmissions = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
+  const { scopedSubmissions } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
+  return scopedSubmissions;
+};
 
-  const agentObj = normAgentId ? (db?.agents || []).find(a => a.id === normAgentId) : null;
-  const farmerObj = normFarmerId ? (db?.farmers || []).find(f => f.id === normFarmerId) : null;
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 1: FARMER DETAILS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildFarmerDetailsSheet = (farmers, db, inchargeObj, agentObj, scopeLabel, currentDate) => {
+  const headers = [
+    'S. No',
+    'Farmer ID',
+    'Farmer Name',
+    'Contact Phone',
+    'Region',
+    'Village / Locality',
+    'Assigned Incharge (ASM)',
+    'Assigned Field Agent',
+    'Total Land (Acres)',
+    'Total Ponds / Tanks',
+    'Water Source',
+    'Operational Status'
+  ];
 
-  const allFarmers = db?.farmers || [];
-  const allAgents = db?.agents || [];
-  const allTanks = db?.tanks || [];
+  const dataRows = (farmers || []).map((f, idx) => {
+    const farmerTanks = (db?.tanks || []).filter(t => String(t.farmerId || t.farmer_id) === String(f.id));
+    const acresVal = parseNumeric(f.acres || f.totalAcres || f.total_acres || 0);
 
-  // Filtered scope labels
-  const farmerScope = farmerObj ? `${farmerObj.name} (${farmerObj.location || 'Local Farm'})` : `All Farmers (${allFarmers.length} registered)`;
-  const agentScope = agentObj ? `${agentObj.name} (${agentObj.locality || 'Field Cluster'})` : `All Field Technicians (${allAgents.length} active)`;
-  const dateScope = `${dateFrom || 'Earliest'} to ${dateTo || 'Latest'}`;
-
-  // Computations on filteredSubmissions
-  const totalRecords = filteredSubmissions.length;
-  let wqCount = 0, feedCount = 0, samplingCount = 0, diseaseCount = 0, harvestCount = 0, farmCount = 0;
-  let sumDO = 0, countDO = 0;
-  let sumPH = 0, countPH = 0;
-  let sumSalinity = 0, countSalinity = 0;
-  let sumAlkalinity = 0, countAlkalinity = 0;
-  let sumAmmonia = 0, countAmmonia = 0;
-  let sumNitrite = 0, countNitrite = 0;
-  let sumBiomass = 0;
-  let sumFCR = 0, countFCR = 0;
-
-  const uniqueFarmerIds = new Set();
-  const uniqueTankIds = new Set();
-
-  filteredSubmissions.forEach(s => {
-    if (s.farmerId) uniqueFarmerIds.add(s.farmerId);
-    if (s.tankId) uniqueTankIds.add(s.tankId);
-
-    const type = (s.testType || s.recordType || '').toLowerCase();
-    if (type.includes('water') || type.includes('analysis')) wqCount++;
-    else if (type.includes('feed')) feedCount++;
-    else if (type.includes('sampling') || type.includes('biomass') || type.includes('medication')) samplingCount++;
-    else if (type.includes('disease') || type.includes('mortality') || type.includes('observation')) diseaseCount++;
-    else if (type.includes('harvest')) harvestCount++;
-    else farmCount++;
-
-    const wq = s.data?.waterQuality || s.data || {};
-    if (wq.do !== undefined && !isNaN(parseFloat(wq.do))) {
-      sumDO += parseFloat(wq.do);
-      countDO++;
-    }
-    if (wq.ph !== undefined && !isNaN(parseFloat(wq.ph))) {
-      sumPH += parseFloat(wq.ph);
-      countPH++;
-    }
-    if (wq.salinity !== undefined && !isNaN(parseFloat(wq.salinity))) {
-      sumSalinity += parseFloat(wq.salinity);
-      countSalinity++;
-    }
-    if (wq.alkalinity !== undefined && !isNaN(parseFloat(wq.alkalinity))) {
-      sumAlkalinity += parseFloat(wq.alkalinity);
-      countAlkalinity++;
-    }
-    if (wq.ammonia !== undefined && !isNaN(parseFloat(wq.ammonia))) {
-      sumAmmonia += parseFloat(wq.ammonia);
-      countAmmonia++;
-    }
-    if (wq.nitrite !== undefined && !isNaN(parseFloat(wq.nitrite))) {
-      sumNitrite += parseFloat(wq.nitrite);
-      countNitrite++;
-    }
-
-    if (s.data?.biomass) {
-      const bioVal = parseFloat(String(s.data.biomass).replace(/[^\d.]/g, ''));
-      if (!isNaN(bioVal)) sumBiomass += bioVal;
-    }
-    if (s.data?.fcr) {
-      const fcrVal = parseFloat(s.data.fcr);
-      if (!isNaN(fcrVal) && fcrVal > 0) {
-        sumFCR += fcrVal;
-        countFCR++;
-      }
-    }
+    return [
+      idx + 1,
+      f.id || f.farmerCode || `FARM-${idx + 1}`,
+      f.name || 'Farmer',
+      f.phone || 'N/A',
+      f.region || f.region_name || inchargeObj?.region || 'Andhra Pradesh',
+      f.village || f.location || f.mandal || 'N/A',
+      f.incharge || f.incharge_name || inchargeObj?.name || 'Assigned Incharge',
+      f.agent || f.agent_name || agentObj?.name || 'Assigned Agent',
+      acresVal > 0 ? `${acresVal} Acres` : 'N/A',
+      farmerTanks.length || f.tanks || 0,
+      f.waterSource || f.water_source || 'Canal / Borewell',
+      f.status || 'ACTIVE'
+    ];
   });
-
-  const avgDO = countDO > 0 ? (sumDO / countDO).toFixed(2) : '5.60';
-  const avgPH = countPH > 0 ? (sumPH / countPH).toFixed(2) : '7.85';
-  const avgSalinity = countSalinity > 0 ? `${(sumSalinity / countSalinity).toFixed(1)} ppt` : '16.0 ppt';
-  const avgAlkalinity = countAlkalinity > 0 ? `${Math.round(sumAlkalinity / countAlkalinity)} ppm` : '140 ppm';
-  const avgAmmonia = countAmmonia > 0 ? `${(sumAmmonia / countAmmonia).toFixed(3)} ppm` : '0.050 ppm';
-  const avgNitrite = countNitrite > 0 ? `${(sumNitrite / countNitrite).toFixed(3)} ppm` : '0.020 ppm';
-  const avgFCR = countFCR > 0 ? (sumFCR / countFCR).toFixed(2) : '1.18';
-  const activeFarmerCount = uniqueFarmerIds.size || (farmerObj ? 1 : allFarmers.length);
-  const activeTankCount = uniqueTankIds.size || (farmerObj ? (allTanks.filter(t => t.farmerId === farmerObj.id).length || 2) : allTanks.length);
-
-  const denom = totalRecords || 1;
-  const wqPct = Math.round((wqCount / denom) * 100);
-  const feedPct = Math.round((feedCount / denom) * 100);
-  const samplingPct = Math.round((samplingCount / denom) * 100);
-  const diseasePct = Math.round((diseaseCount / denom) * 100);
-  const harvestPct = Math.round((harvestCount / denom) * 100);
-  const farmPct = Math.max(0, 100 - (wqPct + feedPct + samplingPct + diseasePct + harvestPct));
 
   const sheetData = [
-    ['ROYAL MARINES AQUA CULTURE - EXECUTIVE TELEMETRY & OPERATIONS ANALYSIS'],
-    ['Generated automatically based on customized user filter parameters'],
+    ['ROYAL MARINES AQUACULTURE - FARMER DIRECTORY REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Farmers: ${farmers.length} | Export Date: ${currentDate}`],
     [],
-    ['1. FILTER CRITERIA & APPLIED SCOPE'],
-    ['Parameter', 'Configured Value', 'Scope Details'],
-    ['Target Farmer', farmerScope, farmerObj ? `ID: ${farmerObj.id} • Mobile: ${farmerObj.phone || 'N/A'}` : 'Aggregated across all farmers in scope'],
-    ['Field Technician / Agent', agentScope, agentObj ? `ID: ${agentObj.id} • Mobile: ${agentObj.phone || 'N/A'}` : 'Aggregated across all active technicians'],
-    ['Date Range (From - To)', dateScope, `From: ${dateFrom || 'Beginning of time'} | To: ${dateTo || 'Latest recorded date'}`],
-    ['Report Generation Timestamp', new Date().toLocaleString(), 'Enterprise Operations System'],
-    ['Total Field Submissions in Scope', totalRecords, `${totalRecords} telemetry entries analyzed`],
-    [],
-    ['2. OPERATIONAL TELEMETRY & WATER CHEMISTRY KPIS'],
-    ['Metric Description', 'Analyzed Value', 'Target Standard / Unit', 'Health Evaluation'],
-    ['Active Farmers Supervised', activeFarmerCount, 'Farmers', 'Normal Supervised Coverage'],
-    ['Active Ponds / Tanks Monitored', activeTankCount, 'Tanks / Ponds', 'Routine Daily Surveillance'],
-    ['Average Dissolved Oxygen (DO)', `${avgDO} mg/L`, '> 5.0 mg/L (Critical > 4.0)', parseFloat(avgDO) >= 5.0 ? 'Optimal Aeration' : 'Attention: Aeration Required'],
-    ['Average Water pH Level', avgPH, '7.5 - 8.5 pH Standard', (parseFloat(avgPH) >= 7.5 && parseFloat(avgPH) <= 8.5) ? 'Balanced pH Level' : 'Adjust Alkalinity / Lime'],
-    ['Average Salinity', avgSalinity, '10.0 - 25.0 ppt Standard', 'Optimal Brackish Salinity'],
-    ['Average Total Alkalinity', avgAlkalinity, '120 - 180 ppm Standard', 'Stable Buffer Capacity'],
-    ['Average Ammonia (NH3)', avgAmmonia, '< 0.100 ppm Safe Threshold', parseFloat(avgAmmonia) < 0.100 ? 'Safe Non-Toxic Level' : 'Elevated: Water Exchange Advised'],
-    ['Average Nitrite (NO2)', avgNitrite, '< 0.050 ppm Safe Threshold', parseFloat(avgNitrite) < 0.050 ? 'Safe Non-Toxic Level' : 'Warning: Nitrite Spike'],
-    ['Estimated Standing Biomass', `${sumBiomass > 0 ? sumBiomass.toLocaleString() : '8,450'} kg`, 'Total Calculated Biomass', 'Active Weight Progression'],
-    ['Average Feed Conversion Ratio (FCR)', avgFCR, '< 1.30 Commercial Standard', parseFloat(avgFCR) <= 1.30 ? 'High Feed Efficiency' : 'Acceptable Conversion Rate'],
-    [],
-    ['3. TEST CATEGORY & ACTIVITY BREAKDOWN'],
-    ['Test / Activity Category', 'Submissions Count', 'Distribution (%)', 'Operating Protocol'],
-    ['Water Quality Analysis', wqCount, `${wqPct}%`, 'Daily Morning & Evening Water Tests'],
-    ['Feed Consumption & Check Trays', feedCount, `${feedPct}%`, '4x Daily Check Tray Inspection'],
-    ['Weekly Sampling & Biomass Growth', samplingCount, `${samplingPct}%`, 'Every 7 Days Count & Weight'],
-    ['Disease & Health Surveillance', diseaseCount, `${diseasePct}%`, 'Routine Gut & Gill Pathology Checks'],
-    ['Harvest Operations (Partial / Final)', harvestCount, `${harvestPct}%`, 'Yield & Commercial Weight Reconciliation'],
-    ['General Pond Activities & Notes', farmCount, `${farmPct}%`, 'Probiotic & Mineral Dosing Logs'],
-    [],
-    ['4. FIELD TECHNICIAN PERFORMANCE SUMMARY'],
-    ['Technician ID', 'Technician Name', 'Contact Phone', 'Assigned Locality', 'Farmers Assigned', 'Active Tanks', 'Operational Status'],
-    ...(
-      (agentObj ? [agentObj] : allAgents).map(a => {
-        const agFarmers = allFarmers.filter(f => f.agentId === a.id);
-        const agTanks = allTanks.filter(t => agFarmers.some(f => f.id === t.farmerId));
-        return [
-          a.id,
-          a.name,
-          a.phone || '9000000000',
-          a.locality || 'Bhimavaram Cluster',
-          agFarmers.length,
-          agTanks.length,
-          a.status || 'ACTIVE'
-        ];
-      })
-    ),
-    [],
-    ['5. MONITORED FARMERS INVENTORY'],
-    ['Farmer ID', 'Farmer Name', 'Contact Phone', 'Village / Locality', 'Assigned Agent', 'Total Ponds / Tanks', 'Status'],
-    ...(
-      (farmerObj ? [farmerObj] : (normAgentId ? allFarmers.filter(f => f.agentId === normAgentId) : allFarmers)).map(f => {
-        const assignedAgent = allAgents.find(a => a.id === f.agentId);
-        const farmerTanks = allTanks.filter(t => t.farmerId === f.id);
-        return [
-          f.id,
-          f.name,
-          f.phone || '9900000000',
-          f.location || f.village || 'Bhimavaram',
-          assignedAgent ? assignedAgent.name : 'Ramesh (Tech)',
-          farmerTanks.length || 2,
-          f.status || 'Active'
-        ];
-      })
-    )
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No farmer records found matching the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
   ws['!cols'] = [
-    { wch: 36 }, // Col A
-    { wch: 32 }, // Col B
-    { wch: 38 }, // Col C
-    { wch: 30 }, // Col D
-    { wch: 20 }, // Col E
-    { wch: 18 }, // Col F
-    { wch: 20 }  // Col G
+    { wch: 6 },  // S. No
+    { wch: 14 }, // Farmer ID
+    { wch: 24 }, // Farmer Name
+    { wch: 16 }, // Phone
+    { wch: 18 }, // Region
+    { wch: 22 }, // Village
+    { wch: 22 }, // Incharge
+    { wch: 22 }, // Agent
+    { wch: 18 }, // Total Land
+    { wch: 18 }, // Tanks
+    { wch: 20 }, // Water Source
+    { wch: 16 }  // Status
   ];
-
   return ws;
 };
 
-/**
- * Sheet 2: Field Audit Records Ledger (All matching filtered submissions)
- */
-export const buildAuditLedgerSheet = (db, filteredSubmissions = [], scopeLabel = 'Custom Filtered Range') => {
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 2: TANK BASIC DETAILS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildTankBasicDetailsSheet = (tanks, farmers, db, inchargeObj, agentObj, scopeLabel, currentDate) => {
   const headers = [
     'S. No',
+    'Tank ID',
+    'Tank Name',
+    'Farmer Name',
+    'Village / Locality',
+    'Assigned Incharge',
+    'Assigned Agent',
+    'Area (Acres)',
+    'Species / Culture Type',
+    'DOC (Days of Culture)',
+    'Date of Stocking',
+    'Seed Stocked (Nos)',
+    'Stocking Density (Pcs/m²)',
+    'Current ABW (g)',
+    'Estimated Biomass (kg)',
+    'Estimated FCR',
+    'Salinity',
+    'Weekly Test Status',
+    'Operational Status'
+  ];
+
+  const dataRows = (tanks || []).map((t, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id)) || 
+                   (db?.farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+
+    const acresVal = parseNumeric(t.acres || t.size || t.area_acres || 1.0);
+    const abwVal = parseNumeric(t.abw, 0);
+    const biomassVal = parseNumeric(t.biomass, 0);
+    const fcrVal = parseNumeric(t.fcr, 0);
+    const docVal = parseInt(t.doc) || 0;
+    const seedVal = parseInt(String(t.stocked_seed || t.stockedSeed || t.seed || '').replace(/\D/g, '')) || Math.round(acresVal * 40000);
+    const densityVal = t.density ? parseFloat(t.density) : Number((seedVal / (acresVal * 4046.86)).toFixed(1));
+
+    return [
+      idx + 1,
+      t.id || `TNK-${idx + 1}`,
+      t.name || `Tank ${idx + 1}`,
+      farmer?.name || t.farmerName || 'Farmer',
+      farmer?.village || farmer?.location || 'Bhimavaram',
+      t.incharge || farmer?.incharge || inchargeObj?.name || 'Incharge',
+      t.agent || farmer?.agent || agentObj?.name || 'Field Agent',
+      acresVal,
+      t.species || t.cultureType || t.culture_type || 'Vannamei (Semi-Intensive)',
+      docVal,
+      t.stocking_date || t.stockingDate || t.last_test || '-',
+      seedVal,
+      densityVal,
+      abwVal > 0 ? `${abwVal}g` : '-',
+      biomassVal > 0 ? `${biomassVal.toLocaleString()} kg` : '-',
+      fcrVal > 0 ? fcrVal : '-',
+      t.salinity || '-',
+      t.testStatus || t.test_status || 'Due',
+      t.status || 'ACTIVE'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - TANK INVENTORY & OPERATIONAL REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Tanks: ${tanks.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No tank records found matching the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 6 },  // S. No
+    { wch: 12 }, // Tank ID
+    { wch: 16 }, // Tank Name
+    { wch: 22 }, // Farmer Name
+    { wch: 20 }, // Village
+    { wch: 20 }, // Incharge
+    { wch: 20 }, // Agent
+    { wch: 14 }, // Area
+    { wch: 26 }, // Species
+    { wch: 10 }, // DOC
+    { wch: 16 }, // Stocking Date
+    { wch: 18 }, // Seed Stocked
+    { wch: 22 }, // Density
+    { wch: 16 }, // Current ABW
+    { wch: 22 }, // Biomass
+    { wch: 14 }, // FCR
+    { wch: 14 }, // Salinity
+    { wch: 18 }, // Test Status
+    { wch: 16 }  // Status
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 3: WATER QUALITY RECORDS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildWaterQualityModuleSheet = (filteredSubs, farmers, tanks, db, scopeLabel, currentDate) => {
+  const headers = [
     'Record ID',
     'Date',
     'Time',
     'Farmer Name',
-    'Village / Locality',
-    'Field Technician',
-    'Tank / Pond No',
-    'Record Category',
+    'Tank Name',
+    'Field Agent / Technician',
+    'DOC',
     'Salinity (ppt)',
     'pH Level',
     'Alkalinity (ppm)',
@@ -420,68 +317,76 @@ export const buildAuditLedgerSheet = (db, filteredSubmissions = [], scopeLabel =
     'Nitrite (ppm)',
     'Potassium K (ppm)',
     'Water Temp (°C)',
-    'Biomass (kg)',
-    'FCR',
-    'Review Status',
-    'Observations & Action Notes'
+    'Water Color',
+    'Status',
+    'Observations & Notes'
   ];
 
-  const allFarmers = db?.farmers || [];
-  const allAgents = db?.agents || [];
+  const waterSubs = (filteredSubs || []).filter(s => {
+    const t = (s.testType || s.recordType || s.test_type || '').toUpperCase();
+    return t.includes('WATER') || s.data?.waterQuality || s.data?.ph !== undefined || s.data?.salinity !== undefined || s.data?.do !== undefined;
+  });
 
-  const dataRows = filteredSubmissions.map((s, index) => {
-    const farmer = allFarmers.find(f => f.id === s.farmerId);
-    const agent = allAgents.find(a => a.id === s.agentId);
+  const dataRows = waterSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
+    const tank = (tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id)) ||
+                 (db?.tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id));
+
     const wq = s.data?.waterQuality || s.data || {};
-    const tankName = s.tankId ? `Tank ${s.tankId.replace(/\D/g, '') || '1'}` : (s.tankName || 'Tank 1');
-    const timeStr = s.time || (s.createdAt && s.createdAt.includes('T') ? s.createdAt.split('T')[1].slice(0, 5) : '08:30 AM');
+
+    const phVal = wq.ph ?? s.ph ?? '-';
+    const salinityVal = wq.salinity ?? s.salinity ?? '-';
+    const doVal = wq.do ?? s.do ?? '-';
+    const alkalinityVal = wq.alkalinity ?? '-';
+    const hardnessVal = wq.hardness ?? '-';
+    const ammoniaVal = wq.ammonia ?? '-';
+    const nitriteVal = wq.nitrite ?? '-';
+    const kVal = wq.k ?? '-';
+    const tempVal = wq.temperature ?? '-';
+    const colorVal = wq.waterColor ?? wq.waterColour ?? '-';
+    const docVal = wq.doc ?? s.doc ?? tank?.doc ?? '-';
 
     return [
-      index + 1,
-      s.id || `REC-${1000 + index}`,
-      s.date || (s.createdAt ? s.createdAt.split('T')[0] : '2026-08-27'),
-      timeStr,
-      farmer ? farmer.name : (s.farmerName || 'Farmer'),
-      farmer ? (farmer.location || farmer.village || 'Bhimavaram') : (s.gps?.locality || 'Bhimavaram'),
-      agent ? agent.name : (s.agentName || 'Field Agent'),
-      tankName,
-      s.testType || s.recordType || 'Water Quality Analysis',
-      wq.salinity || '16',
-      wq.ph || '7.8',
-      wq.alkalinity || '140',
-      wq.hardness || '4800',
-      wq.do || '5.6',
-      wq.ammonia || '0.05',
-      wq.nitrite || '0.02',
-      wq.k || '171.2',
-      wq.temperature || '28.5',
-      s.data?.biomass || '850 kg',
-      s.data?.fcr || '1.15',
-      s.status || 'VERIFIED',
-      s.data?.notes || s.data?.remarks || 'Normal parameter values within safe biological range'
+      s.id || s.submissionId || `WQ-REC-${idx + 1}`,
+      s.date || (s.created_at ? s.created_at.split('T')[0] : currentDate),
+      s.time || s.submissionTime || s.submission_time || '08:30 AM',
+      farmer?.name || s.farmerName || s.farmer_name || 'Farmer',
+      tank?.name || s.tankName || s.tank_name || s.tankId || 'Tank 1',
+      s.userName || s.agentName || s.agent_name || farmer?.agent || 'Field Technician',
+      docVal,
+      salinityVal,
+      phVal,
+      alkalinityVal,
+      hardnessVal,
+      doVal,
+      ammoniaVal,
+      nitriteVal,
+      kVal,
+      tempVal,
+      colorVal,
+      s.status || 'PENDING_VERIFICATION',
+      wq.notes || wq.remarks || s.review_notes || s.data?.remarks || 'Normal parameters'
     ];
   });
 
   const sheetData = [
-    ['ROYAL MARINES AQUA CULTURE - FIELD AUDIT RECORDS LEDGER'],
-    [`Dataset Filter Scope: ${scopeLabel} • Total Records: ${filteredSubmissions.length}`],
+    ['ROYAL MARINES AQUACULTURE - WATER QUALITY TESTING REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Records: ${waterSubs.length} | Export Date: ${currentDate}`],
     [],
     headers,
-    ...dataRows
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', '-', 'No water quality records found for the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
   ws['!cols'] = [
-    { wch: 6 },  // S. No
     { wch: 14 }, // Record ID
     { wch: 14 }, // Date
-    { wch: 10 }, // Time
+    { wch: 12 }, // Time
     { wch: 22 }, // Farmer Name
-    { wch: 22 }, // Village / Locality
-    { wch: 18 }, // Field Tech
-    { wch: 14 }, // Tank No
-    { wch: 26 }, // Category
+    { wch: 16 }, // Tank Name
+    { wch: 22 }, // Agent
+    { wch: 8 },  // DOC
     { wch: 14 }, // Salinity
     { wch: 10 }, // pH
     { wch: 16 }, // Alkalinity
@@ -491,55 +396,417 @@ export const buildAuditLedgerSheet = (db, filteredSubmissions = [], scopeLabel =
     { wch: 14 }, // Nitrite
     { wch: 16 }, // Potassium K
     { wch: 16 }, // Temp
-    { wch: 14 }, // Biomass
-    { wch: 10 }, // FCR
-    { wch: 14 }, // Review Status
-    { wch: 40 }  // Remarks
+    { wch: 16 }, // Color
+    { wch: 16 }, // Status
+    { wch: 32 }  // Notes
   ];
-
   return ws;
 };
 
-/**
- * Sheet 3: Weekly Sampling & Growth Worksheet
- */
-export const buildSamplingSheet = (rows) => {
-  const header1 = [
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 4: FEED CONSUMPTION WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildFeedConsumptionModuleSheet = (filteredSubs, farmers, tanks, db, scopeLabel, currentDate) => {
+  const headers = [
+    'Record ID',
+    'Date',
+    'Time',
+    'Farmer Name',
+    'Tank Name',
+    'Field Agent',
+    'DOC',
+    'ABW (g)',
+    'Daily Feed (kg)',
+    'Check Tray Feed (g)',
+    'Check Tray Time',
+    'Cumulative Feed (kg)',
+    'Total Biomass (kg)',
+    'Estimated FCR',
+    'Verification Status',
+    'Remarks'
+  ];
+
+  const feedSubs = (filteredSubs || []).filter(s => {
+    const t = (s.testType || s.recordType || s.test_type || '').toUpperCase();
+    return t.includes('FEED') || s.data?.dayFeed !== undefined || s.data?.dailyFeed !== undefined || s.data?.checkTrayFeed !== undefined;
+  });
+
+  const dataRows = feedSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
+    const tank = (tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id)) ||
+                 (db?.tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id));
+
+    const p = s.data || {};
+    const docVal = p.doc ?? s.doc ?? tank?.doc ?? '-';
+    const abwVal = p.abw ?? s.abw ?? tank?.abw ?? '-';
+    const dayFeedVal = p.dayFeed ?? p.dailyFeed ?? '-';
+    const trayFeedVal = p.checkTrayFeed ?? '-';
+    const trayTimeVal = p.checkTrayTime ?? '-';
+    const cumFeedVal = p.cumulativeFeed ?? p.cumFeed ?? '-';
+    const biomassVal = p.totalBiomass ?? p.biomass ?? tank?.biomass ?? '-';
+    const fcrVal = p.fcr ?? s.fcr ?? tank?.fcr ?? '-';
+
+    return [
+      s.id || `FD-REC-${idx + 1}`,
+      s.date || (s.created_at ? s.created_at.split('T')[0] : currentDate),
+      s.time || s.submissionTime || trayTimeVal || '09:00 AM',
+      farmer?.name || s.farmerName || s.farmer_name || 'Farmer',
+      tank?.name || s.tankName || s.tank_name || s.tankId || 'Tank 1',
+      s.userName || s.agentName || s.agent_name || farmer?.agent || 'Field Agent',
+      docVal,
+      abwVal,
+      dayFeedVal,
+      trayFeedVal,
+      trayTimeVal,
+      cumFeedVal,
+      biomassVal,
+      fcrVal,
+      s.status || 'PENDING_VERIFICATION',
+      p.remarks || s.review_notes || 'Normal feeding progression'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - FEED CONSUMPTION & TRAY AUDIT REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Records: ${feedSubs.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', '-', 'No feed consumption records found for the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 14 }, // Record ID
+    { wch: 14 }, // Date
+    { wch: 12 }, // Time
+    { wch: 22 }, // Farmer Name
+    { wch: 16 }, // Tank Name
+    { wch: 22 }, // Agent
+    { wch: 8 },  // DOC
+    { wch: 12 }, // ABW
+    { wch: 16 }, // Day Feed
+    { wch: 18 }, // Tray Feed
+    { wch: 16 }, // Tray Time
+    { wch: 20 }, // Cum Feed
+    { wch: 18 }, // Biomass
+    { wch: 14 }, // FCR
+    { wch: 18 }, // Status
+    { wch: 30 }  // Remarks
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 5: MEDICATION USAGE WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildMedicationModuleSheet = (filteredSubs, farmers, tanks, db, scopeLabel, currentDate) => {
+  const headers = [
+    'Record ID',
+    'Application Date',
+    'Farmer Name',
+    'Tank Name',
+    'Field Agent',
+    'Product / Medicine Name',
+    'Category / Purpose',
+    'Dosage Applied',
+    'Status',
+    'Technician Observations & Notes'
+  ];
+
+  const medSubs = (filteredSubs || []).filter(s => {
+    const t = (s.testType || s.recordType || s.test_type || '').toUpperCase();
+    return t.includes('MEDIC') || t.includes('TREAT') || s.data?.medication || s.data?.product;
+  });
+
+  const dataRows = medSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
+    const tank = (tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id)) ||
+                 (db?.tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id));
+
+    const p = s.data || {};
+    return [
+      s.id || `MED-${idx + 1}`,
+      s.date || currentDate,
+      farmer?.name || s.farmerName || 'Farmer',
+      tank?.name || s.tankName || s.tankId || 'Tank 1',
+      s.userName || s.agentName || farmer?.agent || 'Field Agent',
+      p.productName || p.medicineName || p.product || 'Mineral / Probiotic Supplement',
+      p.category || p.purpose || 'Water Treatment / Probiotic Conditioning',
+      p.dosage || p.dose || 'Standard dosage as per protocol',
+      s.status || 'VERIFIED',
+      p.remarks || p.notes || s.review_notes || 'Applied safely'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - MEDICATION & PROBIOTIC TREATMENT REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Records: ${medSubs.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No medication or treatment records found for the selected scope', '-', '-', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 14 }, // Record ID
+    { wch: 16 }, // Date
+    { wch: 22 }, // Farmer Name
+    { wch: 16 }, // Tank Name
+    { wch: 20 }, // Agent
+    { wch: 28 }, // Product
+    { wch: 32 }, // Category
+    { wch: 20 }, // Dosage
+    { wch: 14 }, // Status
+    { wch: 34 }  // Remarks
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 6: DISEASE OBSERVATIONS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildDiseaseModuleSheet = (filteredSubs, farmers, tanks, db, scopeLabel, currentDate) => {
+  const headers = [
+    'Record ID',
+    'Observation Date',
+    'Farmer Name',
+    'Tank Name',
+    'Field Agent',
+    'DOC',
+    'Affected Shrimp (%)',
+    'Observations & Symptoms',
+    'Risk Evaluation',
+    'Status'
+  ];
+
+  const disSubs = (filteredSubs || []).filter(s => {
+    const t = (s.testType || s.recordType || s.test_type || '').toUpperCase();
+    return t.includes('DISEASE') || t.includes('MORTALITY') || s.data?.affectedShrimpPct !== undefined || s.data?.disease;
+  });
+
+  const dataRows = disSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
+    const tank = (tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id)) ||
+                 (db?.tanks || []).find(t => String(t.id) === String(s.tankId || s.tank_id));
+
+    const p = s.data || {};
+    const affectedPct = p.affectedShrimpPct ? `${p.affectedShrimpPct}%` : '0%';
+    const riskLevel = parseNumeric(p.affectedShrimpPct, 0) > 5 ? 'ELEVATED - ATTENTION' : 'LOW (Within Safe Range)';
+
+    return [
+      s.id || `DIS-${idx + 1}`,
+      s.date || currentDate,
+      farmer?.name || s.farmerName || 'Farmer',
+      tank?.name || s.tankName || s.tankId || 'Tank 1',
+      s.userName || s.agentName || farmer?.agent || 'Field Agent',
+      p.doc || s.doc || tank?.doc || '-',
+      affectedPct,
+      p.remarks || p.notes || s.review_notes || 'Clean gut and clear gills inspected',
+      riskLevel,
+      s.status || 'VERIFIED'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - DISEASE & HEALTH SURVEILLANCE REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Records: ${disSubs.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No disease observations recorded for the selected scope', '-', '-', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 14 }, // Record ID
+    { wch: 16 }, // Date
+    { wch: 22 }, // Farmer Name
+    { wch: 16 }, // Tank Name
+    { wch: 20 }, // Agent
+    { wch: 8 },  // DOC
+    { wch: 20 }, // Affected Shrimp
+    { wch: 34 }, // Symptoms
+    { wch: 24 }, // Risk
+    { wch: 14 }  // Status
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 7: HARVEST DATA WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildHarvestSheet = (harvests, farmers, db, scopeLabel, currentDate) => {
+  const headers = [
+    'S. No',
+    'Harvest Code',
+    'Harvest Date',
+    'Farmer Name',
+    'Contact Phone',
+    'Village / Locality',
+    'Pond / Tank Name',
+    'Harvest Type',
+    'Quantity Harvested (kg)',
+    'Shrimp Count (pcs/kg)',
+    'Quality Grade',
+    'Price per kg (₹)',
+    'Total Revenue (₹)',
+    'DOC at Harvest',
+    'FCR',
+    'Buyer / Exporter',
+    'Remarks'
+  ];
+
+  const dataRows = (harvests || []).map((h, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(h.farmerId || h.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(h.farmerId || h.farmer_id));
+
+    const qty = parseNumeric(h.quantityKg || h.quantity_kg, 0);
+    const price = parseNumeric(h.pricePerKg || h.price_per_kg, 0);
+    const rev = parseNumeric(h.revenue || h.total_value || (qty * price), 0);
+
+    return [
+      idx + 1,
+      h.id || h.harvest_code || `HARV-${idx + 1}`,
+      h.date || (h.harvest_date ? String(h.harvest_date).split('T')[0] : currentDate),
+      h.farmerName || h.farmer_name || farmer?.name || 'Farmer',
+      farmer?.phone || '-',
+      farmer?.village || farmer?.location || '-',
+      h.tankName || h.tank_name || h.tankId || `Tank ${idx + 1}`,
+      h.harvest_type || (h.type || 'FINAL'),
+      qty,
+      h.countPerKg || h.count_per_kg || 30,
+      h.quality || 'A Grade',
+      price,
+      rev,
+      h.doc || h.tank_doc || '-',
+      h.fcr || h.tank_fcr || '1.25',
+      h.buyerName || h.buyer_name || 'Local Exporter',
+      h.remarks || 'Standard commercial harvest cycle'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - HARVEST MASTER & YIELD RECONCILIATION REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Harvest Records: ${harvests.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No harvest records found matching the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 6 },  // S. No
+    { wch: 14 }, // Code
+    { wch: 14 }, // Date
+    { wch: 22 }, // Farmer Name
+    { wch: 16 }, // Phone
+    { wch: 18 }, // Village
+    { wch: 16 }, // Tank
+    { wch: 14 }, // Type
+    { wch: 22 }, // Qty
+    { wch: 20 }, // Count
+    { wch: 14 }, // Grade
+    { wch: 16 }, // Price
+    { wch: 18 }, // Revenue
+    { wch: 14 }, // DOC
+    { wch: 10 }, // FCR
+    { wch: 20 }, // Buyer
+    { wch: 30 }  // Remarks
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 8: WEEKLY TEST STATUS / SAMPLING & GROWTH WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const generateSamplingReportData = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
+  const { scopedFarmers, scopedTanks } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
+
+  return scopedTanks.map((t, idx) => {
+    const farmer = scopedFarmers.find(f => String(f.id) === String(t.farmerId || t.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+
+    const acresVal = parseNumeric(t.acres || t.size || 1.0);
+    const presAbw = parseNumeric(t.abw, 14.0);
+    const presCount = presAbw > 0 ? Math.round(1000 / presAbw) : 70;
+    const lastAbw = Math.max(1, presAbw - 2.0);
+    const lastCount = Math.round(1000 / lastAbw);
+    const growthIncr = Number((presAbw - lastAbw).toFixed(2));
+    const adgWeek = Number((growthIncr / 7).toFixed(2));
+    const docVal = parseInt(t.doc) || 35;
+    const overallAdg = Number((presAbw / (docVal || 35)).toFixed(2));
+    const dayFeed = Number((presAbw * 3).toFixed(1));
+    const seedVal = parseInt(String(t.stocked_seed || t.stockedSeed || t.seed || '').replace(/\D/g, '')) || Math.round(acresVal * 40000);
+    const densityVal = t.density ? parseFloat(t.density) : Number((seedVal / (acresVal * 4046.86)).toFixed(1));
+    const biomassVal = parseNumeric(t.biomass, Math.round((seedVal * 0.85 * presAbw) / 1000));
+    const fcrVal = parseNumeric(t.fcr, 1.25);
+    const survivalVal = seedVal > 0 ? Number(((biomassVal * 1000 / (presAbw || 1)) / seedVal * 100).toFixed(1)) : 88.5;
+
+    return {
+      farmerName: farmer?.name || t.farmerName || 'Farmer',
+      tankNo: t.name || `Tank ${idx + 1}`,
+      area: acresVal,
+      stockedDate: t.stocking_date || t.stockingDate || t.last_test || '',
+      seed: seedVal,
+      density: densityVal,
+      doc: docVal,
+      prevDate: '',
+      presDate: t.lastTest || t.last_test || '',
+      dur: 7,
+      presCount,
+      presAbw,
+      lastCount,
+      lastAbw,
+      growthIncr,
+      adgWeek,
+      overallAdg,
+      dayFeed,
+      countNum: Math.round(biomassVal * 1000 / (presAbw || 1)),
+      tcf: Number((biomassVal * fcrVal).toFixed(1)),
+      noTcf: Math.round(seedVal * 0.9),
+      biomass: biomassVal,
+      survival: Math.min(100, Math.max(0, survivalVal)),
+      fcr: fcrVal,
+      status: t.status || 'ACTIVE'
+    };
+  });
+};
+
+export const buildSamplingSheet = (rows, scopeLabel = 'All Scoped Tanks', currentDate = new Date().toISOString().split('T')[0]) => {
+  const headers = [
+    'Farmer Name',
     'Tank No',
     'Area (Acres)',
     'Date of Stocking',
     'No of Seed Stocked',
     'Stock density (Pcs/Sqm)',
     'DOC',
-    'Previous sampling Date',
-    'Present sampling Date',
-    'Duration between sampling (Dates)',
+    'Sampling Date',
     'Present Count',
     'Present ABW(g)',
     'Last Count',
     'Last ABW(g)',
-    'Weekly Growth Increment(g)',
+    'Weekly Growth Incr(g)',
     'ADG for week (g)',
     'Overall ADG',
-    'Day Feed',
-    'Number',
-    'Cumulative feed (TCF)',
-    'No. Based on TCF',
+    'Day Feed (kg)',
     'Biomass (kg)',
-    'Survival%',
-    'FCR'
+    'Survival (%)',
+    'FCR',
+    'Operational Status'
   ];
 
-  const dataRows = rows.map(r => [
+  const dataRows = (rows || []).map(r => [
+    r.farmerName,
     r.tankNo,
     r.area,
     r.stockedDate,
     r.seed,
     r.density,
     r.doc,
-    r.prevDate,
     r.presDate,
-    r.dur,
     r.presCount,
     r.presAbw,
     r.lastCount,
@@ -548,318 +815,305 @@ export const buildSamplingSheet = (rows) => {
     r.adgWeek,
     r.overallAdg,
     r.dayFeed,
-    r.countNum,
-    r.tcf,
-    r.noTcf,
     r.biomass,
     r.survival,
-    r.fcr
+    r.fcr,
+    r.status || 'ACTIVE'
   ]);
 
-  // Compute Totals / Averages row
-  const totalArea = Number(rows.reduce((acc, r) => acc + (r.area || 0), 0).toFixed(2));
-  const totalSeed = rows.reduce((acc, r) => acc + (r.seed || 0), 0);
-  const avgDensity = Number((rows.reduce((acc, r) => acc + (r.density || 0), 0) / (rows.length || 1)).toFixed(1));
-  const avgPresCount = Number((rows.reduce((acc, r) => acc + (r.presCount || 0), 0) / (rows.length || 1)).toFixed(1));
-  const avgPresAbw = Number((rows.reduce((acc, r) => acc + (r.presAbw || 0), 0) / (rows.length || 1)).toFixed(1));
-  const avgLastCount = Number((rows.reduce((acc, r) => acc + (r.lastCount || 0), 0) / (rows.length || 1)).toFixed(1));
-  const avgLastAbw = Number((rows.reduce((acc, r) => acc + (r.lastAbw || 0), 0) / (rows.length || 1)).toFixed(1));
-  const avgGrowthIncr = Number((rows.reduce((acc, r) => acc + (r.growthIncr || 0), 0) / (rows.length || 1)).toFixed(1));
-  const totalDayFeed = Number(rows.reduce((acc, r) => acc + (r.dayFeed || 0), 0).toFixed(1));
-  const totalCountNum = rows.reduce((acc, r) => acc + (r.countNum || 0), 0);
-  const totalTcf = Number(rows.reduce((acc, r) => acc + (r.tcf || 0), 0).toFixed(1));
-  const totalNoTcf = Number(rows.reduce((acc, r) => acc + (r.noTcf || 0), 0).toFixed(1));
-  const totalBiomass = rows.reduce((acc, r) => acc + (r.biomass || 0), 0);
-  const avgSurvival = Number((rows.reduce((acc, r) => acc + (r.survival || 0), 0) / (rows.length || 1)).toFixed(2));
-  const avgFcr = Number((rows.reduce((acc, r) => acc + (r.fcr || 0), 0) / (rows.length || 1)).toFixed(2));
-
-  const totalRow = [
-    'Total / Average',
-    totalArea,
-    '',
-    totalSeed,
-    avgDensity,
-    '',
-    '',
-    '',
-    '',
-    avgPresCount,
-    avgPresAbw,
-    avgLastCount,
-    avgLastAbw,
-    avgGrowthIncr,
-    '',
-    '',
-    totalDayFeed,
-    totalCountNum,
-    totalTcf,
-    totalNoTcf,
-    totalBiomass,
-    avgSurvival,
-    avgFcr
-  ];
-
   const sheetData = [
-    ['Weekly Sampling & Biomass Growth Audit Report (Section B Sampling)'],
+    ['ROYAL MARINES AQUACULTURE - WEEKLY SAMPLING & BIOMASS GROWTH REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Tanks: ${rows.length} | Export Date: ${currentDate}`],
     [],
-    header1,
-    ...dataRows,
-    totalRow
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', 'No tank sampling data available for the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
   ws['!cols'] = [
-    { wch: 12 }, // Tank No
+    { wch: 22 }, // Farmer Name
+    { wch: 14 }, // Tank No
     { wch: 12 }, // Area
     { wch: 16 }, // Stocking Date
-    { wch: 18 }, // No of Seed Stocked
+    { wch: 18 }, // Seed
     { wch: 22 }, // Density
     { wch: 8 },  // DOC
-    { wch: 20 }, // Prev Sampling Date
-    { wch: 20 }, // Pres Sampling Date
-    { wch: 22 }, // Duration
+    { wch: 16 }, // Sampling Date
     { wch: 14 }, // Pres Count
     { wch: 14 }, // Pres ABW
     { wch: 12 }, // Last Count
     { wch: 12 }, // Last ABW
-    { wch: 24 }, // Weekly Growth Incr
+    { wch: 20 }, // Weekly Growth
     { wch: 16 }, // ADG Week
     { wch: 14 }, // Overall ADG
-    { wch: 12 }, // Day Feed
-    { wch: 14 }, // Number
-    { wch: 20 }, // Cumulative feed
-    { wch: 18 }, // No. Based on TCF
-    { wch: 14 }, // Biomass
-    { wch: 12 }, // Survival%
+    { wch: 14 }, // Day Feed
+    { wch: 16 }, // Biomass
+    { wch: 14 }, // Survival
     { wch: 10 }, // FCR
+    { wch: 16 }  // Status
   ];
-
   return ws;
 };
 
-/**
- * Sheet 4: Harvest Master & Pond Performance Operations Register
- */
-export const buildHarvestSheet = (rows) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 9: AGENT SITE VISITS & GPS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildSiteVisitsModuleSheet = (filteredSubs, farmers, db, inchargeObj, agentObj, scopeLabel, currentDate) => {
   const headers = [
-    'S. No',
-    'ASM/RM',
-    'Farmer Name and Details',
-    'Mobile No',
-    'District',
-    'Village',
-    'Brand Name',
-    'Water Source',
-    'Pond No',
-    'Pond Area (Acres)',
-    'Date of Stocking',
-    'No. of Seed Stocked (Lakhs)',
-    'Stocking density (Pcs/Sqm)',
-    'Count of Partial Harvest',
-    'Quantity of Partial Harvest (Kg)',
-    'Partial Harvested Seed',
-    'Count of Partial Harvest 2',
-    'Quantity of Partial Harvest 2 (Kg)',
-    'Partial Harvested Seed 2',
-    'Date of Final Harvest',
-    'DOC at Final Harvest',
-    'Count at Final Harvest',
-    'Quantity at Final Harvest (Kg)',
-    'Final Harvested Seed',
-    'Total Quantity Harvested (Kg)',
-    'Cumulative Feed Consumption (Kg)',
-    'FCR',
-    'Total No. Harvested',
-    'Survival (%)',
-    'Remarks'
-  ];
-
-  const dataRows = rows.map(r => [
-    r.sNo,
-    r.asm,
-    r.farmer,
-    r.phone,
-    r.district,
-    r.village,
-    r.brand,
-    r.waterSource,
-    r.pondNo,
-    r.pondArea,
-    r.stockingDate,
-    r.seedStocked,
-    r.density,
-    r.partialCount,
-    r.partialQtyKg,
-    r.partialSeed,
-    r.partialCount2,
-    r.partialQtyKg2,
-    r.partialSeed2,
-    r.finalDate,
-    r.finalDoc,
-    r.finalCount,
-    r.finalQtyKg,
-    r.finalSeed,
-    r.totalQtyKg,
-    r.cumFeedKg,
-    r.fcr,
-    r.totalHarvestedSeed,
-    r.survivalPct,
-    r.remarks
-  ]);
-
-  const sheetData = [
-    ['Royals Marine Food - Harvest Master & Pond Performance Operations Register'],
-    [],
-    headers,
-    ...dataRows
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-  ws['!cols'] = [
-    { wch: 6 },  // S. No
-    { wch: 12 }, // ASM/RM
-    { wch: 22 }, // Farmer Name
-    { wch: 15 }, // Mobile No
-    { wch: 15 }, // District
-    { wch: 16 }, // Village
-    { wch: 16 }, // Brand Name
-    { wch: 14 }, // Water Source
-    { wch: 10 }, // Pond No
-    { wch: 16 }, // Pond Area
-    { wch: 16 }, // Stocking Date
-    { wch: 24 }, // No of Seed Stocked
-    { wch: 24 }, // Stocking density
-    { wch: 22 }, // Partial Count 1
-    { wch: 26 }, // Partial Qty 1
-    { wch: 22 }, // Partial Seed 1
-    { wch: 22 }, // Partial Count 2
-    { wch: 26 }, // Partial Qty 2
-    { wch: 22 }, // Partial Seed 2
-    { wch: 18 }, // Final Harvest Date
-    { wch: 18 }, // Final DOC
-    { wch: 20 }, // Final Count
-    { wch: 24 }, // Final Qty
-    { wch: 20 }, // Final Seed
-    { wch: 24 }, // Total Qty
-    { wch: 28 }, // Cumulative Feed
-    { wch: 10 }, // FCR
-    { wch: 20 }, // Total Harvested Seed
-    { wch: 14 }, // Survival%
-    { wch: 32 }, // Remarks
-  ];
-
-  return ws;
-};
-
-/**
- * Sheet 5: Water Quality Field Testing Register
- */
-export const buildWaterSheet = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null) => {
-  const headers = [
-    'Record ID',
+    'Visit ID',
     'Date',
-    'DOC',
-    'Farmer Name',
-    'Tank Name',
-    'Salinity (ppt)',
-    'pH Level',
-    'Alkalinity (ppm)',
-    'Hardness (ppm)',
-    'Ammonia - NH3 (ppm)',
-    'Nitrite - NO2 (ppm)',
-    'Potassium - K (ppm)',
-    'DO (mg/L)',
-    'H2S (ppm)',
-    'Cl (ppm)',
-    'Fe (ppm)',
-    'Water Color',
-    'Temperature (°C)',
-    'GPS Locality',
-    'Status',
-    'Remarks'
+    'Time',
+    'Field Agent',
+    'Farmer Visited',
+    'Tank / Pond',
+    'Locality / Village',
+    'GPS Latitude',
+    'GPS Longitude',
+    'GPS Accuracy (m)',
+    'Activity Category',
+    'Verification Status',
+    'Visit Notes'
   ];
 
-  const filteredSubs = filterSubmissions(db, agentId, selectedFarmerId, dateFrom, dateTo);
-  const waterSubmissions = filteredSubs.filter(s => {
-    const t = (s.testType || s.recordType || '').toUpperCase();
-    return t.includes('WATER');
-  });
+  const gpsSubs = (filteredSubs || []).filter(s => s.latitude || s.longitude || s.locality || s.gps);
 
-  const sampleWaterRows = waterSubmissions.length > 0 ? waterSubmissions : [
-    { id: 'WQ-001', date: '2026-08-27', farmerName: 'Ravi Kumar', tankName: 'Tank 01', data: { doc: '36', salinity: '16', ph: '7.8', alkalinity: '140', hardness: '4800', ammonia: '0.05', nitrite: '0.02', k: '171.2', do: '5.6', h2s: '0.005', cl: '0.01', fe: '0.01', waterColor: 'Light Green', temperature: '28.6', remarks: 'Optimal parameters' }, gps: { locality: 'Chinnamiram, Bhimavaram', accuracy: 8 }, status: 'VERIFIED' },
-    { id: 'WQ-002', date: '2026-08-27', farmerName: 'Naveen Raju', tankName: 'Tank 02', data: { doc: '42', salinity: '18', ph: '8.1', alkalinity: '150', hardness: '5400', ammonia: '0.08', nitrite: '0.03', k: '192.6', do: '6.2', h2s: '0.008', cl: '0.015', fe: '0.01', waterColor: 'Greenish Brown', temperature: '28.2', remarks: 'Good phytoplankton bloom' }, gps: { locality: 'Narasapuram', accuracy: 6 }, status: 'VERIFIED' },
-    { id: 'WQ-003', date: '2026-08-26', farmerName: 'Suresh Varma', tankName: 'Tank 01', data: { doc: '50', salinity: '14', ph: '7.6', alkalinity: '130', hardness: '4200', ammonia: '0.12', nitrite: '0.05', k: '149.8', do: '4.8', h2s: '0.01', cl: '0.01', fe: '0.012', waterColor: 'Brown', temperature: '29.0', remarks: 'Diatom bloom' }, gps: { locality: 'Kakinada Coastal', accuracy: 10 }, status: 'VERIFIED' },
-  ];
+  const dataRows = gpsSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
 
-  const dataRows = sampleWaterRows.map(s => {
-    const farmer = (db?.farmers || []).find(f => f.id === s.farmerId);
     return [
-      s.id || 'WQ-REC',
-      s.data?.date || s.date || '2026-08-27',
-      s.data?.doc || '35',
-      farmer ? farmer.name : (s.farmerName || 'Farmer'),
-      s.tankName || (s.tankId ? `Tank ${s.tankId.replace(/\D/g, '') || '1'}` : 'Tank 1'),
-      s.data?.salinity || s.data?.waterQuality?.salinity || '16',
-      s.data?.ph || s.data?.waterQuality?.ph || '7.8',
-      s.data?.alkalinity || s.data?.waterQuality?.alkalinity || '140',
-      s.data?.hardness || '4800',
-      s.data?.ammonia || s.data?.waterQuality?.ammonia || '0.05',
-      s.data?.nitrite || s.data?.waterQuality?.nitrite || '0.02',
-      s.data?.k || '171.2',
-      s.data?.do || s.data?.waterQuality?.do || '5.6',
-      s.data?.h2s || '0.005',
-      s.data?.cl || '0.01',
-      s.data?.fe || '0.01',
-      s.data?.waterColor || 'Light Green',
-      s.data?.temperature || s.data?.waterQuality?.temperature || '28.6',
-      s.gps?.locality || (farmer ? farmer.location : 'Bhimavaram, AP'),
+      s.id || `VIS-${idx + 1}`,
+      s.date || currentDate,
+      s.time || s.submissionTime || s.submission_time || '09:15 AM',
+      s.userName || s.agentName || s.agent_name || farmer?.agent || 'Field Technician',
+      farmer?.name || s.farmerName || s.farmer_name || 'Farmer',
+      s.tankName || s.tank_name || s.tankId || 'Tank 1',
+      s.locality || farmer?.village || farmer?.location || 'Bhimavaram',
+      s.latitude || '-',
+      s.longitude || '-',
+      s.accuracy ? `${s.accuracy}m` : '12m',
+      s.testType || s.test_type || 'Routine Pond Surveillance',
       s.status || 'VERIFIED',
-      s.data?.notes || s.data?.remarks || 'Normal parameters within optimal range'
+      s.data?.remarks || s.review_notes || 'In-person field surveillance conducted'
     ];
   });
 
   const sheetData = [
-    ['Royals Marine Food - Water Quality Field Testing Register'],
+    ['ROYAL MARINES AQUACULTURE - AGENT SITE VISITS & TELEMETRY GPS LOG'],
+    [`Filter Scope: ${scopeLabel} | Total Site Visits: ${gpsSubs.length} | Export Date: ${currentDate}`],
     [],
     headers,
-    ...dataRows
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', '-', 'No site visit GPS records found for the selected scope', '-', '-', '-', '-', '-', '-', '-', '-', '-']])
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
   ws['!cols'] = [
-    { wch: 14 }, // Record ID
+    { wch: 14 }, // Visit ID
     { wch: 14 }, // Date
-    { wch: 8 },  // DOC
-    { wch: 20 }, // Farmer Name
-    { wch: 14 }, // Tank Name
-    { wch: 14 }, // Salinity
-    { wch: 10 }, // pH
-    { wch: 16 }, // Alkalinity
-    { wch: 16 }, // Hardness
-    { wch: 20 }, // Ammonia
-    { wch: 20 }, // Nitrite
-    { wch: 20 }, // Potassium K
-    { wch: 12 }, // DO
-    { wch: 14 }, // H2S
-    { wch: 14 }, // Cl
-    { wch: 14 }, // Fe
-    { wch: 24 }, // Water Color
-    { wch: 16 }, // Temp
+    { wch: 12 }, // Time
+    { wch: 22 }, // Agent
+    { wch: 22 }, // Farmer
+    { wch: 16 }, // Tank
     { wch: 24 }, // Locality
-    { wch: 14 }, // Status
-    { wch: 32 }, // Remarks
+    { wch: 16 }, // Lat
+    { wch: 16 }, // Long
+    { wch: 16 }, // Accuracy
+    { wch: 26 }, // Category
+    { wch: 16 }, // Status
+    { wch: 34 }  // Notes
   ];
-
   return ws;
 };
 
-/**
- * Main Export Function: Downloads a Complete Standard Excel Analysis Workbook (.xlsx)
- * Considers: Farmer, Agent, Incharge, Date From, and Date To
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE 10: INCHARGE VERIFICATIONS WORKSHEET
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildVerificationsModuleSheet = (filteredSubs, farmers, db, inchargeObj, scopeLabel, currentDate) => {
+  const headers = [
+    'Audit ID',
+    'Date',
+    'Farmer Name',
+    'Tank / Pond',
+    'Audited Record Category',
+    'Field Agent',
+    'Approval Status',
+    'Incharge Review Notes & Directives'
+  ];
+
+  const verifSubs = (filteredSubs || []).filter(s => s.status === 'VERIFIED' || s.review_notes || s.reviewNotes);
+
+  const dataRows = verifSubs.map((s, idx) => {
+    const farmer = (farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(s.farmerId || s.farmer_id));
+
+    return [
+      `AUDIT-${idx + 1}`,
+      s.date || currentDate,
+      farmer?.name || s.farmerName || 'Farmer',
+      s.tankName || s.tankId || 'Tank 1',
+      s.testType || s.test_type || 'Field Data Record',
+      s.userName || s.agentName || farmer?.agent || 'Field Agent',
+      s.status || 'VERIFIED',
+      s.review_notes || s.reviewNotes || s.data?.remarks || 'Approved by Regional Incharge'
+    ];
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - INCHARGE VERIFICATION & AUDIT REGISTER'],
+    [`Filter Scope: ${scopeLabel} | Total Verified Records: ${verifSubs.length} | Export Date: ${currentDate}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', 'No incharge verification records found for the selected scope', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 14 }, // Audit ID
+    { wch: 14 }, // Date
+    { wch: 22 }, // Farmer Name
+    { wch: 16 }, // Tank
+    { wch: 26 }, // Category
+    { wch: 20 }, // Agent
+    { wch: 18 }, // Status
+    { wch: 38 }  // Notes
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXECUTIVE ANALYSIS & FIELD AUDIT LEDGER (For full comprehensive reports)
+// ─────────────────────────────────────────────────────────────────────────────
+export const buildExecutiveSummarySheet = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, filteredSubmissions = []) => {
+  const { scopedFarmers, scopedTanks, inchargeObj, agentObj, farmerObj, scopeLabel } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo);
+
+  const totalRecords = filteredSubmissions.length;
+  let wqCount = 0, feedCount = 0, samplingCount = 0, diseaseCount = 0, harvestCount = 0;
+
+  filteredSubmissions.forEach(s => {
+    const type = (s.testType || s.recordType || s.test_type || '').toLowerCase();
+    if (type.includes('water') || type.includes('analysis')) wqCount++;
+    else if (type.includes('feed')) feedCount++;
+    else if (type.includes('sampling') || type.includes('biomass')) samplingCount++;
+    else if (type.includes('disease') || type.includes('mortality')) diseaseCount++;
+    else if (type.includes('harvest')) harvestCount++;
+  });
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - EXECUTIVE TELEMETRY & OPERATIONS ANALYSIS'],
+    [`Generated automatically based on customized user filter parameters | ${new Date().toLocaleString()}`],
+    [],
+    ['1. FILTER CRITERIA & APPLIED SCOPE'],
+    ['Scope Parameter', 'Configured Value', 'Details'],
+    ['Target Scope', scopeLabel, farmerObj ? `Farmer ID: ${farmerObj.id}` : `Aggregated across ${scopedFarmers.length} registered farmers`],
+    ['Total Farmers in Scope', scopedFarmers.length, 'Active Supervised Coverage'],
+    ['Total Tanks in Scope', scopedTanks.length, 'Monitored Culture Ponds'],
+    ['Total Field Submissions', totalRecords, `${totalRecords} entries analyzed in selected range`],
+    [],
+    ['2. TEST CATEGORY & ACTIVITY BREAKDOWN'],
+    ['Test Category', 'Submissions Count', 'Operational Protocol'],
+    ['Water Quality Analysis', wqCount, 'Routine Water Chemistry Tests'],
+    ['Feed Consumption & Check Trays', feedCount, 'Daily Check Tray Feeding Inspection'],
+    ['Weekly Sampling & Biomass Growth', samplingCount, 'Weekly ABW & Growth Monitoring'],
+    ['Disease & Pathology Surveillance', diseaseCount, 'Shrimp Health Checks'],
+    ['Harvest Operations', harvestCount, 'Commercial Harvest Yield Reconciliation']
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 32 },
+    { wch: 34 },
+    { wch: 40 }
+  ];
+  return ws;
+};
+
+export const buildAuditLedgerSheet = (db, filteredSubmissions = [], scopeLabel = 'Filtered Scope') => {
+  const headers = [
+    'S. No',
+    'Record ID',
+    'Date',
+    'Time',
+    'Farmer Name',
+    'Tank Name',
+    'Field Agent',
+    'Test Category',
+    'Review Status',
+    'Observations & Notes'
+  ];
+
+  const dataRows = (filteredSubmissions || []).map((s, idx) => [
+    idx + 1,
+    s.id || `REC-${idx + 1}`,
+    s.date || (s.created_at ? s.created_at.split('T')[0] : ''),
+    s.time || s.submissionTime || s.submission_time || '08:30 AM',
+    s.farmerName || s.farmer_name || 'Farmer',
+    s.tankName || s.tank_name || s.tankId || 'Tank 1',
+    s.userName || s.agentName || s.agent_name || 'Field Agent',
+    s.testType || s.test_type || 'Field Test',
+    s.status || 'PENDING_VERIFICATION',
+    s.data?.remarks || s.data?.notes || s.review_notes || 'Normal parameters'
+  ]);
+
+  const sheetData = [
+    ['ROYAL MARINES AQUACULTURE - FIELD AUDIT RECORDS LEDGER'],
+    [`Dataset Filter Scope: ${scopeLabel} • Total Records: ${filteredSubmissions.length}`],
+    [],
+    headers,
+    ...(dataRows.length > 0 ? dataRows : [['-', '-', '-', '-', 'No records found for the selected scope', '-', '-', '-', '-', '-']])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 18 },
+    { wch: 36 }
+  ];
+  return ws;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HARVEST DATA EXTRACTION FOR HARVEST EXCEL
+// ─────────────────────────────────────────────────────────────────────────────
+export const generateHarvestMasterReportData = (db, agentId = null, selectedFarmerId = 'ALL', inchargeId = null) => {
+  const { scopedHarvests, scopedFarmers } = resolveScopedData(db, agentId, selectedFarmerId, null, null, inchargeId);
+
+  return scopedHarvests.map((h, idx) => {
+    const farmer = scopedFarmers.find(f => String(f.id) === String(h.farmerId || h.farmer_id)) ||
+                   (db?.farmers || []).find(f => String(f.id) === String(h.farmerId || h.farmer_id));
+
+    return {
+      sNo: idx + 1,
+      id: h.id || h.harvest_code,
+      date: h.date || (h.harvest_date ? String(h.harvest_date).split('T')[0] : ''),
+      farmerName: h.farmerName || h.farmer_name || farmer?.name || 'Farmer',
+      phone: farmer?.phone || '',
+      district: farmer?.region || '',
+      village: farmer?.village || farmer?.location || '',
+      tankName: h.tankName || h.tank_name || h.tankId || `Tank ${idx + 1}`,
+      harvest_type: h.harvest_type || 'FINAL',
+      quantityKg: parseNumeric(h.quantityKg || h.quantity_kg, 0),
+      countPerKg: h.countPerKg || h.count_per_kg || 30,
+      quality: h.quality || 'A Grade',
+      pricePerKg: parseNumeric(h.pricePerKg || h.price_per_kg, 0),
+      revenue: parseNumeric(h.revenue || h.total_value, 0),
+      doc: h.doc || h.tank_doc || '-',
+      fcr: h.fcr || h.tank_fcr || '1.25',
+      buyerName: h.buyerName || h.buyer_name || 'Exporter',
+      remarks: h.remarks || 'Standard harvest cycle'
+    };
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN WORKBOOK DOWNLOAD FUNCTION
+// ─────────────────────────────────────────────────────────────────────────────
 export const downloadAquaEnterpriseWorkbook = (
   db,
   agentId = null,
@@ -867,78 +1121,153 @@ export const downloadAquaEnterpriseWorkbook = (
   filenamePrefix = 'Aqua_Analysis_Report',
   dateFrom = null,
   dateTo = null,
-  inchargeId = null
+  inchargeId = null,
+  selectedFields = null
 ) => {
   const wb = XLSX.utils.book_new();
 
-  // 1. Get filtered submissions
-  const filteredSubmissions = filterSubmissions(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
+  const {
+    inchargeObj,
+    agentObj,
+    farmerObj,
+    scopedFarmers,
+    scopedTanks,
+    scopedSubmissions,
+    scopedHarvests,
+    scopeLabel
+  } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
 
-  const inchargeObj = (inchargeId && inchargeId !== 'ALL') ? (db?.incharges || []).find(i => String(i.id) === String(inchargeId)) : null;
-  const farmerObj = (selectedFarmerId && selectedFarmerId !== 'ALL') ? (db?.farmers || []).find(f => String(f.id) === String(selectedFarmerId)) : null;
-  const agentObj = (agentId && agentId !== 'ALL') ? (db?.agents || []).find(a => String(a.id) === String(agentId)) : null;
+  const currentDate = new Date().toISOString().split('T')[0];
 
-  const scopeLabel = `${farmerObj ? farmerObj.name : 'All Farmers'} • ${agentObj ? agentObj.name : (inchargeObj ? `Incharge: ${inchargeObj.name}` : 'All Staff')} (${dateFrom || 'Start'} to ${dateTo || 'End'})`;
+  // If specific modules are selected (from Export Center)
+  if (selectedFields && typeof selectedFields === 'object') {
+    const activeKeys = Object.keys(selectedFields).filter(k => selectedFields[k]);
 
-  // 1. Sheet 1: Executive Analysis & KPIs
-  const summaryWs = buildExecutiveSummarySheet(db, agentId, selectedFarmerId, dateFrom, dateTo, filteredSubmissions);
-  XLSX.utils.book_append_sheet(wb, summaryWs, 'Executive Analysis & KPIs');
+    // Validation: if no fields are selected, do not export
+    if (activeKeys.length === 0) {
+      console.warn('[downloadAquaEnterpriseWorkbook] Aborted: 0 modules selected.');
+      return false;
+    }
 
-  // 2. Sheet 2: Field Audit Ledger
-  const ledgerWs = buildAuditLedgerSheet(db, filteredSubmissions, scopeLabel);
+    // 1. Farmer Details
+    if (selectedFields.farmerDetails) {
+      const ws = buildFarmerDetailsSheet(scopedFarmers, db, inchargeObj, agentObj, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Farmer Details');
+    }
+
+    // 2. Tank Basic Details
+    if (selectedFields.tankDetails) {
+      const ws = buildTankBasicDetailsSheet(scopedTanks, scopedFarmers, db, inchargeObj, agentObj, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Tank Details');
+    }
+
+    // 3. Water Quality Records
+    if (selectedFields.waterQuality) {
+      const ws = buildWaterQualityModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Water Quality Records');
+    }
+
+    // 4. Feed Consumption
+    if (selectedFields.feedRecords) {
+      const ws = buildFeedConsumptionModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Feed Consumption');
+    }
+
+    // 5. Medication Usage
+    if (selectedFields.medication) {
+      const ws = buildMedicationModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Medication Usage');
+    }
+
+    // 6. Disease Observations
+    if (selectedFields.disease) {
+      const ws = buildDiseaseModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Disease Observations');
+    }
+
+    // 7. Harvest Data
+    if (selectedFields.harvest) {
+      const ws = buildHarvestSheet(scopedHarvests, scopedFarmers, db, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Harvest Data');
+    }
+
+    // 8. Weekly Test Status
+    if (selectedFields.weeklyTests) {
+      const samplingRows = generateSamplingReportData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
+      const ws = buildSamplingSheet(samplingRows, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Weekly Test Status');
+    }
+
+    // 9. Agent Site Visits / GPS
+    if (selectedFields.siteVisits) {
+      const ws = buildSiteVisitsModuleSheet(scopedSubmissions, scopedFarmers, db, inchargeObj, agentObj, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Site Visits & GPS');
+    }
+
+    // 10. Incharge Verifications
+    if (selectedFields.verifications) {
+      const ws = buildVerificationsModuleSheet(scopedSubmissions, scopedFarmers, db, inchargeObj, scopeLabel, currentDate);
+      XLSX.utils.book_append_sheet(wb, ws, 'Incharge Verifications');
+    }
+
+    const cleanFarmer = farmerObj ? farmerObj.name.replace(/\s+/g, '_') : 'All_Farmers';
+    const modulesLabel = activeKeys.length === 10 ? 'Complete' : `${activeKeys.length}_Modules`;
+    const fileName = `${filenamePrefix}_${modulesLabel}_${cleanFarmer}_${currentDate}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    return true;
+  }
+
+  // DEFAULT FALLBACK: Standard Full Enterprise Report (for legacy Reports pages)
+  const summaryWs = buildExecutiveSummarySheet(db, agentId, selectedFarmerId, dateFrom, dateTo, scopedSubmissions);
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Executive Analysis');
+
+  const ledgerWs = buildAuditLedgerSheet(db, scopedSubmissions, scopeLabel);
   XLSX.utils.book_append_sheet(wb, ledgerWs, 'Field Audit Ledger');
 
-  // 3. Sheet 3: Weekly Sampling & Growth
   const samplingRows = generateSamplingReportData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
-  const samplingWs = buildSamplingSheet(samplingRows);
+  const samplingWs = buildSamplingSheet(samplingRows, scopeLabel, currentDate);
   XLSX.utils.book_append_sheet(wb, samplingWs, 'Sampling & Growth');
 
-  // 4. Sheet 4: Harvest Master Report
-  const harvestRows = generateHarvestMasterReportData(db, agentId, selectedFarmerId, inchargeId);
-  const harvestWs = buildHarvestSheet(harvestRows);
+  const harvestWs = buildHarvestSheet(scopedHarvests, scopedFarmers, db, scopeLabel, currentDate);
   XLSX.utils.book_append_sheet(wb, harvestWs, 'Harvest Master');
 
-  // 5. Sheet 5: Water Quality Analysis
-  const waterWs = buildWaterSheet(db, agentId, selectedFarmerId, dateFrom, dateTo);
+  const waterWs = buildWaterQualityModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
   XLSX.utils.book_append_sheet(wb, waterWs, 'Water Analysis');
 
-  // Trigger download with descriptive filename
   const cleanFarmer = farmerObj ? farmerObj.name.replace(/\s+/g, '_') : 'All_Farmers';
   const cleanAgent = agentObj ? agentObj.name.replace(/\s+/g, '_') : (inchargeObj ? inchargeObj.name.replace(/\s+/g, '_') : 'All_Staff');
-  const dateSuffix = (dateFrom && dateTo) ? `${dateFrom}_to_${dateTo}` : new Date().toISOString().split('T')[0];
-  const fileName = `${filenamePrefix}_${cleanFarmer}_${cleanAgent}_${dateSuffix}.xlsx`;
-
+  const fileName = `${filenamePrefix}_${cleanFarmer}_${cleanAgent}_${currentDate}.xlsx`;
   XLSX.writeFile(wb, fileName);
+  return true;
 };
 
-/**
- * Download Specific Sheet: Weekly Sampling & Biomass Growth (.xlsx)
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// DOWNLOAD SPECIFIC DEDICATED SHEETS
+// ─────────────────────────────────────────────────────────────────────────────
 export const downloadSamplingExcel = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null, inchargeId = null) => {
   const wb = XLSX.utils.book_new();
+  const { scopeLabel } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
+  const currentDate = new Date().toISOString().split('T')[0];
   const rows = generateSamplingReportData(db, agentId, selectedFarmerId, dateFrom, dateTo, inchargeId);
-  const ws = buildSamplingSheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, 'Sampling & Growth');
-  XLSX.writeFile(wb, `sampling_and_growth_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const ws = buildSamplingSheet(rows, scopeLabel, currentDate);
+  XLSX.utils.book_append_sheet(wb, ws, 'Weekly Sampling & Growth');
+  XLSX.writeFile(wb, `sampling_and_growth_report_${currentDate}.xlsx`);
 };
 
-/**
- * Download Specific Sheet: Harvest Master Report (.xlsx)
- */
 export const downloadHarvestMasterExcel = (db, agentId = null, selectedFarmerId = 'ALL', inchargeId = null) => {
   const wb = XLSX.utils.book_new();
-  const rows = generateHarvestMasterReportData(db, agentId, selectedFarmerId, inchargeId);
-  const ws = buildHarvestSheet(rows);
+  const { scopedHarvests, scopedFarmers, scopeLabel } = resolveScopedData(db, agentId, selectedFarmerId, null, null, inchargeId);
+  const currentDate = new Date().toISOString().split('T')[0];
+  const ws = buildHarvestSheet(scopedHarvests, scopedFarmers, db, scopeLabel, currentDate);
   XLSX.utils.book_append_sheet(wb, ws, 'Harvest Master');
-  XLSX.writeFile(wb, `harvest_master_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(wb, `harvest_master_report_${currentDate}.xlsx`);
 };
 
-/**
- * Download Specific Sheet: Water Quality Report (.xlsx)
- */
 export const downloadWaterQualityExcel = (db, agentId = null, selectedFarmerId = 'ALL', dateFrom = null, dateTo = null) => {
   const wb = XLSX.utils.book_new();
-  const ws = buildWaterSheet(db, agentId, selectedFarmerId, dateFrom, dateTo);
-  XLSX.utils.book_append_sheet(wb, ws, 'Water Analysis');
-  XLSX.writeFile(wb, `water_quality_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const { scopedSubmissions, scopedFarmers, scopedTanks, scopeLabel } = resolveScopedData(db, agentId, selectedFarmerId, dateFrom, dateTo);
+  const currentDate = new Date().toISOString().split('T')[0];
+  const ws = buildWaterQualityModuleSheet(scopedSubmissions, scopedFarmers, scopedTanks, db, scopeLabel, currentDate);
+  XLSX.utils.book_append_sheet(wb, ws, 'Water Quality Records');
+  XLSX.writeFile(wb, `water_quality_report_${currentDate}.xlsx`);
 };
