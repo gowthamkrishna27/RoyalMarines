@@ -472,26 +472,25 @@ class DataStore {
       last_test: data.lastTest || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       next_test: data.nextTest || 'In 7 Days',
       size: data.size || (data.acres ? `${data.acres} Acres` : '2.5 Acres'),
+      acres: data.acres ? String(data.acres) : null,
+      area_acres: data.areaAcres ? parseFloat(data.areaAcres) : (data.acres ? parseFloat(data.acres) : null),
       doc: data.doc != null && data.doc !== '' ? Number(data.doc) : 1,
       salinity: data.salinity || '15 ppt',
       species: data.species || 'Vannamei',
+      water_source: data.waterSource || 'Bore Well',
       culture_type: data.cultureType || 'Semi-Intensive',
       stocking_date: data.stockingDate || new Date().toISOString().split('T')[0],
-      latitude: data.latitude != null ? parseFloat(data.latitude) : null,
-      longitude: data.longitude != null ? parseFloat(data.longitude) : null,
-      location: data.location || null,
     };
 
     try {
       await query(
-        `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date, latitude, longitude, location) 
+        `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, acres, area_acres, doc, salinity, species, water_source, culture_type, stocking_date) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
            assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
-           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc),
-           salinity=VALUES(salinity), species=VALUES(species), culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date),
-           latitude=VALUES(latitude), longitude=VALUES(longitude), location=VALUES(location)`,
+           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), acres=VALUES(acres), area_acres=VALUES(area_acres), doc=VALUES(doc),
+           salinity=VALUES(salinity), species=VALUES(species), water_source=VALUES(water_source), culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date)`,
         [
           newTank.id,
           newTank.name,
@@ -507,14 +506,14 @@ class DataStore {
           newTank.last_test,
           newTank.next_test,
           newTank.size,
+          newTank.acres,
+          newTank.area_acres,
           newTank.doc,
           newTank.salinity,
           newTank.species,
+          newTank.water_source,
           newTank.culture_type,
           newTank.stocking_date,
-          newTank.latitude,
-          newTank.longitude,
-          newTank.location,
         ]
       );
       return this.getTankById(newTank.id);
@@ -538,17 +537,18 @@ class DataStore {
       if (updates.fcr !== undefined) { fields.push('fcr = ?'); params.push(updates.fcr); }
       if (updates.lastTest !== undefined) { fields.push('last_test = ?'); params.push(updates.lastTest); }
       if (updates.nextTest !== undefined) { fields.push('next_test = ?'); params.push(updates.nextTest); }
+      if (updates.size !== undefined) { fields.push('size = ?'); params.push(updates.size); }
+      if (updates.acres !== undefined) { fields.push('acres = ?'); params.push(String(updates.acres)); }
+      if (updates.areaAcres !== undefined) { fields.push('area_acres = ?'); params.push(parseFloat(updates.areaAcres)); }
       if (updates.doc !== undefined) { fields.push('doc = ?'); params.push(Number(updates.doc)); }
       if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
       if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
       if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
       if (updates.salinity !== undefined) { fields.push('salinity = ?'); params.push(updates.salinity); }
       if (updates.species !== undefined) { fields.push('species = ?'); params.push(updates.species); }
+      if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
       if (updates.cultureType !== undefined) { fields.push('culture_type = ?'); params.push(updates.cultureType); }
       if (updates.stockingDate !== undefined) { fields.push('stocking_date = ?'); params.push(updates.stockingDate); }
-      if (updates.latitude !== undefined) { fields.push('latitude = ?'); params.push(updates.latitude); }
-      if (updates.longitude !== undefined) { fields.push('longitude = ?'); params.push(updates.longitude); }
-      if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
 
       if (fields.length > 0) {
         params.push(id);

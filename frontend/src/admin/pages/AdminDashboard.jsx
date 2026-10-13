@@ -10,17 +10,35 @@ import {
 import adminService from '../utils/adminService';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
 
+const DASHBOARD_CACHE_KEY = 'royal_admin_dashboard_cache_v1';
+
+const getInitialDashboardCache = () => {
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY) || localStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.summary) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
-  const [summary, setSummary] = useState(null);
-  const [allTanks, setAllTanks] = useState([]);
-  const [farmers, setFarmers] = useState([]);
-  const [agents, setAgents] = useState([]);
-  const [incharges, setIncharges] = useState([]);
-  const [liveHarvests, setLiveHarvests] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialCache = useMemo(() => getInitialDashboardCache(), []);
+
+  const [summary, setSummary] = useState(initialCache?.summary || null);
+  const [allTanks, setAllTanks] = useState(initialCache?.tanks || []);
+  const [farmers, setFarmers] = useState(initialCache?.farmers || []);
+  const [agents, setAgents] = useState(initialCache?.agents || []);
+  const [incharges, setIncharges] = useState(initialCache?.incharges || []);
+  const [liveHarvests, setLiveHarvests] = useState(initialCache?.harvests || []);
+  const [submissions, setSubmissions] = useState(initialCache?.submissions || []);
+  const [isLoading, setIsLoading] = useState(!initialCache);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
 
   const [showDueTestsModal, setShowDueTestsModal] = useState(false);
@@ -28,11 +46,15 @@ const AdminDashboard = () => {
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
-  const [todayLocationCount, setTodayLocationCount] = useState(null);
+  const [todayLocationCount, setTodayLocationCount] = useState(initialCache?.todayLocationCount ?? null);
 
   const loadDashboardData = async (force = false) => {
     try {
-      if (!summary) setIsLoading(true);
+      if (force || !summary) {
+        setIsLoading(true);
+      } else {
+        setIsSyncing(true);
+      }
       setError(null);
       const [sum, tks, fms, ags, incs, hrvs, subs, todayLocs] = await Promise.all([
         adminService.getSummary(force),
@@ -54,6 +76,22 @@ const AdminDashboard = () => {
       if (Array.isArray(todayLocs)) {
         setTodayLocationCount(todayLocs.length);
       }
+
+      try {
+        const payload = JSON.stringify({
+          summary: sum,
+          tanks: tks,
+          farmers: fms,
+          agents: ags,
+          incharges: incs,
+          harvests: hrvs,
+          submissions: subs,
+          todayLocationCount: Array.isArray(todayLocs) ? todayLocs.length : null,
+          updatedAt: Date.now()
+        });
+        sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
+        localStorage.setItem(DASHBOARD_CACHE_KEY, payload);
+      } catch {}
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       if (!summary) {
@@ -61,6 +99,7 @@ const AdminDashboard = () => {
       }
     } finally {
       setIsLoading(false);
+      setIsSyncing(false);
     }
   };
 
@@ -264,7 +303,9 @@ const AdminDashboard = () => {
               <Tractor size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{totalFarmers}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
+          </div>
           <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
         </div>
 
@@ -280,7 +321,9 @@ const AdminDashboard = () => {
               <Database size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{totalTanks}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : totalTanks}
+          </div>
           <div style={styles.kpiLink}>View All Tanks <ArrowUpRight size={14} /></div>
         </div>
 
@@ -296,7 +339,9 @@ const AdminDashboard = () => {
               <Box size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{activeTanks}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : activeTanks}
+          </div>
           <div style={styles.kpiLink}>View Active <ArrowUpRight size={14} /></div>
         </div>
 
@@ -312,7 +357,9 @@ const AdminDashboard = () => {
               <Archive size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{harvestedTanks}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : harvestedTanks}
+          </div>
           <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
         </div>
 
@@ -327,7 +374,9 @@ const AdminDashboard = () => {
               <Activity size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{avgAbwVal}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={{ ...styles.skeletonValue, width: '68px' }} /> : avgAbwVal}
+          </div>
           <div style={styles.kpiSubtext}>Mean Body Weight</div>
         </div>
 
@@ -344,8 +393,14 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div style={{ ...styles.kpiValue, marginBottom: '2px', display: 'flex', flexDirection: 'column' }}>
-            <span>{totalIncharges}</span>
-            <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+            {isLoading ? (
+              <div style={{ ...styles.skeletonValue, width: '48px', height: '30px' }} />
+            ) : (
+              <>
+                <span>{totalIncharges}</span>
+                <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+              </>
+            )}
           </div>
           <div style={{ ...styles.kpiLink, marginTop: '8px' }}>View Incharges <ArrowUpRight size={14} /></div>
         </div>
@@ -362,10 +417,16 @@ const AdminDashboard = () => {
               <AlertCircle size={18} />
             </div>
           </div>
-          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>{dueAndOverdueTanks.length} Tanks</div>
+          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>
+            {isLoading ? (
+              <div style={{ ...styles.skeletonValue, width: '90px', backgroundColor: '#FEE2E2' }} />
+            ) : (
+              `${dueAndOverdueTanks.length} Tanks`
+            )}
+          </div>
           <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>View All Due Tests <ArrowUpRight size={12} /></div>
-            <span>({overdueCount} Overdue)</span>
+            <span>({isLoading ? '...' : overdueCount} Overdue)</span>
           </div>
         </div>
       </div>
@@ -434,7 +495,33 @@ const AdminDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {displayedHarvestRecords.length === 0 ? (
+              {isLoading ? (
+                [1, 2, 3].map((n) => (
+                  <tr key={`skel-${n}`} style={styles.tableRow}>
+                    <td style={styles.tdPrimary}>
+                      <div style={{ height: '16px', width: '130px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{ height: '16px', width: '60px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdWeight}>
+                      <div style={{ height: '16px', width: '50px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdFcr}>
+                      <div style={{ height: '16px', width: '40px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdDoc}>
+                      <div style={{ height: '16px', width: '35px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdDate}>
+                      <div style={{ height: '16px', width: '85px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{ height: '22px', width: '70px', borderRadius: '6px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : displayedHarvestRecords.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={styles.emptyTableTd}>
                     No harvest or FCR records found.
@@ -905,7 +992,18 @@ const styles = {
     color: '#0F172A',
     marginBottom: '6px',
     lineHeight: '1',
-    letterSpacing: '-0.02em'
+    letterSpacing: '-0.02em',
+    minHeight: '32px',
+    display: 'flex',
+    alignItems: 'center'
+  },
+
+  skeletonValue: {
+    height: '28px',
+    width: '52px',
+    borderRadius: '6px',
+    backgroundColor: '#E2E8F0',
+    display: 'inline-block'
   },
 
   kpiSubtext: {

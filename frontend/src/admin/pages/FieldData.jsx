@@ -258,6 +258,12 @@ const FieldData = () => {
     return filtered.map(t => t.name || t.id);
   }, [filters.incharge, filters.agent, filters.farmer, allTanks]);
 
+  const getTankById = (id) => {
+    if (!id || !Array.isArray(allTanks)) return null;
+    const strId = String(id).trim().toLowerCase();
+    return allTanks.find(t => String(t.id).toLowerCase() === strId || String(t.name || '').toLowerCase() === strId) || null;
+  };
+
   let filteredSubmissions = submissions.filter(sub => {
     const tank = getTankById(sub.tankId) || {};
     const farmer = allFarmers.find(f => f.id === sub.farmerId || f.name === sub.farmerId) || {};
