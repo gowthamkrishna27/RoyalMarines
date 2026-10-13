@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ArrowLeft, ArrowRight, UserPlus, MapPin, RefreshCw, 
-  CheckCircle, Plus, Trash2, ShieldCheck, Save 
+import {
+  ArrowLeft, ArrowRight, UserPlus, MapPin, RefreshCw,
+  CheckCircle, Plus, Trash2, ShieldCheck, Save
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -17,9 +17,9 @@ const AddFarmer = () => {
   const { createFarmerWithTanks } = useMockData();
 
   // Detect whether current page is in Incharge / ASM context
-  const isIncharge = location.pathname.startsWith('/incharge') || 
-                     location.pathname.startsWith('/asm') || 
-                     (!session && (isInchargeAuthenticated() || !!inchargeSession));
+  const isIncharge = location.pathname.startsWith('/incharge') ||
+    location.pathname.startsWith('/asm') ||
+    (!session && (isInchargeAuthenticated() || !!inchargeSession));
   const inchargeBasePath = location.pathname.startsWith('/asm') ? '/asm' : '/incharge';
 
   const [step, setStep] = useState(1);
@@ -98,7 +98,16 @@ const AddFarmer = () => {
       setGpsData(fallback);
     }
 
-    const numTanks = parseInt(farmerForm.numberOfTanks) || 1;
+    const parsedTanks = parseInt(farmerForm.numberOfTanks, 10);
+    if (isNaN(parsedTanks) || parsedTanks < 1) {
+      alert('Please enter at least 1 tank.');
+      return;
+    }
+    if (parsedTanks > 20) {
+      alert('Initial number of tanks cannot exceed 20.');
+      return;
+    }
+    const numTanks = parsedTanks;
     const defaultTankArea = farmerForm.extent && parseFloat(farmerForm.extent) > 0
       ? (parseFloat(farmerForm.extent) / numTanks).toFixed(1)
       : '2.5';
@@ -140,6 +149,10 @@ const AddFarmer = () => {
   };
 
   const handleAddExtraTank = () => {
+    if (tanksData.length >= 20) {
+      alert('Maximum of 20 tanks allowed.');
+      return;
+    }
     setTanksData(prev => [
       ...prev,
       {
@@ -180,8 +193,8 @@ const AddFarmer = () => {
     setIsSaving(true);
     try {
       const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
-      const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
-        ? parseFloat(farmerForm.extent) 
+      const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0
+        ? parseFloat(farmerForm.extent)
         : calculatedAcres;
 
       const farmerPayload = {
@@ -237,7 +250,7 @@ const AddFarmer = () => {
     <div style={styles.container}>
       {/* Top Header */}
       <div style={styles.topHeader}>
-        <button 
+        <button
           className="transition-all duration-150 hover:opacity-80 active:scale-95 cursor-pointer"
           style={styles.backLink}
           onClick={handleBack}
@@ -323,20 +336,19 @@ const AddFarmer = () => {
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Initial Number of Tanks *</label>
-                <select
+                <label style={styles.fieldLabel}>Number of Tanks (1 - 20) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
                   name="numberOfTanks"
                   value={farmerForm.numberOfTanks}
                   onChange={handleFarmerChange}
                   style={styles.textInput}
-                >
-                  <option value="1">1 Tank</option>
-                  <option value="2">2 Tanks</option>
-                  <option value="3">3 Tanks</option>
-                  <option value="4">4 Tanks</option>
-                  <option value="5">5 Tanks</option>
-                  <option value="6">6 Tanks</option>
-                </select>
+                  placeholder="(e.g. 2)"
+                  required
+                />
               </div>
 
               <div>
@@ -395,8 +407,8 @@ const AddFarmer = () => {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
               style={styles.primaryActionBtn}
             >
