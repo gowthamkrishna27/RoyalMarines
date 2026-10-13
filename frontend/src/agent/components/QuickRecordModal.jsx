@@ -24,14 +24,21 @@ const QuickRecordModalInner = ({
   const session = getSession();
   const inchargeSession = getInchargeSession();
 
+  const isAdmin = Boolean(
+    userRole === 'ADMIN' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
+  );
+
   const isIncharge = Boolean(
-    userRole === 'INCHARGE' ||
-    userRole === 'ASM' ||
-    (typeof window !== 'undefined' && (
-      window.location.pathname.startsWith('/incharge') ||
-      window.location.pathname.startsWith('/asm')
-    )) ||
-    (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    !isAdmin && (
+      userRole === 'INCHARGE' ||
+      userRole === 'ASM' ||
+      (typeof window !== 'undefined' && (
+        window.location.pathname.startsWith('/incharge') ||
+        window.location.pathname.startsWith('/asm')
+      )) ||
+      (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    )
   );
 
   const currentInchargeId = inchargeSession?.inchargeId || 'INC001';
@@ -42,9 +49,11 @@ const QuickRecordModalInner = ({
   const [showAdvancedParams, setShowAdvancedParams] = useState(false);
 
   // Farmers and Tanks
-  const assignedFarmers = isIncharge
-    ? ((getFarmersByInchargeId && getFarmersByInchargeId(currentInchargeId)) || db?.farmers || [])
-    : ((getFarmersByAgentId && getFarmersByAgentId(currentAgentId)) || db?.farmers || []);
+  const assignedFarmers = isAdmin
+    ? (db?.farmers || [])
+    : isIncharge
+      ? ((getFarmersByInchargeId && getFarmersByInchargeId(currentInchargeId)) || db?.farmers || [])
+      : ((getFarmersByAgentId && getFarmersByAgentId(currentAgentId)) || db?.farmers || []);
   const [selectedFarmerId, setSelectedFarmerId] = useState(preselectedFarmerId || assignedFarmers[0]?.id || '');
 
   const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(selectedFarmerId) : (db?.tanks || []).filter(t => t.farmerId === selectedFarmerId);
@@ -308,13 +317,17 @@ const QuickRecordModalInner = ({
     const formattedDate = (isFeed ? feedForm.date : (isHarvest ? harvestForm.date : (isDisease ? diseaseForm.date : waterForm.date))) || now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
-    const resolvedUserId = isIncharge
-      ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
-      : (session?.agentId || session?.id || 'agent001');
-    const resolvedUserName = isIncharge
-      ? (inchargeSession?.name || 'Incharge')
-      : (session?.name || 'Ramesh');
+    const resolvedRole = isAdmin ? 'Admin' : (isIncharge ? 'Incharge' : 'Agent');
+    const resolvedUserId = isAdmin
+      ? 'ADMIN'
+      : isIncharge
+        ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
+        : (session?.agentId || session?.id || 'agent001');
+    const resolvedUserName = isAdmin
+      ? 'Administrator'
+      : isIncharge
+        ? (inchargeSession?.name || 'Incharge')
+        : (session?.name || 'Technician');
 
     const enrichedData = isHarvest || isFeed || isDisease ? formData : {
       ...formData,

@@ -134,7 +134,66 @@ const Harvest = () => {
     totalFeed: '3600'
   };
 
-  const rawHarvests = currentStore.harvests || [];
+  const normalizeId = (id) => String(id || '').trim().toLowerCase().replace(/^t0*/, 't');
+  const isTankMatch = (idA, idB) => {
+    if (!idA || !idB) return false;
+    if (idA === idB) return true;
+    return normalizeId(idA) === normalizeId(idB);
+  };
+
+  const storedList = currentStore.harvests || [];
+  const rawHarvests = [...storedList];
+
+  // Merge from db.harvests
+  (db?.harvests || []).forEach(h => {
+    if (isTankMatch(h.tankId, selectedTankId)) {
+      const exists = rawHarvests.some(r => r.id === h.id || (r.date === h.date && r.harvestedBiomass === h.quantityKg));
+      if (!exists) {
+        rawHarvests.push({
+          id: h.id,
+          date: h.date,
+          doc: h.doc || activeTank?.doc || 77,
+          abw: h.abw || activeTank?.abw || 25,
+          harvestedBiomass: h.quantityKg || h.quantity_kg || 0,
+          harvestedNumber: h.harvestedNumber || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
+          feedConsumed: h.feedConsumed || 0,
+          fcr: h.fcr || activeTank?.fcr || '1.18',
+          buyer: h.buyerName || h.buyer || 'Royals Marine Processing Unit 1',
+          remarks: h.remarks || '',
+          harvestType: h.harvestType || 'Partial Harvest',
+          isFinal: h.isFinal || (h.harvestType === 'Final Harvest')
+        });
+      }
+    }
+  });
+
+  // Merge from db.submissions
+  (db?.submissions || []).forEach(sub => {
+    if (isTankMatch(sub.tankId, selectedTankId)) {
+      const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') || 
+                           (sub.recordType || '').toUpperCase().includes('HARVEST');
+      if (isSubHarvest) {
+        const sData = sub.data || {};
+        const exists = rawHarvests.some(r => r.id === sub.id || (r.date === sub.date && r.harvestedBiomass === (sData.harvestedBiomass || sData.quantityKg)));
+        if (!exists) {
+          rawHarvests.push({
+            id: sub.id,
+            date: sub.date,
+            doc: sData.doc || activeTank?.doc || 77,
+            abw: sData.abw || activeTank?.abw || 25,
+            harvestedBiomass: parseFloat(sData.harvestedBiomass || sData.quantityKg || 0),
+            harvestedNumber: parseFloat(sData.harvestedNumber || 0),
+            feedConsumed: parseFloat(sData.feedConsumed || 0),
+            fcr: sData.fcr || activeTank?.fcr || '1.18',
+            buyer: sData.buyer || 'Royals Marine Processing Unit 1',
+            remarks: sData.remarks || '',
+            harvestType: sData.harvestType || (sub.testType === 'Final Harvest' ? 'Final Harvest' : 'Partial Harvest'),
+            isFinal: sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest' || sData.isFinal
+          });
+        }
+      }
+    }
+  });
 
   // Sort harvests chronologically
   const sortedHarvests = [...rawHarvests].sort((a, b) => {

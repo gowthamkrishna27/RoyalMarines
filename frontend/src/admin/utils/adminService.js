@@ -109,6 +109,26 @@ export const adminService = {
   async getFieldStaff() {
     const res = await apiClient.get('/admin/field-staff');
     return Array.isArray(res?.data) ? res.data : [];
+  },
+
+  async createSubmission(payload) {
+    const res = await apiClient.post('/submissions', payload);
+    return res?.data || null;
+  },
+
+  async createHarvest(payload) {
+    const res = await apiClient.post('/harvests', payload);
+    return res?.data || null;
+  },
+
+  async updateTank(id, updates) {
+    const res = await apiClient.put(`/tanks/${id}`, updates);
+    return res?.data || null;
+  },
+
+  async verifySubmission(id, status, notes = '') {
+    const res = await apiClient.patch(`/submissions/${id}/verify`, { status, notes });
+    return res?.data || null;
   }
 };
 

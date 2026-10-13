@@ -142,20 +142,37 @@ export const initializeDatabaseSchema = async () => {
       CREATE TABLE IF NOT EXISTS submissions (
         id VARCHAR(50) PRIMARY KEY,
         agent_id VARCHAR(50),
+        user_id VARCHAR(50),
+        user_name VARCHAR(100),
+        role VARCHAR(50),
         farmer_id VARCHAR(50),
         tank_id VARCHAR(50),
         test_type VARCHAR(100),
         date VARCHAR(50),
+        submission_time VARCHAR(50),
         status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
         data JSON,
         latitude DECIMAL(10, 8),
         longitude DECIMAL(11, 8),
+        accuracy DECIMAL(8, 2),
         locality VARCHAR(255),
         review_notes TEXT,
         submitted_ago VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure all columns exist on submissions table
+    const subColAlters = [
+      'ALTER TABLE submissions ADD COLUMN user_id VARCHAR(50) AFTER agent_id',
+      'ALTER TABLE submissions ADD COLUMN user_name VARCHAR(100) AFTER user_id',
+      'ALTER TABLE submissions ADD COLUMN role VARCHAR(50) AFTER user_name',
+      'ALTER TABLE submissions ADD COLUMN submission_time VARCHAR(50) AFTER date',
+      'ALTER TABLE submissions ADD COLUMN accuracy DECIMAL(8, 2) AFTER longitude'
+    ];
+    for (const alt of subColAlters) {
+      try { await query(alt); } catch (e) { }
+    }
 
     // 9. Harvests Table
     await query(`

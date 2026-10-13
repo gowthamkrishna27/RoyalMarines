@@ -5,6 +5,7 @@ import {
   Fish, Wheat, ArrowRight, Sparkles, AlertCircle, 
   Building, FileText, Check, Lock
 } from 'lucide-react';
+import apiClient from '../../utils/apiClient';
 
 const TakeHarvestModal = ({ 
   isOpen, 
@@ -108,6 +109,48 @@ const TakeHarvestModal = ({
 
       localStorage.setItem('agent_harvest_store', JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: store }));
+
+      // Persist to MySQL Backend via API
+      const farmerId = farmer?.id || tank.farmerId || '';
+      const revenueVal = numBiomass * 380;
+      
+      apiClient.post('/harvests', {
+        tankId: tank.id,
+        farmerId,
+        date: harvestDate,
+        quantityKg: numBiomass,
+        countPerKg: calculatedCount,
+        quality: 'Grade A',
+        pricePerKg: 380,
+        revenue: revenueVal,
+        buyerName: buyer || 'Royals Marine Processing Unit 1',
+        remarks: newHarvestRecord.remarks,
+        harvestType: isFinal ? 'Final Harvest' : 'Partial Harvest',
+        isFinal
+      }).catch(err => console.warn('[TakeHarvestModal] Failed to post harvest:', err));
+
+      const subId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      apiClient.post('/submissions', {
+        id: subId,
+        farmerId,
+        tankId: tank.id,
+        testType: isFinal ? 'Final Harvest' : 'Harvest',
+        recordType: 'HARVEST_ENTRY',
+        date: harvestDate,
+        data: newHarvestRecord,
+        status: 'PENDING_VERIFICATION'
+      }).catch(err => console.warn('[TakeHarvestModal] Failed to post submission:', err));
+
+      if (isFinal) {
+        apiClient.put(`/tanks/${tank.id}`, {
+          status: 'Harvested',
+          testStatus: 'Completed',
+          nextTest: 'Cycle Closed'
+        }).catch(err => console.warn('[TakeHarvestModal] Failed to update tank status:', err));
+      }
+
+      window.dispatchEvent(new CustomEvent('harvestCreated', { detail: newHarvestRecord }));
+      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: { ...newHarvestRecord, id: subId, testType: isFinal ? 'Final Harvest' : 'Harvest', tankId: tank.id, farmerId } }));
 
       setSavedData(newHarvestRecord);
       setIsSubmitted(true);

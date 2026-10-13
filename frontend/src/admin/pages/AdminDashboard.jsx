@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X, TestTube, Bell, Check, Clock, Filter, Plus, ChevronDown, ChevronUp, RefreshCw
+  Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 import adminService from '../utils/adminService';
@@ -18,6 +18,7 @@ const AdminDashboard = () => {
   const [agents, setAgents] = useState([]);
   const [incharges, setIncharges] = useState([]);
   const [liveHarvests, setLiveHarvests] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,13 +31,14 @@ const AdminDashboard = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const [sum, tks, fms, ags, incs, hrvs] = await Promise.all([
+      const [sum, tks, fms, ags, incs, hrvs, subs] = await Promise.all([
         adminService.getSummary(),
         adminService.getTanks(),
         adminService.getFarmers(),
         adminService.getAgents(),
         adminService.getIncharges(),
-        adminService.getHarvests()
+        adminService.getHarvests(),
+        adminService.getSubmissions()
       ]);
       setSummary(sum);
       setAllTanks(tks);
@@ -44,6 +46,7 @@ const AdminDashboard = () => {
       setAgents(ags);
       setIncharges(incs);
       setLiveHarvests(hrvs);
+      setSubmissions(subs);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Could not connect to database API. Click to retry.');
@@ -54,6 +57,15 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     loadDashboardData();
+    const handleSubCreated = () => {
+      loadDashboardData();
+    };
+    window.addEventListener('submissionCreated', handleSubCreated);
+    window.addEventListener('harvestCreated', handleSubCreated);
+    return () => {
+      window.removeEventListener('submissionCreated', handleSubCreated);
+      window.removeEventListener('harvestCreated', handleSubCreated);
+    };
   }, []);
 
   // Real database statistics derived directly from MySQL API
@@ -110,34 +122,75 @@ const AdminDashboard = () => {
   const [showHarvestedModal, setShowHarvestedModal] = useState(false);
   const [showAllHarvests, setShowAllHarvests] = useState(false);
 
+  // Unified live records combining Harvests and Test Submissions
+  const allRecords = useMemo(() => {
+    // 1. Live harvest records
+    const harvestList = (liveHarvests || []).map((h, idx) => ({
+      id: h.id ? `hrv_${h.id}` : `hrv_${idx}`,
+      farmerName: h.farmerName || h.farmer_name || '-',
+      tankName: h.tankName || h.tank_name || h.tankId || '-',
+      abw: h.abw ? (String(h.abw).includes('g') ? h.abw : `${h.abw}g`) : (h.countPerKg ? `${(1000 / h.countPerKg).toFixed(1)}g` : '-'),
+      fcr: h.fcr != null && h.fcr !== '' ? Number(h.fcr).toFixed(2) : '-',
+      doc: h.doc != null && h.doc !== '' ? Number(h.doc) : null,
+      date: h.date || h.harvest_date || '-',
+      quality: h.quality || h.harvest_type || 'Harvest',
+      timestamp: new Date(h.date || h.harvest_date || 0).getTime()
+    }));
+
+    // 2. Submissions / test records
+    const submissionList = (submissions || []).map((s, idx) => {
+      const raw = s.data || {};
+      const abwVal = s.abw || raw.abw;
+      const fcrVal = s.fcr || raw.fcr;
+      const docVal = s.doc != null ? s.doc : raw.doc;
+      const testType = s.testType || s.test_type || (raw.testType) || 'Field Test';
+      const dateVal = s.date || (s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : '-');
+
+      return {
+        id: s.id ? `sub_${s.id}` : `sub_${idx}`,
+        farmerName: s.farmerName || s.farmer_name || 'Farmer',
+        tankName: s.tankName || s.tank_name || s.tankId || '-',
+        abw: abwVal ? (String(abwVal).includes('g') ? abwVal : `${abwVal}g`) : '-',
+        fcr: fcrVal != null && fcrVal !== '' ? Number(fcrVal).toFixed(2) : '-',
+        doc: docVal != null && docVal !== '' ? Number(docVal) : null,
+        date: dateVal,
+        quality: testType,
+        timestamp: new Date(s.createdAt || s.date || 0).getTime()
+      };
+    });
+
+    const combined = [...harvestList, ...submissionList];
+    return combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }, [liveHarvests, submissions]);
+
   // When DOC is entered: specific DOC details 1st, then descending order DOC farmers; otherwise all farmers
   const filteredHarvests = useMemo(() => {
     const trimmed = String(docInput || '').trim();
     if (!trimmed) {
-      return liveHarvests;
+      return allRecords;
     }
 
     const targetDoc = parseInt(trimmed, 10);
     if (isNaN(targetDoc)) {
-      return liveHarvests;
+      return allRecords;
     }
 
     // 1. That specific DOC details 1st
-    const exactMatches = liveHarvests
-      .filter(r => Number(r.doc) === targetDoc)
-      .sort((a, b) => new Date(b.date || b.harvest_date || 0) - new Date(a.date || a.harvest_date || 0));
+    const exactMatches = allRecords
+      .filter(r => r.doc !== null && Number(r.doc) === targetDoc)
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     // 2. Later on: descending order DOC farmers
-    const lowerDescending = liveHarvests
-      .filter(r => Number(r.doc) < targetDoc)
+    const lowerDescending = allRecords
+      .filter(r => r.doc !== null && Number(r.doc) < targetDoc)
       .sort((a, b) => {
         const diff = (Number(b.doc) || 0) - (Number(a.doc) || 0);
         if (diff !== 0) return diff;
-        return new Date(b.date || b.harvest_date || 0) - new Date(a.date || a.harvest_date || 0);
+        return (b.timestamp || 0) - (a.timestamp || 0);
       });
 
     return [...exactMatches, ...lowerDescending];
-  }, [liveHarvests, docInput]);
+  }, [allRecords, docInput]);
 
   // Initially show ONLY 5 records, or all remaining records if present and expanded
   const displayedHarvestRecords = showAllHarvests
@@ -148,11 +201,7 @@ const AdminDashboard = () => {
     <div style={styles.dashboardContainer}>
 
       {/* 1. Header Section */}
-      <div style={styles.headerSection}>
-        <div style={styles.headerBadge}></div>
-        <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
-        <p style={styles.headerSubtitle}></p>
-      </div>
+      <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
 
       {/* 2. KPI Stat Cards Row */}
       <div style={styles.kpiGrid}>
@@ -274,15 +323,13 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* 3. Combined Harvest & FCR Records Section */}
+      {/* 3. Operational Harvest & Records Section */}
       <div style={styles.sectionCard}>
+        {/* Section Header */}
         <div style={styles.sectionHeader}>
-          <div>
-            <div style={styles.sectionTitleRow}>
-              <TrendingUp size={20} color="#2563EB" />
-              <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
-              <span style={styles.countBadge}>{filteredHarvests.length} Total Records</span>
-            </div>
+          <div style={styles.sectionTitleRow}>
+            <TrendingUp size={20} color="#2563EB" />
+            <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
           </div>
 
           <div style={styles.harvestControls}>
@@ -326,7 +373,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Combined Harvest + FCR Records Table */}
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -357,8 +403,8 @@ const AdminDashboard = () => {
                       </td>
                       <td style={styles.td}>{record.tankName || record.tank_name || record.tankId || '-'}</td>
                       <td style={styles.tdWeight}>{displayAbw}</td>
-                      <td style={styles.tdFcr}>{record.fcr ? Number(record.fcr).toFixed(2) : '-'}</td>
-                      <td style={styles.tdDoc}>{record.doc != null ? record.doc : '-'}</td>
+                      <td style={styles.tdFcr}>{record.fcr && record.fcr !== '-' ? (!isNaN(Number(record.fcr)) ? Number(record.fcr).toFixed(2) : record.fcr) : '-'}</td>
+                      <td style={styles.tdDoc}>{record.doc != null && record.doc !== '' ? record.doc : '-'}</td>
                       <td style={styles.tdDate}>{record.date || record.harvest_date || '-'}</td>
                       <td style={styles.td}>
                         <span style={styles.typeChip}>{record.quality || record.harvest_type || 'Harvest'}</span>
@@ -656,6 +702,8 @@ const AdminDashboard = () => {
       {showHarvestedModal && (
         <HarvestedTanksModal onClose={() => setShowHarvestedModal(false)} />
       )}
+
+
     </div>
   );
 };

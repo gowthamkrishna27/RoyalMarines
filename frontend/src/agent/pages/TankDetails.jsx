@@ -93,14 +93,75 @@ const TankDetails = () => {
     return () => window.removeEventListener('harvestStoreUpdated', handleStoreUpdate);
   }, []);
 
+  const normalizeId = (id) => String(id || '').trim().toLowerCase().replace(/^t0*/, 't');
+  const isTankMatch = (idA, idB) => {
+    if (!idA || !idB) return false;
+    if (idA === idB) return true;
+    return normalizeId(idA) === normalizeId(idB);
+  };
+
   const storeKey = `${farmer?.id || ''}_${tank.id}`;
   const tankStoreData = harvestStore[storeKey];
 
-  // Retrieve harvests from local storage
+  // Submissions for this tank
+  const tankSubmissions = (db?.submissions || [])
+    .filter(s => isTankMatch(s.tankId, tank.id) || (tank.name && s.tankName === tank.name))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  // Retrieve harvests from local storage and database
   let rawHarvests = [];
   if (tankStoreData && Array.isArray(tankStoreData.harvests)) {
-    rawHarvests = tankStoreData.harvests;
+    rawHarvests = [...tankStoreData.harvests];
   }
+
+  // Also include harvests from db.harvests
+  (db?.harvests || []).forEach(h => {
+    if (isTankMatch(h.tankId, tank.id)) {
+      const exists = rawHarvests.some(r => r.id === h.id || (r.date === h.date && r.harvestedBiomass === h.quantityKg));
+      if (!exists) {
+        rawHarvests.push({
+          id: h.id,
+          date: h.date,
+          doc: h.doc || tank.doc || 77,
+          abw: h.abw || tank.abw || 25,
+          harvestedBiomass: h.quantityKg || h.quantity_kg || 0,
+          harvestedNumber: h.harvestedNumber || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
+          feedConsumed: h.feedConsumed || 0,
+          fcr: h.fcr || tank.fcr || '1.18',
+          buyer: h.buyerName || h.buyer || 'Royals Marine Processing Unit 1',
+          remarks: h.remarks || '',
+          harvestType: h.harvestType || 'Partial Harvest',
+          isFinal: h.isFinal || (h.harvestType === 'Final Harvest')
+        });
+      }
+    }
+  });
+
+  // Also include harvests from tankSubmissions where testType or recordType is harvest
+  tankSubmissions.forEach(sub => {
+    const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') || 
+                         (sub.recordType || '').toUpperCase().includes('HARVEST');
+    if (isSubHarvest) {
+      const sData = sub.data || {};
+      const exists = rawHarvests.some(r => r.id === sub.id || (r.date === sub.date && r.harvestedBiomass === (sData.harvestedBiomass || sData.quantityKg)));
+      if (!exists) {
+        rawHarvests.push({
+          id: sub.id,
+          date: sub.date,
+          doc: sData.doc || tank.doc || 77,
+          abw: sData.abw || tank.abw || 25,
+          harvestedBiomass: parseFloat(sData.harvestedBiomass || sData.quantityKg || 0),
+          harvestedNumber: parseFloat(sData.harvestedNumber || 0),
+          feedConsumed: parseFloat(sData.feedConsumed || 0),
+          fcr: sData.fcr || tank.fcr || '1.18',
+          buyer: sData.buyer || 'Royals Marine Processing Unit 1',
+          remarks: sData.remarks || '',
+          harvestType: sData.harvestType || (sub.testType === 'Final Harvest' ? 'Final Harvest' : 'Partial Harvest'),
+          isFinal: sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest' || sData.isFinal
+        });
+      }
+    }
+  });
 
   // Sort harvests chronologically
   const sortedHarvests = [...rawHarvests].sort((a, b) => {
@@ -122,15 +183,17 @@ const TankDetails = () => {
   const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') || 
     (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted);
 
-  // Submissions for this tank
-  const tankSubmissions = (db?.submissions || [])
-    .filter(s => s.tankId === tank.id || s.tankName === tank.name)
-    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-
   const filterSubmissions = (type) => {
+    const target = type.toUpperCase();
     return tankSubmissions.filter(s => {
       const st = (s.testType || s.recordType || '').toUpperCase();
-      return st.includes(type.toUpperCase());
+      if (target === 'FEED') {
+        return st.includes('FEED') || (s.data && (s.data.dayFeed !== undefined || s.data.cumulativeFeed !== undefined));
+      }
+      if (target === 'DISEASE') {
+        return st.includes('DISEASE') || (s.data && (s.data.observations !== undefined || s.data.status !== undefined));
+      }
+      return st.includes(target);
     });
   };
 

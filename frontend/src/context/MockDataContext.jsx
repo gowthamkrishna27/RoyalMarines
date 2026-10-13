@@ -689,16 +689,24 @@ export const MockDataProvider = ({ children }) => {
       setDb(prev => {
         const formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         const newTanks = prev.tanks.map(t => {
-          if (t.id === submissionData.tankId) {
+          if (t.id === submissionData.tankId || String(t.id).toLowerCase() === String(submissionData.tankId).toLowerCase()) {
             const isFinal = submissionData.harvest && (submissionData.harvest.type === 'Final' || submissionData.harvest.harvestType === 'Final Harvest');
-            return {
+            const pData = submissionData.data || {};
+            const tankUpdates = {
               ...t,
               testStatus: 'Completed',
               isOverdue: false,
               lastTest: formattedDate,
-              nextTest: 'Due Next Week',
+              nextTest: isFinal ? 'Cycle Closed' : 'Due Next Week',
               ...(isFinal ? { status: 'Harvested', finalHarvestCompleted: true } : {})
             };
+            const incomingBiomass = pData.totalBiomass || pData.biomass;
+            if (incomingBiomass) tankUpdates.biomass = String(incomingBiomass).includes('kg') ? incomingBiomass : `${incomingBiomass} kg`;
+            if (pData.abw) tankUpdates.abw = String(pData.abw).includes('g') ? pData.abw : `${pData.abw}g`;
+            if (pData.fcr) tankUpdates.fcr = String(pData.fcr);
+            if (pData.doc) tankUpdates.doc = Number(pData.doc);
+            if (pData.salinity) tankUpdates.salinity = `${pData.salinity} ppt`;
+            return tankUpdates;
           }
           return t;
         });
@@ -712,7 +720,7 @@ export const MockDataProvider = ({ children }) => {
 
         return {
           ...prev,
-          submissions: [...prev.submissions, newSubmission],
+          submissions: [newSubmission, ...(prev.submissions || [])],
           tanks: newTanks,
           drafts: newDrafts,
           activities: [{ id: Date.now(), time: timeStr, action: actionText, detail: detailText }, ...(prev.activities || [])]
@@ -735,6 +743,27 @@ export const MockDataProvider = ({ children }) => {
         locality: submissionData.locality || submissionData.gps?.locality || null,
         data: submissionData.data || submissionData
       }).catch(() => { });
+
+      if (submissionData.testType === 'Harvest' || submissionData.recordType === 'HARVEST_ENTRY') {
+        const hData = submissionData.data || {};
+        const qKg = parseFloat(hData.harvestedBiomass || hData.quantityKg || 0);
+        if (qKg > 0) {
+          apiClient.post('/harvests', {
+            farmerId: submissionData.farmerId,
+            tankId: submissionData.tankId,
+            date: newSubmission.date,
+            quantityKg: qKg,
+            countPerKg: parseFloat(hData.abw ? (1000 / parseFloat(hData.abw)) : (hData.countPerKg || 40)),
+            quality: hData.quality || 'Grade A',
+            pricePerKg: parseFloat(hData.pricePerKg || 380),
+            revenue: qKg * parseFloat(hData.pricePerKg || 380)
+          }).catch(() => { });
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('submissionCreated', { detail: newSubmission }));
+      }
       showToast('Record submitted for verification!');
     };
 
@@ -1268,15 +1297,17 @@ export const MockDataProvider = ({ children }) => {
         farmerId,
         tankId,
         recordType,
-        testType: recordType === 'WATER_QUALITY' ? 'Water Analysis' :
+        testType: entryData.testType || (
+          recordType === 'WATER_QUALITY' ? 'Water Analysis' :
           recordType === 'FEED_ENTRY' ? 'Feed Test' :
-            (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION') ? 'Disease' :
-              recordType === 'BIOMASS_SAMPLING' ? 'Biomass' :
-                recordType === 'MORTALITY_LOG' ? 'Mortality' :
-                  recordType === 'MEDICATION' ? 'Medication' :
-                    recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
-                      (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
-                        recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test',
+          (recordType === 'DISEASE' || recordType === 'DISEASE_OBSERVATION' || recordType === 'DISEASE_ENTRY') ? 'Disease Observation' :
+          recordType === 'BIOMASS_SAMPLING' ? 'Biomass Sampling' :
+          recordType === 'MORTALITY_LOG' ? 'Mortality Log' :
+          recordType === 'MEDICATION' ? 'Medication Log' :
+          recordType === 'FARM_ACTIVITY' ? 'Farm Activity' :
+          (recordType === 'HARVEST' || recordType === 'HARVEST_ENTRY') ? 'Harvest' :
+          recordType === 'PHOTO_OBSERVATION' ? 'Photo' : 'Field Test'
+        ),
         date: formattedDate,
         submissionTime: resolvedTime,
         time: resolvedTime,
@@ -1303,16 +1334,18 @@ export const MockDataProvider = ({ children }) => {
       setDb(prev => {
         // Update tank status & performance metrics
         const newTanks = (prev.tanks || []).map(t => {
-          if (t.id === tankId) {
+          if (t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase()) {
             const tankUpdates = {
               ...t,
               lastTest: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
               testStatus: 'Completed',
             };
 
-            if (data.biomass) tankUpdates.biomass = data.biomass;
-            if (data.abw) tankUpdates.abw = data.abw;
-            if (data.fcr) tankUpdates.fcr = data.fcr;
+            const incomingBiomass = data.totalBiomass || data.biomass;
+            if (incomingBiomass) tankUpdates.biomass = String(incomingBiomass).includes('kg') ? incomingBiomass : `${incomingBiomass} kg`;
+            if (data.abw) tankUpdates.abw = String(data.abw).includes('g') ? data.abw : `${data.abw}g`;
+            if (data.fcr) tankUpdates.fcr = String(data.fcr);
+            if (data.doc) tankUpdates.doc = Number(data.doc);
             if (data.salinity) tankUpdates.salinity = `${data.salinity} ppt`;
 
             if ((recordType === 'HARVEST_ENTRY' || recordType === 'HARVEST') && (data.harvestType === 'Final Harvest' || data.isFinal)) {
@@ -1363,16 +1396,61 @@ export const MockDataProvider = ({ children }) => {
       }).catch(() => { });
 
       if (recordType === 'HARVEST_ENTRY' || recordType === 'HARVEST') {
-        apiClient.post('/harvests', {
+        const harvestedBiomassNum = parseFloat(data.harvestedBiomass || data.quantityKg || 0);
+        const countPerKgNum = parseFloat(data.abw ? (1000 / parseFloat(data.abw)) : (data.countPerKg || 40));
+        const pricePerKgNum = parseFloat(data.pricePerKg || 380);
+        const revenueNum = harvestedBiomassNum * pricePerKgNum;
+        const harvestPayload = {
+          id: `HARV_${Date.now()}`,
           farmerId: newRecord.farmerId,
           tankId: newRecord.tankId,
           date: newRecord.date,
-          quantityKg: parseFloat(data.harvestedBiomass || data.quantityKg || 0),
-          countPerKg: parseFloat(data.abw ? (1000 / parseFloat(data.abw)) : (data.countPerKg || 40)),
+          quantityKg: harvestedBiomassNum,
+          countPerKg: countPerKgNum,
           quality: data.quality || 'Grade A',
-          pricePerKg: parseFloat(data.pricePerKg || 380),
-          revenue: parseFloat(data.harvestedBiomass || data.quantityKg || 0) * parseFloat(data.pricePerKg || 380)
-        }).catch(() => { });
+          pricePerKg: pricePerKgNum,
+          revenue: revenueNum,
+          buyerName: data.buyer || 'Royals Marine Processing Unit 1',
+          remarks: data.remarks || '',
+          harvestType: data.harvestType || 'Partial Harvest',
+          isFinal: data.harvestType === 'Final Harvest' || data.isFinal,
+          doc: data.doc || 77,
+          abw: data.abw || '25',
+          harvestedBiomass: harvestedBiomassNum,
+          harvestedNumber: data.harvestedNumber || (harvestedBiomassNum > 0 && countPerKgNum > 0 ? harvestedBiomassNum * countPerKgNum : 0)
+        };
+
+        setDb(prev => ({
+          ...prev,
+          harvests: [harvestPayload, ...(prev.harvests || [])]
+        }));
+
+        apiClient.post('/harvests', harvestPayload).catch(() => { });
+
+        try {
+          const storeKey = `${newRecord.farmerId}_${newRecord.tankId}`;
+          const currentStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+          const tankStore = currentStore[storeKey] || {
+            farmerId: newRecord.farmerId,
+            tankId: newRecord.tankId,
+            harvests: []
+          };
+          const existingList = Array.isArray(tankStore.harvests) ? tankStore.harvests : [];
+          tankStore.harvests = [...existingList, harvestPayload];
+          if (data.harvestType === 'Final Harvest' || data.isFinal) {
+            tankStore.finalHarvestCompleted = true;
+          }
+          currentStore[storeKey] = tankStore;
+          localStorage.setItem('agent_harvest_store', JSON.stringify(currentStore));
+          window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: currentStore }));
+        } catch (lsErr) { }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('harvestCreated', { detail: newRecord }));
+        }
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('submissionCreated', { detail: newRecord }));
       }
       showToast(`Field record saved successfully! GPS coordinates attached.`);
       return newRecord;

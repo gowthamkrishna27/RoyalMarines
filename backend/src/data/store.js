@@ -580,11 +580,12 @@ class DataStore {
       let sql = `
         SELECT 
           s.*,
-          COALESCE(f.name, '') as farmer_name,
-          COALESCE(t.name, '') as tank_name
+          COALESCE(NULLIF(f.name, ''), NULLIF(f2.name, ''), '') as farmer_name,
+          COALESCE(NULLIF(t.name, ''), s.tank_id, '') as tank_name
         FROM submissions s
         LEFT JOIN farmers f ON s.farmer_id = f.id
         LEFT JOIN tanks t ON s.tank_id = t.id
+        LEFT JOIN farmers f2 ON t.farmer_id = f2.id
         WHERE 1=1
       `;
       const params = [];
@@ -601,28 +602,42 @@ class DataStore {
         params.push(filter.tankId);
       }
       if (filter.farmerId) {
-        sql += ' AND s.farmer_id = ?';
-        params.push(filter.farmerId);
+        sql += ' AND (s.farmer_id = ? OR t.farmer_id = ?)';
+        params.push(filter.farmerId, filter.farmerId);
       }
       sql += ' ORDER BY s.created_at DESC, s.id DESC';
 
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        ...r,
-        id: String(r.id),
-        agentId: r.agent_id,
-        farmerId: r.farmer_id,
-        farmerName: r.farmer_name,
-        tankId: r.tank_id,
-        tankName: r.tank_name,
-        testType: r.test_type,
-        submissionTime: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
-        time: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
-        submission_time: r.submission_time,
-        createdAt: r.created_at,
-        submittedAgo: r.submitted_ago || 'Recently',
-        data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
-      }));
+      return rows.map((r) => {
+        const parsedData = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r.data || {});
+        return {
+          ...r,
+          id: String(r.id),
+          agentId: r.agent_id || r.user_id,
+          userId: r.user_id || r.agent_id,
+          userName: r.user_name || parsedData.userName || parsedData.agentName || 'Field Technician',
+          role: r.role || (r.user_id && String(r.user_id).startsWith('INC') ? 'Incharge' : 'Agent'),
+          farmerId: r.farmer_id || parsedData.farmerId,
+          farmerName: r.farmer_name || parsedData.farmerName || 'Farmer',
+          tankId: r.tank_id || parsedData.tankId,
+          tankName: r.tank_name || parsedData.tankName || r.tank_id || 'Tank',
+          testType: r.test_type || parsedData.testType || 'Water Quality Test',
+          date: r.date || (r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : ''),
+          submissionTime: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          time: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          submission_time: r.submission_time,
+          createdAt: r.created_at,
+          submittedAgo: r.submitted_ago || 'Recently',
+          status: r.status || 'PENDING_VERIFICATION',
+          data: parsedData,
+          doc: parsedData.doc ?? parsedData.DOC ?? null,
+          abw: parsedData.abw ?? parsedData.ABW ?? null,
+          fcr: parsedData.fcr ?? parsedData.FCR ?? null,
+          salinity: parsedData.salinity ?? null,
+          ph: parsedData.ph ?? parsedData.pH ?? parsedData.waterQuality?.ph ?? null,
+          do: parsedData.do ?? parsedData.DO ?? parsedData.waterQuality?.do ?? null,
+        };
+      });
     } catch (err) {
       console.error('[DB Error in getSubmissions]', err.message);
       throw new Error(`[DB Error in getSubmissions]: ${err.message}`);
@@ -734,13 +749,23 @@ class DataStore {
     const now = new Date();
     const submissionTime = data.submissionTime || data.time || now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+    let farmerId = data.farmerId || '';
+    if (!farmerId && data.tankId) {
+      try {
+        const tRows = await query('SELECT farmer_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
+        if (tRows && tRows.length > 0 && tRows[0].farmer_id) {
+          farmerId = tRows[0].farmer_id;
+        }
+      } catch (fErr) { }
+    }
+
     const newSub = {
       id,
       agent_id: userId,
       user_id: userId,
       user_name: userName,
       role,
-      farmer_id: data.farmerId || '',
+      farmer_id: farmerId,
       tank_id: data.tankId,
       test_type: data.testType || 'Water Quality Test',
       date: data.date || now.toISOString().split('T')[0],
@@ -778,6 +803,86 @@ class DataStore {
           newSub.submitted_ago,
         ]
       );
+
+      // 1. Immediately update Tank's test status, last test date, next test date and telemetry in database
+      try {
+        const formattedDate = data.date
+          ? new Date(data.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const tankUpdates = {
+          lastTest: formattedDate,
+          testStatus: 'Completed',
+          nextTest: 'Due Next Week',
+        };
+
+        const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+        if (payload.abw != null && payload.abw !== '') {
+          tankUpdates.abw = String(payload.abw).includes('g') ? String(payload.abw) : `${payload.abw}g`;
+        }
+        if (payload.biomass != null && payload.biomass !== '') {
+          tankUpdates.biomass = String(payload.biomass).includes('kg') ? String(payload.biomass) : `${payload.biomass} kg`;
+        }
+        if (payload.fcr != null && payload.fcr !== '') {
+          tankUpdates.fcr = String(payload.fcr);
+        }
+        if (payload.doc != null && payload.doc !== '') {
+          tankUpdates.doc = Number(payload.doc);
+        }
+        if (payload.salinity != null && payload.salinity !== '') {
+          tankUpdates.salinity = String(payload.salinity).includes('ppt') ? String(payload.salinity) : `${payload.salinity} ppt`;
+        }
+
+        const isFinalHarvest = (data.testType || '').toUpperCase().includes('HARVEST') &&
+          (payload.harvestType === 'Final Harvest' || payload.isFinal);
+        if (isFinalHarvest) {
+          tankUpdates.status = 'Harvested';
+          tankUpdates.nextTest = 'Cycle Closed';
+        }
+
+        await this.updateTank(data.tankId, tankUpdates);
+      } catch (tankErr) {
+        console.warn('[store.createSubmission] Tank status update warning:', tankErr.message);
+      }
+
+      // 2. Auto-sync Harvest entry if this is a harvest submission and has biomass
+      const isHarvest = (data.testType || '').toUpperCase().includes('HARVEST') || data.recordType === 'HARVEST_ENTRY' || data.recordType === 'HARVEST';
+      if (isHarvest) {
+        try {
+          const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+          const qKg = Number(payload.harvestedBiomass || payload.quantityKg || payload.quantity_kg || 0);
+          if (qKg > 0) {
+            await this.createHarvest({
+              tankId: data.tankId,
+              farmerId: farmerId || '',
+              date: data.date || now.toISOString().split('T')[0],
+              quantityKg: qKg,
+              countPerKg: payload.abw ? Math.round(1000 / parseFloat(payload.abw)) : (payload.countPerKg || 40),
+              quality: payload.quality || 'Grade A',
+              pricePerKg: payload.pricePerKg || 380,
+              revenue: qKg * (payload.pricePerKg || 380),
+              remarks: payload.remarks || `${newSub.test_type} auto-recorded`
+            });
+          }
+        } catch (hErr) {
+          console.warn('[store.createSubmission] Harvest record auto-sync warning:', hErr.message);
+        }
+      }
+
+      // 3. Create Audit Log entry
+      try {
+        await query(
+          `INSERT INTO audit_logs (action, module, record_id, performed_by, notes) VALUES (?, ?, ?, ?, ?)`,
+          [
+            'RECORD_SUBMITTED',
+            'Submissions',
+            newSub.id,
+            userId || null,
+            `${newSub.test_type} recorded for Tank ${data.tankId}`
+          ]
+        );
+      } catch (auditErr) { }
+
       return newSub;
     } catch (err) {
       console.error('[DB Error in createSubmission]', err.message);
@@ -916,12 +1021,21 @@ class DataStore {
         ]
       );
 
-      // Close cycle on tank
-      await this.updateTank(data.tankId, {
-        status: 'Harvested',
-        testStatus: 'Completed',
-        nextTest: 'Cycle Closed',
-      });
+      // Only mark tank as Harvested / cycle closed if it is a Final harvest
+      const isFinalHarvest = Boolean(data.isFinal || String(data.harvestType || data.type || '').toLowerCase().includes('final'));
+      if (isFinalHarvest) {
+        await this.updateTank(data.tankId, {
+          status: 'Harvested',
+          testStatus: 'Completed',
+          nextTest: 'Cycle Closed',
+        });
+      } else {
+        await this.updateTank(data.tankId, {
+          status: 'ACTIVE',
+          testStatus: 'Completed',
+          nextTest: 'Due Next Week',
+        });
+      }
 
       return newHarvest;
     } catch (err) {
