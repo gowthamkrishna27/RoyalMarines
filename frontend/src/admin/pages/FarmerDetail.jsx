@@ -6,7 +6,7 @@ import PageHeader from '../components/PageHeader';
 import {
   Database, Download, TrendingUp, Activity,
   ArrowLeft, Droplets, Edit, X, Check, Fish, UserCheck,
-  ShieldCheck, AlertCircle, FileSpreadsheet
+  ShieldCheck, AlertCircle, FileSpreadsheet, Plus
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis,
@@ -83,10 +83,14 @@ const FarmerDetail = () => {
 
   // Open Edit Modal for active tank
   const openEditTankModal = () => {
+    if (!activeTank) {
+      showToast('No active tank selected.');
+      return;
+    }
     setEditTankForm({
       name: activeTank.name || `Tank ${activeTankIndex + 1}`,
       acres: activeTank.acres || 4.5,
-      waterSource: activeTank.waterSource || 'Creek / Estuary',
+      waterSource: activeTank.waterSource || farmer?.waterSource || 'Creek / Estuary',
       salinity: activeTank.salinity || 15,
       soilType: activeTank.soilType || 'Loam',
       hatcheryName: activeTank.hatcheryName || 'Apex Marine Hatcheries',
@@ -101,24 +105,26 @@ const FarmerDetail = () => {
     setShowEditTankModal(true);
   };
 
-  // Save Tank Edit Changes
-  const handleSaveTankDetails = (e) => {
+  // Save Tank Edit Changes (or register new tank if activeTank is null)
+  const handleSaveTankDetails = async (e) => {
     e.preventDefault();
 
-    const updatedAcres = parseFloat(editTankForm.acres) || activeTank.acres;
-    const updatedABW = parseFloat(editTankForm.abw) || activeTank.abw;
-    const updatedSeedStockingLak = parseFloat(editTankForm.seedStockingLak) || activeTank.seedStockingLak;
+    const isCreating = !activeTank;
+    const updatedAcres = parseFloat(editTankForm.acres) || (activeTank?.acres || 2.5);
+    const updatedABW = parseFloat(editTankForm.abw) || (activeTank?.abw || 16.5);
+    const updatedSeedStockingLak = parseFloat(editTankForm.seedStockingLak) || (activeTank?.seedStockingLak || 2.5);
     const updatedBiomass = calculateBiomass(updatedSeedStockingLak, updatedABW);
-    // Since FCR is derived from feed and biomass, we preserve feed and recalculate FCR,
-    // but the edit modal's FCR is considered "Target FCR". We'll just store the target FCR as targetFcr
-    // and keep the actual fcr calculated dynamically.
     const updatedTargetFcr = parseFloat(editTankForm.fcr) || 1.30;
-    const updatedFCR = calculateFCR(activeTank.feed, updatedBiomass);
+    const feedVal = activeTank?.feed || (updatedBiomass * (updatedTargetFcr || 1.25));
+    const updatedFCR = calculateFCR(feedVal, updatedBiomass);
 
     const updatedTank = {
-      ...activeTank,
-      name: editTankForm.name.trim(),
+      ...(activeTank || {}),
+      id: activeTank?.id || `T_${Date.now().toString(36).toUpperCase()}`,
+      farmerId: farmer?.id || farmerId,
+      name: editTankForm.name.trim() || (activeTank?.name || `Tank ${tanksList.length + 1}`),
       acres: updatedAcres,
+      size: `${updatedAcres} Acres`,
       waterSource: editTankForm.waterSource,
       salinity: parseFloat(editTankForm.salinity) || 15,
       soilType: editTankForm.soilType,
@@ -134,7 +140,40 @@ const FarmerDetail = () => {
       targetFcr: updatedTargetFcr
     };
 
-    const updatedTanksList = tanksList.map((t, idx) => idx === activeTankIndex ? updatedTank : t);
+    let updatedTanksList;
+    if (isCreating) {
+      updatedTanksList = [updatedTank];
+      setActiveTankIndex(0);
+      try {
+        await adminService.createTank({
+          name: updatedTank.name,
+          farmerId: farmer?.id || farmerId,
+          size: `${updatedAcres} Acres`,
+          abw: `${updatedABW}g`,
+          biomass: `${updatedBiomass}kg`,
+          fcr: String(updatedFCR),
+          doc: 1,
+        });
+      } catch (err) {
+        console.warn('API create tank fallback:', err);
+      }
+    } else {
+      updatedTanksList = tanksList.map((t, idx) => idx === activeTankIndex ? updatedTank : t);
+      try {
+        await adminService.updateTank(activeTank.id, {
+          name: updatedTank.name,
+          acres: updatedAcres,
+          waterSource: updatedTank.waterSource,
+          salinity: `${updatedTank.salinity} ppt`,
+          abw: `${updatedABW}g`,
+          biomass: `${updatedBiomass}kg`,
+          fcr: String(updatedFCR)
+        });
+      } catch (err) {
+        console.warn('API update tank fallback:', err);
+      }
+    }
+
     setTanksList(updatedTanksList);
 
     // Calculate new total acres for farmer
@@ -159,7 +198,7 @@ const FarmerDetail = () => {
       } catch (err) { }
     }
 
-    showToast(`Details for ${updatedTank.name} updated successfully!`);
+    showToast(`Details for ${updatedTank.name} ${isCreating ? 'registered' : 'updated'} successfully!`);
     setShowEditTankModal(false);
   };
 
@@ -238,6 +277,10 @@ const FarmerDetail = () => {
 
   // 1. Download Formatted, Styled Excel (.xls) with Embedded Visual Charts & Formatted Tables
   const handleDownloadFormattedExcel = () => {
+    if (!activeTank) {
+      showToast('No active tank registered for this farmer to export.');
+      return;
+    }
     const maxABW = Math.max(...growthData.map(g => g.abw), 30);
     const maxBiomass = Math.max(...growthData.map(g => g.biomass), 4000);
 
@@ -606,36 +649,46 @@ const FarmerDetail = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={styles.selectTankLabel}>Select Tank:</span>
-            {tanksList.map((tank, idx) => (
-              <button
-                key={tank.id || idx}
-                style={{
-                  ...styles.tankNavTab,
-                  ...(activeTankIndex === idx ? styles.tankNavTabActive : {})
-                }}
-                onClick={() => setActiveTankIndex(idx)}
-              >
-                <Database size={14} color={activeTankIndex === idx ? '#2563eb' : '#64748b'} />
-                <span>{tank.name} ({tank.acres} Ac)</span>
-              </button>
-            ))}
+            {tanksList.length > 0 ? (
+              tanksList.map((tank, idx) => (
+                <button
+                  key={tank.id || idx}
+                  style={{
+                    ...styles.tankNavTab,
+                    ...(activeTankIndex === idx ? styles.tankNavTabActive : {})
+                  }}
+                  onClick={() => setActiveTankIndex(idx)}
+                >
+                  <Database size={14} color={activeTankIndex === idx ? '#2563eb' : '#64748b'} />
+                  <span>{tank.name} ({tank.acres || tank.size || '-'} Ac)</span>
+                </button>
+              ))
+            ) : (
+              <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', padding: '4px 8px' }}>
+                No Tanks Registered
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              style={{ ...styles.editTankQuickBtn, color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
-              onClick={() => setShowCompareModal(true)}
-            >
-              <FileSpreadsheet size={13} />
-              <span>Compare All Tanks</span>
-            </button>
-            <button
-              style={styles.editTankQuickBtn}
-              onClick={openEditTankModal}
-            >
-              <Edit size={13} />
-              <span>Edit {activeTank.name} Details</span>
-            </button>
+            {tanksList.length > 1 && (
+              <button
+                style={{ ...styles.editTankQuickBtn, color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+                onClick={() => setShowCompareModal(true)}
+              >
+                <FileSpreadsheet size={13} />
+                <span>Compare All Tanks</span>
+              </button>
+            )}
+            {activeTank && (
+              <button
+                style={styles.editTankQuickBtn}
+                onClick={openEditTankModal}
+              >
+                <Edit size={13} />
+                <span>Edit {activeTank.name} Details</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -645,17 +698,19 @@ const FarmerDetail = () => {
         <div style={styles.sectionHeaderRow}>
           <div>
             <h3 style={styles.sectionCardTitle}>
-              {activeTank.name} Setup Specifications
+              {activeTank ? `${activeTank.name} Setup Specifications` : 'Tank Setup Specifications'}
             </h3>
           </div>
 
-          <button
-            style={styles.editTankSpecsPrimaryBtn}
-            onClick={openEditTankModal}
-          >
-            <Edit size={13} />
-            <span>Edit Specs</span>
-          </button>
+          {activeTank && (
+            <button
+              style={styles.editTankSpecsPrimaryBtn}
+              onClick={openEditTankModal}
+            >
+              <Edit size={13} />
+              <span>Edit Specs</span>
+            </button>
+          )}
         </div>
 
         {/* Tank Specifications Grid */}
@@ -707,8 +762,51 @@ const FarmerDetail = () => {
             </div>
           </div>
         ) : (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
-            No cultivation tanks registered for this farmer in the database.
+          <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🌊</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+              No Cultivation Tanks Registered
+            </div>
+            <div style={{ fontSize: '13px', color: '#64748b', maxWidth: '420px', margin: '0 auto 16px' }}>
+              Farmer {farmer?.name || 'this farmer'} does not have any ponds or tanks configured yet.
+            </div>
+            <button
+              onClick={() => {
+                setEditTankForm({
+                  name: 'Tank 1',
+                  acres: parseFloat(farmer?.acres) || 2.5,
+                  waterSource: farmer?.waterSource || 'Bore Well',
+                  salinity: 15,
+                  soilType: 'Clay Loam',
+                  hatcheryName: 'Apex Marine Hatcheries',
+                  brooder: 'Kona Bay',
+                  seedDate: new Date().toISOString().split('T')[0],
+                  seedStockingLak: 2.5,
+                  feedType: 'Premium Pellets',
+                  currentCycle: 'Cycle 1 (2026)',
+                  abw: 16.5,
+                  fcr: 1.20
+                });
+                setShowEditTankModal(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(37,99,235,0.2)'
+              }}
+            >
+              <Plus size={15} />
+              <span>Register Tank 1</span>
+            </button>
           </div>
         )}
       </div>
@@ -968,10 +1066,10 @@ const FarmerDetail = () => {
             <div style={styles.modalHeader}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
-                  Edit {activeTank.name} Specifications
+                  {activeTank ? `Edit ${activeTank.name} Specifications` : 'Register Cultivation Tank'}
                 </h3>
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                  Farmer: {farmer.name} ({farmer.id})
+                  Farmer: {farmer?.name || ''} ({farmer?.id || farmerId})
                 </div>
               </div>
               <button onClick={() => setShowEditTankModal(false)} style={styles.modalCloseBtn}>
