@@ -1,6 +1,7 @@
 import React from 'react';
 import PageHeader from '../components/PageHeader';
 import { Shield, Users, HardHat, Search } from 'lucide-react';
+import { adminService } from '../utils/adminService';
 
 const ActivityLog = () => {
   const [activities, setActivities] = React.useState([]);
@@ -8,20 +9,22 @@ const ActivityLog = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
 
   React.useEffect(() => {
+    let isMounted = true;
     const fetchActivities = async () => {
       try {
-        const response = await fetch('/api/analytics/audit-logs');
-        const data = await response.json();
-        if (data.success) {
-          setActivities(data.data);
+        setLoading(true);
+        const data = await adminService.getAuditLogs();
+        if (isMounted) {
+          setActivities(Array.isArray(data) ? data : []);
         }
       } catch (error) {
         console.error('Error fetching audit logs:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchActivities();
+    return () => { isMounted = false; };
   }, []);
 
   const filteredActivities = activities.filter(act => 

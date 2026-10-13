@@ -171,17 +171,15 @@ const FieldData = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
+  const loadFieldData = (force = false) => {
+    if (submissions.length === 0) setLoading(true);
     Promise.allSettled([
-      adminService.getSubmissions(),
-      adminService.getIncharges(),
-      adminService.getAgents(),
-      adminService.getFarmers(),
-      adminService.getTanks()
+      adminService.getSubmissions(force),
+      adminService.getIncharges(force),
+      adminService.getAgents(force),
+      adminService.getFarmers(force),
+      adminService.getTanks(force)
     ]).then(([subRes, incRes, agRes, farRes, tkRes]) => {
-      if (!isMounted) return;
       if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setSubmissions(subRes.value);
       if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setIncharges(incRes.value);
       if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAllAgents(agRes.value);
@@ -190,9 +188,15 @@ const FieldData = () => {
       setLoading(false);
     }).catch(err => {
       console.error('[FieldData] Failed to fetch data:', err);
-      if (isMounted) setLoading(false);
+      setLoading(false);
     });
-    return () => { isMounted = false; };
+  };
+
+  useEffect(() => {
+    loadFieldData(false);
+    const handleDataChanged = () => loadFieldData(true);
+    window.addEventListener('adminDataChanged', handleDataChanged);
+    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
   }, []);
 
   useEffect(() => {

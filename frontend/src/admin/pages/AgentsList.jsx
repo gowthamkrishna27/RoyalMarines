@@ -20,16 +20,16 @@ const AgentsList = () => {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchAllData = useCallback(async () => {
+  const fetchAllData = useCallback(async (force = false) => {
     try {
-      setLoading(true);
+      if (agents.length === 0) setLoading(true);
       const [agRes, incRes, regRes, farRes, tkRes, subRes] = await Promise.allSettled([
-        adminService.getAgents(),
-        adminService.getIncharges(),
-        adminService.getRegions(),
-        adminService.getFarmers(),
-        adminService.getTanks(),
-        adminService.getSubmissions()
+        adminService.getAgents(force),
+        adminService.getIncharges(force),
+        adminService.getRegions(force),
+        adminService.getFarmers(force),
+        adminService.getTanks(force),
+        adminService.getSubmissions(force)
       ]);
 
       if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAgents(agRes.value);
@@ -51,13 +51,16 @@ const AgentsList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [agents.length]);
 
   const fetchAgents = fetchAllData;
   const fetchIncharges = fetchAllData;
 
   useEffect(() => {
-    fetchAllData();
+    fetchAllData(false);
+    const handleDataChanged = () => fetchAllData(true);
+    window.addEventListener('adminDataChanged', handleDataChanged);
+    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
   }, [fetchAllData]);
 
 

@@ -18,14 +18,14 @@ const InchargesList = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch live incharges, regions, agents, and farmers from MySQL API
-  const fetchAllData = useCallback(async () => {
+  const fetchAllData = useCallback(async (force = false) => {
     try {
-      setLoading(true);
+      if (incharges.length === 0) setLoading(true);
       const [incRes, regRes, agentRes, farmerRes] = await Promise.allSettled([
-        adminService.getIncharges(),
-        adminService.getRegions(),
-        adminService.getAgents(),
-        adminService.getFarmers()
+        adminService.getIncharges(force),
+        adminService.getRegions(force),
+        adminService.getAgents(force),
+        adminService.getFarmers(force)
       ]);
 
       if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) {
@@ -52,7 +52,7 @@ const InchargesList = () => {
           performanceScore: 92
         }));
         setIncharges(mappedIncharges);
-      } else {
+      } else if (incharges.length === 0) {
         setIncharges([]);
       }
 
@@ -68,13 +68,13 @@ const InchargesList = () => {
 
       if (agentRes.status === 'fulfilled' && Array.isArray(agentRes.value)) {
         setAgents(agentRes.value);
-      } else {
+      } else if (agents.length === 0) {
         setAgents([]);
       }
 
       if (farmerRes.status === 'fulfilled' && Array.isArray(farmerRes.value)) {
         setFarmers(farmerRes.value);
-      } else {
+      } else if (farmers.length === 0) {
         setFarmers([]);
       }
     } catch (error) {
@@ -82,12 +82,15 @@ const InchargesList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [incharges.length, agents.length, farmers.length]);
 
   const fetchIncharges = fetchAllData;
 
   useEffect(() => {
-    fetchAllData();
+    fetchAllData(false);
+    const handleDataChanged = () => fetchAllData(true);
+    window.addEventListener('adminDataChanged', handleDataChanged);
+    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
   }, [fetchAllData]);
 
 

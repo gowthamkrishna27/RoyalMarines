@@ -20,18 +20,16 @@ const ExportCenter = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
+  const loadExportData = (force = false) => {
+    if (liveDb.farmers.length === 0) setLoading(true);
     Promise.allSettled([
-      adminService.getIncharges(),
-      adminService.getAgents(),
-      adminService.getFarmers(),
-      adminService.getTanks(),
-      adminService.getSubmissions(),
-      adminService.getHarvests()
+      adminService.getIncharges(force),
+      adminService.getAgents(force),
+      adminService.getFarmers(force),
+      adminService.getTanks(force),
+      adminService.getSubmissions(force),
+      adminService.getHarvests(force)
     ]).then(([incRes, agRes, farRes, tkRes, subRes, harRes]) => {
-      if (!isMounted) return;
       setLiveDb({
         incharges: incRes.status === 'fulfilled' && Array.isArray(incRes.value) ? incRes.value : [],
         agents: agRes.status === 'fulfilled' && Array.isArray(agRes.value) ? agRes.value : [],
@@ -43,10 +41,15 @@ const ExportCenter = () => {
       setLoading(false);
     }).catch(err => {
       console.error('[ExportCenter] Failed to load data:', err);
-      if (isMounted) setLoading(false);
+      setLoading(false);
     });
+  };
 
-    return () => { isMounted = false; };
+  useEffect(() => {
+    loadExportData(false);
+    const handleDataChanged = () => loadExportData(true);
+    window.addEventListener('adminDataChanged', handleDataChanged);
+    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
   }, []);
 
   const [selectedFields, setSelectedFields] = useState({
