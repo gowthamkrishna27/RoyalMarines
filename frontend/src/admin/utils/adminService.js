@@ -5,35 +5,64 @@ import { apiClient } from '../../utils/apiClient';
  * Connects all Admin Portal modules directly to live Express / MySQL API endpoints.
  */
 
+const memoryCache = new Map();
+const DEFAULT_TTL_MS = 15000; // 15 seconds
+
+async function fetchWithCache(key, fetcher, ttl = DEFAULT_TTL_MS, force = false) {
+  if (!force) {
+    const cached = memoryCache.get(key);
+    if (cached && Date.now() - cached.timestamp < ttl) {
+      return cached.data;
+    }
+  }
+  const data = await fetcher();
+  memoryCache.set(key, { data, timestamp: Date.now() });
+  return data;
+}
+
 export const adminService = {
-  async getSummary() {
-    const res = await apiClient.get('/analytics/summary');
-    return res?.data || {
-      totalFarmers: 0,
-      totalTanks: 0,
-      activeTanks: 0,
-      harvestedTanks: 0,
-      totalIncharges: 0,
-      totalAgents: 0,
-      totalRegions: 0,
-      totalSubmissions: 0,
-      avgAbw: '0.0g',
-      avgFcr: '0.00',
-      totalBiomassKg: 0,
-      harvestsCount: 0,
-      harvestTotalKg: 0,
-      pendingSubmissions: 0
-    };
+  clearCache(key) {
+    if (key) {
+      memoryCache.delete(key);
+    } else {
+      memoryCache.clear();
+    }
   },
 
-  async getRegions() {
-    const res = await apiClient.get('/analytics/regions');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getSummary(force = false) {
+    return fetchWithCache('/analytics/summary', async () => {
+      const res = await apiClient.get('/analytics/summary');
+      return res?.data || {
+        totalFarmers: 0,
+        totalTanks: 0,
+        activeTanks: 0,
+        harvestedTanks: 0,
+        totalIncharges: 0,
+        totalAgents: 0,
+        totalRegions: 0,
+        totalSubmissions: 0,
+        avgAbw: '0.0g',
+        avgFcr: '0.00',
+        totalBiomassKg: 0,
+        harvestsCount: 0,
+        harvestTotalKg: 0,
+        pendingSubmissions: 0
+      };
+    }, DEFAULT_TTL_MS, force);
   },
 
-  async getIncharges() {
-    const res = await apiClient.get('/analytics/incharges');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getRegions(force = false) {
+    return fetchWithCache('/analytics/regions', async () => {
+      const res = await apiClient.get('/analytics/regions');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
+  },
+
+  async getIncharges(force = false) {
+    return fetchWithCache('/analytics/incharges', async () => {
+      const res = await apiClient.get('/analytics/incharges');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
   async getInchargeById(id) {
@@ -41,9 +70,11 @@ export const adminService = {
     return res?.data || null;
   },
 
-  async getAgents() {
-    const res = await apiClient.get('/analytics/agents');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getAgents(force = false) {
+    return fetchWithCache('/analytics/agents', async () => {
+      const res = await apiClient.get('/analytics/agents');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
   async getAgentById(id) {
@@ -51,9 +82,11 @@ export const adminService = {
     return res?.data || null;
   },
 
-  async getFarmers() {
-    const res = await apiClient.get('/farmers');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getFarmers(force = false) {
+    return fetchWithCache('/farmers', async () => {
+      const res = await apiClient.get('/farmers');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
   async getFarmerById(id) {
@@ -61,9 +94,11 @@ export const adminService = {
     return res?.data || null;
   },
 
-  async getTanks() {
-    const res = await apiClient.get('/tanks');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getTanks(force = false) {
+    return fetchWithCache('/tanks', async () => {
+      const res = await apiClient.get('/tanks');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
   async getTankById(id) {
@@ -71,14 +106,18 @@ export const adminService = {
     return res?.data || null;
   },
 
-  async getSubmissions() {
-    const res = await apiClient.get('/submissions');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getSubmissions(force = false) {
+    return fetchWithCache('/submissions', async () => {
+      const res = await apiClient.get('/submissions');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
-  async getHarvests() {
-    const res = await apiClient.get('/harvests');
-    return Array.isArray(res?.data) ? res.data : [];
+  async getHarvests(force = false) {
+    return fetchWithCache('/harvests', async () => {
+      const res = await apiClient.get('/harvests');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
   },
 
   async getDashboardData(tankIds = [], interval = 'Monthly') {
@@ -112,21 +151,25 @@ export const adminService = {
   },
 
   async createSubmission(payload) {
+    memoryCache.clear();
     const res = await apiClient.post('/submissions', payload);
     return res?.data || null;
   },
 
   async createHarvest(payload) {
+    memoryCache.clear();
     const res = await apiClient.post('/harvests', payload);
     return res?.data || null;
   },
 
   async updateTank(id, updates) {
+    memoryCache.clear();
     const res = await apiClient.put(`/tanks/${id}`, updates);
     return res?.data || null;
   },
 
   async verifySubmission(id, status, notes = '') {
+    memoryCache.clear();
     const res = await apiClient.patch(`/submissions/${id}/verify`, { status, notes });
     return res?.data || null;
   }
