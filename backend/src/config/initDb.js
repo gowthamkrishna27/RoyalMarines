@@ -198,24 +198,6 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 10. Audit Logs Table
-    await query(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        action VARCHAR(100) NOT NULL,
-        module VARCHAR(100) NULL,
-        entity_type VARCHAR(100) NULL,
-        record_id VARCHAR(100) NULL,
-        entity_id VARCHAR(100) NULL,
-        performed_by VARCHAR(50) NULL,
-        user_id VARCHAR(50) NULL,
-        ip_address VARCHAR(100) NULL,
-        notes TEXT NULL,
-        details TEXT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;
   } catch (error) {

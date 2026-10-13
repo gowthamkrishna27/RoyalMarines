@@ -23,17 +23,19 @@ const Regions = () => {
   const [allSubmissions, setAllSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadRegionsData = (force = false) => {
-    if (regions.length === 0) setLoading(true);
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
     Promise.allSettled([
-      adminService.getRegions(force),
-      adminService.getIncharges(force),
-      adminService.getAgents(force),
-      adminService.getFarmers(force),
-      adminService.getTanks(force),
-      adminService.getHarvests(force),
-      adminService.getSubmissions(force)
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks(),
+      adminService.getHarvests(),
+      adminService.getSubmissions()
     ]).then(([regRes, incRes, agRes, farRes, tkRes, harRes, subRes]) => {
+      if (!isMounted) return;
       if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
         const mappedRegs = regRes.value.map(r => ({
           id: String(r.code || r.id),
@@ -52,15 +54,9 @@ const Regions = () => {
       setLoading(false);
     }).catch(err => {
       console.error('[Regions] Failed to load data:', err);
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
-  };
-
-  useEffect(() => {
-    loadRegionsData(false);
-    const handleDataChanged = () => loadRegionsData(true);
-    window.addEventListener('adminDataChanged', handleDataChanged);
-    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
+    return () => { isMounted = false; };
   }, []);
 
   // Geographic Filter States
