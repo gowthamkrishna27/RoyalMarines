@@ -34,6 +34,7 @@ const AddFarmer = () => {
     district: 'West Godavari',
     address: '',
     waterSource: 'Canal',
+    customWaterSource: '',
     numberOfTanks: '2',
     extent: '',
     status: 'ACTIVE',
@@ -90,6 +91,11 @@ const AddFarmer = () => {
     }
     if (!farmerForm.village.trim()) {
       alert('Please enter Village.');
+      return;
+    }
+
+    if (farmerForm.waterSource === 'Others' && !farmerForm.customWaterSource?.trim()) {
+      alert('Please specify the water source details.');
       return;
     }
 
@@ -197,6 +203,10 @@ const AddFarmer = () => {
         ? parseFloat(farmerForm.extent)
         : calculatedAcres;
 
+      const resolvedWaterSource = farmerForm.waterSource === 'Others'
+        ? (farmerForm.customWaterSource?.trim() || 'Others')
+        : farmerForm.waterSource;
+
       const farmerPayload = {
         name: farmerForm.name.trim(),
         phone: farmerForm.phone.trim(),
@@ -205,7 +215,7 @@ const AddFarmer = () => {
         area: farmerForm.mandal.trim() || farmerForm.village.trim(),
         district: farmerForm.district,
         address: farmerForm.address,
-        waterSource: farmerForm.waterSource,
+        waterSource: resolvedWaterSource,
         acres: finalAcres,
         extent: finalAcres,
         numberOfTanks: tanksData.length.toString(),
@@ -377,7 +387,26 @@ const AddFarmer = () => {
                   <option value="Borewell">Borewell (Ground Water)</option>
                   <option value="Creek">Creek / Estuary</option>
                   <option value="Seawater">Seawater</option>
+                  <option value="Others">Others</option>
                 </select>
+
+                {farmerForm.waterSource === 'Others' && (
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ ...styles.fieldLabel, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                      Specify Water Source Details *
+                    </label>
+                    <input
+                      type="text"
+                      name="customWaterSource"
+                      value={farmerForm.customWaterSource}
+                      onChange={handleFarmerChange}
+                      style={styles.textInput}
+                      placeholder="Enter water source details (e.g. Open Well, Stream, Lake)"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
