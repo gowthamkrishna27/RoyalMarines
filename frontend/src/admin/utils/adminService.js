@@ -162,6 +162,12 @@ export const adminService = {
     return res?.data || null;
   },
 
+  async createTank(payload) {
+    memoryCache.clear();
+    const res = await apiClient.post('/tanks', payload);
+    return res?.data || null;
+  },
+
   async updateTank(id, updates) {
     memoryCache.clear();
     const res = await apiClient.put(`/tanks/${id}`, updates);
