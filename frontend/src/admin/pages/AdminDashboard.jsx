@@ -67,12 +67,12 @@ const AdminDashboard = () => {
         adminService.getTodaySubmissions(force).catch(() => [])
       ]);
       setSummary(sum);
-      setAllTanks(tks);
-      setFarmers(fms);
-      setAgents(ags);
-      setIncharges(incs);
-      setLiveHarvests(hrvs);
-      setSubmissions(subs);
+      setAllTanks(Array.isArray(tks) ? tks : []);
+      setFarmers(Array.isArray(fms) ? fms : []);
+      setAgents(Array.isArray(ags) ? ags : []);
+      setIncharges(Array.isArray(incs) ? incs : []);
+      setLiveHarvests(Array.isArray(hrvs) ? hrvs : []);
+      setSubmissions(Array.isArray(subs) ? subs : []);
       if (Array.isArray(todayLocs)) {
         setTodayLocationCount(todayLocs.length);
       }
@@ -127,11 +127,11 @@ const AdminDashboard = () => {
   const avgAbwVal = summary?.avgAbw || '0.0g';
 
   // Real Due and Overdue Tests across all tanks
-  const dueAndOverdueTanks = allTanks
+  const dueAndOverdueTanks = (allTanks || [])
     .filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase()))
     .map((t, idx) => {
-      const farmer = farmers.find(f => String(f.id) === String(t.farmerId || t.farmer_id));
-      const agent = agents.find(a => String(a.id) === String(t.agentId || t.agent_id));
+      const farmer = (farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+      const agent = (agents || []).find(a => String(a.id) === String(t.agentId || t.agent_id));
       const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
       const testType = 'Routine Water & Telemetry Audit';
 

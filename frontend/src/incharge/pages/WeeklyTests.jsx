@@ -667,9 +667,9 @@ const WeeklyTests = () => {
                       <span style={styles.paramCardStatus}>Safe (&lt; 0.5 ppm)</span>
                     </div>
                     <div style={styles.paramCard}>
-                      <span style={styles.paramCardLabel}>Nitrite (NO2)</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.nitrite} ppm</span>
-                      <span style={styles.paramCardStatus}>Safe (&lt; 0.25 ppm)</span>
+                      <span style={styles.paramCardLabel}>{selectedTestDetail.data.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)'}</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.nitrate || selectedTestDetail.data.nitrite} ppm</span>
+                      <span style={styles.paramCardStatus}>{selectedTestDetail.data.nitrate ? 'Safe (< 20 ppm)' : 'Safe (< 0.25 ppm)'}</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Potassium (K)</span>

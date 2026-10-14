@@ -154,8 +154,8 @@ const SubmissionLocationMap = () => {
     setSelectedRole(newRole);
     // If current selected user does not match the new role, reset to ALL
     if (newRole !== 'ALL') {
-      const currentStaff = fieldStaff.find(s => s.id === selectedUserId);
-      if (currentStaff && currentStaff.role.toLowerCase() !== newRole.toLowerCase()) {
+      const currentStaff = (fieldStaff || []).find(s => s && s.id === selectedUserId);
+      if (currentStaff && currentStaff.role && currentStaff.role.toLowerCase() !== newRole.toLowerCase()) {
         setSelectedUserId('ALL');
       }
     }
@@ -163,21 +163,22 @@ const SubmissionLocationMap = () => {
 
   // Filter staff list according to selected role
   const filteredStaffOptions = useMemo(() => {
-    if (selectedRole === 'ALL') return fieldStaff;
-    return fieldStaff.filter(s => s.role.toLowerCase() === selectedRole.toLowerCase());
+    if (selectedRole === 'ALL') return fieldStaff || [];
+    return (fieldStaff || []).filter(s => s && s.role && s.role.toLowerCase() === selectedRole.toLowerCase());
   }, [fieldStaff, selectedRole]);
 
   // Center coordinate calculation
   const defaultCenter = useMemo(() => {
-    if (submissions.length > 0) {
-      return [submissions[0].latitude, submissions[0].longitude];
+    const valid = (submissions || []).find(s => s && s.latitude != null && s.longitude != null && !isNaN(Number(s.latitude)) && !isNaN(Number(s.longitude)));
+    if (valid) {
+      return [Number(valid.latitude), Number(valid.longitude)];
     }
     return [16.5449, 81.5212]; // Bhimavaram cluster center
   }, [submissions]);
 
   // Summary counts
-  const agentCount = useMemo(() => submissions.filter(s => s.role?.toLowerCase() === 'agent').length, [submissions]);
-  const inchargeCount = useMemo(() => submissions.filter(s => s.role?.toLowerCase() === 'incharge').length, [submissions]);
+  const agentCount = useMemo(() => (submissions || []).filter(s => s?.role?.toLowerCase() === 'agent').length, [submissions]);
+  const inchargeCount = useMemo(() => (submissions || []).filter(s => s?.role?.toLowerCase() === 'incharge').length, [submissions]);
 
   // Focus marker on clicking table row or "View" button
   const handleFocusSubmission = (sub) => {

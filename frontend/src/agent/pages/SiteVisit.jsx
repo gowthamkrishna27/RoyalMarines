@@ -44,7 +44,7 @@ const SiteVisit = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    water: { date: new Date().toISOString().split('T')[0], doc: '', salinity: '', ph: '', alkalinity: '', hardness: '', ammonia: '', nitrite: '', k: '', do: '', h2s: '', chlorine: '', iron: '', waterColour: 'Greenish' },
+    water: { date: new Date().toISOString().split('T')[0], ph: '', ammonia: '', nitrate: '', salinity: '' },
     feed: { doc: '', seed: '', abw: '', dayFeed: '', cumulativeFeed: '', totalBiomass: '', fcr: '', checkTrayFeed: '', checkTrayTime: '', remarks: '' },
     medication: { treatmentType: '', category: '', product: '', dosage: '', remarks: '' },
     disease: { observations: [], remarks: '' },
@@ -246,11 +246,12 @@ const SiteVisit = () => {
   const checkWaterWarning = (field, value) => {
     const num = parseFloat(value);
     if (isNaN(num)) return null;
-    if (field === 'salinity' && (num < 0 || num > 30)) return 'Target range: 0 - 30 ppt';
     if (field === 'ph' && (num < 7.5 || num > 8.5)) return 'Optimal range: 7.5 - 8.5';
-    if (field === 'alkalinity' && (num < 100 || num > 300)) return 'Target range: 100 - 300 ppm';
     if (field === 'ammonia' && num > 0.5) return 'High Ammonia (> 0.5 ppm)';
+    if (field === 'nitrate' && num > 20) return 'High Nitrate (> 20 ppm)';
+    if (field === 'salinity' && (num < 0 || num > 30)) return 'Target range: 0 - 30 ppt';
     if (field === 'nitrite' && num > 0.25) return 'High Nitrite (> 0.25 ppm)';
+    if (field === 'alkalinity' && (num < 100 || num > 300)) return 'Target range: 100 - 300 ppm';
     if (field === 'do' && num < 4.0) return 'Critical low DO (< 4.0 mg/L)';
     if (field === 'h2s' && num > 0.02) return 'Toxic H2S detected (> 0.02 ppm)';
     if ((field === 'chlorine' || field === 'cl') && num > 0.02) return 'High Chlorine (> 0.02 ppm)';
@@ -317,12 +318,11 @@ const SiteVisit = () => {
 
     const enrichedWater = {
       ...formData.water,
-      cl: formData.water.cl ?? formData.water.chlorine ?? '',
-      chlorine: formData.water.chlorine ?? formData.water.cl ?? '',
-      fe: formData.water.fe ?? formData.water.iron ?? '',
-      iron: formData.water.iron ?? formData.water.fe ?? '',
-      waterColor: formData.water.waterColor ?? formData.water.waterColour ?? 'Greenish',
-      waterColour: formData.water.waterColour ?? formData.water.waterColor ?? 'Greenish',
+      ph: formData.water.ph ?? '',
+      ammonia: formData.water.ammonia ?? '',
+      nitrate: formData.water.nitrate ?? '',
+      salinity: formData.water.salinity ?? '',
+      nitrite: formData.water.nitrate ?? '', // backwards compatibility
     };
 
     // 1. Submit Water Analysis Record
@@ -673,71 +673,25 @@ const SiteVisit = () => {
                 WATER QUALITY PARAMETERS
               </span>
               <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
-                13 Parameters Telemetry
+                4 Parameters Analysis
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '14px' }}>
-              {/* 1. Date (Insert Date Box) */}
-              {renderInput('water', 'date', 'Test Date (Insert Date Box)', 'date')}
+              {/* 1. Date */}
+              {renderInput('water', 'date', 'Test Date', 'date')}
 
-              {/* 2. DOC */}
-              {renderInput('water', 'doc', 'DOC (Day of Culture)', 'number', 'e.g. 45')}
-
-              {/* 3. Salinity: 0 - 30 ppt */}
-              {renderInput('water', 'salinity', 'Salinity (0 - 30 ppt)', 'number', 'e.g. 15.0')}
-
-              {/* 4. pH: 7.5 to 8.5 */}
+              {/* 2. pH: 7.5 to 8.5 */}
               {renderInput('water', 'ph', 'pH Level (Optimal 7.5 - 8.5)', 'number', 'e.g. 7.8')}
 
-              {/* 5. Alkalinity: 100 - 300 ppm */}
-              {renderInput('water', 'alkalinity', 'Alkalinity (100 - 300 ppm)', 'number', 'e.g. 140')}
-
-              {/* 6. Hardness: Salinity * 300 */}
-              {renderInput('water', 'hardness', 'Hardness (1 Salinity = 300 ppm)', 'number', 'Auto-calculated')}
-
-              {/* 7. Potassium (K): Salinity * 10.7 */}
-              {renderInput('water', 'k', 'Potassium - K (1 Salinity = 10.7 ppm)', 'number', 'Auto-calculated')}
-
-              {/* 8. DO: Target > 4.0 (<4 Alert) */}
-              {renderInput('water', 'do', 'Dissolved Oxygen - DO (>4.0 mg/L)', 'number', 'e.g. 5.5')}
-
-              {/* 9. Ammonia: 0 to >0.5 ppm */}
+              {/* 3. Ammonia: 0 to >0.5 ppm */}
               {renderInput('water', 'ammonia', 'Ammonia - NH3 (< 0.5 ppm)', 'number', 'e.g. 0.05')}
 
-              {/* 10. Nitrite: 0 to >0.25 ppm */}
-              {renderInput('water', 'nitrite', 'Nitrite - NO2 (< 0.25 ppm)', 'number', 'e.g. 0.02')}
+              {/* 4. Nitrate: ppm */}
+              {renderInput('water', 'nitrate', 'Nitrate - NO3 (< 20 ppm)', 'number', 'e.g. 2.0')}
 
-              {/* 11. H2S: 0 to >0.02 ppm */}
-              {renderInput('water', 'h2s', 'H2S - Hydrogen Sulfide (< 0.02 ppm)', 'number', 'e.g. 0.005')}
-
-              {/* 12. Chlorine: 0 to >0.02 ppm */}
-              {renderInput('water', 'chlorine', 'Chlorine - Cl (< 0.02 ppm)', 'number', 'e.g. 0.004')}
-
-              {/* 13. Iron: 0 to 0.02 ppm */}
-              {renderInput('water', 'iron', 'Iron - Fe (0 - 0.02 ppm)', 'number', 'e.g. 0.01')}
-
-              {/* 14. Water Colour (Bloom condition) */}
-              <div className="input-group">
-                <label style={styles.label}>Water Color (Algae / Bloom Condition)</label>
-                <div className="input-field">
-                  <select 
-                    value={formData.water.waterColour || formData.water.waterColor || 'Greenish'}
-                    onChange={e => {
-                      updateFormData('water', 'waterColour', e.target.value);
-                      updateFormData('water', 'waterColor', e.target.value);
-                    }}
-                    style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '14px', color: '#0F172A' }}
-                  >
-                    <option value="Greenish">Greenish (Optimal Plankton)</option>
-                    <option value="Light Green">Light Green (Healthy Green Algae)</option>
-                    <option value="Golden Brown">Golden Brown (Diatom Bloom)</option>
-                    <option value="Brownish">Brownish (Mixed Algae)</option>
-                    <option value="Dark Green">Dark Green (Dense Bloom)</option>
-                    <option value="Clear / Turbid">Clear / Turbid</option>
-                  </select>
-                </div>
-              </div>
+              {/* 5. Salinity: 0 - 30 ppt */}
+              {renderInput('water', 'salinity', 'Salinity (0 - 30 ppt)', 'number', 'e.g. 15.0')}
             </div>
           </div>
         );

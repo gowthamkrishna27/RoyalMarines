@@ -59,6 +59,7 @@ const getInitialDb = () => {
     farmers: initialFarmers,
     tanks: normalizeTanks(initialTanks),
     submissions: initialSubmissions,
+    harvests: [],
     cultureCycles: [],
     drafts: [],
     notifications: [],
@@ -356,11 +357,11 @@ export const MockDataProvider = ({ children }) => {
         const mergedFarmers = deduplicateFarmers(rawFarmers);
         const rawTanks = tanksRes.status === 'fulfilled' ? apiTanks : prev.tanks;
         const mergedTanks = normalizeTanks(rawTanks);
-        const mergedSubs = subsRes.status === 'fulfilled' ? apiSubs : prev.submissions;
-        const mergedHarvests = harvestsRes.status === 'fulfilled' ? apiHarvests : prev.harvests;
-        const mergedAgents = agentsRes.status === 'fulfilled' ? apiAgents : prev.agents;
-        const mergedRegions = regionsRes.status === 'fulfilled' ? apiRegions : prev.regions;
-        const mergedIncharges = inchargesRes.status === 'fulfilled' ? apiIncharges : prev.incharges;
+        const mergedSubs = subsRes.status === 'fulfilled' ? apiSubs : (prev.submissions || []);
+        const mergedHarvests = harvestsRes.status === 'fulfilled' ? apiHarvests : (prev.harvests || []);
+        const mergedAgents = agentsRes.status === 'fulfilled' ? apiAgents : (prev.agents || []);
+        const mergedRegions = regionsRes.status === 'fulfilled' ? apiRegions : (prev.regions || []);
+        const mergedIncharges = inchargesRes.status === 'fulfilled' ? apiIncharges : (prev.incharges || []);
 
         const updatedDb = {
           ...prev,
@@ -448,8 +449,22 @@ export const MockDataProvider = ({ children }) => {
     const getAgentById = (id) => (db?.agents || []).find(a => a.id === id || a.username === id);
 
     const getFarmersByAgentId = (agentId) => {
-      if (!db || !db.farmers) return [];
-      return db.farmers.filter(f => f.agentId === agentId || f.agent_id === agentId);
+      if (!db || !db.farmers || !agentId) return [];
+      const cleanId = String(agentId).trim().toLowerCase();
+      // Also look up agent record to match username or id
+      const agentRec = (db.agents || []).find(a => 
+        String(a.id).trim().toLowerCase() === cleanId || 
+        String(a.username || '').trim().toLowerCase() === cleanId
+      );
+      const possibleIds = new Set([cleanId]);
+      if (agentRec) {
+        if (agentRec.id) possibleIds.add(String(agentRec.id).trim().toLowerCase());
+        if (agentRec.username) possibleIds.add(String(agentRec.username).trim().toLowerCase());
+      }
+      return db.farmers.filter(f => {
+        const fAgentId = String(f.agentId || f.agent_id || '').trim().toLowerCase();
+        return fAgentId && possibleIds.has(fAgentId);
+      });
     };
 
     const getFarmerById = (id) => {

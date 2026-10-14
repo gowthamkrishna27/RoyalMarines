@@ -98,7 +98,7 @@ const RecordReview = () => {
         { label: 'Total Alkalinity', value: d.alkalinity ? `${d.alkalinity} ppm` : '130 ppm', ideal: '100 - 300 ppm', status: (parseFloat(d.alkalinity) < 100 || parseFloat(d.alkalinity) > 300) ? 'warning' : 'optimal' },
         { label: 'Total Hardness', value: d.hardness ? `${d.hardness} ppm` : '310 ppm', ideal: 'Salinity × 300 ppm', status: 'optimal' },
         { label: 'Ammonia (NH3)', value: d.ammonia ? `${d.ammonia} ppm` : '0.08 ppm', ideal: '< 0.5 ppm', status: parseFloat(d.ammonia) > 0.5 ? 'warning' : 'optimal' },
-        { label: 'Nitrite (NO2)', value: d.nitrite ? `${d.nitrite} ppm` : '0.04 ppm', ideal: '< 0.25 ppm', status: parseFloat(d.nitrite) > 0.25 ? 'warning' : 'optimal' },
+        { label: d.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)', value: d.nitrate ? `${d.nitrate} ppm` : (d.nitrite ? `${d.nitrite} ppm` : '0.04 ppm'), ideal: d.nitrate ? '< 20 ppm' : '< 0.25 ppm', status: (d.nitrate ? parseFloat(d.nitrate) > 20 : parseFloat(d.nitrite) > 0.25) ? 'warning' : 'optimal' },
         { label: 'Water Temperature', value: d.temperature ? `${d.temperature} °C` : '29.2 °C', ideal: '28 - 32 °C', status: 'optimal' },
       ];
     }
@@ -163,10 +163,10 @@ const RecordReview = () => {
         status: nh3Val !== null && nh3Val > 0.5 ? 'warning' : 'optimal'
       },
       {
-        label: 'Nitrite (NO2)',
-        value: no2Val !== null ? `${no2Val} ppm` : (d.nitrite ? `${d.nitrite} ppm` : '0.02 ppm'),
-        ideal: '0 - 0.25 ppm (<0.25 Alert)',
-        status: no2Val !== null && no2Val > 0.25 ? 'warning' : 'optimal'
+        label: d.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)',
+        value: (d.nitrate !== undefined && d.nitrate !== '') ? `${d.nitrate} ppm` : (no2Val !== null ? `${no2Val} ppm` : (d.nitrite ? `${d.nitrite} ppm` : '0.02 ppm')),
+        ideal: d.nitrate ? '< 20 ppm' : '0 - 0.25 ppm (<0.25 Alert)',
+        status: d.nitrate ? (parseFloat(d.nitrate) > 20 ? 'warning' : 'optimal') : (no2Val !== null && no2Val > 0.25 ? 'warning' : 'optimal')
       },
       {
         label: 'Hydrogen Sulfide (H2S)',

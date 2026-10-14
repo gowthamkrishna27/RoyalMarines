@@ -94,7 +94,9 @@ class DataStore {
           COALESCE(a.name, f.assigned_to) as agent_name,
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
-          COALESCE(r.id, r.code, i.region_id, '') as region_id
+          COALESCE(r.id, r.code, i.region_id, '') as region_id,
+          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id) as tanks_count,
+          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id AND LOWER(COALESCE(t.status, '')) != 'harvested') as active_ponds
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
         LEFT JOIN incharges i ON COALESCE(f.incharge_id, a.incharge_id) = i.id
@@ -149,6 +151,10 @@ class DataStore {
         village: r.village || r.location || '',
         totalAcres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
         acres: r.acres ? `${r.acres} Acres` : (r.total_acres ? `${r.total_acres} Acres` : '0 Acres'),
+        tanks: Number(r.tanks_count || 0),
+        tanks_count: Number(r.tanks_count || 0),
+        activePonds: Number(r.active_ponds || 0),
+        active_ponds: Number(r.active_ponds || 0),
         status: r.status || 'ACTIVE',
       }));
     } catch (err) {
@@ -167,7 +173,9 @@ class DataStore {
           COALESCE(a.name, f.assigned_to) as agent_name,
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
-          COALESCE(r.id, r.code, i.region_id, '') as region_id
+          COALESCE(r.id, r.code, i.region_id, '') as region_id,
+          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id) as tanks_count,
+          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id AND LOWER(COALESCE(t.status, '')) != 'harvested') as active_ponds
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
         LEFT JOIN incharges i ON COALESCE(f.incharge_id, a.incharge_id) = i.id
@@ -193,6 +201,10 @@ class DataStore {
           regionId: r.region_id || '',
           totalAcres: r.acres ? Number(r.acres) : (r.total_acres ? Number(r.total_acres) : 0),
           acres: r.acres ? `${r.acres} Acres` : (r.total_acres ? `${r.total_acres} Acres` : '0 Acres'),
+          tanks: Number(r.tanks_count || 0),
+          tanks_count: Number(r.tanks_count || 0),
+          activePonds: Number(r.active_ponds || 0),
+          active_ponds: Number(r.active_ponds || 0),
           status: r.status || 'ACTIVE',
         };
       }
@@ -321,7 +333,9 @@ class DataStore {
           t.*,
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
+          COALESCE(f.village, '') as farmer_village,
           COALESCE(a.name, '') as agent_name,
+          COALESCE(a.locality, '') as agent_locality,
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id
@@ -365,6 +379,7 @@ class DataStore {
         farmerName: r.farmer_name,
         farmer: r.farmer_name,
         location: r.farmer_location || r.location || '',
+        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
         agentId: r.agent_id,
         agent: r.agent_name,
         inchargeId: r.incharge_id,
@@ -375,6 +390,7 @@ class DataStore {
         lastTest: r.last_test,
         nextTest: r.next_test,
         status: r.status || 'ACTIVE',
+        cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
       }));
     } catch (err) {
       console.error('[DB Error in getTanks]', err.message);
@@ -390,9 +406,11 @@ class DataStore {
           t.*,
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
+          COALESCE(f.village, '') as farmer_village,
           COALESCE(f.phone, '') as farmer_phone,
           COALESCE(a.name, '') as agent_name,
           COALESCE(a.phone, '') as agent_phone,
+          COALESCE(a.locality, '') as agent_locality,
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id
@@ -415,6 +433,7 @@ class DataStore {
           farmer: r.farmer_name,
           farmerPhone: r.farmer_phone,
           location: r.farmer_location || r.location || '',
+          locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
           agentId: r.agent_id,
           agent: r.agent_name,
           agentPhone: r.agent_phone,
@@ -426,6 +445,7 @@ class DataStore {
           lastTest: r.last_test,
           nextTest: r.next_test,
           status: r.status || 'ACTIVE',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
         };
       }
       return null;
@@ -752,13 +772,33 @@ class DataStore {
     const submissionTime = data.submissionTime || data.time || now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
     let farmerId = data.farmerId || '';
-    if (!farmerId && data.tankId) {
+    let currentTank = null;
+    if (data.tankId) {
       try {
-        const tRows = await query('SELECT farmer_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
-        if (tRows && tRows.length > 0 && tRows[0].farmer_id) {
-          farmerId = tRows[0].farmer_id;
+        const tRows = await query('SELECT farmer_id, status, test_status, culture_cycle_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
+        if (tRows && tRows.length > 0) {
+          currentTank = tRows[0];
+          if (!farmerId && currentTank.farmer_id) {
+            farmerId = currentTank.farmer_id;
+          }
         }
       } catch (fErr) { }
+    }
+
+    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') || 
+                                data.recordType === 'HARVEST_ENTRY' || 
+                                data.recordType === 'HARVEST';
+
+    // If tank is in Harvested status or Cycle Closed, prevent routine tests
+    if (currentTank && !isHarvestSubmission) {
+      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' || 
+                       String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
+                       String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
+      if (isClosed && String(currentTank.status || '').toUpperCase() === 'HARVESTED') {
+        const err = new Error('Tank cycle is completed and harvested. Testing is closed for this cycle until restocked.');
+        err.statusCode = 400;
+        throw err;
+      }
     }
 
     const newSub = {
@@ -965,6 +1005,8 @@ class DataStore {
         doc: r.doc || r.tank_doc || 0,
         buyerName: r.buyer_name || 'Exporter',
         remarks: r.remarks || '',
+        harvestType: r.harvest_type || 'Harvest',
+        cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
       }));
     } catch (err) {
       console.error('[DB Error in getHarvests]', err.message);
@@ -979,6 +1021,40 @@ class DataStore {
 
     const cleanDate = data.date || new Date().toISOString().split('T')[0];
 
+    // Fetch tank info to check cycle and status
+    const tankRows = await query('SELECT id, farmer_id, status, test_status, culture_cycle_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
+    const tank = tankRows && tankRows.length > 0 ? tankRows[0] : null;
+    const cultureCycleId = data.cultureCycleId || (tank ? tank.culture_cycle_id : null) || 'CYCLE_1';
+    const farmerId = data.farmerId || (tank ? tank.farmer_id : '') || '';
+
+    const isFinalHarvest = Boolean(data.isFinal || String(data.harvestType || data.type || '').toLowerCase().includes('final'));
+
+    // Check if a final harvest has already been recorded for this tank and cycle
+    const [existingFinal] = await query(
+      `SELECT id FROM harvests 
+       WHERE tank_id = ? AND culture_cycle_id = ? AND (harvest_type = 'Final Harvest' OR LOWER(harvest_type) LIKE '%final%') 
+       LIMIT 1`,
+      [data.tankId, cultureCycleId]
+    );
+
+    if (existingFinal) {
+      const err = new Error(`A final harvest has already been recorded for this tank cycle (${cultureCycleId}). Further harvests are closed until restocked.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Determine sequential harvest label for partial harvests
+    let harvestType = data.harvestType || (isFinalHarvest ? 'Final Harvest' : 'Partial Harvest');
+    if (!isFinalHarvest) {
+      const countRows = await query(
+        `SELECT COUNT(*) as cnt FROM harvests 
+         WHERE tank_id = ? AND culture_cycle_id = ? AND (harvest_type LIKE 'Partial Harvest%' OR harvest_type NOT LIKE '%Final%')`,
+        [data.tankId, cultureCycleId]
+      );
+      const nextNum = (countRows[0]?.cnt || 0) + 1;
+      harvestType = `Partial Harvest-${nextNum}`;
+    }
+
     const id = data.id || `HARV${String(Date.now()).slice(-4)}`;
     const q = Number(data.quantityKg) || 0;
     const price = Number(data.pricePerKg) || 380;
@@ -988,7 +1064,9 @@ class DataStore {
       id,
       harvest_code: id,
       tank_id: data.tankId,
-      farmer_id: data.farmerId || '',
+      farmer_id: farmerId,
+      culture_cycle_id: cultureCycleId,
+      harvest_type: harvestType,
       date: cleanDate,
       harvest_date: cleanDate,
       quantity_kg: q,
@@ -1003,13 +1081,15 @@ class DataStore {
 
     try {
       await query(
-        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newHarvest.id,
           newHarvest.harvest_code,
           newHarvest.tank_id,
           newHarvest.farmer_id,
+          newHarvest.culture_cycle_id,
+          newHarvest.harvest_type,
           newHarvest.date,
           newHarvest.harvest_date,
           newHarvest.quantity_kg,
@@ -1023,8 +1103,7 @@ class DataStore {
         ]
       );
 
-      // Only mark tank as Harvested / cycle closed if it is a Final harvest
-      const isFinalHarvest = Boolean(data.isFinal || String(data.harvestType || data.type || '').toLowerCase().includes('final'));
+      // If Final Harvest, mark tank as Harvested and tests closed
       if (isFinalHarvest) {
         await this.updateTank(data.tankId, {
           status: 'Harvested',
@@ -1044,6 +1123,59 @@ class DataStore {
       console.error('[DB Error in createHarvest]', err.message);
       throw new Error(`[DB Error in createHarvest]: ${err.message}`);
     }
+  }
+
+  async restockTank(tankId, restockData = {}) {
+    this._ensureDb();
+    if (!tankId) throw new Error('tankId is required');
+
+    const tank = await this.getTankById(tankId);
+    if (!tank) throw new Error(`Tank with ID ${tankId} not found`);
+
+    // Calculate next cycle: e.g. CYCLE_1 -> CYCLE_2
+    const currentCycle = tank.culture_cycle_id || 'CYCLE_1';
+    const cycleNumMatch = String(currentCycle).match(/CYCLE_(\d+)/i);
+    const nextNum = cycleNumMatch ? parseInt(cycleNumMatch[1], 10) + 1 : 2;
+    const nextCycle = `CYCLE_${nextNum}`;
+
+    const todayDate = new Date().toISOString().split('T')[0];
+
+    const updates = {
+      status: 'ACTIVE',
+      testStatus: 'Due',
+      nextTest: 'Due This Week',
+      doc: restockData.doc !== undefined ? Number(restockData.doc) : 1,
+      stockingDate: restockData.stockingDate || todayDate,
+      abw: restockData.abw || '0.5g',
+      biomass: restockData.biomass || '0 kg',
+      fcr: restockData.fcr || '1.1',
+    };
+
+    // Update tank fields including culture_cycle_id
+    await query(
+      `UPDATE tanks SET 
+        status = 'ACTIVE', 
+        test_status = 'Due', 
+        next_test = 'Due This Week', 
+        culture_cycle_id = ?, 
+        doc = ?, 
+        stocking_date = ?, 
+        abw = ?, 
+        biomass = ?, 
+        fcr = ? 
+       WHERE id = ?`,
+      [
+        nextCycle,
+        updates.doc,
+        updates.stockingDate,
+        updates.abw,
+        updates.biomass,
+        updates.fcr,
+        tankId,
+      ]
+    );
+
+    return await this.getTankById(tankId);
   }
 
   // --- Summary & Analytics ---
@@ -1427,18 +1559,49 @@ class DataStore {
       }
       sql += ' GROUP BY r.id, r.code, r.name, r.status, r.created_at, r.updated_at, r.active_ponds, r.total_yield, r.avg_fcr ORDER BY r.name ASC';
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        ...r,
-        id: String(r.id),
-        code: r.code || r.id,
-        name: r.name,
-        farmersCount: Number(r.farmers_count || 0),
-        activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
-        tanks: Number(r.actual_tanks_count || r.active_ponds || 0),
-        avgFcr: r.avg_fcr ? Number(r.avg_fcr) : 1.25,
-        totalYield: r.total_yield || '0 Tons',
-        status: r.status || 'ACTIVE',
-      }));
+
+      // Fetch distinct localities for each region
+      let regionLocMap = {};
+      try {
+        const locRows = await query(`
+          SELECT DISTINCT 
+            r.name as region_name,
+            COALESCE(a.locality, f.village, f.location) as locality
+          FROM regions r
+          LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
+          LEFT JOIN agents a ON a.incharge_id = i.id
+          LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
+          WHERE (a.locality IS NOT NULL AND a.locality != '')
+             OR (f.village IS NOT NULL AND f.village != '')
+             OR (f.location IS NOT NULL AND f.location != '')
+        `);
+        for (const loc of locRows) {
+          if (!loc.locality) continue;
+          const clean = loc.locality.split(',')[0].trim();
+          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+          regionLocMap[loc.region_name].add(clean);
+        }
+      } catch (locErr) {
+        console.warn('[Warning getting region localities]', locErr.message);
+      }
+
+      return rows.map((r) => {
+        const locSet = regionLocMap[r.name] || new Set();
+        const localities = Array.from(locSet).map(l => ({ id: `LOC-${l}`, name: l }));
+        return {
+          ...r,
+          id: String(r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: localities.length > 0 ? localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }],
+          farmersCount: Number(r.farmers_count || 0),
+          activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
+          tanks: Number(r.actual_tanks_count || r.active_ponds || 0),
+          avgFcr: r.avg_fcr ? Number(r.avg_fcr) : 1.25,
+          totalYield: r.total_yield || '0 Tons',
+          status: r.status || 'ACTIVE',
+        };
+      });
     } catch (err) {
       console.error('[DB Error in getRegions]', err.message);
       throw new Error(`[DB Error in getRegions]: ${err.message}`);

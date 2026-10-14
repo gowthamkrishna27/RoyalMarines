@@ -85,7 +85,7 @@ export const updateTank = async (req, res) => {
 export const recordWaterParameters = async (req, res) => {
   try {
     const { id } = req.params;
-    const { ph, salinity, do: dissolvedOxygen, alkalinity, ammonia, abw, biomass, fcr } = req.body;
+    const { ph, salinity, do: dissolvedOxygen, alkalinity, ammonia, nitrate, abw, biomass, fcr } = req.body;
 
     const tank = await store.getTankById(id);
     if (!tank) {
@@ -120,6 +120,7 @@ export const recordWaterParameters = async (req, res) => {
           ...(dissolvedOxygen ? { do: dissolvedOxygen } : {}),
           ...(alkalinity ? { alkalinity } : {}),
           ...(ammonia ? { ammonia } : {}),
+          ...(nitrate ? { nitrate } : {}),
         },
         ...(abw ? { abw } : (tank.abw ? { abw: tank.abw } : {})),
         ...(biomass ? { biomass } : (tank.biomass ? { biomass: tank.biomass } : {})),
@@ -149,3 +150,16 @@ export const deleteTank = async (req, res) => {
     return sendError(res, 'Failed to delete tank from database', 500);
   }
 };
+
+export const restockTank = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { doc, stockingDate, abw, biomass, fcr } = req.body;
+    const restockedTank = await store.restockTank(id, { doc, stockingDate, abw, biomass, fcr });
+    return sendSuccess(res, restockedTank, 'Tank successfully restocked and new production cycle initiated', 200);
+  } catch (error) {
+    console.error('[Error in restockTank]', error);
+    return sendError(res, error.message || 'Failed to restock tank', 400);
+  }
+};
+

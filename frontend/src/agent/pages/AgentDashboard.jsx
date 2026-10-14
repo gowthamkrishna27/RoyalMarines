@@ -27,7 +27,7 @@ const AgentDashboard = () => {
   const agentId = session?.agentId || session?.id || 'agent001';
 
   // Farmers assigned to this technician
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
   const allTanks = db?.tanks || [];
   const assignedTanks = allTanks.filter(t => 
     t.agentId === agentId || 
@@ -35,8 +35,8 @@ const AgentDashboard = () => {
     assignedFarmers.some(f => f.id === t.farmerId || f.id === t.farmer_id)
   );
 
-  // Active tanks for dashboard and map (fallback to first available tanks if unassigned)
-  const activeTanksForMap = assignedTanks.length > 0 ? assignedTanks : allTanks.slice(0, 8);
+  // Active tanks for dashboard and map: strictly assigned tanks
+  const activeTanksForMap = assignedTanks;
 
   // Compute weekly routine due & overdue status for all assigned tanks
   const tanksWithDueInfo = activeTanksForMap.map((tank, idx) => {

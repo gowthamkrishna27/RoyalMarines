@@ -19,8 +19,16 @@ const FarmerDetails = () => {
   const [selectedTankId, setSelectedTankId] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
 
-  const farmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
-  const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (db?.tanks || []).filter(t => t.farmerId === farmerId);
+  const rawFarmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
+
+  // Verify farmer belongs to this agent unless in supervisor/incharge mode
+  const currentAgentId = String(session?.agentId || session?.id || 'agent001').trim().toLowerCase();
+  const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || '').trim().toLowerCase();
+  const isAssignedToAgent = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId);
+
+  const farmer = isAssignedToAgent ? rawFarmer : null;
+  const tanks = farmer && getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (farmer ? (db?.tanks || []).filter(t => t.farmerId === farmerId) : []);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -52,9 +60,10 @@ const FarmerDetails = () => {
   };
 
   const handleOpenHarvest = (tankId = null) => {
-    setSelectedTankId(tankId || (tanks[0]?.id || ''));
-    setModalInitialType('HARVEST_ENTRY');
-    setIsRecordModalOpen(true);
+    const targetTank = tankId || (tanks[0]?.id || '');
+    const isInc = location.pathname.startsWith('/incharge');
+    const harvestPath = isInc ? '/incharge/harvest' : '/harvest';
+    navigate(`${harvestPath}?farmerId=${farmer.id}&tankId=${targetTank}`);
   };
 
   return (
