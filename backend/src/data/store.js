@@ -600,11 +600,12 @@ class DataStore {
       let sql = `
         SELECT 
           s.*,
-          COALESCE(f.name, '') as farmer_name,
-          COALESCE(t.name, '') as tank_name
+          COALESCE(NULLIF(f.name, ''), NULLIF(f2.name, ''), '') as farmer_name,
+          COALESCE(NULLIF(t.name, ''), s.tank_id, '') as tank_name
         FROM submissions s
         LEFT JOIN farmers f ON s.farmer_id = f.id
         LEFT JOIN tanks t ON s.tank_id = t.id
+        LEFT JOIN farmers f2 ON t.farmer_id = f2.id
         WHERE 1=1
       `;
       const params = [];
@@ -621,24 +622,42 @@ class DataStore {
         params.push(filter.tankId);
       }
       if (filter.farmerId) {
-        sql += ' AND s.farmer_id = ?';
-        params.push(filter.farmerId);
+        sql += ' AND (s.farmer_id = ? OR t.farmer_id = ?)';
+        params.push(filter.farmerId, filter.farmerId);
       }
       sql += ' ORDER BY s.created_at DESC, s.id DESC';
 
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        ...r,
-        id: String(r.id),
-        agentId: r.agent_id,
-        farmerId: r.farmer_id,
-        farmerName: r.farmer_name,
-        tankId: r.tank_id,
-        tankName: r.tank_name,
-        testType: r.test_type,
-        submittedAgo: r.submitted_ago || 'Recently',
-        data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
-      }));
+      return rows.map((r) => {
+        const parsedData = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r.data || {});
+        return {
+          ...r,
+          id: String(r.id),
+          agentId: r.agent_id || r.user_id,
+          userId: r.user_id || r.agent_id,
+          userName: r.user_name || parsedData.userName || parsedData.agentName || 'Field Technician',
+          role: r.role || (r.user_id && String(r.user_id).startsWith('INC') ? 'Incharge' : 'Agent'),
+          farmerId: r.farmer_id || parsedData.farmerId,
+          farmerName: r.farmer_name || parsedData.farmerName || 'Farmer',
+          tankId: r.tank_id || parsedData.tankId,
+          tankName: r.tank_name || parsedData.tankName || r.tank_id || 'Tank',
+          testType: r.test_type || parsedData.testType || 'Water Quality Test',
+          date: r.date || (r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : ''),
+          submissionTime: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          time: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          submission_time: r.submission_time,
+          createdAt: r.created_at,
+          submittedAgo: r.submitted_ago || 'Recently',
+          status: r.status || 'PENDING_VERIFICATION',
+          data: parsedData,
+          doc: parsedData.doc ?? parsedData.DOC ?? null,
+          abw: parsedData.abw ?? parsedData.ABW ?? null,
+          fcr: parsedData.fcr ?? parsedData.FCR ?? null,
+          salinity: parsedData.salinity ?? null,
+          ph: parsedData.ph ?? parsedData.pH ?? parsedData.waterQuality?.ph ?? null,
+          do: parsedData.do ?? parsedData.DO ?? parsedData.waterQuality?.do ?? null,
+        };
+      });
     } catch (err) {
       console.error('[DB Error in getSubmissions]', err.message);
       throw new Error(`[DB Error in getSubmissions]: ${err.message}`);
@@ -652,24 +671,24 @@ class DataStore {
         SELECT 
           s.id AS submissionId,
           COALESCE(s.user_id, s.agent_id) AS userId,
-          COALESCE(s.user_name, a.name, inc.name, u.name, 'Field Staff') AS userName,
+          COALESCE(s.user_name, a.name, inc.name, u.name, '') AS userName,
           COALESCE(s.role, CASE WHEN s.agent_id LIKE 'INC%' OR s.user_id LIKE 'INC%' THEN 'Incharge' ELSE 'Agent' END) AS role,
           s.latitude,
           s.longitude,
-          COALESCE(s.accuracy, 12.0) AS accuracy,
+          s.accuracy,
           s.date,
           COALESCE(s.submission_time, DATE_FORMAT(s.created_at, '%h:%i %p')) AS submissionTime,
           s.created_at AS submittedAt,
           s.test_type AS testType,
           s.tank_id AS tankId,
           s.farmer_id AS farmerId,
-          COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
+          COALESCE(s.locality, a.locality, '') AS locality,
           s.status
         FROM submissions s
         LEFT JOIN agents a ON (s.user_id = a.id OR s.agent_id = a.id)
         LEFT JOIN incharges inc ON (s.user_id = inc.id OR s.agent_id = inc.id)
         LEFT JOIN users u ON (s.user_id = u.id OR s.agent_id = u.id)
-        WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
+        WHERE 1=1
       `;
       const params = [];
 
@@ -695,25 +714,23 @@ class DataStore {
       sql += ' ORDER BY s.created_at DESC';
 
       const rows = await query(sql, params);
-      return rows
-        .filter((r) => r.latitude != null && r.longitude != null && !isNaN(parseFloat(r.latitude)) && !isNaN(parseFloat(r.longitude)))
-        .map((r) => ({
-          submissionId: r.submissionId,
-          userId: r.userId || '',
-          userName: r.userName || '',
-          role: r.role || 'Agent',
-          latitude: parseFloat(r.latitude),
-          longitude: parseFloat(r.longitude),
-          accuracy: r.accuracy != null ? parseFloat(r.accuracy) : 12,
-          date: r.date,
-          submissionTime: r.submissionTime,
-          submittedAt: r.submittedAt ? new Date(r.submittedAt).toISOString() : new Date().toISOString(),
-          testType: r.testType,
-          tankId: r.tankId,
-          farmerId: r.farmerId,
-          locality: r.locality || 'No location available',
-          status: r.status,
-        }));
+      return rows.map((r) => ({
+        submissionId: r.submissionId,
+        userId: r.userId || '',
+        userName: r.userName || '',
+        role: r.role || 'Agent',
+        latitude: r.latitude != null ? parseFloat(r.latitude) : null,
+        longitude: r.longitude != null ? parseFloat(r.longitude) : null,
+        accuracy: r.accuracy != null ? parseFloat(r.accuracy) : null,
+        date: r.date,
+        submissionTime: r.submissionTime,
+        submittedAt: r.submittedAt ? new Date(r.submittedAt).toISOString() : new Date().toISOString(),
+        testType: r.testType,
+        tankId: r.tankId,
+        farmerId: r.farmerId,
+        locality: r.locality || '',
+        status: r.status,
+      }));
     } catch (err) {
       console.error('[DB Error in getSubmissionLocations]', err.message);
       throw new Error(`[DB Error in getSubmissionLocations]: ${err.message}`);
@@ -723,9 +740,13 @@ class DataStore {
   async getFieldStaff() {
     this._ensureDb();
     try {
-      const agents = await query("SELECT id, name, phone, locality, 'Agent' as role FROM agents WHERE name IS NOT NULL ORDER BY name ASC");
-      const incharges = await query("SELECT id, name, phone, '' as locality, 'Incharge' as role FROM incharges WHERE name IS NOT NULL ORDER BY name ASC");
-      return [...agents, ...incharges];
+      const staff = await query(`
+        SELECT id, name, phone, locality, 'Agent' as role FROM agents WHERE name IS NOT NULL
+        UNION ALL
+        SELECT id, name, phone, '' as locality, 'Incharge' as role FROM incharges WHERE name IS NOT NULL
+        ORDER BY name ASC
+      `);
+      return staff;
     } catch (err) {
       console.error('[DB Error in getFieldStaff]', err.message);
       throw new Error(`[DB Error in getFieldStaff]: ${err.message}`);
@@ -779,13 +800,14 @@ class DataStore {
         throw err;
       }
     }
+
     const newSub = {
       id,
       agent_id: userId,
       user_id: userId,
       user_name: userName,
       role,
-      farmer_id: data.farmerId || '',
+      farmer_id: farmerId,
       tank_id: data.tankId,
       test_type: data.testType || 'Water Quality Test',
       date: data.date || now.toISOString().split('T')[0],
@@ -823,6 +845,86 @@ class DataStore {
           newSub.submitted_ago,
         ]
       );
+
+      // 1. Immediately update Tank's test status, last test date, next test date and telemetry in database
+      try {
+        const formattedDate = data.date
+          ? new Date(data.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const tankUpdates = {
+          lastTest: formattedDate,
+          testStatus: 'Completed',
+          nextTest: 'Due Next Week',
+        };
+
+        const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+        if (payload.abw != null && payload.abw !== '') {
+          tankUpdates.abw = String(payload.abw).includes('g') ? String(payload.abw) : `${payload.abw}g`;
+        }
+        if (payload.biomass != null && payload.biomass !== '') {
+          tankUpdates.biomass = String(payload.biomass).includes('kg') ? String(payload.biomass) : `${payload.biomass} kg`;
+        }
+        if (payload.fcr != null && payload.fcr !== '') {
+          tankUpdates.fcr = String(payload.fcr);
+        }
+        if (payload.doc != null && payload.doc !== '') {
+          tankUpdates.doc = Number(payload.doc);
+        }
+        if (payload.salinity != null && payload.salinity !== '') {
+          tankUpdates.salinity = String(payload.salinity).includes('ppt') ? String(payload.salinity) : `${payload.salinity} ppt`;
+        }
+
+        const isFinalHarvest = (data.testType || '').toUpperCase().includes('HARVEST') &&
+          (payload.harvestType === 'Final Harvest' || payload.isFinal);
+        if (isFinalHarvest) {
+          tankUpdates.status = 'Harvested';
+          tankUpdates.nextTest = 'Cycle Closed';
+        }
+
+        await this.updateTank(data.tankId, tankUpdates);
+      } catch (tankErr) {
+        console.warn('[store.createSubmission] Tank status update warning:', tankErr.message);
+      }
+
+      // 2. Auto-sync Harvest entry if this is a harvest submission and has biomass
+      const isHarvest = (data.testType || '').toUpperCase().includes('HARVEST') || data.recordType === 'HARVEST_ENTRY' || data.recordType === 'HARVEST';
+      if (isHarvest) {
+        try {
+          const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+          const qKg = Number(payload.harvestedBiomass || payload.quantityKg || payload.quantity_kg || 0);
+          if (qKg > 0) {
+            await this.createHarvest({
+              tankId: data.tankId,
+              farmerId: farmerId || '',
+              date: data.date || now.toISOString().split('T')[0],
+              quantityKg: qKg,
+              countPerKg: payload.abw ? Math.round(1000 / parseFloat(payload.abw)) : (payload.countPerKg || 40),
+              quality: payload.quality || 'Grade A',
+              pricePerKg: payload.pricePerKg || 380,
+              revenue: qKg * (payload.pricePerKg || 380),
+              remarks: payload.remarks || `${newSub.test_type} auto-recorded`
+            });
+          }
+        } catch (hErr) {
+          console.warn('[store.createSubmission] Harvest record auto-sync warning:', hErr.message);
+        }
+      }
+
+      // 3. Create Audit Log entry
+      try {
+        await query(
+          `INSERT INTO audit_logs (action, module, record_id, performed_by, notes) VALUES (?, ?, ?, ?, ?)`,
+          [
+            'RECORD_SUBMITTED',
+            'Submissions',
+            newSub.id,
+            userId || null,
+            `${newSub.test_type} recorded for Tank ${data.tankId}`
+          ]
+        );
+      } catch (auditErr) { }
+
       return newSub;
     } catch (err) {
       console.error('[DB Error in createSubmission]', err.message);
@@ -1081,51 +1183,55 @@ class DataStore {
   async getAnalyticsSummary() {
     this._ensureDb();
     try {
-      const [fc] = await query('SELECT COUNT(DISTINCT id) as total FROM farmers');
-      const [tc] = await query('SELECT COUNT(DISTINCT id) as total FROM tanks');
-      const [at] = await query("SELECT COUNT(DISTINCT id) as total FROM tanks WHERE UPPER(status) = 'ACTIVE'");
-      const [ht] = await query("SELECT COUNT(DISTINCT id) as total FROM tanks WHERE UPPER(status) = 'HARVESTED'");
-      const [pt] = await query("SELECT COUNT(DISTINCT id) as total FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')");
-      const [due] = await query("SELECT COUNT(DISTINCT id) as total FROM tanks WHERE LOWER(test_status) = 'due'");
-      const [od] = await query("SELECT COUNT(DISTINCT id) as total FROM tanks WHERE LOWER(test_status) = 'overdue'");
-      const [hr] = await query('SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) as total FROM harvests');
-      const [hk] = await query('SELECT COALESCE(SUM(quantity_kg), 0) as total_kg, COUNT(DISTINCT id) as count FROM harvests');
-      const [fcrRes] = await query("SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) as avg_fcr FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0'");
-      const [abwRes] = await query("SELECT ROUND(AVG(CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(6,2))), 2) as avg_abw FROM tanks WHERE abw IS NOT NULL AND abw != ''");
-      const [bioRes] = await query("SELECT ROUND(SUM(CAST(REGEXP_REPLACE(biomass, '[^0-9.]', '') AS DECIMAL(10,2))), 2) as total_biomass FROM tanks WHERE biomass IS NOT NULL AND biomass != ''");
-      const [ac] = await query('SELECT COUNT(DISTINCT id) as total FROM agents');
-      const [ic] = await query('SELECT COUNT(DISTINCT id) as total FROM incharges WHERE name IS NOT NULL');
-      const [rc] = await query('SELECT COUNT(DISTINCT id) as total FROM regions');
-      const [subTotal] = await query('SELECT COUNT(DISTINCT id) as total FROM submissions');
-      const [subAppr] = await query("SELECT COUNT(DISTINCT id) as total FROM submissions WHERE UPPER(status) IN ('APPROVED', 'VERIFIED', 'COMPLETED')");
-      const [subRej] = await query("SELECT COUNT(DISTINCT id) as total FROM submissions WHERE UPPER(status) IN ('REJECTED', 'FLAGGED')");
-      const [subPend] = await query("SELECT COUNT(DISTINCT id) as total FROM submissions WHERE UPPER(status) IN ('PENDING', 'PENDING_VERIFICATION')");
+      const [res] = await query(`
+        SELECT 
+          (SELECT COUNT(DISTINCT id) FROM farmers) as totalFarmers,
+          (SELECT COUNT(DISTINCT id) FROM tanks) as totalTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'ACTIVE') as activeTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'HARVESTED') as harvestedTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')) as pendingTests,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'due') as dueTests,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'overdue') as overdueTests,
+          (SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) FROM harvests) as totalHarvestRevenue,
+          (SELECT COALESCE(SUM(quantity_kg), 0) FROM harvests) as harvestTotalKg,
+          (SELECT COUNT(DISTINCT id) FROM harvests) as harvestsCount,
+          (SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0') as avg_fcr,
+          (SELECT ROUND(AVG(CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(6,2))), 2) FROM tanks WHERE abw IS NOT NULL AND abw != '') as avg_abw,
+          (SELECT ROUND(SUM(CAST(REGEXP_REPLACE(biomass, '[^0-9.]', '') AS DECIMAL(10,2))), 2) FROM tanks WHERE biomass IS NOT NULL AND biomass != '') as total_biomass,
+          (SELECT COUNT(DISTINCT id) FROM agents) as totalAgents,
+          (SELECT COUNT(DISTINCT id) FROM incharges WHERE name IS NOT NULL) as totalIncharges,
+          (SELECT COUNT(DISTINCT id) FROM regions) as totalRegions,
+          (SELECT COUNT(DISTINCT id) FROM submissions) as totalSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('APPROVED', 'VERIFIED', 'COMPLETED')) as approvedSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('REJECTED', 'FLAGGED')) as rejectedSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('PENDING', 'PENDING_VERIFICATION')) as pendingSubmissions
+      `);
 
       return {
-        totalFarmers: Number(fc?.total || 0),
-        totalTanks: Number(tc?.total || 0),
-        activeTanks: Number(at?.total || 0),
-        harvestedTanks: Number(ht?.total || 0),
-        pendingTests: Number(pt?.total || 0),
-        dueTests: Number(due?.total || 0),
-        testsDue: Number(due?.total || 0),
-        overdueTests: Number(od?.total || 0),
-        testsOverdue: Number(od?.total || 0),
-        totalHarvestRevenue: Number(hr?.total || 0),
-        harvestsCount: Number(hk?.count || 0),
-        harvestTotalKg: Number(hk?.total_kg || 0),
-        avgFcr: fcrRes?.avg_fcr ? String(fcrRes.avg_fcr) : '0.00',
-        avgAbw: abwRes?.avg_abw ? `${abwRes.avg_abw}g` : '0.0g',
-        totalBiomassKg: Number(bioRes?.total_biomass || 0),
-        activeAgents: Number(ac?.total || 0),
-        totalAgents: Number(ac?.total || 0),
-        totalIncharges: Number(ic?.total || 0),
-        regionsCount: Number(rc?.total || 0),
-        totalRegions: Number(rc?.total || 0),
-        totalSubmissions: Number(subTotal?.total || 0),
-        approvedSubmissions: Number(subAppr?.total || 0),
-        rejectedSubmissions: Number(subRej?.total || 0),
-        pendingSubmissions: Number(subPend?.total || 0),
+        totalFarmers: Number(res?.totalFarmers || 0),
+        totalTanks: Number(res?.totalTanks || 0),
+        activeTanks: Number(res?.activeTanks || 0),
+        harvestedTanks: Number(res?.harvestedTanks || 0),
+        pendingTests: Number(res?.pendingTests || 0),
+        dueTests: Number(res?.dueTests || 0),
+        testsDue: Number(res?.dueTests || 0),
+        overdueTests: Number(res?.overdueTests || 0),
+        testsOverdue: Number(res?.overdueTests || 0),
+        totalHarvestRevenue: Number(res?.totalHarvestRevenue || 0),
+        harvestsCount: Number(res?.harvestsCount || 0),
+        harvestTotalKg: Number(res?.harvestTotalKg || 0),
+        avgFcr: res?.avg_fcr ? String(res.avg_fcr) : '0.00',
+        avgAbw: res?.avg_abw ? `${res.avg_abw}g` : '0.0g',
+        totalBiomassKg: Number(res?.total_biomass || 0),
+        activeAgents: Number(res?.totalAgents || 0),
+        totalAgents: Number(res?.totalAgents || 0),
+        totalIncharges: Number(res?.totalIncharges || 0),
+        regionsCount: Number(res?.totalRegions || 0),
+        totalRegions: Number(res?.totalRegions || 0),
+        totalSubmissions: Number(res?.totalSubmissions || 0),
+        approvedSubmissions: Number(res?.approvedSubmissions || 0),
+        rejectedSubmissions: Number(res?.rejectedSubmissions || 0),
+        pendingSubmissions: Number(res?.pendingSubmissions || 0),
       };
     } catch (err) {
       console.error('[DB Error in getAnalyticsSummary]', err.message);
@@ -1143,13 +1249,14 @@ class DataStore {
           al.id, 
           al.created_at, 
           al.action, 
-          al.table_name, 
+          al.module, 
           al.record_id,
-          COALESCE(u.name, u.full_name, 'System Administrator') as user_name,
-          COALESCE(u.role, 'Admin') as role,
-          COALESCE(u.locality, 'Coastal Andhra') as region
+          COALESCE(u.full_name, u.name, 'System Administrator') as user_name,
+          COALESCE(r.name, 'Admin') as role,
+          COALESCE(al.ip_address, '127.0.0.1') as ip_address
         FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
+        LEFT JOIN users u ON al.performed_by = u.id
+        LEFT JOIN roles r ON u.role_id = r.id
         ORDER BY al.created_at DESC
         LIMIT 100
       `);
@@ -1158,14 +1265,14 @@ class DataStore {
         time: r.created_at ? new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
         user: r.user_name,
         role: r.role,
-        action: `${r.action} on ${r.table_name}`,
-        detail: `Record ID #${r.record_id}`,
-        module: r.table_name?.toUpperCase() || 'SYSTEM',
-        region: r.region,
+        action: `${r.action} on ${r.module}`,
+        detail: `Record ID #${r.record_id || r.id}`,
+        module: r.module?.toUpperCase() || 'SYSTEM',
+        region: 'Coastal Andhra',
       }));
     } catch (err) {
-      console.error('[DB Error in getActivityLogs]', err.message);
-      throw new Error(`[DB Error in getActivityLogs]: ${err.message}`);
+      console.warn('[store.getActivityLogs Warning]:', err.message);
+      return [];
     }
   }
 
@@ -1515,19 +1622,18 @@ class DataStore {
       let sql = `
         SELECT 
           i.id,
-          COALESCE(MAX(i.name), MAX(u.name), MAX(u.full_name), 'Incharge') as name,
-          COALESCE(MAX(i.email), MAX(u.email), '') as email,
-          COALESCE(MAX(i.phone), MAX(u.phone), '') as phone,
-          COALESCE(MAX(i.region_id), MAX(r.id), '') as region_id,
-          COALESCE(MAX(r.name), 'Coastal Andhra') as region_name,
-          COALESCE(MAX(u.locality), MAX(r.name), 'Coastal Andhra') as locality,
-          COALESCE(MAX(u.status), 'ACTIVE') as status,
+          i.name,
+          COALESCE(i.email, '') as email,
+          COALESCE(i.phone, '') as phone,
+          COALESCE(i.region_id, r.id, '') as region_id,
+          COALESCE(r.name, 'Coastal Andhra') as region_name,
+          COALESCE(r.name, 'Coastal Andhra') as locality,
+          'ACTIVE' as status,
           COUNT(DISTINCT a.id) as agents_count,
           COUNT(DISTINCT f.id) as farmers_count,
           COUNT(DISTINCT t.id) as tanks_count
         FROM incharges i 
-        LEFT JOIN users u ON (i.user_id = u.id OR i.id = u.id)
-        LEFT JOIN regions r ON (r.id = i.region_id OR (r.code = i.region_id AND NOT EXISTS (SELECT 1 FROM regions r2 WHERE r2.id = i.region_id)))
+        LEFT JOIN regions r ON (r.id = i.region_id OR r.code = i.region_id)
         LEFT JOIN agents a ON a.incharge_id = i.id
         LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
         LEFT JOIN tanks t ON (t.incharge_id = i.id OR t.farmer_id = f.id)
@@ -1542,7 +1648,7 @@ class DataStore {
         sql += ' AND (i.region_id = ? OR r.code = ? OR r.id = ?)';
         params.push(filter.regionId, filter.regionId, filter.regionId);
       }
-      sql += ' GROUP BY i.id ORDER BY name ASC';
+      sql += ' GROUP BY i.id, i.name, i.email, i.phone, i.region_id, r.id, r.name ORDER BY i.name ASC';
       const rows = await query(sql, params);
       const seen = new Set();
       const uniqueRows = [];
@@ -1768,5 +1874,4 @@ class DataStore {
 }
 
 export const store = new DataStore();
-
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, Send, MapPin, AlertTriangle, Droplet, Fish, Pill, Bug, ChevronRight, Check, Edit3, RefreshCw, Radio } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
+import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 import { captureDeviceGPS, getStoredGPS, requestSubmissionGPS, getDistanceMeters } from '../utils/gpsService';
 
 const STEPS = [
@@ -15,9 +16,9 @@ const STEPS = [
 ];
 
 const DISEASE_OPTIONS = [
-  'White muscle', 'White gut', 'Moulting', 'Cramping',
-  'Black gill', 'Vibriosis', 'EHP', 'Hard shell',
-  'Soft shell', 'Black spots', 'ASDS', 'WSSV',
+  'White muscle', 'White gut', 'Moulting', 'Cramping', 
+  'Black gill', 'Vibriosis', 'EHP', 'Hard shell', 
+  'Soft shell', 'Black spots', 'ASDS', 'WSSV', 
   'Loose shell', 'Other'
 ];
 
@@ -25,14 +26,14 @@ const SiteVisit = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isIncharge = location.pathname.startsWith('/incharge');
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
   const targetTankUrl = isIncharge ? `/incharge/tanks/${tankId}` : `/tanks/${tankId}`;
   const [tank, setTank] = useState(null);
   const [session, setSession] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [returnToSubmit, setReturnToSubmit] = useState(false);
   const { getTankById, getDraft, saveDraft, submitRecord } = useMockData();
-
+  
   // GPS State
   const [gpsStatus, setGpsStatus] = useState('pending');
   const [gpsData, setGpsData] = useState(null);
@@ -51,17 +52,17 @@ const SiteVisit = () => {
   });
 
   useEffect(() => {
-    const s = getSession();
+    const s = isIncharge ? (getInchargeSession() || getSession()) : (getSession() || getInchargeSession());
     setSession(s);
-
+    
     setTank(getTankById(tankId));
 
     // Load draft if exists
     const draft = getDraft(tankId);
     if (draft) {
       setFormData(draft.formData);
-      setCurrentStep('MENU');
-      setGpsStatus('success');
+      setCurrentStep('MENU'); 
+      setGpsStatus('success'); 
     }
   }, [tankId, getTankById, getDraft]);
 
@@ -168,7 +169,7 @@ const SiteVisit = () => {
         <p style={{ fontSize: '13.5px', color: '#64748B', lineHeight: 1.5, margin: '0 0 24px 0' }}>
           {tank.name} has already completed its final harvest. No new visits or field test records can be entered for this closed crop cycle.
         </p>
-        <button
+        <button 
           type="button"
           onClick={() => navigate(targetTankUrl)}
           style={{ backgroundColor: '#1A2FB8', color: '#FFFFFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: '700', fontSize: '13.5px', cursor: 'pointer' }}
@@ -219,20 +220,31 @@ const SiteVisit = () => {
   };
 
   const updateFormData = (section, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
+    setFormData(prev => {
+      const nextSec = {
         ...prev[section],
         [field]: value
+      };
+      // Auto-compute hardness (salinity * 300) and Potassium K (salinity * 10.7)
+      if (section === 'water' && field === 'salinity') {
+        const num = parseFloat(value);
+        if (!isNaN(num) && num > 0) {
+          nextSec.hardness = String(Math.round(num * 300));
+          nextSec.k = String((num * 10.7).toFixed(1));
+        }
       }
-    }));
+      return {
+        ...prev,
+        [section]: nextSec
+      };
+    });
   };
 
   const toggleDisease = (diseaseStr) => {
     setFormData(prev => {
       const current = prev.disease.observations;
-      const updated = current.includes(diseaseStr)
-        ? current.filter(d => d !== diseaseStr)
+      const updated = current.includes(diseaseStr) 
+        ? current.filter(d => d !== diseaseStr) 
         : [...current, diseaseStr];
       return { ...prev, disease: { ...prev.disease, observations: updated } };
     });
@@ -258,7 +270,6 @@ const SiteVisit = () => {
     const value = formData[section][field];
     const warning = section === 'water' ? checkWaterWarning(field, value) : null;
     const isMandatory = isRequired || (section === 'water' && ['ph', 'ammonia', 'nitrate', 'salinity', 'date'].includes(field));
-
     return (
       <div className="input-group">
         <label style={styles.label}>
@@ -268,8 +279,8 @@ const SiteVisit = () => {
           )}
         </label>
         <div className="input-field" style={warning ? { border: '1px solid var(--status-orange)' } : {}}>
-          <input
-            type={type}
+          <input 
+            type={type} 
             placeholder={placeholder}
             value={value}
             required={isMandatory}
@@ -325,20 +336,38 @@ const SiteVisit = () => {
       : (session?.agentId || session?.id || 'agent001');
     const resolvedUserName = session?.name || (isIncharge ? 'Incharge' : 'Ramesh');
 
+    const enrichedWater = {
+      ...formData.water,
+      ph: formData.water.ph ?? '',
+      ammonia: formData.water.ammonia ?? '',
+      nitrate: formData.water.nitrate ?? '',
+      salinity: formData.water.salinity ?? '',
+      nitrite: formData.water.nitrate ?? '', // backwards compatibility
+    };
+
+    // 1. Submit Water Analysis Record
     submitRecord({
       tankId,
+      farmerId: tank?.farmerId,
       agentId: resolvedUserId,
       userId: resolvedUserId,
       userName: resolvedUserName,
       role: resolvedRole,
-      formData,
+      submittedBy: resolvedRole,
+      testType: 'Water Analysis',
+      recordType: 'WATER_QUALITY',
+      formData: {
+        ...formData,
+        water: enrichedWater,
+      },
+      data: enrichedWater,
       latitude: locationFix.latitude,
       longitude: locationFix.longitude,
       accuracy: locationFix.accuracy,
       date: formattedDate,
       submissionTime: formattedTime,
       timestamp: now.toISOString(),
-      locality: locationFix.locality || 'Coastal Aquaculture Zone',
+      locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
       gps: {
         latitude: locationFix.latitude,
         longitude: locationFix.longitude,
@@ -349,8 +378,125 @@ const SiteVisit = () => {
       },
       submittedAt: now.toISOString()
     });
-    alert('Site Visit submitted successfully! High-accuracy GPS recorded.');
-    navigate('/dashboard');
+
+    // 2. Submit Feed Record if feed parameters are entered
+    const hasFeedData = Boolean(
+      formData.feed.dayFeed ||
+      formData.feed.cumulativeFeed ||
+      formData.feed.totalBiomass ||
+      formData.feed.fcr ||
+      formData.feed.abw ||
+      formData.feed.doc
+    );
+    if (hasFeedData) {
+      submitRecord({
+        tankId,
+        farmerId: tank?.farmerId,
+        agentId: resolvedUserId,
+        userId: resolvedUserId,
+        userName: resolvedUserName,
+        role: resolvedRole,
+        submittedBy: resolvedRole,
+        testType: 'Feed Test',
+        recordType: 'FEED_ENTRY',
+        formData: formData.feed,
+        data: formData.feed,
+        latitude: locationFix.latitude,
+        longitude: locationFix.longitude,
+        accuracy: locationFix.accuracy,
+        date: formattedDate,
+        submissionTime: formattedTime,
+        timestamp: now.toISOString(),
+        locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+        gps: {
+          latitude: locationFix.latitude,
+          longitude: locationFix.longitude,
+          accuracy: locationFix.accuracy,
+          timestamp: locationFix.timestamp,
+          locality: locationFix.locality,
+          verified: true,
+        },
+        submittedAt: now.toISOString()
+      });
+    }
+
+    // 3. Submit Disease Observation if disease symptoms or remarks are entered
+    const hasDiseaseData = Boolean(
+      (formData.disease.observations && formData.disease.observations.length > 0) ||
+      formData.disease.remarks
+    );
+    if (hasDiseaseData) {
+      submitRecord({
+        tankId,
+        farmerId: tank?.farmerId,
+        agentId: resolvedUserId,
+        userId: resolvedUserId,
+        userName: resolvedUserName,
+        role: resolvedRole,
+        submittedBy: resolvedRole,
+        testType: 'Disease Observation',
+        recordType: 'DISEASE_ENTRY',
+        formData: formData.disease,
+        data: formData.disease,
+        latitude: locationFix.latitude,
+        longitude: locationFix.longitude,
+        accuracy: locationFix.accuracy,
+        date: formattedDate,
+        submissionTime: formattedTime,
+        timestamp: now.toISOString(),
+        locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+        gps: {
+          latitude: locationFix.latitude,
+          longitude: locationFix.longitude,
+          accuracy: locationFix.accuracy,
+          timestamp: locationFix.timestamp,
+          locality: locationFix.locality,
+          verified: true,
+        },
+        submittedAt: now.toISOString()
+      });
+    }
+
+    // 4. Submit Medication Log if medication entered
+    const hasMedicationData = Boolean(
+      formData.medication.product ||
+      formData.medication.treatmentType ||
+      formData.medication.dosage
+    );
+    if (hasMedicationData) {
+      submitRecord({
+        tankId,
+        farmerId: tank?.farmerId,
+        agentId: resolvedUserId,
+        userId: resolvedUserId,
+        userName: resolvedUserName,
+        role: resolvedRole,
+        submittedBy: resolvedRole,
+        testType: 'Medication',
+        recordType: 'MEDICATION',
+        formData: formData.medication,
+        data: formData.medication,
+        latitude: locationFix.latitude,
+        longitude: locationFix.longitude,
+        accuracy: locationFix.accuracy,
+        date: formattedDate,
+        submissionTime: formattedTime,
+        timestamp: now.toISOString(),
+        locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+        gps: {
+          latitude: locationFix.latitude,
+          longitude: locationFix.longitude,
+          accuracy: locationFix.accuracy,
+          timestamp: locationFix.timestamp,
+          locality: locationFix.locality,
+          verified: true,
+        },
+        submittedAt: now.toISOString()
+      });
+    }
+
+    alert('Site Visit submitted successfully! Field tests recorded.');
+    navigate(targetTankUrl);
   };
 
   const renderStepContent = () => {
@@ -365,7 +511,7 @@ const SiteVisit = () => {
               </div>
               <div>
                 <div style={styles.menuLabel}>GPS</div>
-                <div style={styles.menuStatusVerified}><Check size={14} style={{ marginRight: 4 }} /> Verified</div>
+                <div style={styles.menuStatusVerified}><Check size={14} style={{ marginRight: 4 }}/> Verified</div>
               </div>
             </div>
             <div style={styles.menuHeaderRow}>
@@ -426,7 +572,7 @@ const SiteVisit = () => {
                 <div style={styles.menuCardAction}>ADD OBSERVATION <ChevronRight size={16} /></div>
               </div>
             </div>
-
+            
             <div style={styles.siteVerifiedBox}>
               <MapPin size={20} color="#15803d" />
               <div>
@@ -473,7 +619,7 @@ const SiteVisit = () => {
               </div>
 
               <h3 style={{ margin: '8px 0 16px 0', fontSize: '18px', fontWeight: '700' }}>GPS Location Signal Verification</h3>
-
+              
               {gpsLoading && (
                 <div style={{ backgroundColor: '#eff6ff', padding: '16px', borderRadius: '12px', border: '1px solid #bfdbfe', marginBottom: '20px' }}>
                   <div style={{ color: '#1e40af', fontWeight: 'bold', fontSize: '15px', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -489,7 +635,7 @@ const SiteVisit = () => {
               {!gpsLoading && gpsData && (
                 <div style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0', marginBottom: '20px' }}>
                   <div style={{ color: '#166534', fontWeight: 'bold', fontSize: '15px', marginBottom: '8px' }}>
-                    <CheckCircle size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                    <CheckCircle size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }}/>
                     GPS Signal Active & Verified (In Range)
                   </div>
                   <div style={{ fontSize: '13.5px', color: '#15803d', fontWeight: '600', marginBottom: '4px' }}>
@@ -516,20 +662,20 @@ const SiteVisit = () => {
               )}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
-                <button
+                <button 
                   type="button"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#1A2FB8', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  className="btn-primary" 
+                  style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#1A2FB8', display: 'inline-flex', alignItems: 'center', gap: '8px' }} 
                   onClick={() => acquireGPS(true)}
                   disabled={gpsLoading}
                 >
                   <RefreshCw size={16} className={gpsLoading ? 'animate-spin' : ''} />
                   {gpsLoading ? 'Acquiring GPS...' : 'Re-acquire High Accuracy GPS'}
                 </button>
-                <button
+                <button 
                   type="button"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#16a34a' }}
+                  className="btn-primary" 
+                  style={{ width: 'auto', padding: '10px 20px', backgroundColor: '#16a34a' }} 
                   onClick={() => handleNext()}
                 >
                   Proceed to Visit Tests →
@@ -538,7 +684,7 @@ const SiteVisit = () => {
             </div>
           </div>
         );
-
+      
       case 1:
         return (
           <div style={styles.stepContainer}>
@@ -573,7 +719,7 @@ const SiteVisit = () => {
             </div>
           </div>
         );
-
+      
       case 2:
         return (
           <div style={styles.stepContainer}>
@@ -655,12 +801,12 @@ const SiteVisit = () => {
               <label style={{ ...styles.label, margin: 0 }}>Observed Shrimp Diseases</label>
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>📷 Shrimp Photo Compilation</span>
             </div>
-
+            
             <div className="grid grid-cols-2" style={{ gap: '12px', marginBottom: '20px' }}>
               {DISEASE_OPTIONS.map(disease => (
                 <label key={disease} style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
+                  <input 
+                    type="checkbox" 
                     checked={formData.disease.observations.includes(disease)}
                     onChange={() => toggleDisease(disease)}
                   />
@@ -691,9 +837,9 @@ const SiteVisit = () => {
                   cursor: 'pointer'
                 }}>
                   📷 Upload Shrimp Photo
-                  <input
-                    type="file"
-                    accept="image/*"
+                  <input 
+                    type="file" 
+                    accept="image/*" 
                     style={{ display: 'none' }}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
@@ -717,7 +863,7 @@ const SiteVisit = () => {
                   { name: 'Black Gill', color: '#f1f5f9', border: '#475569', desc: 'Black gill necrosis' },
                   { name: 'Loose Shell', color: '#e0f2fe', border: '#0284c7', desc: 'Soft muscle flaccidity' }
                 ].map((item, idx) => (
-                  <div
+                  <div 
                     key={idx}
                     style={{
                       border: `2px solid ${item.border}`,
@@ -765,18 +911,18 @@ const SiteVisit = () => {
               {/* 1. Water Quality */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
                 <h4 style={{ ...styles.reviewTitle, margin: 0, border: 'none', padding: 0 }}>1. WATER QUALITY</h4>
-                <button
+                <button 
                   style={styles.editSectionBtn}
                   onClick={() => { setCurrentStep(1); setReturnToSubmit(true); }}
                 >
                   <Edit3 size={14} /> Edit
                 </button>
               </div>
-
+              
               {/* 2. Feed */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
                 <h4 style={{ ...styles.reviewTitle, margin: 0, border: 'none', padding: 0 }}>2. FEED</h4>
-                <button
+                <button 
                   style={styles.editSectionBtn}
                   onClick={() => { setCurrentStep(2); setReturnToSubmit(true); }}
                 >
@@ -787,7 +933,7 @@ const SiteVisit = () => {
               {/* 3. Medication */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
                 <h4 style={{ ...styles.reviewTitle, margin: 0, border: 'none', padding: 0 }}>3. MEDICATION</h4>
-                <button
+                <button 
                   style={styles.editSectionBtn}
                   onClick={() => { setCurrentStep(3); setReturnToSubmit(true); }}
                 >
@@ -798,7 +944,7 @@ const SiteVisit = () => {
               {/* 4. Disease */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0', paddingBottom: '4px' }}>
                 <h4 style={{ ...styles.reviewTitle, margin: 0, border: 'none', padding: 0 }}>4. DISEASE</h4>
-                <button
+                <button 
                   style={styles.editSectionBtn}
                   onClick={() => { setCurrentStep(4); setReturnToSubmit(true); }}
                 >
@@ -847,7 +993,7 @@ const SiteVisit = () => {
         {currentStep !== 'MENU' && (
           <div style={styles.progressContainer}>
             <div style={{
-              ...styles.progressBar,
+              ...styles.progressBar, 
               width: `${((currentStep + 1) / STEPS.length) * 100}%`
             }}></div>
           </div>
@@ -895,7 +1041,7 @@ const SiteVisit = () => {
             </div>
           ) : currentStep === 5 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-              <button
+              <button 
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -915,7 +1061,7 @@ const SiteVisit = () => {
               >
                 <Edit3 size={16} /> Edit Test Data
               </button>
-              <button
+              <button 
                 className="btn-primary"
                 style={{ backgroundColor: '#22A65A', width: '100%', padding: '16px', fontSize: '15px' }}
                 onClick={handleSubmit}
@@ -1014,7 +1160,7 @@ const styles = {
   reviewTitle: { fontSize: '13px', fontWeight: '700', color: '#2563D9', marginTop: '20px', marginBottom: '8px', textTransform: 'uppercase', borderBottom: '1px solid #DCE4EE', paddingBottom: '4px' },
   reviewGrid: { gap: '8px', fontSize: '13px', color: '#64748B' },
   loading: { padding: '40px', textAlign: 'center', color: '#64748B' },
-
+  
   editDataBtn: {
     width: '100%',
     padding: '12px',
@@ -1063,4 +1209,5 @@ const styles = {
   siteVerifiedTitle: { fontSize: '14px', fontWeight: '700', color: '#22A65A' },
   siteVerifiedText: { fontSize: '13px', color: '#166534', marginTop: '2px' },
 };
+
 export default SiteVisit;

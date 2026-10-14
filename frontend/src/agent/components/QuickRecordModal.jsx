@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
-  Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale
+  Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale, Wheat, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
@@ -12,7 +12,7 @@ import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/g
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-const QuickRecordModal = ({
+const QuickRecordModalInner = ({
   isOpen,
   onClose,
   initialType = 'WATER_QUALITY',
@@ -33,9 +33,15 @@ const QuickRecordModal = ({
   );
 
   const isIncharge = Boolean(
-    userRole === 'INCHARGE' ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/incharge')) ||
-    (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    !isAdmin && (
+      userRole === 'INCHARGE' ||
+      userRole === 'ASM' ||
+      (typeof window !== 'undefined' && (
+        window.location.pathname.startsWith('/incharge') ||
+        window.location.pathname.startsWith('/asm')
+      )) ||
+      (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    )
   );
 
   const currentInchargeId = inchargeSession?.inchargeId || 'INC001';
@@ -94,6 +100,76 @@ const QuickRecordModal = ({
     remarks: '',
   });
 
+  // Dedicated Feed form (Matching exact Feed slide specification)
+  const [feedForm, setFeedForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    doc: '',
+    seed: '',
+    abw: '',
+    dayFeed: '',
+    cumulativeFeed: '',
+    totalBiomass: '',
+    fcr: '',
+    checkTrayFeed: '',
+    checkTrayTime: '10:30',
+    remarks: '',
+  });
+
+  // Dedicated Disease form (Matching exact Disease slide specification)
+  const DISEASE_LIST = [
+    'White muscle',
+    'White gut',
+    'Moulting',
+    'Cramping',
+    'Black gill',
+    'Vibriosis',
+    'EHP',
+    'Hard shell',
+    'Soft shell',
+    'Black spots',
+    'ASDS',
+    'WSSV',
+    'Loose shell'
+  ];
+
+  const [diseaseForm, setDiseaseForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    doc: '',
+    // Map of disease name -> status ('Normal', 'Mild', 'Severe')
+    status: {},
+    affectedShrimpPct: '',
+    remarks: '',
+  });
+
+  const toggleDiseaseStatus = (disease, level) => {
+    setDiseaseForm(prev => {
+      const current = prev.status[disease];
+      const newStatus = { ...prev.status };
+      if (current === level) {
+        // Uncheck / return to unaffected
+        delete newStatus[disease];
+      } else {
+        newStatus[disease] = level;
+      }
+      return { ...prev, status: newStatus };
+    });
+  };
+
+  // Auto-calculate FCR: Cumulative Feed / Total Biomass
+  const handleFeedChange = (field, val) => {
+    setFeedForm(prev => {
+      const updated = { ...prev, [field]: val };
+      const cumFeed = parseFloat(field === 'cumulativeFeed' ? val : updated.cumulativeFeed);
+      const biomass = parseFloat(field === 'totalBiomass' ? val : updated.totalBiomass);
+      if (!isNaN(cumFeed) && !isNaN(biomass) && biomass > 0) {
+        updated.fcr = (cumFeed / biomass).toFixed(2);
+      } else if (field === 'cumulativeFeed' || field === 'totalBiomass') {
+        updated.fcr = '';
+      }
+      return updated;
+    });
+  };
+
   // Keep farmer & tank synced
   useEffect(() => {
     if (preselectedFarmerId) setSelectedFarmerId(preselectedFarmerId);
@@ -113,6 +189,49 @@ const QuickRecordModal = ({
       setSelectedTankId(fTanks[0].id);
     }
   }, [selectedFarmerId]);
+
+  // Pre-fill initial DOC and Seed only when tank is first loaded or explicitly switched
+  const prevTankKeyRef = useRef(null);
+  useEffect(() => {
+    if (!selectedTankId || tanks.length === 0) return;
+    const tankKey = `${selectedFarmerId}_${selectedTankId}`;
+    if (prevTankKeyRef.current === tankKey) return;
+
+    const t = tanks.find(x => x.id === selectedTankId);
+    if (t) {
+      prevTankKeyRef.current = tankKey;
+
+      let initialDoc = '';
+      if (t.doc !== undefined && t.doc !== null && t.doc !== '') {
+        initialDoc = String(t.doc);
+      } else if (t.stockingDate) {
+        const diffDays = Math.floor((new Date() - new Date(t.stockingDate)) / 86400000);
+        initialDoc = String(Math.max(0, diffDays));
+      }
+
+      const initialSeed = t.seedStocked 
+        ? String((parseFloat(t.seedStocked) / 100000).toFixed(1)) 
+        : (t.seed ? String(t.seed) : (t.seedStockingLak ? String(t.seedStockingLak) : ''));
+
+      setWaterForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+      setFeedForm(prev => ({
+        ...prev,
+        doc: initialDoc,
+        seed: initialSeed
+      }));
+      setDiseaseForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+      setHarvestForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+    }
+  }, [selectedFarmerId, selectedTankId, tanks]);
 
   // Load GPS
   useEffect(() => {
@@ -149,8 +268,6 @@ const QuickRecordModal = ({
       hardness: !isNaN(num) && num > 0 ? String(Math.round(num * 300)) : prev.hardness,
     }));
   };
-
-  if (!isOpen) return null;
 
   // Selected Tank Status Check
   const selectedTank = tanks.find(t => t.id === selectedTankId);
@@ -190,16 +307,22 @@ const QuickRecordModal = ({
     const tankName = tank?.name || 'Tank 1';
 
     const isHarvest = activeTab === 'HARVEST_ENTRY';
-    const testTypeName = isHarvest ? 'Harvest' : 'Water Analysis';
-    const formData = isHarvest ? harvestForm : waterForm;
+    const isFeed = activeTab === 'FEED_ENTRY';
+    const isDisease = activeTab === 'DISEASE_ENTRY';
+    const testTypeName = isHarvest 
+      ? 'Harvest' 
+      : (isFeed ? 'Feed Check Analysis' : (isDisease ? 'Disease Inspection' : 'Water Analysis'));
+    const recordTypeKey = isHarvest 
+      ? 'HARVEST_ENTRY' 
+      : (isFeed ? 'FEED_ENTRY' : (isDisease ? 'DISEASE_ENTRY' : 'WATER_QUALITY'));
+    const formData = isHarvest ? harvestForm : (isFeed ? feedForm : (isDisease ? diseaseForm : waterForm));
 
     const recordId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const now = new Date(locationFix.timestamp || Date.now());
-    const formattedDate = now.toISOString().split('T')[0];
+    const formattedDate = (isFeed ? feedForm.date : (isHarvest ? harvestForm.date : (isDisease ? diseaseForm.date : waterForm.date))) || now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    const isFeed = activeTab === 'FEED_ENTRY';
-    const isDisease = activeTab === 'DISEASE_ENTRY';
+
     const resolvedRole = isAdmin ? 'Admin' : (isIncharge ? 'Incharge' : 'Agent');
     const resolvedUserId = isAdmin
       ? 'ADMIN'
@@ -247,7 +370,7 @@ const QuickRecordModal = ({
       tankId: selectedTankId,
       tankName,
       testType: testTypeName,
-      recordType: isHarvest ? 'HARVEST_ENTRY' : 'WATER_QUALITY',
+      recordType: recordTypeKey,
       date: formattedDate,
       time: formattedTime,
       submissionTime: formattedTime,
@@ -257,7 +380,7 @@ const QuickRecordModal = ({
       longitude: locationFix.longitude,
       accuracy: locationFix.accuracy,
       locality: locationFix.locality || (farmer?.location || 'Coastal Aquaculture Zone'),
-      data: formData,
+      data: enrichedData,
       gps: {
         latitude: locationFix.latitude,
         longitude: locationFix.longitude,
@@ -420,6 +543,10 @@ const QuickRecordModal = ({
             <div style={styles.headerIconCircle}>
               {activeTab === 'HARVEST_ENTRY' ? (
                 <Scale size={18} color="#1A2FB8" strokeWidth={2.4} />
+              ) : activeTab === 'FEED_ENTRY' ? (
+                <Wheat size={18} color="#1A2FB8" strokeWidth={2.4} />
+              ) : activeTab === 'DISEASE_ENTRY' ? (
+                <Bug size={18} color="#DC2626" strokeWidth={2.4} />
               ) : (
                 <Droplets size={18} color="#1A2FB8" strokeWidth={2.4} />
               )}
@@ -532,7 +659,7 @@ const QuickRecordModal = ({
                     onChange={(e) => handleFeedChange('doc', e.target.value)}
                     placeholder="e.g. 45"
                     style={styles.input}
-                    min="1"
+                    min="0"
                     required
                   />
                 </div>
@@ -1196,7 +1323,7 @@ const styles = {
   },
   modalCard: {
     width: '100%',
-    maxWidth: '430px',
+    maxWidth: '560px',
     backgroundColor: '#FFFFFF',
     borderRadius: '20px',
     boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.22), 0 0 1px 1px rgba(0, 0, 0, 0.05)',
@@ -1372,6 +1499,31 @@ const styles = {
     padding: 0,
     width: '100%',
   },
+  paramStatus: {
+    fontSize: '9.5px',
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: '2px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  paramSelect: {
+    border: 'none',
+    background: 'transparent',
+    fontSize: '13px',
+    fontWeight: '700',
+    color: '#0F172A',
+    outline: 'none',
+    padding: '2px 0',
+    width: '100%',
+    cursor: 'pointer',
+  },
+  rangeHint: {
+    fontSize: '10px',
+    fontWeight: '600',
+    color: '#2563EB',
+  },
   moreToggleBtn: {
     background: 'none',
     border: 'none',
@@ -1542,4 +1694,9 @@ const styles = {
   },
 };
 
-export default QuickRecordModal;
+const QuickRecordModal = (props) => {
+  if (!props.isOpen) return null;
+  return <QuickRecordModalInner {...props} />;
+};
+
+export default React.memo(QuickRecordModal);
