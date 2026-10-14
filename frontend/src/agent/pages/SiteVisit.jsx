@@ -43,7 +43,11 @@ const SiteVisit = () => {
 
   // Form State
   const [formData, setFormData] = useState({
+<<<<<<< HEAD
+    water: { date: new Date().toISOString().split('T')[0], ph: '', ammonia: '', nitrate: '', salinity: '' },
+=======
     water: { doc: '', salinity: '', ph: '', alkalinity: '', hardness: '', ammonia: '', nitrite: '', k: '', do: '', h2s: '', chlorine: '', iron: '', waterColour: '' },
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     feed: { doc: '', seed: '', abw: '', dayFeed: '', cumulativeFeed: '', totalBiomass: '', fcr: '', checkTrayFeed: '', checkTrayTime: '', remarks: '' },
     medication: { treatmentType: '', category: '', product: '', dosage: '', remarks: '' },
     disease: { observations: [], remarks: '' },
@@ -232,6 +236,21 @@ const SiteVisit = () => {
   };
 
   const checkWaterWarning = (field, value) => {
+<<<<<<< HEAD
+    const num = parseFloat(value);
+    if (isNaN(num)) return null;
+    if (field === 'ph' && (num < 7.5 || num > 8.5)) return 'Optimal range: 7.5 - 8.5';
+    if (field === 'ammonia' && num > 0.5) return 'High Ammonia (> 0.5 ppm)';
+    if (field === 'nitrate' && num > 20) return 'High Nitrate (> 20 ppm)';
+    if (field === 'salinity' && (num < 0 || num > 30)) return 'Target range: 0 - 30 ppt';
+    if (field === 'nitrite' && num > 0.25) return 'High Nitrite (> 0.25 ppm)';
+    if (field === 'alkalinity' && (num < 100 || num > 300)) return 'Target range: 100 - 300 ppm';
+    if (field === 'do' && num < 4.0) return 'Critical low DO (< 4.0 mg/L)';
+    if (field === 'h2s' && num > 0.02) return 'Toxic H2S detected (> 0.02 ppm)';
+    if ((field === 'chlorine' || field === 'cl') && num > 0.02) return 'High Chlorine (> 0.02 ppm)';
+    if ((field === 'iron' || field === 'fe') && num > 0.02) return 'High Iron (> 0.02 ppm)';
+=======
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     return null;
   };
 
@@ -286,6 +305,25 @@ const SiteVisit = () => {
     const formattedDate = now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+<<<<<<< HEAD
+    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
+    const resolvedUserId = isIncharge
+      ? (session?.inchargeId || session?.id || 'INC001')
+      : (session?.agentId || session?.id || 'agent001');
+    const resolvedUserName = session?.name || (isIncharge ? 'Incharge' : 'Ramesh');
+
+    const enrichedWater = {
+      ...formData.water,
+      ph: formData.water.ph ?? '',
+      ammonia: formData.water.ammonia ?? '',
+      nitrate: formData.water.nitrate ?? '',
+      salinity: formData.water.salinity ?? '',
+      nitrite: formData.water.nitrate ?? '', // backwards compatibility
+    };
+
+    // 1. Submit Water Analysis Record
+=======
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     submitRecord({
       tankId,
       agentId: session?.agentId || 'agent001',
@@ -503,6 +541,32 @@ const SiteVisit = () => {
       case 1:
         return (
           <div style={styles.stepContainer}>
+<<<<<<< HEAD
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8', letterSpacing: '0.5px' }}>
+                WATER QUALITY PARAMETERS
+              </span>
+              <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+                4 Parameters Analysis
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '14px' }}>
+              {/* 1. Date */}
+              {renderInput('water', 'date', 'Test Date', 'date')}
+
+              {/* 2. pH: 7.5 to 8.5 */}
+              {renderInput('water', 'ph', 'pH Level (Optimal 7.5 - 8.5)', 'number', 'e.g. 7.8')}
+
+              {/* 3. Ammonia: 0 to >0.5 ppm */}
+              {renderInput('water', 'ammonia', 'Ammonia - NH3 (< 0.5 ppm)', 'number', 'e.g. 0.05')}
+
+              {/* 4. Nitrate: ppm */}
+              {renderInput('water', 'nitrate', 'Nitrate - NO3 (< 20 ppm)', 'number', 'e.g. 2.0')}
+
+              {/* 5. Salinity: 0 - 30 ppt */}
+              {renderInput('water', 'salinity', 'Salinity (0 - 30 ppt)', 'number', 'e.g. 15.0')}
+=======
             <div className="grid grid-cols-1 md:grid-cols-2">
               {renderInput('water', 'doc', 'DOC / Date', 'date')}
               {renderInput('water', 'salinity', 'Salinity (ppt)', 'number')}
@@ -517,6 +581,7 @@ const SiteVisit = () => {
               {renderInput('water', 'chlorine', 'Chlorine', 'number')}
               {renderInput('water', 'iron', 'Iron', 'number')}
               {renderInput('water', 'waterColour', 'Water Colour', 'text', 'e.g. Greenish')}
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
             </div>
           </div>
         );

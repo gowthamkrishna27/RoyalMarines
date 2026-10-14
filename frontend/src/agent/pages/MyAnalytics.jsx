@@ -19,7 +19,7 @@ const MyAnalytics = () => {
   const [activeTimeframe, setActiveTimeframe] = useState('WEEK');
 
   const agentId = session?.agentId || 'agent001';
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
   const submissions = (db?.submissions || []).filter(s => !s.agentId || s.agentId === agentId);
 
   // Graphical Data 1: Weekly Submissions Activity

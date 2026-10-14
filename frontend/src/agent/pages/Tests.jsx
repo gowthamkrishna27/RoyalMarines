@@ -22,7 +22,8 @@ const Tests = () => {
 
   const activeSession = session || getSession() || { agentId: 'agent001', name: 'Ramesh Kumar', role: 'AGENT' };
 
-  const allTests = (getFarmersByAgentId ? getFarmersByAgentId(activeSession.agentId) : (db?.farmers || [])).flatMap(farmer => 
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(activeSession.agentId) : [];
+  const allTests = assignedFarmers.flatMap(farmer => 
     (getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id)).map(tank => ({
       id: tank.id,
       farmerName: farmer.name,

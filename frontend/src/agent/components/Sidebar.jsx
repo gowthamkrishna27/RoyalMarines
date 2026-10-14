@@ -130,10 +130,9 @@ const Sidebar = () => {
               className="cursor-pointer transition-all duration-150 hover:brightness-105 active:scale-98"
               style={styles.harvestSideBtn}
               onClick={() => {
-                setModalInitialType('HARVEST_ENTRY');
-                setIsQuickRecordOpen(true);
+                navigate(prefix ? `${prefix}/harvest` : '/harvest');
               }}
-              aria-label="Record Crop Harvest"
+              aria-label="Harvest Management"
             >
               <Scale size={14} strokeWidth={2.4} /> Harvest
             </button>

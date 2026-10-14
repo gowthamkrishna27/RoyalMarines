@@ -24,12 +24,30 @@ const Analytics = () => {
       adminService.getFarmers(),
       adminService.getTanks()
     ]).then(([r, i, a, f, t]) => {
+<<<<<<< HEAD
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        const mappedRegs = r.value.map(reg => ({
+          id: String(reg.code || reg.id),
+          code: reg.code || reg.id,
+          name: reg.name,
+          localities: Array.isArray(reg.localities) ? reg.localities : [{ id: `LOC-${reg.code || reg.id}`, name: reg.name }]
+        }));
+        setRegions(mappedRegs);
+      } else if (r.status === 'fulfilled') {
+        setRegions(r.value || []);
+      }
+      if (i.status === 'fulfilled') setIncharges(Array.isArray(i.value) ? i.value : []);
+      if (a.status === 'fulfilled') setAgents(Array.isArray(a.value) ? a.value : []);
+      if (f.status === 'fulfilled') setFarmers(Array.isArray(f.value) ? f.value : []);
+      if (t.status === 'fulfilled') setAllTanks(Array.isArray(t.value) ? t.value : []);
+=======
       if (!isMounted) return;
       if (r.status === 'fulfilled') setRegions(r.value || []);
       if (i.status === 'fulfilled') setIncharges(i.value || []);
       if (a.status === 'fulfilled') setAgents(a.value || []);
       if (f.status === 'fulfilled') setFarmers(f.value || []);
       if (t.status === 'fulfilled') setAllTanks(t.value || []);
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     });
     return () => { isMounted = false; };
   }, []);
@@ -76,42 +94,49 @@ const Analytics = () => {
 
   const availableLocalities = useMemo(() => {
     if (!filters.region) return [];
-    const region = regions.find(r => r.name === filters.region);
-    return region ? region.localities.map(l => l.name) : [];
-  }, [filters.region, regions]);
+    const region = (regions || []).find(r => r.name === filters.region || r.id === filters.region);
+    if (!region) return [];
+    if (Array.isArray(region.localities)) {
+      return region.localities.map(l => (typeof l === 'string' ? l : l.name));
+    }
+    const locSet = new Set();
+    (incharges || []).filter(i => (i.region === filters.region || i.regionName === filters.region) && i.locality).forEach(i => locSet.add(i.locality));
+    (farmers || []).filter(f => (f.region === filters.region || f.regionName === filters.region) && (f.locality || f.location)).forEach(f => locSet.add(f.locality || f.location));
+    return Array.from(locSet);
+  }, [filters.region, regions, incharges, farmers]);
 
   const availableIncharges = useMemo(() => {
-    let filtered = incharges;
+    let filtered = incharges || [];
     if (filters.region) filtered = filtered.filter(i => i.region === filters.region);
     if (filters.locality) filtered = filtered.filter(i => i.locality === filters.locality);
-    return filtered.map(i => i.name);
+    return (filtered || []).map(i => i.name);
   }, [filters.region, filters.locality, incharges]);
 
   const availableAgents = useMemo(() => {
-    let filtered = agents;
+    let filtered = agents || [];
     if (filters.region) filtered = filtered.filter(a => a.region === filters.region);
     if (filters.locality) filtered = filtered.filter(a => a.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(a => a.incharge === filters.incharge);
-    return filtered.map(a => a.name);
+    return (filtered || []).map(a => a.name);
   }, [filters.region, filters.locality, filters.incharge, agents]);
 
   const availableFarmers = useMemo(() => {
-    let filtered = farmers;
+    let filtered = farmers || [];
     if (filters.region) filtered = filtered.filter(f => f.region === filters.region);
     if (filters.locality) filtered = filtered.filter(f => f.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(f => f.incharge === filters.incharge);
     if (filters.agent) filtered = filtered.filter(f => f.agent === filters.agent);
-    return filtered.map(f => f.name);
+    return (filtered || []).map(f => f.name);
   }, [filters.region, filters.locality, filters.incharge, filters.agent, farmers]);
 
   const availableTanks = useMemo(() => {
-    let filtered = allTanks;
+    let filtered = allTanks || [];
     if (filters.region) filtered = filtered.filter(t => t.region === filters.region);
     if (filters.locality) filtered = filtered.filter(t => t.locality === filters.locality);
     if (filters.incharge) filtered = filtered.filter(t => t.incharge === filters.incharge);
     if (filters.agent) filtered = filtered.filter(t => t.agent === filters.agent);
     if (filters.farmer) filtered = filtered.filter(t => t.farmer === filters.farmer);
-    return filtered.map(t => t.id);
+    return (filtered || []).map(t => t.id);
   }, [filters.region, filters.locality, filters.incharge, filters.agent, filters.farmer, allTanks]);
 
   const filteredTanks = useMemo(() => {
