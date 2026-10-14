@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "https://royalmarines-backend.onrender.com/api/:match*"
+      "destination": "https://royalmarines.onrender.com/api/:match*"
     },
     {
       "source": "/(.*)",
