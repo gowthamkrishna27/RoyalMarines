@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "echo \"Backend build complete\"",
-    "dev": "node --watch-path=src --watch-path=server.js server.js",
+    "dev": "node --watch server.js",
     "db:view": "node scripts/viewTables.js",
     "db:seed": "node scripts/seedData.js",
     "db:pins": "node scripts/updatePins.js",

@@ -3,66 +3,34 @@ import { apiClient } from '../../utils/apiClient';
 /**
  * Enterprise Admin Data Service
  * Connects all Admin Portal modules directly to live Express / MySQL API endpoints.
- * Features in-memory caching and request deduplication for near-instant (0ms) tab switching.
  */
 
 const memoryCache = new Map();
-const inFlight = new Map();
-const DEFAULT_TTL_MS = 20000; // 20 seconds
+const DEFAULT_TTL_MS = 15000; // 15 seconds
 
 async function fetchWithCache(key, fetcher, ttl = DEFAULT_TTL_MS, force = false) {
-  const now = Date.now();
   if (!force) {
     const cached = memoryCache.get(key);
-    if (cached && now - cached.timestamp < ttl) {
+    if (cached && Date.now() - cached.timestamp < ttl) {
       return cached.data;
     }
   }
-
-  if (inFlight.has(key)) {
-    return inFlight.get(key);
-  }
-
-  const promise = (async () => {
-    try {
-      const data = await fetcher();
-      memoryCache.set(key, { data, timestamp: Date.now() });
-      return data;
-    } finally {
-      inFlight.delete(key);
-    }
-  })();
-
-  inFlight.set(key, promise);
-  return promise;
-}
-
-export function invalidateCache(pattern = null) {
-  if (!pattern) {
-    memoryCache.clear();
-    return;
-  }
-  for (const key of memoryCache.keys()) {
-    if (typeof pattern === 'string' && key.includes(pattern)) {
-      memoryCache.delete(key);
-    } else if (pattern instanceof RegExp && pattern.test(key)) {
-      memoryCache.delete(key);
-    }
-  }
+  const data = await fetcher();
+  memoryCache.set(key, { data, timestamp: Date.now() });
+  return data;
 }
 
 export const adminService = {
-  invalidateCache,
   clearCache(key) {
     if (key) {
-      invalidateCache(key);
+      memoryCache.delete(key);
     } else {
       memoryCache.clear();
     }
   },
 
   async getSummary(force = false) {
-    return fetchWithCache('summary', async () => {
+    return fetchWithCache('/analytics/summary', async () => {
       const res = await apiClient.get('/analytics/summary');
       return res?.data || {
         totalFarmers: 0,
@@ -84,7 +52,7 @@ export const adminService = {
   },
 
   async getRegions(force = false) {
-    return fetchWithCache('regions', async () => {
+    return fetchWithCache('/analytics/regions', async () => {
       const res = await apiClient.get('/analytics/regions');
       const list = Array.isArray(res?.data) ? res.data : [];
       return list.map(r => ({
@@ -98,180 +66,124 @@ export const adminService = {
   },
 
   async getIncharges(force = false) {
-    return fetchWithCache('incharges', async () => {
+    return fetchWithCache('/analytics/incharges', async () => {
       const res = await apiClient.get('/analytics/incharges');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getInchargeById(id, force = false) {
-    return fetchWithCache(`incharge:${id}`, async () => {
-      const res = await apiClient.get(`/analytics/incharges/${id}`);
-      return res?.data || null;
-    }, DEFAULT_TTL_MS, force);
+  async getInchargeById(id) {
+    const res = await apiClient.get(`/analytics/incharges/${id}`);
+    return res?.data || null;
   },
 
   async getAgents(force = false) {
-    return fetchWithCache('agents', async () => {
+    return fetchWithCache('/analytics/agents', async () => {
       const res = await apiClient.get('/analytics/agents');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getAgentById(id, force = false) {
-    return fetchWithCache(`agent:${id}`, async () => {
-      const res = await apiClient.get(`/analytics/agents/${id}`);
-      return res?.data || null;
-    }, DEFAULT_TTL_MS, force);
+  async getAgentById(id) {
+    const res = await apiClient.get(`/analytics/agents/${id}`);
+    return res?.data || null;
   },
 
   async getFarmers(force = false) {
-    return fetchWithCache('farmers', async () => {
+    return fetchWithCache('/farmers', async () => {
       const res = await apiClient.get('/farmers');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getFarmerById(id, force = false) {
-    return fetchWithCache(`farmer:${id}`, async () => {
-      const res = await apiClient.get(`/farmers/${id}`);
-      return res?.data || null;
-    }, DEFAULT_TTL_MS, force);
+  async getFarmerById(id) {
+    const res = await apiClient.get(`/farmers/${id}`);
+    return res?.data || null;
   },
 
   async getTanks(force = false) {
-    return fetchWithCache('tanks', async () => {
+    return fetchWithCache('/tanks', async () => {
       const res = await apiClient.get('/tanks');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getTankById(id, force = false) {
-    return fetchWithCache(`tank:${id}`, async () => {
-      const res = await apiClient.get(`/tanks/${id}`);
-      return res?.data || null;
-    }, DEFAULT_TTL_MS, force);
+  async getTankById(id) {
+    const res = await apiClient.get(`/tanks/${id}`);
+    return res?.data || null;
   },
 
   async getSubmissions(force = false) {
-    return fetchWithCache('submissions', async () => {
+    return fetchWithCache('/submissions', async () => {
       const res = await apiClient.get('/submissions');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getTodaySubmissions(force = false) {
-    return fetchWithCache('todaySubmissions', async () => {
-      const res = await apiClient.get('/admin/submission-locations?date=today');
-      return Array.isArray(res?.data) ? res.data : [];
-    }, DEFAULT_TTL_MS, force);
-  },
-
   async getHarvests(force = false) {
-    return fetchWithCache('harvests', async () => {
+    return fetchWithCache('/harvests', async () => {
       const res = await apiClient.get('/harvests');
       return Array.isArray(res?.data) ? res.data : [];
     }, DEFAULT_TTL_MS, force);
   },
 
-  async getDashboardData(tankIds = [], interval = 'Monthly', force = false) {
+  async getDashboardData(tankIds = [], interval = 'Monthly') {
     const params = new URLSearchParams();
     if (interval) params.set('interval', interval);
     if (Array.isArray(tankIds) && tankIds.length > 0) {
       params.set('tankIds', tankIds.join(','));
     }
-    const key = `dashboardData:${params.toString()}`;
-    return fetchWithCache(key, async () => {
-      const res = await apiClient.get(`/analytics/dashboard-data?${params.toString()}`);
-      return res?.data || {
-        waterQuality: [],
-        trend: [],
-        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 }
-      };
-    }, DEFAULT_TTL_MS, force);
+    const res = await apiClient.get(`/analytics/dashboard-data?${params.toString()}`);
+    return res?.data || {
+      waterQuality: [],
+      trend: [],
+      kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 }
+    };
   },
 
-  async getAuditLogs(force = false) {
-    return fetchWithCache('auditLogs', async () => {
-      const res = await apiClient.get('/analytics/audit-logs');
-      return Array.isArray(res?.data) ? res.data : [];
-    }, DEFAULT_TTL_MS, force);
+  async getAuditLogs() {
+    const res = await apiClient.get('/analytics/audit-logs');
+    return Array.isArray(res?.data) ? res.data : [];
   },
 
-  async getSubmissionLocations(filter = {}, force = false) {
+  async getSubmissionLocations(filter = {}) {
     const params = new URLSearchParams(filter);
-    const key = `locations:${params.toString()}`;
-    return fetchWithCache(key, async () => {
-      const res = await apiClient.get(`/admin/submission-locations?${params.toString()}`);
-      return Array.isArray(res?.data) ? res.data : [];
-    }, DEFAULT_TTL_MS, force);
+    const res = await apiClient.get(`/admin/submission-locations?${params.toString()}`);
+    return Array.isArray(res?.data) ? res.data : [];
   },
 
-  async getFieldStaff(force = false) {
-    return fetchWithCache('fieldStaff', async () => {
-      const res = await apiClient.get('/admin/field-staff');
-      return Array.isArray(res?.data) ? res.data : [];
-    }, DEFAULT_TTL_MS, force);
+  async getFieldStaff() {
+    const res = await apiClient.get('/admin/field-staff');
+    return Array.isArray(res?.data) ? res.data : [];
   },
 
   async createSubmission(payload) {
+    memoryCache.clear();
     const res = await apiClient.post('/submissions', payload);
-    invalidateCache('submission');
-    invalidateCache('tank');
-    invalidateCache('summary');
-    invalidateCache('location');
-    invalidateCache('harvest');
-    invalidateCache('audit');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: res?.data }));
-      window.dispatchEvent(new CustomEvent('adminDataChanged'));
-    }
     return res?.data || null;
   },
 
   async createHarvest(payload) {
+    memoryCache.clear();
     const res = await apiClient.post('/harvests', payload);
-    invalidateCache('harvest');
-    invalidateCache('tank');
-    invalidateCache('summary');
-    invalidateCache('submission');
-    invalidateCache('audit');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('harvestCreated', { detail: res?.data }));
-      window.dispatchEvent(new CustomEvent('adminDataChanged'));
-    }
     return res?.data || null;
   },
 
   async createTank(payload) {
+    memoryCache.clear();
     const res = await apiClient.post('/tanks', payload);
-    invalidateCache('tank');
-    invalidateCache('summary');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataChanged'));
-    }
     return res?.data || null;
   },
 
   async updateTank(id, updates) {
+    memoryCache.clear();
     const res = await apiClient.put(`/tanks/${id}`, updates);
-    invalidateCache('tank');
-    invalidateCache('summary');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataChanged'));
-    }
     return res?.data || null;
   },
 
   async verifySubmission(id, status, notes = '') {
+    memoryCache.clear();
     const res = await apiClient.patch(`/submissions/${id}/verify`, { status, notes });
-    invalidateCache('submission');
-    invalidateCache('summary');
-    invalidateCache('location');
-    invalidateCache('audit');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('adminDataChanged'));
-    }
     return res?.data || null;
   }
 };

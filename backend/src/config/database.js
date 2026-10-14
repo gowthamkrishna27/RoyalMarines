@@ -24,7 +24,7 @@ export const getPool = () => {
       database: process.env.DB_NAME || config.db.database,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : config.db.ssl,
       waitForConnections: true,
-      connectionLimit: 25,
+      connectionLimit: 10,
       queueLimit: 0,
       connectTimeout: 10000,
     });

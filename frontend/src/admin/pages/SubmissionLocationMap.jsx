@@ -7,7 +7,7 @@ import {
   Clock, CheckCircle2, ChevronRight, Layers, Eye, Navigation,
   AlertCircle, Radio
 } from 'lucide-react';
-import adminService from '../utils/adminService';
+import apiClient from '../../utils/apiClient';
 
 // Custom Map Icons
 const createMarkerIcon = (role, isSelected = false) => {
@@ -45,13 +45,12 @@ const MapBoundsController = ({ markers, selectedMarkerId, markerRefs }) => {
 
   useEffect(() => {
     if (!map) return;
-    const validMarkers = (markers || []).filter(m => m.latitude != null && m.longitude != null && !isNaN(m.latitude) && !isNaN(m.longitude));
-    if (validMarkers && validMarkers.length > 0) {
-      if (validMarkers.length === 1) {
-        const m = validMarkers[0];
+    if (markers && markers.length > 0) {
+      if (markers.length === 1) {
+        const m = markers[0];
         map.flyTo([m.latitude, m.longitude], 15, { animate: true, duration: 0.8 });
       } else {
-        const bounds = L.latLngBounds(validMarkers.map(m => [m.latitude, m.longitude]));
+        const bounds = L.latLngBounds(markers.map(m => [m.latitude, m.longitude]));
         map.fitBounds(bounds, { padding: [55, 55], maxZoom: 15, animate: true });
       }
     } else {
@@ -101,40 +100,55 @@ const SubmissionLocationMap = () => {
 
   // 1. Fetch Field Staff (Agents & Incharges) from MySQL database
   useEffect(() => {
-    let isMounted = true;
     const fetchStaff = async () => {
       try {
-        const staff = await adminService.getFieldStaff();
-        if (isMounted && Array.isArray(staff)) {
-          setFieldStaff(staff);
+        const res = await apiClient.get('/admin/field-staff');
+        if (res?.data && Array.isArray(res.data)) {
+          setFieldStaff(res.data);
         }
       } catch (err) {
         console.warn('[Staff fetch error]', err.message);
-        if (isMounted) setFieldStaff([]);
+        // Fallback default staff list
+        setFieldStaff([
+          { id: 'agent001', name: 'Ramesh', role: 'Agent' },
+          { id: 'agent002', name: 'Suresh', role: 'Agent' },
+          { id: 'agent003', name: 'Mahesh', role: 'Agent' },
+          { id: 'INC001', name: 'Ravi Kumar', role: 'Incharge' },
+          { id: 'INC002', name: 'Rajesh Varma', role: 'Incharge' }
+        ]);
       }
     };
     fetchStaff();
-    return () => { isMounted = false; };
   }, []);
 
   // 2. Fetch Submission Locations with Active Filters
-  const fetchLocations = async (forceRefresh = false) => {
+  const fetchLocations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const filterObj = {};
+      const queryParams = new URLSearchParams();
       if (selectedRole && selectedRole !== 'ALL') {
-        filterObj.role = selectedRole;
+        queryParams.set('role', selectedRole);
       }
       if (selectedUserId && selectedUserId !== 'ALL') {
-        filterObj.userId = selectedUserId;
-      }
-      if (selectedDate && selectedDate !== 'ALL') {
-        filterObj.date = selectedDate;
+        queryParams.set('userId', selectedUserId);
       }
 
-      const data = await adminService.getSubmissionLocations(filterObj, forceRefresh);
-      setSubmissions(Array.isArray(data) ? data : []);
+      if (selectedDate && selectedDate !== 'ALL') {
+        queryParams.set('date', selectedDate);
+      }
+
+      const res = await apiClient.get(`/admin/submission-locations?${queryParams.toString()}`);
+      if (res?.data && Array.isArray(res.data)) {
+        // Filter out records without valid coordinates
+        const validCoords = res.data.filter(
+          item => item.latitude != null && item.longitude != null &&
+            !isNaN(item.latitude) && !isNaN(item.longitude)
+        );
+        setSubmissions(validCoords);
+      } else {
+        setSubmissions([]);
+      }
       setLastRefreshed(new Date());
     } catch (err) {
       console.error('[Error loading submission locations]', err);
@@ -145,7 +159,7 @@ const SubmissionLocationMap = () => {
   };
 
   useEffect(() => {
-    fetchLocations(false);
+    fetchLocations();
   }, [selectedRole, selectedUserId, selectedDate]);
 
   // Handle Role Filter Change
@@ -233,7 +247,7 @@ const SubmissionLocationMap = () => {
           </div>
 
           <button
-            onClick={() => fetchLocations(true)}
+            onClick={fetchLocations}
             style={styles.refreshBtn}
             title="Refresh submission locations from database"
             disabled={loading}
@@ -305,131 +319,6 @@ const SubmissionLocationMap = () => {
         </div>
       </div>
 
-      {/* Today's Submissions Table List */}
-      <div style={styles.tableCard}>
-        <div style={styles.tableHeaderRow}>
-          <div>
-            <h3 style={styles.tableTitle}>
-              {selectedDate === getTodayDateStr() || selectedDate === 'today' ? "Today's Submissions" : 'Submissions List'}
-            </h3>
-            <p style={styles.tableSubtitle}></p>
-          </div>
-          <span style={styles.tableCountBadge}>
-            {submissions.length} Total Record{submissions.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>User</th>
-                <th style={styles.th}>Role</th>
-                <th style={styles.th}>Time</th>
-                <th style={styles.th}>Submission ID</th>
-                <th style={styles.th}>GPS Coordinates</th>
-                <th style={styles.th}>Accuracy</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submissions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={styles.noDataCell}>
-                    No submission records available for the selected filters.
-                  </td>
-                </tr>
-              ) : (
-                submissions.map((sub) => {
-                  const isAgent = sub.role?.toLowerCase() === 'agent';
-                  const isSelected = selectedMarkerId === sub.submissionId;
-
-                  return (
-                    <tr
-                      key={sub.submissionId}
-                      style={{
-                        ...styles.tr,
-                        backgroundColor: isSelected ? '#F0F9FF' : 'transparent',
-                        fontWeight: isSelected ? 600 : 400
-                      }}
-                      onClick={() => handleFocusSubmission(sub)}
-                    >
-                      <td style={styles.td}>
-                        <div style={styles.userCell}>
-                          <div style={{
-                            ...styles.avatarSmall,
-                            background: isAgent ? '#DBEAFE' : '#FFEDD5',
-                            color: isAgent ? '#1E40AF' : '#C2410C'
-                          }}>
-                            {sub.userName?.charAt(0) || 'U'}
-                          </div>
-                          <div>
-                            <div style={styles.userNameText}>{sub.userName}</div>
-                            <div style={styles.userIdSubText}>{sub.userId}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
-                          {isAgent ? '🔵 Agent' : '🟠 Incharge'}
-                        </span>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.timeCell}>
-                          <Clock size={13} style={{ marginRight: 5, color: '#64748B' }} />
-                          <span>{sub.submissionTime || '09:00 AM'}</span>
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={styles.subIdCell}>{sub.submissionId}</span>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.coordsCell}>
-                          {sub.latitude != null && sub.longitude != null ? (
-                            <code>{sub.latitude.toFixed(4)}°N, {sub.longitude.toFixed(4)}°E</code>
-                          ) : (
-                            <code style={{ color: '#94A3B8' }}>No GPS Fix</code>
-                          )}
-                          {sub.locality && (
-                            <span style={styles.localitySubtext}>📍 {sub.locality}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        {sub.accuracy != null ? (
-                          <span style={styles.accuracyTag}>
-                            ± {Math.round(sub.accuracy)}m
-                          </span>
-                        ) : (
-                          <span style={{ ...styles.accuracyTag, color: '#94A3B8', borderColor: '#E2E8F0' }}>
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFocusSubmission(sub);
-                          }}
-                          style={{
-                            ...styles.viewBtn,
-                            ...(isSelected ? styles.viewBtnActive : {})
-                          }}
-                        >
-                          <Eye size={13} style={{ marginRight: 4 }} />
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Main Map Canvas */}
       <div style={styles.mapContainerCard}>
         <div style={styles.mapLegend}>
@@ -443,7 +332,7 @@ const SubmissionLocationMap = () => {
           </div>
           <div style={styles.legendDivider} />
           <div style={styles.legendHelp}>
-            Click marker or "View" above to inspect GPS details
+            Click marker or "View" below to inspect GPS details
           </div>
         </div>
 
@@ -464,9 +353,7 @@ const SubmissionLocationMap = () => {
             markerRefs={markerRefs}
           />
 
-          {submissions
-            .filter(sub => sub.latitude != null && sub.longitude != null && !isNaN(sub.latitude) && !isNaN(sub.longitude))
-            .map((sub) => {
+          {submissions.map((sub) => {
             const isAgent = sub.role?.toLowerCase() === 'agent';
             const isSelected = selectedMarkerId === sub.submissionId;
             const icon = createMarkerIcon(sub.role, isSelected);
@@ -570,6 +457,121 @@ const SubmissionLocationMap = () => {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Today's Submissions Table List */}
+      <div style={styles.tableCard}>
+        <div style={styles.tableHeaderRow}>
+          <div>
+            <h3 style={styles.tableTitle}>
+              {selectedDate === 'today' ? "Today's Submissions" : 'Submissions List'}
+            </h3>
+            <p style={styles.tableSubtitle}></p>
+          </div>
+          <span style={styles.tableCountBadge}>
+            {submissions.length} Total Record{submissions.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>User</th>
+                <th style={styles.th}>Role</th>
+                <th style={styles.th}>Time</th>
+                <th style={styles.th}>Submission ID</th>
+                <th style={styles.th}>GPS Coordinates</th>
+                <th style={styles.th}>Accuracy</th>
+                <th style={{ ...styles.th, textAlign: 'right' }}>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={styles.noDataCell}>
+                    No submission records available for the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                submissions.map((sub) => {
+                  const isAgent = sub.role?.toLowerCase() === 'agent';
+                  const isSelected = selectedMarkerId === sub.submissionId;
+
+                  return (
+                    <tr
+                      key={sub.submissionId}
+                      style={{
+                        ...styles.tr,
+                        backgroundColor: isSelected ? '#F0F9FF' : 'transparent',
+                        fontWeight: isSelected ? 600 : 400
+                      }}
+                      onClick={() => handleFocusSubmission(sub)}
+                    >
+                      <td style={styles.td}>
+                        <div style={styles.userCell}>
+                          <div style={{
+                            ...styles.avatarSmall,
+                            background: isAgent ? '#DBEAFE' : '#FFEDD5',
+                            color: isAgent ? '#1E40AF' : '#C2410C'
+                          }}>
+                            {sub.userName?.charAt(0) || 'U'}
+                          </div>
+                          <div>
+                            <div style={styles.userNameText}>{sub.userName}</div>
+                            <div style={styles.userIdSubText}>{sub.userId}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
+                          {isAgent ? '🔵 Agent' : '🟠 Incharge'}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.timeCell}>
+                          <Clock size={13} style={{ marginRight: 5, color: '#64748B' }} />
+                          <span>{sub.submissionTime || '09:00 AM'}</span>
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={styles.subIdCell}>{sub.submissionId}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.coordsCell}>
+                          <code>{sub.latitude?.toFixed(4)}°N, {sub.longitude?.toFixed(4)}°E</code>
+                          {sub.locality && (
+                            <span style={styles.localitySubtext}>📍 {sub.locality}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={styles.accuracyTag}>
+                          ± {Math.round(sub.accuracy || 12)}m
+                        </span>
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFocusSubmission(sub);
+                          }}
+                          style={{
+                            ...styles.viewBtn,
+                            ...(isSelected ? styles.viewBtnActive : {})
+                          }}
+                        >
+                          <Eye size={13} style={{ marginRight: 4 }} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -916,7 +918,6 @@ const styles = {
     borderRadius: '14px',
     border: '1px solid #E2E8F0',
     padding: '20px 24px',
-    marginBottom: '24px',
     boxShadow: '0 2px 6px rgba(15,23,42,0.04)'
   },
   tableHeaderRow: {

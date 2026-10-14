@@ -20,15 +20,15 @@ const FarmersList = () => {
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
-  const fetchAllData = async (force = false) => {
+  const fetchAllData = async () => {
     try {
-      if (farmers.length === 0) setLoading(true);
+      setLoading(true);
       setFetchError(null);
       const [farRes, regRes, agRes, incRes] = await Promise.allSettled([
-        adminService.getFarmers(force),
-        adminService.getRegions(force),
-        adminService.getAgents(force),
-        adminService.getIncharges(force)
+        adminService.getFarmers(),
+        adminService.getRegions(),
+        adminService.getAgents(),
+        adminService.getIncharges()
       ]);
       if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
         const formattedFarmers = farRes.value.map(f => ({
@@ -44,7 +44,7 @@ const FarmersList = () => {
           status: f.status || 'ACTIVE'
         }));
         setFarmers(formattedFarmers);
-      } else if (farmers.length === 0) {
+      } else {
         setFarmers([]);
       }
       if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
@@ -60,19 +60,14 @@ const FarmersList = () => {
       if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
     } catch (error) {
       console.error('[FarmersList] Failed to fetch data from database:', error);
-      if (farmers.length === 0) {
-        setFetchError('Unable to load farmers from database. Please check connection.');
-      }
+      setFetchError('Unable to load farmers from database. Please check connection.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllData(false);
-    const handleDataChanged = () => fetchAllData(true);
-    window.addEventListener('adminDataChanged', handleDataChanged);
-    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
+    fetchAllData();
   }, []);
 
   // Filters state

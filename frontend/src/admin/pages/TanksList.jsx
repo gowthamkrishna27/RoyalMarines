@@ -10,22 +10,18 @@ const TanksList = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const loadTanks = (force = false) => {
-    if (tanks.length === 0) setLoading(true);
-    adminService.getTanks(force).then(data => {
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    adminService.getTanks().then(data => {
+      if (!isMounted) return;
       setTanks(Array.isArray(data) ? data : []);
       setLoading(false);
     }).catch(err => {
       console.error('[TanksList] Failed to fetch tanks:', err);
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
-  };
-
-  useEffect(() => {
-    loadTanks(false);
-    const handleDataChanged = () => loadTanks(true);
-    window.addEventListener('adminDataChanged', handleDataChanged);
-    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
+    return () => { isMounted = false; };
   }, []);
 
   const filtered = tanks.filter(t =>

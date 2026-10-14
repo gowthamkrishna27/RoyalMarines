@@ -24,7 +24,6 @@ const AdminRoutes = () => {
   return (
     <Routes>
       <Route path="dashboard" element={<AdminDashboard />} />
-      <Route path="submissions" element={<SubmissionLocationMap />} />
       <Route path="submission-locations" element={<SubmissionLocationMap />} />
       <Route path="live-map" element={<SubmissionLocationMap />} />
       <Route path="regions" element={<Regions />} />

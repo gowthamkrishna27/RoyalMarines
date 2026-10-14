@@ -15,14 +15,16 @@ const Analytics = () => {
   const [chartInterval, setChartInterval] = useState('Weekly');
   const [isLoading, setIsLoading] = useState(false);
 
-  const loadAnalyticsFilters = (force = false) => {
+  useEffect(() => {
+    let isMounted = true;
     Promise.allSettled([
-      adminService.getRegions(force),
-      adminService.getIncharges(force),
-      adminService.getAgents(force),
-      adminService.getFarmers(force),
-      adminService.getTanks(force)
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
     ]).then(([r, i, a, f, t]) => {
+<<<<<<< HEAD
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
         const mappedRegs = r.value.map(reg => ({
           id: String(reg.code || reg.id),
@@ -38,14 +40,16 @@ const Analytics = () => {
       if (a.status === 'fulfilled') setAgents(Array.isArray(a.value) ? a.value : []);
       if (f.status === 'fulfilled') setFarmers(Array.isArray(f.value) ? f.value : []);
       if (t.status === 'fulfilled') setAllTanks(Array.isArray(t.value) ? t.value : []);
+=======
+      if (!isMounted) return;
+      if (r.status === 'fulfilled') setRegions(r.value || []);
+      if (i.status === 'fulfilled') setIncharges(i.value || []);
+      if (a.status === 'fulfilled') setAgents(a.value || []);
+      if (f.status === 'fulfilled') setFarmers(f.value || []);
+      if (t.status === 'fulfilled') setAllTanks(t.value || []);
+>>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     });
-  };
-
-  useEffect(() => {
-    loadAnalyticsFilters(false);
-    const handleDataChanged = () => loadAnalyticsFilters(true);
-    window.addEventListener('adminDataChanged', handleDataChanged);
-    return () => window.removeEventListener('adminDataChanged', handleDataChanged);
+    return () => { isMounted = false; };
   }, []);
 
   const [filters, setFilters] = useState({
