@@ -368,30 +368,17 @@ export const MockDataProvider = ({ children }) => {
       const apiRegions = regionsRes.status === 'fulfilled' && Array.isArray(regionsRes.value?.data) ? regionsRes.value.data : [];
       const apiIncharges = inchargesRes.status === 'fulfilled' && Array.isArray(inchargesRes.value?.data) ? inchargesRes.value.data : [];
 
-<<<<<<< HEAD
-      setDb(prev => {
-        const rawFarmers = farmersRes.status === 'fulfilled' ? apiFarmers : prev.farmers;
-        const mergedFarmers = deduplicateFarmers(rawFarmers);
-        const rawTanks = tanksRes.status === 'fulfilled' ? apiTanks : prev.tanks;
-        const mergedTanks = normalizeTanks(rawTanks);
-        const mergedSubs = subsRes.status === 'fulfilled' ? apiSubs : (prev.submissions || []);
-        const mergedHarvests = harvestsRes.status === 'fulfilled' ? apiHarvests : (prev.harvests || []);
-        const mergedAgents = agentsRes.status === 'fulfilled' ? apiAgents : (prev.agents || []);
-        const mergedRegions = regionsRes.status === 'fulfilled' ? apiRegions : (prev.regions || []);
-        const mergedIncharges = inchargesRes.status === 'fulfilled' ? apiIncharges : (prev.incharges || []);
-=======
-      if (apiFarmers.length > 0 || apiTanks.length > 0 || apiSubs.length > 0 || apiAgents.length > 0 || apiRegions.length > 0 || apiIncharges.length > 0) {
+      if (apiFarmers.length > 0 || apiTanks.length > 0 || apiSubs.length > 0 || apiAgents.length > 0 || apiRegions.length > 0 || apiIncharges.length > 0 || apiHarvests.length > 0) {
         setDb(prev => {
           const rawFarmers = apiFarmers.length > 0 ? apiFarmers : prev.farmers;
           const mergedFarmers = deduplicateFarmers(rawFarmers);
           const rawTanks = apiTanks.length > 0 ? apiTanks : prev.tanks;
           const mergedTanks = normalizeTanks(rawTanks);
-          const mergedSubs = apiSubs.length > 0 ? apiSubs : prev.submissions;
-          const mergedHarvests = apiHarvests.length > 0 ? apiHarvests : prev.harvests;
-          const mergedAgents = apiAgents.length > 0 ? apiAgents : prev.agents;
-          const mergedRegions = apiRegions.length > 0 ? apiRegions : prev.regions;
-          const mergedIncharges = apiIncharges.length > 0 ? apiIncharges : prev.incharges;
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+          const mergedSubs = apiSubs.length > 0 ? apiSubs : (prev.submissions || []);
+          const mergedHarvests = apiHarvests.length > 0 ? apiHarvests : (prev.harvests || []);
+          const mergedAgents = apiAgents.length > 0 ? apiAgents : (prev.agents || []);
+          const mergedRegions = apiRegions.length > 0 ? apiRegions : (prev.regions || []);
+          const mergedIncharges = apiIncharges.length > 0 ? apiIncharges : (prev.incharges || []);
 
           const updatedDb = {
             ...prev,
@@ -433,7 +420,6 @@ export const MockDataProvider = ({ children }) => {
     }
   }, [db]);
 
-<<<<<<< HEAD
     // Sync profile changes to MockDataContext state
     useEffect(() => {
       const handleProfileUpdate = () => {
@@ -557,137 +543,26 @@ export const MockDataProvider = ({ children }) => {
           if (tank.testStatus === 'Overdue') {
             overdue++;
             todaysWork.push({ id: tank.id, farmerName: farmer.name, tankName: tank.name, type: 'Weekly Test', date: tank.nextTest, status: 'Overdue', tankId: tank.id });
-=======
-  // Sync profile changes to MockDataContext state
-  useEffect(() => {
-    const handleProfileUpdate = () => {
-      const session = getSession();
-      if (!session) return;
-      setDb(prev => {
-        if (!prev || !prev.agents) return prev;
-        const updatedAgents = prev.agents.map(a => {
-          if (a.id === session.agentId) {
-            return {
-              ...a,
-              name: session.name || a.name,
-              locality: session.locality || a.locality,
-              phone: session.phone || a.phone,
-              region: session.region || a.region
-            };
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
           }
-          return a;
         });
-        return { ...prev, agents: updatedAgents };
       });
+
+      const pendingVerify = getSubmissionsByAgentId(agentId).filter(s => s.status === 'PENDING_VERIFICATION').length;
+      const harvest = getSubmissionsByAgentId(agentId).filter(s => s.type === 'Harvest' || s.testType === 'Harvest').length;
+
+      return {
+        kpi: {
+          assignedFarmers: farmers.length,
+          totalTanks,
+          testsCompleted,
+          testsDue,
+          overdue,
+          harvest: harvest || 0,
+          pendingVerify
+        },
+        todaysWork
+      };
     };
-
-    window.addEventListener('agentProfileUpdated', handleProfileUpdate);
-    return () => window.removeEventListener('agentProfileUpdated', handleProfileUpdate);
-  }, []);
-
-  const showToast = (message) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(''), 3000);
-  };
-
-  const logActivity = (action, detail) => {
-    const now = new Date();
-    const time = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    setDb(prev => ({
-      ...prev,
-      activities: [{ id: Date.now(), time, action, detail }, ...(prev.activities || [])]
-    }));
-  };
-
-  const addActivity = logActivity;
-
-  // If db is not yet loaded, don't render children (avoid errors)
-  if (!db) return null;
-
-  // --- Selectors ---
-
-  const getAgentById = (id) => (db?.agents || []).find(a => a.id === id || a.username === id);
-
-  const getFarmersByAgentId = (agentId) => {
-    if (!db || !db.farmers) return [];
-    return db.farmers.filter(f => f.agentId === agentId || f.agent_id === agentId);
-  };
-
-  const getFarmerById = (id) => {
-    if (!db || !db.farmers || !id) return null;
-    return db.farmers.find(f =>
-      f.id === id ||
-      f.farmer_code === id ||
-      ((id === '1' || id === 'F001' || id === 'FAR001') && (f.id === '1' || f.id === 'F001' || f.farmer_code === 'FAR001'))
-    );
-  };
-
-  const getTanksByFarmerId = (farmerId) => {
-    if (!db || !db.tanks || !farmerId) return [];
-    const fTanks = db.tanks.filter(t =>
-      t.farmerId === farmerId ||
-      t.farmer_id === farmerId ||
-      ((farmerId === '1' || farmerId === 'F001' || farmerId === 'FAR001') && (t.farmerId === '1' || t.farmerId === 'F001' || t.farmer_id === 'F001'))
-    );
-    return fTanks.map((t, idx) => ({
-      ...t,
-      name: t.name || `Tank ${idx + 1}`
-    }));
-  };
-
-  const getTankById = (id) => {
-    if (!db || !db.tanks || !id) return null;
-    const tank = db.tanks.find(t => t.id === id || String(t.id).toLowerCase() === String(id).toLowerCase());
-    if (!tank) return null;
-    return tank;
-  };
-
-  const getSubmissionsByAgentId = (agentId) => (db?.submissions || []).filter(s => s.agentId === agentId || s.userId === agentId);
-
-  const getAgentNotifications = (agentId) => (db.notifications || []).filter(n => n.agentId === agentId);
-
-  // Advanced Selectors for Agent Dashboard
-  const getAgentDashboardMetrics = (agentId) => {
-    const farmers = getFarmersByAgentId(agentId);
-    let totalTanks = 0;
-    let testsCompleted = 0;
-    let testsDue = 0;
-    let overdue = 0;
-    const todaysWork = [];
-
-    farmers.forEach(farmer => {
-      const farmerTanks = getTanksByFarmerId(farmer.id);
-      totalTanks += farmerTanks.length;
-      farmerTanks.forEach(tank => {
-        if (tank.testStatus === 'Completed') testsCompleted++;
-        if (tank.testStatus === 'Due') {
-          testsDue++;
-          todaysWork.push({ id: tank.id, farmerName: farmer.name, tankName: tank.name, type: 'Water Analysis', date: tank.nextTest, status: 'Due', tankId: tank.id });
-        }
-        if (tank.testStatus === 'Overdue') {
-          overdue++;
-          todaysWork.push({ id: tank.id, farmerName: farmer.name, tankName: tank.name, type: 'Weekly Test', date: tank.nextTest, status: 'Overdue', tankId: tank.id });
-        }
-      });
-    });
-
-    const pendingVerify = getSubmissionsByAgentId(agentId).filter(s => s.status === 'PENDING_VERIFICATION').length;
-    const harvest = getSubmissionsByAgentId(agentId).filter(s => s.type === 'Harvest' || s.testType === 'Harvest').length;
-
-    return {
-      kpi: {
-        assignedFarmers: farmers.length,
-        totalTanks,
-        testsCompleted,
-        testsDue,
-        overdue,
-        harvest: harvest || 0,
-        pendingVerify
-      },
-      todaysWork
-    };
-  };
 
   // Advanced Selectors for Incharge Dashboard & Scope
   const getAgentsByInchargeId = (inchargeId = 'INC001') => {

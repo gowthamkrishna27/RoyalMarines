@@ -24,7 +24,7 @@ const Analytics = () => {
       adminService.getFarmers(),
       adminService.getTanks()
     ]).then(([r, i, a, f, t]) => {
-<<<<<<< HEAD
+      if (!isMounted) return;
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
         const mappedRegs = r.value.map(reg => ({
           id: String(reg.code || reg.id),
@@ -40,14 +40,6 @@ const Analytics = () => {
       if (a.status === 'fulfilled') setAgents(Array.isArray(a.value) ? a.value : []);
       if (f.status === 'fulfilled') setFarmers(Array.isArray(f.value) ? f.value : []);
       if (t.status === 'fulfilled') setAllTanks(Array.isArray(t.value) ? t.value : []);
-=======
-      if (!isMounted) return;
-      if (r.status === 'fulfilled') setRegions(r.value || []);
-      if (i.status === 'fulfilled') setIncharges(i.value || []);
-      if (a.status === 'fulfilled') setAgents(a.value || []);
-      if (f.status === 'fulfilled') setFarmers(f.value || []);
-      if (t.status === 'fulfilled') setAllTanks(t.value || []);
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     });
     return () => { isMounted = false; };
   }, []);

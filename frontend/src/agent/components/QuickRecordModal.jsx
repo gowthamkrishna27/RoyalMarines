@@ -7,6 +7,7 @@ import {
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../incharge/utils/inchargeAuth';
+import { isAdminAuthenticated, getAdminSession } from '../../admin/utils/adminAuth';
 import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
@@ -20,9 +21,16 @@ const QuickRecordModal = ({
   onSuccess,
   userRole = null
 }) => {
-  const { db, getFarmersByAgentId, getTanksByFarmerId, recordFieldEntry } = useMockData();
+  const { db, getFarmersByAgentId, getFarmersByInchargeId, getTanksByFarmerId, recordFieldEntry } = useMockData();
   const session = getSession();
   const inchargeSession = getInchargeSession();
+  const adminSession = getAdminSession();
+
+  const isAdmin = Boolean(
+    userRole === 'ADMIN' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) ||
+    (adminSession && !session?.agentId && !inchargeSession?.inchargeId && isAdminAuthenticated())
+  );
 
   const isIncharge = Boolean(
     userRole === 'INCHARGE' ||
@@ -38,15 +46,11 @@ const QuickRecordModal = ({
   const [showAdvancedParams, setShowAdvancedParams] = useState(false);
 
   // Farmers and Tanks
-<<<<<<< HEAD
   const assignedFarmers = isAdmin
     ? (db?.farmers || [])
     : isIncharge
       ? ((getFarmersByInchargeId && getFarmersByInchargeId(currentInchargeId)) || db?.farmers || [])
-      : ((getFarmersByAgentId && getFarmersByAgentId(currentAgentId)) || []);
-=======
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(currentAgentId) : (db?.farmers || []);
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+      : ((getFarmersByAgentId && getFarmersByAgentId(currentAgentId)) || (db?.farmers || []));
   const [selectedFarmerId, setSelectedFarmerId] = useState(preselectedFarmerId || assignedFarmers[0]?.id || '');
 
   const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(selectedFarmerId) : (db?.tanks || []).filter(t => t.farmerId === selectedFarmerId);
@@ -59,28 +63,24 @@ const QuickRecordModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRecord, setSubmittedRecord] = useState(null);
 
-<<<<<<< HEAD
-  // Water Analysis Parameters (pH, Ammonia, Nitrate, Salinity)
-=======
-  // Minimal Necessary Water Quality Parameters
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+  // Water Analysis Parameters
   const [waterForm, setWaterForm] = useState({
     date: new Date().toISOString().split('T')[0],
+    doc: '',
     ph: '',
-<<<<<<< HEAD
     ammonia: '',
     nitrate: '',
     salinity: '',
-=======
-    do: '',
-    temperature: '',
-    // Optional deeper params kept available in state
     alkalinity: '',
     hardness: '',
-    ammonia: '',
+    do: '',
+    h2s: '',
+    cl: '',
+    fe: '',
+    waterColor: '',
+    temperature: '',
     nitrite: '',
     notes: '',
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
   });
 
   // Dedicated Harvest form if opened with initialType === 'HARVEST_ENTRY'
@@ -142,16 +142,12 @@ const QuickRecordModal = ({
   };
 
   const handleSalinityChange = (val) => {
-<<<<<<< HEAD
-    setWaterForm(prev => ({ ...prev, salinity: val }));
-=======
     const num = parseFloat(val);
     setWaterForm(prev => ({
       ...prev,
       salinity: val,
       hardness: !isNaN(num) && num > 0 ? String(Math.round(num * 300)) : prev.hardness,
     }));
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
   };
 
   if (!isOpen) return null;
@@ -166,6 +162,13 @@ const QuickRecordModal = ({
     if (isSelectedTankClosed) {
       alert('This tank has already completed its final harvest. No further records can be entered.');
       return;
+    }
+
+    if (activeTab === 'WATER_QUALITY' || !activeTab) {
+      if (!waterForm.ph || !waterForm.ammonia || !waterForm.nitrate || !waterForm.salinity) {
+        alert('Please fill all mandatory water analysis parameters:\n• pH Level\n• Ammonia (NH3)\n• Nitrate (NO3)\n• Salinity');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -195,7 +198,8 @@ const QuickRecordModal = ({
     const formattedDate = now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-<<<<<<< HEAD
+    const isFeed = activeTab === 'FEED_ENTRY';
+    const isDisease = activeTab === 'DISEASE_ENTRY';
     const resolvedRole = isAdmin ? 'Admin' : (isIncharge ? 'Incharge' : 'Agent');
     const resolvedUserId = isAdmin
       ? 'ADMIN'
@@ -214,17 +218,19 @@ const QuickRecordModal = ({
       ammonia: formData.ammonia ?? '',
       nitrate: formData.nitrate ?? '',
       salinity: formData.salinity ?? '',
-      nitrite: formData.nitrate ?? '', // backwards compatibility
+      doc: formData.doc ?? '',
+      alkalinity: formData.alkalinity ?? '',
+      hardness: formData.hardness ?? '',
+      do: formData.do ?? '',
+      h2s: formData.h2s ?? '',
+      cl: formData.cl ?? '',
+      chlorine: formData.cl ?? '',
+      fe: formData.fe ?? '',
+      iron: formData.fe ?? '',
+      waterColor: formData.waterColor ?? '',
+      waterColour: formData.waterColor ?? '',
+      nitrite: formData.nitrate ?? '',
     };
-=======
-    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
-    const resolvedUserId = isIncharge
-      ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
-      : (session?.agentId || session?.id || 'agent001');
-    const resolvedUserName = isIncharge
-      ? (inchargeSession?.name || 'Incharge')
-      : (session?.name || 'Ramesh');
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
 
     const submissionPayload = {
       id: recordId,
@@ -308,7 +314,6 @@ const QuickRecordModal = ({
 
             {/* Summary Pills */}
             <div style={styles.successPillGrid}>
-<<<<<<< HEAD
               {activeTab === 'DISEASE_ENTRY' ? (
                 <>
                   <div style={styles.successPill}>
@@ -388,24 +393,6 @@ const QuickRecordModal = ({
                   </div>
                 </>
               )}
-=======
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>Salinity</span>
-                <strong style={styles.successPillVal}>{waterForm.salinity} ppt</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>pH</span>
-                <strong style={styles.successPillVal}>{waterForm.ph}</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>DO</span>
-                <strong style={styles.successPillVal}>{waterForm.do} mg/L</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>Temp</span>
-                <strong style={styles.successPillVal}>{waterForm.temperature} °C</strong>
-              </div>
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
             </div>
 
             <button
@@ -439,7 +426,6 @@ const QuickRecordModal = ({
             </div>
             <div>
               <h2 style={styles.title}>
-<<<<<<< HEAD
                 {activeTab === 'HARVEST_ENTRY' 
                   ? 'New Harvest Entry' 
                   : activeTab === 'FEED_ENTRY' 
@@ -456,12 +442,6 @@ const QuickRecordModal = ({
                   : activeTab === 'DISEASE_ENTRY'
                   ? 'Assess shrimp symptoms & clinical conditions'
                   : 'Enter water parameters (pH, Ammonia, Nitrate, Salinity)'}
-=======
-                {activeTab === 'HARVEST_ENTRY' ? 'New Harvest Entry' : 'New Test Record'}
-              </h2>
-              <p style={styles.subtitle}>
-                {activeTab === 'HARVEST_ENTRY' ? 'Log pond harvest data' : 'Enter necessary water parameters'}
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
               </p>
             </div>
           </div>
@@ -527,33 +507,37 @@ const QuickRecordModal = ({
             </div>
           </div>
 
-          {/* Date & DOC */}
-          <div style={styles.twoColRow}>
-            <div style={styles.fieldCol}>
-              <label style={styles.label}>Date</label>
-              <input
-                type="date"
-                value={waterForm.date}
-                onChange={(e) => setWaterForm({ ...waterForm, date: e.target.value })}
-                style={styles.input}
-                required
-              />
-            </div>
-            <div style={styles.fieldCol}>
-              <label style={styles.label}>DOC (Days)</label>
-              <input
-                type="number"
-                value={waterForm.doc}
-                onChange={(e) => setWaterForm({ ...waterForm, doc: e.target.value })}
-                placeholder="35"
-                style={styles.input}
-                min="1"
-                required
-              />
-            </div>
-          </div>
+          {/* ==================================================================== */}
+          {/* A. FEED ENTRY FORM: Matches Exact Feed Slide Requirements */}
+          {/* ==================================================================== */}
+          {activeTab === 'FEED_ENTRY' ? (
+            <>
+              {/* 1. DOC - Data entry date */}
+              <div style={styles.twoColRow}>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>Data Entry Date</label>
+                  <input
+                    type="date"
+                    value={feedForm.date}
+                    onChange={(e) => handleFeedChange('date', e.target.value)}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>DOC (Day of Culture)</label>
+                  <input
+                    type="number"
+                    value={feedForm.doc}
+                    onChange={(e) => handleFeedChange('doc', e.target.value)}
+                    placeholder="e.g. 45"
+                    style={styles.input}
+                    min="1"
+                    required
+                  />
+                </div>
+              </div>
 
-<<<<<<< HEAD
               {/* Feed Grid Parameters */}
               <div style={styles.sectionHeader}>
                 <span style={styles.sectionLabel}>FEEDING & BIOMASS PARAMETERS</span>
@@ -908,10 +892,12 @@ const QuickRecordModal = ({
             </>
           ) : (
             <>
-              {/* Test Date */}
+              {/* Test Date & DOC */}
               <div style={styles.twoColRow}>
-                <div style={{ ...styles.fieldCol, width: '100%' }}>
-                  <label style={styles.label}>Test Date</label>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>
+                    Test Date <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                  </label>
                   <input
                     type="date"
                     value={waterForm.date}
@@ -920,18 +906,26 @@ const QuickRecordModal = ({
                     required
                   />
                 </div>
-              </div>
-
-              {/* Water Analysis Parameters (pH, Ammonia, Nitrate, Salinity) */}
-              <div style={styles.sectionHeader}>
-                <span style={styles.sectionLabel}>WATER ANALYSIS PARAMETERS</span>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>DOC (Day of Culture)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={waterForm.doc || ''}
+                    onChange={(e) => setWaterForm({ ...waterForm, doc: e.target.value })}
+                    placeholder="e.g. 45"
+                    style={styles.input}
+                  />
+                </div>
               </div>
 
               <div style={styles.paramGrid}>
                 {/* 1. pH: 7.5 to 8.5 */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>pH Level</span>
+                    <span style={styles.paramTitle}>
+                      pH Level <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
                     <span style={styles.paramUnit}>pH</span>
                   </div>
                   <input
@@ -945,107 +939,73 @@ const QuickRecordModal = ({
                     style={styles.paramInput}
                     required
                   />
-                  <span style={{
-                    ...styles.paramStatus,
-                    color: (waterForm.ph && (parseFloat(waterForm.ph) < 7.5 || parseFloat(waterForm.ph) > 8.5)) ? '#DC2626' : '#16A34A'
-                  }}>
-                    {waterForm.ph ? ((parseFloat(waterForm.ph) < 7.5 || parseFloat(waterForm.ph) > 8.5) ? 'Alert: 7.5 - 8.5' : 'Optimal: 7.5 - 8.5') : 'Optimal: 7.5 - 8.5'}
-                  </span>
                 </div>
 
-                {/* 2. Ammonia: NH3 (< 0.5 ppm) */}
+                {/* 2. Ammonia: NH3 */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>Ammonia (NH3)</span>
-=======
-          {/* Core Necessary Parameters (2x2 Grid) */}
-          <div style={styles.sectionHeader}>
-            <span style={styles.sectionLabel}>NECESSARY PARAMETERS</span>
-          </div>
+                    <span style={styles.paramTitle}>
+                      Ammonia (NH3) <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={waterForm.ammonia}
+                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
+                    placeholder="0.05"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
 
-          <div style={styles.paramGrid}>
-            {/* 1. Salinity */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>Salinity</span>
-                <span style={styles.paramUnit}>ppt</span>
+                {/* 3. Nitrate: NO3 */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      Nitrate (NO3) <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={waterForm.nitrate}
+                    onChange={(e) => setWaterForm({ ...waterForm, nitrate: e.target.value })}
+                    placeholder="2.0"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
+
+                {/* 4. Salinity */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      Salinity <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppt</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="45"
+                    value={waterForm.salinity}
+                    onChange={(e) => handleSalinityChange(e.target.value)}
+                    placeholder="16.0"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
               </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.salinity}
-                onChange={(e) => handleSalinityChange(e.target.value)}
-                placeholder="16.0"
-                style={styles.paramInput}
-                required
-              />
-            </div>
 
-            {/* 2. pH */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>pH Level</span>
-                <span style={styles.paramUnit}>7.5 - 8.3</span>
-              </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.ph}
-                onChange={(e) => setWaterForm({ ...waterForm, ph: e.target.value })}
-                placeholder="7.8"
-                style={styles.paramInput}
-                required
-              />
-            </div>
-
-            {/* 3. Dissolved Oxygen (DO) */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>D.O.</span>
-                <span style={styles.paramUnit}>mg/L</span>
-              </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.do}
-                onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
-                placeholder="5.6"
-                style={styles.paramInput}
-                required
-              />
-            </div>
-
-            {/* 4. Temperature */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>Temperature</span>
-                <span style={styles.paramUnit}>°C</span>
-              </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.temperature}
-                onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
-                placeholder="28.5"
-                style={styles.paramInput}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Optional Collapsible More Parameters */}
-          <div style={{ marginTop: '10px' }}>
-            <button
-              type="button"
-              style={styles.moreToggleBtn}
-              onClick={() => setShowAdvancedParams(!showAdvancedParams)}
-            >
-              <span>{showAdvancedParams ? 'Hide' : '+ More'} Parameters (Ammonia, Alkalinity)</span>
-              {showAdvancedParams ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-
-            {showAdvancedParams && (
+              {/* Optional Parameters Displayed Directly */}
               <div style={styles.advancedGrid}>
+                {/* Alkalinity */}
                 <div style={styles.paramCardSmall}>
                   <div style={styles.paramHeader}>
                     <span style={styles.paramTitleSmall}>Alkalinity</span>
@@ -1060,93 +1020,117 @@ const QuickRecordModal = ({
                   />
                 </div>
 
+                {/* Hardness */}
                 <div style={styles.paramCardSmall}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitleSmall}>Ammonia (NH3)</span>
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+                    <span style={styles.paramTitleSmall}>Hardness</span>
                     <span style={styles.paramUnit}>ppm</span>
                   </div>
                   <input
                     type="number"
-                    step="0.01"
-<<<<<<< HEAD
-                    min="0"
-                    value={waterForm.ammonia}
-                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
-                    placeholder="0.05"
-                    style={styles.paramInput}
-                    required
+                    value={waterForm.hardness}
+                    onChange={(e) => setWaterForm({ ...waterForm, hardness: e.target.value })}
+                    placeholder="1500"
+                    style={styles.paramInputSmall}
                   />
-                  <span style={{
-                    ...styles.paramStatus,
-                    color: (waterForm.ammonia && parseFloat(waterForm.ammonia) > 0.5) ? '#DC2626' : '#16A34A'
-                  }}>
-                    {waterForm.ammonia ? ((parseFloat(waterForm.ammonia) > 0.5) ? 'High: > 0.5 ppm' : 'Safe: < 0.5 ppm') : 'Safe: < 0.5 ppm'}
-                  </span>
                 </div>
 
-                {/* 3. Nitrate: NO3 (< 20 ppm) */}
-                <div style={styles.paramCard}>
+                {/* DO */}
+                <div style={styles.paramCardSmall}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>Nitrate (NO3)</span>
-                    <span style={styles.paramUnit}>ppm</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={waterForm.nitrate}
-                    onChange={(e) => setWaterForm({ ...waterForm, nitrate: e.target.value })}
-                    placeholder="2.0"
-                    style={styles.paramInput}
-                    required
-                  />
-                  <span style={{
-                    ...styles.paramStatus,
-                    color: (waterForm.nitrate && parseFloat(waterForm.nitrate) > 20) ? '#DC2626' : '#16A34A'
-                  }}>
-                    {waterForm.nitrate ? ((parseFloat(waterForm.nitrate) > 20) ? 'High: > 20 ppm' : 'Safe: < 20 ppm') : 'Safe: < 20 ppm'}
-                  </span>
-                </div>
-
-                {/* 4. Salinity: 0 - 30 ppt */}
-                <div style={styles.paramCard}>
-                  <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>Salinity</span>
-                    <span style={styles.paramUnit}>ppt</span>
+                    <span style={styles.paramTitleSmall}>Dissolved Oxygen (DO)</span>
+                    <span style={styles.paramUnit}>mg/L</span>
                   </div>
                   <input
                     type="number"
                     step="0.1"
-                    min="0"
-                    max="45"
-                    value={waterForm.salinity}
-                    onChange={(e) => handleSalinityChange(e.target.value)}
-                    placeholder="16.0"
-                    style={styles.paramInput}
-                    required
+                    value={waterForm.do}
+                    onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
+                    placeholder="5.6"
+                    style={styles.paramInputSmall}
                   />
-                  <span style={{
-                    ...styles.paramStatus,
-                    color: (waterForm.salinity && (parseFloat(waterForm.salinity) < 0 || parseFloat(waterForm.salinity) > 30)) ? '#DC2626' : '#16A34A'
-                  }}>
-                    {waterForm.salinity ? ((parseFloat(waterForm.salinity) < 0 || parseFloat(waterForm.salinity) > 30) ? 'Alert: 0 - 30 ppt' : 'Optimal: 0 - 30 ppt') : 'Target: 0 - 30 ppt'}
-                  </span>
                 </div>
-              </div>
-            </>
-          )}
-=======
-                    value={waterForm.ammonia}
-                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
-                    placeholder="0.05"
+
+                {/* H2S */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>H2S</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={waterForm.h2s}
+                    onChange={(e) => setWaterForm({ ...waterForm, h2s: e.target.value })}
+                    placeholder="0.01"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Chlorine (CL) */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Chlorine (CL)</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterForm.cl}
+                    onChange={(e) => setWaterForm({ ...waterForm, cl: e.target.value })}
+                    placeholder="0.00"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Iron (Fe) */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Iron (Fe)</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterForm.fe}
+                    onChange={(e) => setWaterForm({ ...waterForm, fe: e.target.value })}
+                    placeholder="0.01"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Water Color */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Water Color</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={waterForm.waterColor}
+                    onChange={(e) => setWaterForm({ ...waterForm, waterColor: e.target.value })}
+                    placeholder="e.g. Light Green"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Temperature */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Temperature</span>
+                    <span style={styles.paramUnit}>°C</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={waterForm.temperature}
+                    onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
+                    placeholder="28.5"
                     style={styles.paramInputSmall}
                   />
                 </div>
               </div>
-            )}
-          </div>
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+            </>
+          )}
 
           {/* GPS Verified Status Pill */}
           <div style={styles.gpsRow}>

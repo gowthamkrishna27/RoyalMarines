@@ -14,6 +14,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
     soilType: 'Loam',
     hatchery: 'Golden Marine Hatchery',
     brooder: 'Kona Bay',
+    customBrooder: '',
     seedDate: new Date().toISOString().split('T')[0],
     seedStockingLak: '2.5',
     feedType: 'Premium',
@@ -37,6 +38,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         soilType: tank.soilType || 'Loam',
         hatchery: tank.hatchery || 'Golden Marine Hatchery',
         brooder: tank.brooder || 'Kona Bay',
+        customBrooder: tank.customBrooder || '',
         seedDate: tank.seedDate || (tank.stockingDate || new Date().toISOString().split('T')[0]),
         seedStockingLak: tank.seedStockingLak || '2.5',
         feedType: tank.feedType || 'Premium',
@@ -60,6 +62,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         soilType: 'Loam',
         hatchery: 'Golden Marine Hatchery',
         brooder: 'Kona Bay',
+        customBrooder: '',
         seedDate: new Date().toISOString().split('T')[0],
         seedStockingLak: '2.5',
         feedType: 'Premium',
@@ -81,10 +84,22 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
       return;
     }
 
+    if ((formData.brooder === 'Others' || formData.brooder === 'Other') && !formData.customBrooder?.trim()) {
+      alert('Please specify other brooder details.');
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      brooder: (formData.brooder === 'Others' || formData.brooder === 'Other')
+        ? (formData.customBrooder?.trim() || 'Others')
+        : formData.brooder
+    };
+
     if (isEditing) {
-      editTank(tank.id, formData);
+      editTank(tank.id, payload);
     } else {
-      addTank(formData);
+      addTank(payload);
     }
     onClose();
   };
@@ -200,8 +215,25 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                 <option value="Kona Bay">Kona Bay</option>
                 <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                 <option value="American Penaeid">American Penaeid</option>
-                <option value="Other">Other</option>
+                <option value="Others">Others</option>
+
               </select>
+              {(formData.brooder === 'Others' || formData.brooder === 'Other') && (
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ ...styles.label, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                    Specify Other Brooder Details *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customBrooder || ''}
+                    onChange={(e) => setFormData({ ...formData, customBrooder: e.target.value })}
+                    style={styles.input}
+                    placeholder="Enter other brooder details (mandatory)"
+                    required
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
             <div>
               <label style={styles.label}>Seed Date *</label>

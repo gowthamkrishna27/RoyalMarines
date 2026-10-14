@@ -379,11 +379,7 @@ class DataStore {
         farmerName: r.farmer_name,
         farmer: r.farmer_name,
         location: r.farmer_location || r.location || '',
-<<<<<<< HEAD
-        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
-=======
-        locality: r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || '',
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
+        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || 'Bhimavaram',
         agentId: r.agent_id,
         agent: r.agent_name,
         inchargeId: r.incharge_id,
@@ -754,7 +750,6 @@ class DataStore {
     const now = new Date();
     const submissionTime = data.submissionTime || data.time || now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-<<<<<<< HEAD
     let farmerId = data.farmerId || '';
     let currentTank = null;
     if (data.tankId) {
@@ -784,9 +779,6 @@ class DataStore {
         throw err;
       }
     }
-
-=======
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
     const newSub = {
       id,
       agent_id: userId,
@@ -1009,7 +1001,6 @@ class DataStore {
         ]
       );
 
-<<<<<<< HEAD
       // If Final Harvest, mark tank as Harvested and tests closed
       if (isFinalHarvest) {
         await this.updateTank(data.tankId, {
@@ -1024,14 +1015,6 @@ class DataStore {
           nextTest: 'Due Next Week',
         });
       }
-=======
-      // Close cycle on tank
-      await this.updateTank(data.tankId, {
-        status: 'Harvested',
-        testStatus: 'Completed',
-        nextTest: 'Cycle Closed',
-      });
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
 
       return newHarvest;
     } catch (err) {
@@ -1476,7 +1459,6 @@ class DataStore {
         const locRows = await query(`
           SELECT DISTINCT 
             r.name as region_name,
-<<<<<<< HEAD
             COALESCE(a.locality, f.village, f.location) as locality
           FROM regions r
           LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
@@ -1491,17 +1473,6 @@ class DataStore {
           const clean = loc.locality.split(',')[0].trim();
           if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
           regionLocMap[loc.region_name].add(clean);
-=======
-            a.locality as locality
-          FROM regions r
-          JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
-          JOIN agents a ON a.incharge_id = i.id
-          WHERE a.locality IS NOT NULL AND a.locality != ''
-        `);
-        for (const loc of locRows) {
-          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
-          regionLocMap[loc.region_name].add(loc.locality);
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
         }
       } catch (locErr) {
         console.warn('[Warning getting region localities]', locErr.message);
@@ -1509,21 +1480,13 @@ class DataStore {
 
       return rows.map((r) => {
         const locSet = regionLocMap[r.name] || new Set();
-<<<<<<< HEAD
         const localities = Array.from(locSet).map(l => ({ id: `LOC-${l}`, name: l }));
-=======
-        const localities = Array.from(locSet).map(l => ({ name: l }));
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
         return {
           ...r,
           id: String(r.id),
           code: r.code || r.id,
           name: r.name,
-<<<<<<< HEAD
           localities: localities.length > 0 ? localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }],
-=======
-          localities,
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
           farmersCount: Number(r.farmers_count || 0),
           activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
           tanks: Number(r.actual_tanks_count || r.active_ponds || 0),

@@ -63,24 +63,12 @@ const AdminDashboard = () => {
         adminService.getSubmissions(force)
       ]);
       setSummary(sum);
-<<<<<<< HEAD
       setAllTanks(Array.isArray(tks) ? tks : []);
       setFarmers(Array.isArray(fms) ? fms : []);
       setAgents(Array.isArray(ags) ? ags : []);
       setIncharges(Array.isArray(incs) ? incs : []);
       setLiveHarvests(Array.isArray(hrvs) ? hrvs : []);
       setSubmissions(Array.isArray(subs) ? subs : []);
-      if (Array.isArray(todayLocs)) {
-        setTodayLocationCount(todayLocs.length);
-      }
-=======
-      setAllTanks(tks);
-      setFarmers(fms);
-      setAgents(ags);
-      setIncharges(incs);
-      setLiveHarvests(hrvs);
-      setSubmissions(subs);
->>>>>>> 82a6edfcc6182f310bb94fd42e1c341c14e974e3
 
       try {
         const payload = JSON.stringify({
