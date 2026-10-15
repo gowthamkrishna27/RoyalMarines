@@ -5,7 +5,8 @@ import { adminService } from '../utils/adminService';
 import {
   MapPin, Plus, FileSpreadsheet, Search, Check, X,
   Layers, Compass, Building, User, Phone, Droplets,
-  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3
+  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3,
+  AlertCircle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -70,10 +71,18 @@ const Regions = () => {
   const [selectedInchargeDetails, setSelectedInchargeDetails] = useState(null);
   const [selectedAgentDetails, setSelectedAgentDetails] = useState(null);
 
-  // Add Locality Modal
+  // Add Region Modal & Form States
+  const [showAddRegionModal, setShowAddRegionModal] = useState(false);
+  const [newRegionName, setNewRegionName] = useState('');
+  const [regionError, setRegionError] = useState('');
+  const [isSubmittingRegion, setIsSubmittingRegion] = useState(false);
+
+  // Add Locality Modal & Form States
   const [showAddModal, setShowAddModal] = useState(false);
   const [newLocalityName, setNewLocalityName] = useState('');
   const [targetRegionId, setTargetRegionId] = useState('');
+  const [localityError, setLocalityError] = useState('');
+  const [isSubmittingLocality, setIsSubmittingLocality] = useState(false);
   const [successToast, setSuccessToast] = useState('');
 
   const showToast = (msg) => {
@@ -82,7 +91,7 @@ const Regions = () => {
   };
 
   useEffect(() => {
-    if (regions.length > 0 && !targetRegionId) {
+    if (regions.length > 0 && (!targetRegionId || !regions.some(r => r.id === targetRegionId))) {
       setTargetRegionId(regions[0]?.id || '');
     }
   }, [regions, targetRegionId]);
@@ -376,14 +385,118 @@ const Regions = () => {
     showToast(`Exported ${filteredAndSortedFarmers.length} farmers report!`);
   };
 
-  // Add new locality handler
-  const handleAddLocality = (e) => {
-    e.preventDefault();
-    if (!newLocalityName.trim()) return;
+  // Real-time duplicate checking when user types region name
+  const handleRegionNameChange = (val) => {
+    setNewRegionName(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setRegionError('');
+      return;
+    }
+    // Check if region already exists (case-insensitive duplicate check)
+    const exists = regions.some(r => (r.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setRegionError(`Region "${trimmed}" already exists! Duplicate regions are not allowed.`);
+    } else {
+      setRegionError('');
+    }
+  };
 
-    showToast(`Locality "${newLocalityName.trim()}" added successfully to system registry!`);
-    setNewLocalityName('');
-    setShowAddModal(false);
+  // Add new region handler with automatic database synchronization
+  const handleAddRegion = async (e) => {
+    e.preventDefault();
+    const trimmed = newRegionName.trim();
+    if (!trimmed) {
+      setRegionError('Please enter a valid region name.');
+      return;
+    }
+
+    // Duplicate check
+    const exists = regions.some(r => (r.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setRegionError(`Region "${trimmed}" already exists! Duplicate regions are not allowed.`);
+      return;
+    }
+
+    setIsSubmittingRegion(true);
+    setRegionError('');
+
+    try {
+      const created = await adminService.createRegion({ name: trimmed });
+      const newRegItem = {
+        id: String(created?.id || created?.code || `REG${Date.now()}`),
+        code: created?.code || created?.id || `REG${Date.now()}`,
+        name: created?.name || trimmed,
+        localities: Array.isArray(created?.localities) ? created.localities : []
+      };
+
+      // Automatically update regions state so it is immediately selectable everywhere
+      setRegions(prev => [...prev, newRegItem]);
+      setTargetRegionId(newRegItem.id);
+
+      showToast(`Region "${trimmed}" added and updated in database successfully!`);
+      setNewRegionName('');
+      setShowAddRegionModal(false);
+
+      // Re-fetch in background to sync any server-computed fields
+      adminService.getRegions(true).then(updated => {
+        if (Array.isArray(updated)) {
+          setRegions(updated.map(r => ({
+            id: String(r.code || r.id),
+            code: r.code || r.id,
+            name: r.name,
+            localities: Array.isArray(r.localities) ? r.localities : []
+          })));
+        }
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[Add Region Error]', err);
+      setRegionError(err.message || 'Failed to create region. Please try again.');
+    } finally {
+      setIsSubmittingRegion(false);
+    }
+  };
+
+  // Add new locality handler with automatic database synchronization
+  const handleAddLocality = async (e) => {
+    e.preventDefault();
+    const trimmedLoc = newLocalityName.trim();
+    if (!trimmedLoc) return;
+
+    if (!targetRegionId) {
+      setLocalityError('Please select a target region.');
+      return;
+    }
+
+    const targetReg = regions.find(r => r.id === targetRegionId || r.code === targetRegionId);
+    if (targetReg && targetReg.localities?.some(l => (l.name || '').trim().toLowerCase() === trimmedLoc.toLowerCase())) {
+      setLocalityError(`Locality "${trimmedLoc}" already exists in region "${targetReg.name}"!`);
+      return;
+    }
+
+    setIsSubmittingLocality(true);
+    setLocalityError('');
+
+    try {
+      await adminService.createLocality({ regionId: targetRegionId, name: trimmedLoc });
+
+      setRegions(prev => prev.map(r => {
+        if (r.id === targetRegionId || r.code === targetRegionId) {
+          const updatedLocs = [...(r.localities || []), { id: `LOC-${r.id}-${trimmedLoc.toLowerCase().replace(/\s+/g, '-')}`, name: trimmedLoc }];
+          return { ...r, localities: updatedLocs };
+        }
+        return r;
+      }));
+
+      showToast(`Locality "${trimmedLoc}" added to region "${targetReg?.name || ''}" successfully!`);
+      setNewLocalityName('');
+      setShowAddModal(false);
+    } catch (err) {
+      console.error('[Add Locality Error]', err);
+      setLocalityError(err.message || 'Failed to save locality. Please try again.');
+    } finally {
+      setIsSubmittingLocality(false);
+    }
   };
 
   return (
@@ -395,15 +508,27 @@ const Regions = () => {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
-            style={styles.exportBtn}
-            onClick={handleExportFilteredExcel}
+            id="btn-add-region"
+            style={styles.addRegionBtn}
+            onClick={() => {
+              setShowAddRegionModal(true);
+              setNewRegionName('');
+              setRegionError('');
+            }}
           >
-            <FileSpreadsheet size={15} />
-            <span>Export Directory ({filteredAndSortedFarmers.length})</span>
+            <Plus size={16} />
+            <span>Add New Region</span>
           </button>
           <button
+            id="btn-add-locality"
             style={styles.addLocalityBtn}
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setShowAddModal(true);
+              setLocalityError('');
+              if (regions.length > 0 && (!targetRegionId || !regions.some(r => r.id === targetRegionId))) {
+                setTargetRegionId(regions[0].id);
+              }
+            }}
           >
             <Plus size={16} />
             <span>Add New Locality</span>
@@ -1166,6 +1291,115 @@ const Regions = () => {
         document.body
       )}
 
+      {/* Modal 3b: Add New Region */}
+      {showAddRegionModal && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => {
+            if (!isSubmittingRegion) {
+              setShowAddRegionModal(false);
+              setRegionError('');
+            }
+          }}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '480px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={styles.iconCircleBlue}>
+                  <MapPin size={20} color="#2563eb" />
+                </div>
+                Add New Region
+              </h3>
+              <button 
+                onClick={() => {
+                  if (!isSubmittingRegion) {
+                    setShowAddRegionModal(false);
+                    setRegionError('');
+                  }
+                }} 
+                style={styles.modalCloseBtn}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddRegion}>
+              <div style={styles.modalBody}>
+                {/* Red Alert Banner if Region Already Exists */}
+                {regionError && (
+                  <div id="region-duplicate-alert" style={styles.errorAlertBox} role="alert">
+                    <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b', letterSpacing: '0.2px' }}>
+                        Region Already Exists
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#b91c1c', marginTop: '2px', lineHeight: '1.4' }}>
+                        {regionError}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.modalLabel}>Region Name *</label>
+                  <input
+                    id="new-region-text-input"
+                    type="text"
+                    placeholder="Enter region name (e.g. Visakhapatnam, Nellore, Guntur)"
+                    value={newRegionName}
+                    onChange={(e) => handleRegionNameChange(e.target.value)}
+                    style={{
+                      ...styles.modalInput,
+                      borderColor: regionError ? '#ef4444' : '#cbd5e1',
+                      backgroundColor: regionError ? '#fff5f5' : '#f8fafc',
+                      transition: 'border-color 0.15s, background-color 0.15s'
+                    }}
+                    autoFocus
+                    required
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>
+                    Duplicates are strictly prohibited. Once added, the database will automatically update and the region will appear in all locality and command center dropdowns.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddRegionModal(false);
+                    setRegionError('');
+                  }}
+                  disabled={isSubmittingRegion}
+                  style={styles.cancelBtn}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-region"
+                  disabled={isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()}
+                  style={{
+                    ...styles.submitBtn,
+                    opacity: (isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()) ? 0.55 : 1,
+                    cursor: (isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>{isSubmittingRegion ? 'Saving...' : 'Add Region'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Modal 4: Add Locality */}
       {showAddModal && createPortal(
         <div 
@@ -1190,12 +1424,30 @@ const Regions = () => {
 
             <form onSubmit={handleAddLocality}>
               <div style={styles.modalBody}>
+                {localityError && (
+                  <div style={styles.errorAlertBox} role="alert">
+                    <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b' }}>
+                        Locality Error
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#b91c1c', marginTop: '2px' }}>
+                        {localityError}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Region *</label>
                   <select
+                    id="add-locality-region-select"
                     style={styles.modalSelect}
                     value={targetRegionId}
-                    onChange={(e) => setTargetRegionId(e.target.value)}
+                    onChange={(e) => {
+                      setTargetRegionId(e.target.value);
+                      setLocalityError('');
+                    }}
                   >
                     {regions.map(r => (
                       <option key={r.id} value={r.id}>{r.name}</option>
@@ -1206,11 +1458,19 @@ const Regions = () => {
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Locality / Town Name *</label>
                   <input
+                    id="add-locality-name-input"
                     type="text"
                     placeholder="e.g. Sullurpeta, Avanigadda"
                     value={newLocalityName}
-                    onChange={(e) => setNewLocalityName(e.target.value)}
-                    style={styles.modalInput}
+                    onChange={(e) => {
+                      setNewLocalityName(e.target.value);
+                      setLocalityError('');
+                    }}
+                    style={{
+                      ...styles.modalInput,
+                      borderColor: localityError ? '#ef4444' : '#cbd5e1',
+                      backgroundColor: localityError ? '#fff5f5' : '#f8fafc'
+                    }}
                     required
                   />
                 </div>
@@ -1220,15 +1480,22 @@ const Regions = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSubmittingLocality}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={styles.submitBtn}
+                  disabled={isSubmittingLocality || !newLocalityName.trim()}
+                  style={{
+                    ...styles.submitBtn,
+                    opacity: (isSubmittingLocality || !newLocalityName.trim()) ? 0.55 : 1,
+                    cursor: (isSubmittingLocality || !newLocalityName.trim()) ? 'not-allowed' : 'pointer'
+                  }}
                 >
-                  Create Locality
+                  <Plus size={16} />
+                  <span>{isSubmittingLocality ? 'Saving...' : 'Create Locality'}</span>
                 </button>
               </div>
             </form>
@@ -1290,10 +1557,10 @@ const styles = {
     boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
     transition: 'background-color 0.15s'
   },
-  exportBtn: {
+  addRegionBtn: {
     backgroundColor: '#ffffff',
-    color: '#0284c7',
-    border: '1px solid #bae6fd',
+    color: '#2563eb',
+    border: '1.5px solid #2563eb',
     borderRadius: '8px',
     padding: '9px 16px',
     fontSize: '13px',
@@ -1302,7 +1569,19 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    transition: 'all 0.15s'
+  },
+  errorAlertBox: {
+    backgroundColor: '#fef2f2',
+    border: '1.5px solid #f87171',
+    borderRadius: '10px',
+    padding: '12px 14px',
+    marginBottom: '16px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.12)'
   },
   filterCard: {
     backgroundColor: '#ffffff',

@@ -67,6 +67,18 @@ export const adminService = {
     }, DEFAULT_TTL_MS, force);
   },
 
+  async createRegion(payload) {
+    memoryCache.clear();
+    const res = await apiClient.post('/analytics/regions', payload);
+    return res?.data || null;
+  },
+
+  async createLocality(payload) {
+    memoryCache.clear();
+    const res = await apiClient.post('/analytics/localities', payload);
+    return res?.data || null;
+  },
+
   async getIncharges(force = false) {
     return fetchWithCache('/analytics/incharges', async () => {
       const res = await apiClient.get('/analytics/incharges');

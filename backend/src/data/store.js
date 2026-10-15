@@ -919,13 +919,17 @@ class DataStore {
           s.test_type AS testType,
           s.tank_id AS tankId,
           s.farmer_id AS farmerId,
-          COALESCE(s.locality, a.locality, '') AS locality,
+          COALESCE(NULLIF(f.name, ''), NULLIF(ft.name, ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmerName')), ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmer_name')), ''), '') AS farmerName,
+          COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
           s.status
         FROM submissions s
         LEFT JOIN agents a ON a.id = COALESCE(s.user_id, s.agent_id)
         LEFT JOIN incharges inc ON inc.id = COALESCE(s.user_id, s.agent_id)
         LEFT JOIN users u ON u.id = COALESCE(s.user_id, s.agent_id)
-        WHERE 1=1
+        LEFT JOIN farmers f ON (s.farmer_id = f.id OR s.farmer_id = f.farmer_code)
+        LEFT JOIN tanks t ON (s.tank_id = t.id)
+        LEFT JOIN farmers ft ON (t.farmer_id = ft.id OR t.farmer_id = ft.farmer_code)
+        WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
       `;
       const params = [];
 
@@ -951,23 +955,26 @@ class DataStore {
       sql += ' ORDER BY s.created_at DESC';
 
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        submissionId: r.submissionId,
-        userId: r.userId || '',
-        userName: r.userName || '',
-        role: r.role || 'Agent',
-        latitude: r.latitude != null ? parseFloat(r.latitude) : null,
-        longitude: r.longitude != null ? parseFloat(r.longitude) : null,
-        accuracy: r.accuracy != null ? parseFloat(r.accuracy) : null,
-        date: r.date,
-        submissionTime: r.submissionTime,
-        submittedAt: r.submittedAt ? new Date(r.submittedAt).toISOString() : new Date().toISOString(),
-        testType: r.testType,
-        tankId: r.tankId,
-        farmerId: r.farmerId,
-        locality: r.locality || '',
-        status: r.status,
-      }));
+      return rows
+        .filter((r) => r.latitude != null && r.longitude != null && !isNaN(parseFloat(r.latitude)) && !isNaN(parseFloat(r.longitude)))
+        .map((r) => ({
+          submissionId: r.submissionId,
+          userId: r.userId || '',
+          userName: r.userName || '',
+          role: r.role || 'Agent',
+          latitude: parseFloat(r.latitude),
+          longitude: parseFloat(r.longitude),
+          accuracy: r.accuracy != null ? parseFloat(r.accuracy) : 12,
+          date: r.date,
+          submissionTime: r.submissionTime,
+          submittedAt: r.submittedAt ? new Date(r.submittedAt).toISOString() : new Date().toISOString(),
+          testType: r.testType,
+          tankId: r.tankId,
+          farmerId: r.farmerId,
+          farmerName: r.farmerName || '',
+          locality: r.locality || 'No location available',
+          status: r.status,
+        }));
     } catch (err) {
       console.error('[DB Error in getSubmissionLocations]', err.message);
       throw new Error(`[DB Error in getSubmissionLocations]: ${err.message}`);
@@ -1022,15 +1029,15 @@ class DataStore {
       } catch (fErr) { }
     }
 
-    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') || 
-                                data.recordType === 'HARVEST_ENTRY' || 
-                                data.recordType === 'HARVEST';
+    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') ||
+      data.recordType === 'HARVEST_ENTRY' ||
+      data.recordType === 'HARVEST';
 
     // If tank is in Harvested status or Cycle Closed, prevent routine tests
     if (currentTank && !isHarvestSubmission) {
-      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' || 
-                       String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
-                       String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
+      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
       if (isClosed && String(currentTank.status || '').toUpperCase() === 'HARVESTED') {
         const err = new Error('Tank cycle is completed and harvested. Testing is closed for this cycle until restocked.');
         err.statusCode = 400;
@@ -1135,11 +1142,15 @@ class DataStore {
               tankId: data.tankId,
               farmerId: farmerId || '',
               date: data.date || now.toISOString().split('T')[0],
-              quantityKg: qKg,
-              countPerKg: payload.abw ? Math.round(1000 / parseFloat(payload.abw)) : (payload.countPerKg || 40),
-              quality: payload.quality || 'Grade A',
-              pricePerKg: payload.pricePerKg || 380,
-              revenue: qKg * (payload.pricePerKg || 380),
+              harvestedBiomass: qKg,
+              doc: payload.doc,
+              abw: payload.abw,
+              harvestedNumber: payload.harvestedNumber,
+              totalHarvestedSeed: payload.totalHarvestedSeed,
+              totalBiomassKg: payload.totalBiomass,
+              totalFeedKg: payload.totalFeed,
+              fcr: payload.fcr,
+              buyerName: payload.buyer,
               remarks: payload.remarks || `${newSub.test_type} auto-recorded`
             });
           }
@@ -1241,9 +1252,12 @@ class DataStore {
           quality: 'A Grade',
           pricePerKg: 0,
           revenue: 0,
-          fcr: r.fcr || r.tank_fcr || '1.25',
-          abw: r.abw || r.tank_abw || '14.5g',
-          doc: r.doc != null ? r.doc : (r.tank_doc || 0),
+          fcr: r.fcr != null ? Number(r.fcr) : (r.tank_fcr || '1.25'),
+          abw: r.abw != null ? r.abw : (r.tank_abw || '14.5g'),
+          doc: r.doc != null ? Number(r.doc) : (r.tank_doc || 0),
+          harvestedNumber: r.harvested_number != null ? Number(r.harvested_number) : null,
+          totalHarvestedSeed: r.total_harvested_seed != null ? Number(r.total_harvested_seed) : null,
+          totalFeedKg: r.total_feed_kg != null ? Number(r.total_feed_kg) : null,
           buyerName: r.buyer_name || 'Exporter',
           remarks: r.remarks || '',
           harvestType: r.harvest_type || 'Harvest',
@@ -1259,7 +1273,8 @@ class DataStore {
   async createHarvest(data) {
     this._ensureDb();
     if (!data.tankId) throw new Error('tankId is required');
-    if (!data.quantityKg) throw new Error('quantityKg is required');
+    const bCheck = data.harvestedBiomass !== undefined ? data.harvestedBiomass : data.quantityKg;
+    if (bCheck === undefined || bCheck === null) throw new Error('harvestedBiomass is required');
 
     const cleanDate = data.date || new Date().toISOString().split('T')[0];
 
@@ -1298,9 +1313,15 @@ class DataStore {
     }
 
     const id = data.id || `HARV${String(Date.now()).slice(-4)}`;
-    const q = Number(data.quantityKg) || 0;
-    const price = Number(data.pricePerKg) || 380;
-    const rev = Number(data.revenue) || (q * price);
+    const b = Number(data.harvestedBiomass !== undefined ? data.harvestedBiomass : (data.quantityKg || 0)) || 0;
+
+    const doc = data.doc != null ? Number(data.doc) : null;
+    const abw = data.abw != null ? (typeof data.abw === 'number' ? `${data.abw}g` : String(data.abw)) : null;
+    const harvestedNumber = data.harvestedNumber != null ? Number(data.harvestedNumber) : (data.harvest_number != null ? Number(data.harvest_number) : null);
+    const totalHarvestedSeed = data.totalHarvestedSeed != null ? Number(data.totalHarvestedSeed) : null;
+    const totalBiomassKg = data.totalBiomassKg != null ? Number(data.totalBiomassKg) : (data.totalBiomass != null ? Number(data.totalBiomass) : null);
+    const totalFeedKg = data.totalFeedKg != null ? Number(data.totalFeedKg) : (data.totalFeed != null ? Number(data.totalFeed) : null);
+    const fcr = data.fcr != null ? Number(data.fcr) : null;
 
     const newHarvest = {
       id,
@@ -1311,20 +1332,27 @@ class DataStore {
       harvest_type: harvestType,
       date: cleanDate,
       harvest_date: cleanDate,
-      quantity_kg: q,
-      count_per_kg: data.countPerKg ? Number(data.countPerKg) : 30,
-      quality: data.quality || 'A Grade',
-      price_per_kg: price,
-      revenue: rev,
-      total_value: rev,
+      harvested_biomass: b,
+      doc,
+      abw,
+      harvested_number: harvestedNumber,
+      total_harvested_seed: totalHarvestedSeed,
+      total_biomass_kg: totalBiomassKg,
+      total_feed_kg: totalFeedKg,
+      fcr,
       buyer_name: data.buyerName || 'Local Exporter',
       remarks: data.remarks || '',
     };
 
     try {
       await query(
-        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, date, harvest_date, harvested_biomass, total_biomass_kg, doc, abw, buyer_name, remarks) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO harvests (
+          id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type,
+          date, harvest_date, doc, abw, harvested_number, harvested_biomass,
+          total_harvested_seed, total_biomass_kg, total_feed_kg, fcr,
+          buyer_name, remarks
+        )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newHarvest.id,
           newHarvest.harvest_code,
@@ -1334,10 +1362,14 @@ class DataStore {
           newHarvest.harvest_type,
           newHarvest.date,
           newHarvest.harvest_date,
-          q,
-          q,
-          data.doc != null ? Number(data.doc) : null,
-          data.abw ? String(data.abw) : null,
+          newHarvest.doc,
+          newHarvest.abw,
+          newHarvest.harvested_number,
+          newHarvest.harvested_biomass,
+          newHarvest.total_harvested_seed,
+          newHarvest.total_biomass_kg != null ? newHarvest.total_biomass_kg : newHarvest.harvested_biomass,
+          newHarvest.total_feed_kg,
+          newHarvest.fcr,
           newHarvest.buyer_name,
           newHarvest.remarks,
         ]
@@ -1455,7 +1487,7 @@ class DataStore {
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')) as pendingTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'due') as dueTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'overdue') as overdueTests,
-          0 as totalHarvestRevenue,
+          (SELECT 0) as totalHarvestRevenue,
           (SELECT COALESCE(SUM(COALESCE(harvested_biomass, total_biomass_kg, 0)), 0) FROM harvests) as harvestTotalKg,
           (SELECT COUNT(DISTINCT id) FROM harvests) as harvestsCount,
           (SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0') as avg_fcr,
@@ -1858,9 +1890,33 @@ class DataStore {
         regionLocMap[loc.region_name].add(clean);
       }
 
+      // Also fetch from localities table
+      try {
+        const customLocRows = await query(`
+          SELECT l.name as locality, r.name as region_name, r.id as region_id, r.code as region_code
+          FROM localities l
+          JOIN regions r ON (r.id = l.region_id OR r.code = l.region_id)
+          WHERE l.name IS NOT NULL AND l.name != ''
+        `);
+        for (const loc of customLocRows) {
+          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+          regionLocMap[loc.region_name].add(loc.locality);
+          if (loc.region_id) {
+            if (!regionLocMap[loc.region_id]) regionLocMap[loc.region_id] = new Set();
+            regionLocMap[loc.region_id].add(loc.locality);
+          }
+          if (loc.region_code) {
+            if (!regionLocMap[loc.region_code]) regionLocMap[loc.region_code] = new Set();
+            regionLocMap[loc.region_code].add(loc.locality);
+          }
+        }
+      } catch (custLocErr) {
+        // Table may not have records yet
+      }
+
       return rows.map((r) => {
-        const locSet = regionLocMap[r.name] || new Set();
-        const localities = Array.from(locSet).map(l => ({ id: `LOC-${l}`, name: l }));
+        const locSet = regionLocMap[r.name] || regionLocMap[r.id] || regionLocMap[r.code] || new Set();
+        const localities = Array.from(locSet).map(l => ({ id: `LOC-${r.id}-${l.toLowerCase().replace(/\s+/g, '-')}`, name: l }));
         return {
           ...r,
           id: String(r.id),
@@ -1885,6 +1941,126 @@ class DataStore {
     this._ensureDb();
     const list = await this.getRegions();
     return list.find((r) => String(r.id) === String(id) || String(r.code) === String(id)) || null;
+  }
+
+  async createRegion(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      if (!name) {
+        const err = new Error('Region name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region already exists (case-insensitive duplicate prevention)
+      const existing = await query('SELECT id, name FROM regions WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Region "${name}" already exists! Duplicate regions are not allowed.`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // Generate next REGxxx ID
+      let newId = data.id && String(data.id).startsWith('REG') ? String(data.id).trim() : null;
+      if (!newId) {
+        const rows = await query("SELECT id FROM regions WHERE id LIKE 'REG%'");
+        let maxNum = 0;
+        for (const row of rows) {
+          const match = String(row.id).match(/^REG(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        let counter = maxNum + 1;
+        while (true) {
+          const candidateId = `REG${String(counter).padStart(3, '0')}`;
+          const [exists] = await query('SELECT id FROM regions WHERE id = ? LIMIT 1', [candidateId]);
+          if (!exists) {
+            newId = candidateId;
+            break;
+          }
+          counter++;
+        }
+      }
+
+      const code = data.code || newId;
+      const status = data.status || 'ACTIVE';
+      const activePonds = Number(data.activePonds || data.active_ponds || 0);
+      const totalYield = data.totalYield || data.total_yield || '0 Tons';
+      const avgFcr = data.avgFcr || data.avg_fcr || 1.25;
+
+      await query(
+        `INSERT INTO regions (id, code, name, active_ponds, total_yield, avg_fcr, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId, code, name, activePonds, totalYield, avgFcr, status]
+      );
+
+      return {
+        id: newId,
+        code,
+        name,
+        activePonds,
+        totalYield,
+        avgFcr,
+        status,
+        localities: []
+      };
+    } catch (err) {
+      console.error('[DB Error in createRegion]', err.message);
+      throw err;
+    }
+  }
+
+  async createLocality(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      const regionId = (data.regionId || data.region_id || '').trim();
+
+      if (!name) {
+        const err = new Error('Locality name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!regionId) {
+        const err = new Error('Region ID is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region exists
+      const [reg] = await query('SELECT id, name FROM regions WHERE id = ? OR code = ? OR LOWER(name) = LOWER(?) LIMIT 1', [regionId, regionId, regionId]);
+      if (!reg) {
+        const err = new Error(`Region "${regionId}" not found`);
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const actualRegionId = reg.id;
+
+      // Check duplicate locality for this region
+      const existing = await query('SELECT id FROM localities WHERE region_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [actualRegionId, name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Locality "${name}" already exists in region "${reg.name}"!`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const newId = `LOC-${actualRegionId}-${Date.now().toString(36)}`;
+      await query('INSERT INTO localities (id, region_id, name) VALUES (?, ?, ?)', [newId, actualRegionId, name]);
+
+      return {
+        id: newId,
+        regionId: actualRegionId,
+        regionName: reg.name,
+        name
+      };
+    } catch (err) {
+      console.error('[DB Error in createLocality]', err.message);
+      throw err;
+    }
   }
 
   // --- Incharges ---
