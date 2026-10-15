@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, Send, MapPin, AlertTriangle, Droplet, Fish, Pill, Bug, ChevronRight, Check, Edit3, RefreshCw, Radio } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 import { captureDeviceGPS, getStoredGPS, requestSubmissionGPS, getDistanceMeters } from '../utils/gpsService';
+import { resolveTankSeedStocked } from '../components/QuickRecordModal';
 
 const STEPS = [
   'GPS Verification',
@@ -29,6 +30,7 @@ const SiteVisit = () => {
   const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
   const targetTankUrl = isIncharge ? `/incharge/tanks/${tankId}` : `/tanks/${tankId}`;
   const [tank, setTank] = useState(null);
+  const tankSeedInfo = useMemo(() => resolveTankSeedStocked(tank), [tank]);
   const [session, setSession] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [returnToSubmit, setReturnToSubmit] = useState(false);
@@ -60,17 +62,12 @@ const SiteVisit = () => {
     setTank(t);
 
     if (t) {
-      let initialSeed = '';
-      if (t.seedStocked != null && t.seedStocked !== '') initialSeed = String(t.seedStocked);
-      else if (t.seed_stocking_lak != null && t.seed_stocking_lak !== '') initialSeed = String(t.seed_stocking_lak);
-      else if (t.seedStockingLak != null && t.seedStockingLak !== '') initialSeed = String(t.seedStockingLak);
-      else if (t.seed != null && t.seed !== '') initialSeed = String(t.seed);
-
+      const seedInfo = resolveTankSeedStocked(t);
       setFormData(prev => ({
         ...prev,
         feed: {
           ...prev.feed,
-          seed: initialSeed,
+          seed: seedInfo.displayFull,
           doc: t.doc != null && t.doc !== '' ? String(t.doc) : prev.feed.doc
         }
       }));
@@ -452,8 +449,10 @@ const SiteVisit = () => {
           count: formData.feed.count,
           abw: formData.feed.abw,
           estimatedStock: formData.feed.estimatedStock,
-          seed: formData.feed.seed,
-          seedStocked: formData.feed.seed,
+          seed: tankSeedInfo.count,
+          seedStocked: tankSeedInfo.count,
+          seedStockedFormatted: tankSeedInfo.displayFull,
+          seedCountLac: tankSeedInfo.lakhs,
         };
         await submitRecord({
           tankId,
@@ -809,10 +808,11 @@ const SiteVisit = () => {
                 <ArrowLeft size={14} /> Back to Menu
               </button>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2">
               {renderInput('feed', 'doc', 'DOC', 'number')}
-              {renderInput('feed', 'seed', 'Seed Stocked (Fixed)', 'text', 'From tank details')}
-              {renderInput('feed', 'estimatedStock', 'Estimated Stock', 'number', 'e.g. 46000')}
+              {renderInput('feed', 'seed', 'Seed Stocked (Fixed)', 'text', tankSeedInfo.displayFull)}
+              {renderInput('feed', 'estimatedStock', 'Estimated Stock', 'number', `e.g. ${Math.round(tankSeedInfo.count * 0.95).toLocaleString()}`)}
               {renderInput('feed', 'count', 'Count (per kg)', 'number', 'e.g. 200')}
               {renderInput('feed', 'abw', 'ABW (Auto: 1000 / Count)', 'text', 'Auto-calculated')}
               {renderInput('feed', 'dayFeed', 'Day Feed (kg)', 'number')}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
@@ -12,6 +12,47 @@ import { isAdminAuthenticated, getAdminSession } from '../../admin/utils/adminAu
 import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
+
+// Helper to reliably extract and format stocked seed count and lakhs representation for any tank
+export const resolveTankSeedStocked = (t) => {
+  if (!t) return { count: 250000, lakhs: '2.5 Lakhs', displayFull: '2,50,000 (2.5 Lakhs)', countFormatted: '2,50,000', raw: 2.5 };
+  
+  let raw = t.seedStocked ?? t.seed_stocking_lak ?? t.seedStockingLak ?? t.seed ?? t.seed_stocked ?? t.seedNumber ?? t.seedCountLac ?? null;
+
+  if (raw == null && t.id) {
+    try {
+      const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+      const tankStore = store[t.id];
+      if (tankStore?.seedNumber) raw = tankStore.seedNumber;
+    } catch (e) {}
+  }
+
+  let num = parseFloat(raw);
+  if (isNaN(num) || num <= 0) {
+    const acres = parseFloat(t.acres || t.area || 2.5);
+    num = acres > 0 ? parseFloat((acres * 1.0).toFixed(1)) : 2.5;
+  }
+
+  let seedCount = 0;
+  let lakhsStr = '';
+
+  if (num <= 50) {
+    seedCount = Math.round(num * 100000);
+    lakhsStr = `${num} Lakhs`;
+  } else {
+    seedCount = Math.round(num);
+    const inLakhs = (seedCount / 100000).toFixed(seedCount % 100000 === 0 ? 1 : 2);
+    lakhsStr = `${inLakhs} Lakhs`;
+  }
+
+  return {
+    raw: num,
+    count: seedCount,
+    countFormatted: seedCount.toLocaleString(),
+    lakhs: lakhsStr,
+    displayFull: lakhsStr ? `${seedCount.toLocaleString()} (${lakhsStr})` : seedCount.toLocaleString()
+  };
+};
 
 const QuickRecordModalInner = ({
   isOpen,
@@ -63,6 +104,10 @@ const QuickRecordModalInner = ({
   const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(selectedFarmerId) : (db?.tanks || []).filter(t => t.farmerId === selectedFarmerId);
   const tanks = farmerTanks;
   const [selectedTankId, setSelectedTankId] = useState(preselectedTankId || tanks[0]?.id || '');
+
+  // Authoritative selected tank reference and resolved seed stocking metrics
+  const currentTank = tanks.find(x => x.id === selectedTankId) || tanks[0] || null;
+  const tankSeedInfo = useMemo(() => resolveTankSeedStocked(currentTank), [currentTank]);
 
   // GPS & Submission States
   const [gpsData, setGpsData] = useState(null);
@@ -236,16 +281,7 @@ const QuickRecordModalInner = ({
       }
 
       // Retrieve original Seed Stocked value saved when tank details were entered
-      let initialSeed = '';
-      if (t.seedStocked != null && t.seedStocked !== '') {
-        initialSeed = String(t.seedStocked);
-      } else if (t.seed_stocking_lak != null && t.seed_stocking_lak !== '') {
-        initialSeed = String(t.seed_stocking_lak);
-      } else if (t.seedStockingLak != null && t.seedStockingLak !== '') {
-        initialSeed = String(t.seedStockingLak);
-      } else if (t.seed != null && t.seed !== '') {
-        initialSeed = String(t.seed);
-      }
+      const seedInfo = resolveTankSeedStocked(t);
 
       setWaterForm(prev => ({
         ...prev,
@@ -254,7 +290,7 @@ const QuickRecordModalInner = ({
       setFeedForm(prev => ({
         ...prev,
         doc: initialDoc,
-        seed: initialSeed,
+        seed: seedInfo.displayFull,
         estimatedStock: '',
         count: '',
         abw: '',
@@ -381,8 +417,10 @@ const QuickRecordModalInner = ({
       count: formData.count,
       abw: formData.abw,
       estimatedStock: formData.estimatedStock,
-      seed: formData.seed,
-      seedStocked: formData.seed,
+      seed: tankSeedInfo.count,
+      seedStocked: tankSeedInfo.count,
+      seedStockedFormatted: tankSeedInfo.displayFull,
+      seedCountLac: tankSeedInfo.lakhs,
     } : {
       ...formData,
       ph: formData.ph ?? '',
@@ -508,6 +546,10 @@ const QuickRecordModalInner = ({
                 </>
               ) : activeTab === 'FEED_ENTRY' ? (
                 <>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Seed Stocked</span>
+                    <strong style={{ ...styles.successPillVal, color: '#16A34A' }}>{tankSeedInfo.displayFull}</strong>
+                  </div>
                   <div style={styles.successPill}>
                     <span style={styles.successPillLabel}>Day / Cum Feed</span>
                     <strong style={styles.successPillVal}>{feedForm.dayFeed || '0'} / {feedForm.cumulativeFeed || '0'} kg</strong>
@@ -723,14 +765,14 @@ const QuickRecordModalInner = ({
                 <div style={{ ...styles.paramCard, backgroundColor: '#F1F5F9', border: '1.5px solid #CBD5E1' }}>
                   <div style={styles.paramHeader}>
                     <span style={{ ...styles.paramTitle, color: '#334155' }}>Seed Stocked</span>
-                    <span style={styles.paramUnit}>Fixed (Tank)</span>
+                    <span style={{ ...styles.paramUnit, color: '#166534', fontWeight: 600 }}>{tankSeedInfo.lakhs}</span>
                   </div>
                   <input
                     type="text"
-                    value={feedForm.seed || ''}
+                    value={tankSeedInfo.displayFull}
                     readOnly
                     placeholder="From tank details"
-                    style={{ ...styles.paramInput, color: '#334155', cursor: 'not-allowed' }}
+                    style={{ ...styles.paramInput, color: '#1E293B', fontWeight: 600, cursor: 'not-allowed' }}
                   />
                   <span style={{ ...styles.paramStatus, color: '#64748B' }}>Original Tank Stock (Read-only)</span>
                 </div>
@@ -747,7 +789,7 @@ const QuickRecordModalInner = ({
                     step="1"
                     value={feedForm.estimatedStock}
                     onChange={(e) => handleFeedChange('estimatedStock', e.target.value)}
-                    placeholder="e.g. 46000"
+                    placeholder={`e.g. ${Math.round(tankSeedInfo.count * 0.95).toLocaleString()}`}
                     style={styles.paramInput}
                   />
                   <span style={styles.paramStatus}>Current Estimated Population</span>

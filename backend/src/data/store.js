@@ -708,6 +708,7 @@ class DataStore {
       culture_type: data.cultureType || 'Semi-Intensive',
       stocking_date: data.stockingDate || data.seedDate || new Date().toISOString().split('T')[0],
       seed_date: data.seedDate || data.stockingDate || null,
+      seed_stocking_lak: data.seedStockingLak || data.seed_stocking_lak || data.seedStocked || data.seed || null,
       boundary_coordinates: formatBoundaryCoords(data.boundaryCoordinates),
       boundary_method: data.boundaryMethod || null,
       boundary_area_acres: data.boundaryAreaAcres != null && data.boundaryAreaAcres !== '' ? parseFloat(data.boundaryAreaAcres) : null,
@@ -720,10 +721,10 @@ class DataStore {
         `INSERT INTO tanks (
           id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, 
           abw, biomass, fcr, last_test, next_test, size, acres, area_acres, doc, 
-          salinity, species, water_source, culture_type, stocking_date, seed_date,
+          salinity, species, water_source, culture_type, stocking_date, seed_date, seed_stocking_lak,
           boundary_coordinates, boundary_method, boundary_area_acres, boundary_quality, boundary_captured_at
         ) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
            assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
@@ -732,6 +733,7 @@ class DataStore {
            salinity=VALUES(salinity), species=VALUES(species), water_source=VALUES(water_source), 
            culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date),
            seed_date=COALESCE(VALUES(seed_date), seed_date),
+           seed_stocking_lak=COALESCE(VALUES(seed_stocking_lak), seed_stocking_lak),
            boundary_coordinates=COALESCE(VALUES(boundary_coordinates), boundary_coordinates),
            boundary_method=COALESCE(VALUES(boundary_method), boundary_method),
            boundary_area_acres=COALESCE(VALUES(boundary_area_acres), boundary_area_acres),
@@ -761,6 +763,7 @@ class DataStore {
           newTank.culture_type,
           newTank.stocking_date,
           newTank.seed_date,
+          newTank.seed_stocking_lak,
           newTank.boundary_coordinates,
           newTank.boundary_method,
           newTank.boundary_area_acres,
@@ -805,6 +808,10 @@ class DataStore {
       if (updates.cultureType !== undefined) { fields.push('culture_type = ?'); params.push(updates.cultureType); }
       if (updates.stockingDate !== undefined) { fields.push('stocking_date = ?'); params.push(updates.stockingDate); }
       if (updates.seedDate !== undefined) { fields.push('seed_date = ?'); params.push(updates.seedDate); }
+      if (updates.seedStockingLak !== undefined || updates.seed_stocking_lak !== undefined || updates.seedStocked !== undefined || updates.seed !== undefined) {
+        fields.push('seed_stocking_lak = ?');
+        params.push(updates.seedStockingLak || updates.seed_stocking_lak || updates.seedStocked || updates.seed || null);
+      }
       if (updates.boundaryCoordinates !== undefined) {
         fields.push('boundary_coordinates = ?');
         params.push(updates.boundaryCoordinates ? (typeof updates.boundaryCoordinates === 'string' ? updates.boundaryCoordinates : JSON.stringify(updates.boundaryCoordinates)) : null);

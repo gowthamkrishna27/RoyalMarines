@@ -133,6 +133,7 @@ export const createTank = async (req, res) => {
       cultureType: cultureType || null,
       stockingDate: resolvedStockingDate,
       seedDate: resolvedSeedDate,
+      seedStockingLak: req.body.seedStockingLak || req.body.seed_stocking_lak || req.body.seedStocked || req.body.seed || null,
       boundaryCoordinates: sanitizedBoundary,
       boundaryMethod: boundaryMethod || null,
       boundaryAreaAcres: boundaryAreaAcres != null ? boundaryAreaAcres : null,
