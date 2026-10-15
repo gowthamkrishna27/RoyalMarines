@@ -591,6 +591,7 @@ export const MockDataProvider = ({ children }) => {
     };
 
     window.addEventListener('farmerCreated', handleFarmerRefresh);
+    window.addEventListener('farmerDeleted', handleFarmerRefresh);
     window.addEventListener('tankCreated', handleTankRefresh);
     window.addEventListener('submissionCreated', handleSubmissionRefresh);
     window.addEventListener('harvestCreated', handleHarvestRefresh);
@@ -598,6 +599,7 @@ export const MockDataProvider = ({ children }) => {
 
     return () => {
       window.removeEventListener('farmerCreated', handleFarmerRefresh);
+      window.removeEventListener('farmerDeleted', handleFarmerRefresh);
       window.removeEventListener('tankCreated', handleTankRefresh);
       window.removeEventListener('submissionCreated', handleSubmissionRefresh);
       window.removeEventListener('harvestCreated', handleHarvestRefresh);
@@ -687,10 +689,14 @@ export const MockDataProvider = ({ children }) => {
 
     const getTanksByFarmerId = (farmerId) => {
       if (!db || !db.tanks || !farmerId) return [];
+      const farmerExists = (db.farmers || []).some(f => f.id === farmerId || f.farmer_code === farmerId);
+      if (!farmerExists) return [];
       const fTanks = db.tanks.filter(t =>
-        t.farmerId === farmerId ||
+        !t.isOrphaned &&
+        t.hasValidFarmer !== false &&
+        (t.farmerId === farmerId ||
         t.farmer_id === farmerId ||
-        ((farmerId === '1' || farmerId === 'F001' || farmerId === 'FAR001') && (t.farmerId === '1' || t.farmerId === 'F001' || t.farmer_id === 'F001'))
+        ((farmerId === '1' || farmerId === 'F001' || farmerId === 'FAR001') && (t.farmerId === '1' || t.farmerId === 'F001' || t.farmer_id === 'F001')))
       );
       return fTanks.map((t, idx) => ({
         ...t,
@@ -816,14 +822,19 @@ export const MockDataProvider = ({ children }) => {
   const getMyTanksByInchargeId = (inchargeId = "INC001") => {
     if (!db || !db.tanks) return [];
     const myFarmers = getMyFarmersByInchargeId(inchargeId);
-    const myFarmerIds = myFarmers.map((f) => f.id);
+    const myFarmerIds = new Set(myFarmers.map((f) => f.id));
     return db.tanks
-      .filter(
-        (t) =>
+      .filter((t) => {
+        if (t.isOrphaned || t.hasValidFarmer === false) return false;
+        const fId = t.farmerId || t.farmer_id;
+        const farmerExists = (db.farmers || []).some(f => f.id === fId || f.farmer_code === fId);
+        if (!farmerExists) return false;
+        return (
           (t.inchargeId === inchargeId &&
             (!t.agentId || t.assignedTo === "Incharge")) ||
-          myFarmerIds.includes(t.farmerId),
-      )
+          myFarmerIds.has(fId)
+        );
+      })
       .sort((a, b) => {
         const fA = myFarmers.find((f) => f.id === a.farmerId);
         const fB = myFarmers.find((f) => f.id === b.farmerId);
@@ -843,11 +854,15 @@ export const MockDataProvider = ({ children }) => {
   const getTanksByInchargeId = (inchargeId = "INC001") => {
     if (!db || !db.tanks) return [];
     const inchargeFarmers = getFarmersByInchargeId(inchargeId);
-    const farmerIds = inchargeFarmers.map((f) => f.id);
+    const farmerIds = new Set(inchargeFarmers.map((f) => f.id));
     return db.tanks
-      .filter(
-        (t) => farmerIds.includes(t.farmerId) || t.inchargeId === inchargeId,
-      )
+      .filter((t) => {
+        if (t.isOrphaned || t.hasValidFarmer === false) return false;
+        const fId = t.farmerId || t.farmer_id;
+        const farmerExists = (db.farmers || []).some(f => f.id === fId || f.farmer_code === fId);
+        if (!farmerExists) return false;
+        return farmerIds.has(fId) || t.inchargeId === inchargeId;
+      })
       .sort((a, b) => {
         const fA = inchargeFarmers.find((f) => f.id === a.farmerId);
         const fB = inchargeFarmers.find((f) => f.id === b.farmerId);
@@ -1436,8 +1451,8 @@ export const MockDataProvider = ({ children }) => {
       await apiClient.delete(`/farmers/${farmerId}`);
       setDb((prev) => ({
         ...prev,
-        farmers: prev.farmers.filter((f) => f.id !== farmerId),
-        tanks: prev.tanks.filter((t) => t.farmerId !== farmerId),
+        farmers: prev.farmers.filter((f) => f.id !== farmerId && f.farmer_code !== farmerId),
+        tanks: prev.tanks.filter((t) => t.farmerId !== farmerId && t.farmer_id !== farmerId),
       }));
 
       adminService.clearCache('/farmers');
@@ -1445,6 +1460,7 @@ export const MockDataProvider = ({ children }) => {
       adminService.clearCache('/analytics/summary');
 
       window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      window.dispatchEvent(new CustomEvent('farmerDeleted', { detail: { farmerId } }));
       showToast(`Farmer ${farmerId} and associated tanks removed.`);
     } catch (err) {
       console.error("[MockDataContext] deleteFarmer failed:", err);

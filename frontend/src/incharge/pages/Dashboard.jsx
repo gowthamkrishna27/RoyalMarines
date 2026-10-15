@@ -132,23 +132,25 @@ const Dashboard = () => {
   const personalFarmers = getMyFarmersByInchargeId ? getMyFarmersByInchargeId('INC001') : [];
   const personalTanks = getMyTanksByInchargeId ? getMyTanksByInchargeId('INC001') : [];
 
-  // Compute weekly routine due status ONLY for Incharge's personal farmers & tanks
-  const tanksWithDueInfo = personalTanks.map(tank => {
-    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || (db?.farmers || []).find(f => f.id === tank.farmerId) || { name: 'Personal Farmer', location: 'Chinnamiram', phone: '+91 9876543211' };
-    const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
-    const isHarvested = tank.status === 'Harvested';
-    const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue) && !isHarvested;
-    const isDue = !schedule.isAllDone && !isHarvested && !isOverdue;
-    return {
-      tank,
-      farmer,
-      agent: { name: 'Direct Incharge' },
-      schedule,
-      isHarvested,
-      isDue,
-      isOverdue,
-    };
-  });
+  // Compute weekly routine due status ONLY for Incharge's personal farmers & tanks with valid existing farmers
+  const tanksWithDueInfo = personalTanks
+    .filter(tank => (personalFarmers || []).some(f => f.id === tank.farmerId) || (db?.farmers || []).some(f => f.id === tank.farmerId))
+    .map(tank => {
+      const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || (db?.farmers || []).find(f => f.id === tank.farmerId) || { name: '', location: '', phone: '' };
+      const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
+      const isHarvested = tank.status === 'Harvested';
+      const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue) && !isHarvested;
+      const isDue = !schedule.isAllDone && !isHarvested && !isOverdue;
+      return {
+        tank,
+        farmer,
+        agent: { name: 'Direct Incharge' },
+        schedule,
+        isHarvested,
+        isDue,
+        isOverdue,
+      };
+    });
 
   const dueTanksList = tanksWithDueInfo.filter(t => t.isDue);
   const overdueTanksList = tanksWithDueInfo.filter(t => t.isOverdue);
@@ -159,11 +161,13 @@ const Dashboard = () => {
     return t.isDue || t.isOverdue;
   });
 
-  // Full detailed personal tanks assigned by Admin to Incharge
-  const personalTanksDetails = personalTanks.map((tank, idx) => {
-    const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) || 
-                   (db?.farmers || []).find(f => f.id === tank.farmerId) || 
-                   { name: tank.farmerName || 'Farmer', location: tank.location || 'Field', phone: '' };
+  // Full detailed personal tanks assigned by Admin to Incharge with valid existing farmers
+  const personalTanksDetails = personalTanks
+    .filter(tank => (personalFarmers || []).some(f => f.id === tank.farmerId) || (db?.farmers || []).some(f => f.id === tank.farmerId))
+    .map((tank, idx) => {
+      const farmer = (personalFarmers || []).find(f => f.id === tank.farmerId) ||
+                     (db?.farmers || []).find(f => f.id === tank.farmerId) ||
+                     { name: '', location: '', phone: '' };
     const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
     const isHarvested = tank.status === 'Harvested';
     const isDue = !schedule.isAllDone && !isHarvested;
@@ -211,41 +215,47 @@ const Dashboard = () => {
     return matchesSearch;
   });
 
-  // Mapped live tanks with full aquaculture telemetry for active & harvested breakdown
-  const allDashboardTanks = (db?.tanks || []).map((t, idx) => {
-    const farmer = getFarmerById(t.farmerId);
-    const agent = getAgentById(t.agentId);
-    const hasPending = (db?.submissions || []).some(s => s.tankId === t.id && s.status === 'PENDING_VERIFICATION');
-    const isHarvested = t.status === 'Harvested';
-    let status = isHarvested ? 'Harvested' : (t.testStatus || 'Active');
-    if (hasPending) status = 'Pending Verification';
+  // Mapped live tanks with full aquaculture telemetry for active & harvested breakdown (strictly valid existing farmers)
+  const allDashboardTanks = (db?.tanks || [])
+    .filter(t => {
+      if (t.isOrphaned || t.hasValidFarmer === false) return false;
+      const fId = t.farmerId || t.farmer_id;
+      return (db?.farmers || []).some(f => f.id === fId || f.farmer_code === fId);
+    })
+    .map((t, idx) => {
+      const farmer = getFarmerById(t.farmerId);
+      const agent = getAgentById(t.agentId);
+      const hasPending = (db?.submissions || []).some(s => s.tankId === t.id && s.status === 'PENDING_VERIFICATION');
+      const isHarvested = t.status === 'Harvested';
+      let status = isHarvested ? 'Harvested' : (t.testStatus || 'Active');
+      if (hasPending) status = 'Pending Verification';
 
-    // Realistically distributed DOC, ABW, Biomass, and FCR
-    const doc = t.doc || (isHarvested ? 115 : (35 + ((idx * 16) % 65)));
-    const rawAbw = t.abw ? parseFloat(t.abw) : (doc <= 45 ? 12.5 : doc <= 70 ? 18.0 + (idx % 4) : doc <= 90 ? 25.5 + (idx % 5) : 32.0);
-    const abw = rawAbw.toFixed(1) + 'g';
-    const biomass = t.biomass || `${Math.round(rawAbw * 135 * 0.85)} kg`;
-    const baseFcr = isHarvested ? 1.18 : (1.12 + ((idx * 0.04) % 0.24));
-    const fcr = t.fcr ? parseFloat(t.fcr).toFixed(2) : baseFcr.toFixed(2);
+      // Realistically distributed DOC, ABW, Biomass, and FCR
+      const doc = t.doc || (isHarvested ? 115 : (35 + ((idx * 16) % 65)));
+      const rawAbw = t.abw ? parseFloat(t.abw) : (doc <= 45 ? 12.5 : doc <= 70 ? 18.0 + (idx % 4) : doc <= 90 ? 25.5 + (idx % 5) : 32.0);
+      const abw = rawAbw.toFixed(1) + 'g';
+      const biomass = t.biomass || `${Math.round(rawAbw * 135 * 0.85)} kg`;
+      const baseFcr = isHarvested ? 1.18 : (1.12 + ((idx * 0.04) % 0.24));
+      const fcr = t.fcr ? parseFloat(t.fcr).toFixed(2) : baseFcr.toFixed(2);
 
-    return {
-      id: t.id,
-      farmerId: t.farmerId,
-      name: t.name || (t.id ? `Tank ${t.id.replace(/\D/g, '') || '1'}` : 'Tank 1'),
-      farmer: farmer ? farmer.name : (t.farmerName || 'Farmer'),
-      locality: farmer ? (farmer.location || farmer.village || 'Bhimavaram') : 'Bhimavaram',
-      agent: agent ? agent.name : (t.agentId ? 'Assigned Tech' : 'Direct Incharge'),
-      size: t.size || (t.acres ? `${t.acres} Acres` : '2.0 Acres'),
-      doc: doc,
-      abw: abw,
-      biomass: biomass,
-      fcr: fcr,
-      lastTest: t.lastTest || '22 Aug',
-      nextDue: t.nextTest || (isHarvested ? 'Cycle Closed' : '29 Aug'),
-      status: status,
-      isHarvested: isHarvested
-    };
-  });
+      return {
+        id: t.id,
+        farmerId: t.farmerId,
+        name: t.name || (t.id ? `Tank ${t.id.replace(/\D/g, '') || '1'}` : 'Tank 1'),
+        farmer: farmer ? farmer.name : '',
+        locality: farmer ? (farmer.location || farmer.village || 'Bhimavaram') : 'Bhimavaram',
+        agent: agent ? agent.name : (t.agentId ? 'Assigned Tech' : 'Direct Incharge'),
+        size: t.size || (t.acres ? `${t.acres} Acres` : '2.0 Acres'),
+        doc: doc,
+        abw: abw,
+        biomass: biomass,
+        fcr: fcr,
+        lastTest: t.lastTest || '22 Aug',
+        nextDue: t.nextTest || (isHarvested ? 'Cycle Closed' : '29 Aug'),
+        status: status,
+        isHarvested: isHarvested
+      };
+    });
 
   const activeTanksList = allDashboardTanks.filter(t => !t.isHarvested);
   const harvestedTanksList = allDashboardTanks.filter(t => t.isHarvested);
@@ -394,8 +404,13 @@ const Dashboard = () => {
     setRemindedOverdueMap(newMap);
   };
 
-  // Map Coordinates for Incharge cluster ponds with exact database coordinates and boundaries
-  const mapTanks = activeTanksList.map((t) => {
+  // Map Coordinates for Incharge cluster ponds with exact database coordinates and boundaries (strictly valid existing farmers)
+  const mapTanks = activeTanksList
+    .filter(t => {
+      const fId = t.farmerId;
+      return Boolean(t.farmer) && (db?.farmers || []).some(f => f.id === fId || f.farmer_code === fId);
+    })
+    .map((t) => {
     const rawTank = (db?.tanks || []).find(rt => rt.id === t.id);
     const farmer = (db?.farmers || []).find(f => f.id === t.farmerId);
     const lat = (rawTank?.latitude != null && !isNaN(Number(rawTank.latitude)))
@@ -1706,7 +1721,7 @@ const Dashboard = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div>
                         <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
-                          {item?.farmer?.name || 'Farmer'} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>• {item?.farmer?.location || 'Chinnamiram'} • 👤 Direct Incharge</span>
+                          {item?.farmer?.name || 'Registered Farmer'} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>• {item?.farmer?.location || 'Chinnamiram'} • 👤 Direct Incharge</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
                           <strong style={{ color: '#0F172A' }}>{item?.tank?.name || `Tank ${idx + 1}`}</strong>

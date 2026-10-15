@@ -480,6 +480,7 @@ class DataStore {
       let sql = `
         SELECT 
           t.*,
+          f.id as farmer_exists_id,
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
           COALESCE(f.village, '') as farmer_village,
@@ -500,9 +501,23 @@ class DataStore {
       `;
       const params = [];
 
+      // Valid farmer filter: Agent & Incharge map views and operational queries
+      // only display tanks associated with an existing, valid farmer in the database.
+      const requireValidFarmer = filter.validFarmerOnly === true ||
+                                 filter.validFarmerOnly === 'true' ||
+                                 Boolean(filter.agentId) ||
+                                 Boolean(filter.inchargeId);
+
+      if (requireValidFarmer && !filter.includeOrphaned) {
+        sql += ' AND f.id IS NOT NULL';
+      }
+
       if (filter.farmerId) {
         sql += ' AND (t.farmer_id = ? OR f.farmer_code = ?)';
         params.push(filter.farmerId, filter.farmerId);
+        if (!filter.includeOrphaned) {
+          sql += ' AND f.id IS NOT NULL';
+        }
       }
       if (filter.agentId) {
         sql += ' AND (t.agent_id = ? OR f.agent_id = ?)';
@@ -524,37 +539,42 @@ class DataStore {
       sql += ' ORDER BY t.created_at DESC, t.id ASC';
 
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        ...r,
-        id: String(r.id),
-        farmerId: r.farmer_id,
-        farmerName: r.farmer_name,
-        farmer: r.farmer_name,
-        location: r.farmer_location || r.location || '',
-        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || 'Bhimavaram',
-        latitude: r.latitude != null && !isNaN(Number(r.latitude))
-          ? Number(r.latitude)
-          : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
-        longitude: r.longitude != null && !isNaN(Number(r.longitude))
-          ? Number(r.longitude)
-          : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
-        agentId: r.agent_id,
-        agent: r.agent_name,
-        inchargeId: r.incharge_id,
-        incharge: r.incharge_name,
-        region: r.region_name || '',
-        regionId: r.region_id || '',
-        testStatus: r.test_status || 'Due',
-        lastTest: r.last_test,
-        nextTest: r.next_test,
-        status: r.status || 'ACTIVE',
-        cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
-        boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
-        boundaryMethod: r.boundary_method || null,
-        boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
-        boundaryQuality: r.boundary_quality || null,
-        boundaryCapturedAt: r.boundary_captured_at || null,
-      }));
+      return rows.map((r) => {
+        const hasValidFarmer = Boolean(r.farmer_exists_id);
+        return {
+          ...r,
+          id: String(r.id),
+          farmerId: r.farmer_id,
+          farmerName: hasValidFarmer ? r.farmer_name : '',
+          farmer: hasValidFarmer ? r.farmer_name : '',
+          hasValidFarmer,
+          isOrphaned: !hasValidFarmer,
+          location: hasValidFarmer ? (r.farmer_location || r.location || '') : (r.location || ''),
+          locality: (hasValidFarmer ? (r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '')) : (r.locality || '')) || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || (hasValidFarmer ? 'Bhimavaram' : ''),
+          latitude: r.latitude != null && !isNaN(Number(r.latitude))
+            ? Number(r.latitude)
+            : (hasValidFarmer && r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+          longitude: r.longitude != null && !isNaN(Number(r.longitude))
+            ? Number(r.longitude)
+            : (hasValidFarmer && r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
+          agentId: r.agent_id,
+          agent: r.agent_name,
+          inchargeId: r.incharge_id,
+          incharge: r.incharge_name,
+          region: r.region_name || '',
+          regionId: r.region_id || '',
+          testStatus: r.test_status || 'Due',
+          lastTest: r.last_test,
+          nextTest: r.next_test,
+          status: r.status || 'ACTIVE',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+          boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
+          boundaryMethod: r.boundary_method || null,
+          boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
+          boundaryQuality: r.boundary_quality || null,
+          boundaryCapturedAt: r.boundary_captured_at || null,
+        };
+      });
     } catch (err) {
       console.error('[DB Error in getTanks]', err.message);
       throw new Error(`[DB Error in getTanks]: ${err.message}`);
@@ -567,6 +587,7 @@ class DataStore {
       const rows = await query(
         `SELECT 
           t.*,
+          f.id as farmer_exists_id,
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
           COALESCE(f.village, '') as farmer_village,
@@ -590,21 +611,24 @@ class DataStore {
       );
       if (rows && rows.length > 0) {
         const r = rows[0];
+        const hasValidFarmer = Boolean(r.farmer_exists_id);
         return {
           ...r,
           id: String(r.id),
           farmerId: r.farmer_id,
-          farmerName: r.farmer_name,
-          farmer: r.farmer_name,
-          farmerPhone: r.farmer_phone,
-          location: r.farmer_location || r.location || '',
-          locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
+          farmerName: hasValidFarmer ? r.farmer_name : '',
+          farmer: hasValidFarmer ? r.farmer_name : '',
+          farmerPhone: hasValidFarmer ? r.farmer_phone : '',
+          hasValidFarmer,
+          isOrphaned: !hasValidFarmer,
+          location: hasValidFarmer ? (r.farmer_location || r.location || '') : (r.location || ''),
+          locality: (hasValidFarmer ? (r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '')) : (r.locality || '')) || r.agent_locality || (hasValidFarmer ? 'Bhimavaram' : ''),
           latitude: r.latitude != null && !isNaN(Number(r.latitude))
             ? Number(r.latitude)
-            : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+            : (hasValidFarmer && r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
           longitude: r.longitude != null && !isNaN(Number(r.longitude))
             ? Number(r.longitude)
-            : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
+            : (hasValidFarmer && r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
           agentId: r.agent_id,
           agent: r.agent_name,
           agentPhone: r.agent_phone,

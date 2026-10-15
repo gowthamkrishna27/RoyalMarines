@@ -96,46 +96,58 @@ const FarmLeafletMap = ({
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedBoundaryFilter, setSelectedBoundaryFilter] = useState('ALL');
 
-  // Parse and categorize actual registered tanks without generating fabricated data
+  // Parse and categorize actual registered tanks without generating fabricated data (strictly valid farmer associations)
   const processedTanks = useMemo(() => {
-    return (rawActiveTanks || []).map((tank) => {
-      const boundaryLatLngs = parseBoundaryPolygon(tank.boundaryCoordinates || tank.boundary_coordinates);
-      const hasDirectCoords = isValidPointCoords(tank.latitude, tank.longitude);
-      const pointCoords = hasDirectCoords ? [Number(tank.latitude), Number(tank.longitude)] : null;
-      const centroid = boundaryLatLngs ? getPolygonCentroid(boundaryLatLngs) : null;
-      const effectiveCoords = pointCoords || centroid;
-      const hasLocation = Boolean(effectiveCoords);
-      const hasBoundary = Boolean(boundaryLatLngs);
+    return (rawActiveTanks || [])
+      .filter((tank) => {
+        // Exclude orphaned tanks or tanks without valid farmer records
+        if (tank.isOrphaned || tank.hasValidFarmer === false) return false;
+        const farmerName = (tank.farmer || tank.farmerName || '').trim();
+        if (!farmerName || farmerName.toLowerCase() === 'farmer' || farmerName.toLowerCase() === 'ravi') {
+          return false;
+        }
+        return true;
+      })
+      .map((tank) => {
+        const boundaryLatLngs = parseBoundaryPolygon(tank.boundaryCoordinates || tank.boundary_coordinates);
+        const hasDirectCoords = isValidPointCoords(tank.latitude, tank.longitude);
+        const pointCoords = hasDirectCoords ? [Number(tank.latitude), Number(tank.longitude)] : null;
+        const centroid = boundaryLatLngs ? getPolygonCentroid(boundaryLatLngs) : null;
+        const effectiveCoords = pointCoords || centroid;
+        const hasLocation = Boolean(effectiveCoords);
+        const hasBoundary = Boolean(boundaryLatLngs);
 
-      let boundaryStatus = 'Not Registered';
-      if (hasBoundary) {
-        boundaryStatus = 'Registered (Polygon)';
-      } else if (hasLocation) {
-        boundaryStatus = 'Coordinates Only';
-      }
+        let boundaryStatus = 'Not Registered';
+        if (hasBoundary) {
+          boundaryStatus = 'Registered (Polygon)';
+        } else if (hasLocation) {
+          boundaryStatus = 'Coordinates Only';
+        }
 
-      return {
-        ...tank,
-        id: String(tank.id),
-        name: tank.name || `Tank ${tank.id}`,
-        farmer: tank.farmer || tank.farmerName || 'Farmer',
-        locality: tank.locality || tank.location || 'Aquaculture Zone',
-        boundaryLatLngs,
-        effectiveCoords,
-        hasLocation,
-        hasBoundary,
-        boundaryStatus,
-        status: tank.status || 'Active',
-        testStatus: tank.testStatus || tank.test_status || 'Optimal',
-      };
-    });
+        return {
+          ...tank,
+          id: String(tank.id),
+          name: tank.name || `Tank ${tank.id}`,
+          farmer: (tank.farmer || tank.farmerName || '').trim(),
+          locality: tank.locality || tank.location || 'Aquaculture Zone',
+          boundaryLatLngs,
+          effectiveCoords,
+          hasLocation,
+          hasBoundary,
+          boundaryStatus,
+          status: tank.status || 'Active',
+          testStatus: tank.testStatus || tank.test_status || 'Optimal',
+        };
+      });
   }, [rawActiveTanks]);
 
-  // Unique farmers among the authorised tanks for filtering dropdown
+  // Unique farmers among the authorised tanks for filtering dropdown (strictly authentic registered names)
   const uniqueFarmers = useMemo(() => {
     const set = new Set();
     processedTanks.forEach(t => {
-      if (t.farmer) set.add(t.farmer);
+      if (t.farmer && t.farmer.toLowerCase() !== 'farmer' && t.farmer.toLowerCase() !== 'ravi') {
+        set.add(t.farmer);
+      }
     });
     return Array.from(set).sort();
   }, [processedTanks]);
@@ -734,7 +746,7 @@ const FarmLeafletMap = ({
             </div>
             <div>
               <span style={styles.metaLabel}>Farmer:</span>
-              <span style={styles.metaValue}>{activeSelectedTank.farmer || 'Farmer'}</span>
+              <span style={styles.metaValue}>{activeSelectedTank.farmer || 'Registered Farmer'}</span>
             </div>
             <div>
               <span style={styles.metaLabel}>Area:</span>

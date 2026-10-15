@@ -3,8 +3,16 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 export const getTanks = async (req, res) => {
   try {
-    const { farmerId, agentId, inchargeId, status, testStatus } = req.query;
-    const tanks = await store.getTanks({ farmerId, agentId, inchargeId, status, testStatus });
+    const { farmerId, agentId, inchargeId, status, testStatus, validFarmerOnly, includeOrphaned } = req.query;
+    const tanks = await store.getTanks({
+      farmerId,
+      agentId,
+      inchargeId,
+      status,
+      testStatus,
+      validFarmerOnly: validFarmerOnly === 'true' || validFarmerOnly === true,
+      includeOrphaned: includeOrphaned === 'true' || includeOrphaned === true
+    });
     return sendSuccess(res, tanks, 'Tanks retrieved successfully', 200, {
       total: tanks.length,
     });
@@ -23,7 +31,7 @@ export const getTankById = async (req, res) => {
       return sendError(res, `Tank with ID ${id} not found`, 404);
     }
 
-    const farmer = await store.getFarmerById(tank.farmerId);
+    const farmer = (tank.hasValidFarmer && tank.farmerId) ? await store.getFarmerById(tank.farmerId) : null;
     return sendSuccess(res, { ...tank, farmer }, 'Tank details retrieved');
   } catch (error) {
     console.error('[Error in getTankById]', error);

@@ -28,19 +28,24 @@ const AgentDashboard = () => {
 
   // Farmers assigned to this technician
   const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
+  const assignedFarmerIds = new Set(assignedFarmers.map(f => f.id));
   const allTanks = db?.tanks || [];
-  const assignedTanks = allTanks.filter(t => 
-    t.agentId === agentId || 
-    t.agent_id === agentId || 
-    assignedFarmers.some(f => f.id === t.farmerId || f.id === t.farmer_id)
-  );
 
-  // Active tanks for dashboard and map: strictly assigned tanks
+  // Strictly filter for tanks with a valid, existing farmer in db.farmers
+  const assignedTanks = allTanks.filter(t => {
+    if (t.isOrphaned || t.hasValidFarmer === false) return false;
+    const fId = t.farmerId || t.farmer_id;
+    const farmer = (db?.farmers || []).find(f => f.id === fId || f.farmer_code === fId);
+    if (!farmer) return false;
+    return assignedFarmerIds.has(farmer.id) || t.agentId === agentId || t.agent_id === agentId;
+  });
+
+  // Active tanks for dashboard and map: strictly assigned tanks with valid farmer
   const activeTanksForMap = assignedTanks;
 
   // Compute weekly routine due & overdue status for all assigned tanks
   const tanksWithDueInfo = activeTanksForMap.map((tank, idx) => {
-    const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id) || { name: 'Ravi', location: 'Chinnamiram', phone: '+91 9876543211' };
+    const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id) || { name: '', location: '', phone: '' };
     const schedule = getTankWeeklySchedule(tank, db?.submissions || []);
     const isHarvested = tank.status === 'Harvested';
     const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue || (!tank.testStatus && idx === 4)) && !isHarvested;
@@ -65,46 +70,51 @@ const AgentDashboard = () => {
 
   const recentRecords = technicianSubmissions.slice(0, 3);
 
-  // Nearby Tank Map Coordinates (Strictly mapped from actual assigned tanks with exact GPS coordinates)
-  const mapTanks = activeTanksForMap.map((tank) => {
-    const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id);
-    const lat = (tank.latitude != null && !isNaN(Number(tank.latitude))) 
-      ? Number(tank.latitude) 
-      : ((farmer?.latitude != null && !isNaN(Number(farmer.latitude))) ? Number(farmer.latitude) : null);
-    const lng = (tank.longitude != null && !isNaN(Number(tank.longitude))) 
-      ? Number(tank.longitude) 
-      : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
+  // Nearby Tank Map Coordinates (Strictly mapped from actual assigned tanks with valid existing farmers)
+  const mapTanks = activeTanksForMap
+    .filter(tank => {
+      const fId = tank.farmerId || tank.farmer_id;
+      return (db?.farmers || []).some(f => f.id === fId || f.farmer_code === fId);
+    })
+    .map((tank) => {
+      const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id);
+      const lat = (tank.latitude != null && !isNaN(Number(tank.latitude)))
+        ? Number(tank.latitude)
+        : ((farmer?.latitude != null && !isNaN(Number(farmer.latitude))) ? Number(farmer.latitude) : null);
+      const lng = (tank.longitude != null && !isNaN(Number(tank.longitude)))
+        ? Number(tank.longitude)
+        : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
 
-    // Dynamic real distance calculation from current GPS beacon (only if live GPS and tank coords exist)
-    let distanceStr = '';
-    if (gps?.latitude && gps?.longitude && lat && lng) {
-      const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
-      distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
-    }
+      // Dynamic real distance calculation from current GPS beacon (only if live GPS and tank coords exist)
+      let distanceStr = '';
+      if (gps?.latitude && gps?.longitude && lat && lng) {
+        const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
+        distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+      }
 
-    return {
-      id: tank.id,
-      name: tank.name,
-      farmer: farmer?.name || tank.farmerName || 'Farmer',
-      farmerId: farmer?.id || tank.farmerId || tank.farmer_id,
-      latitude: lat,
-      longitude: lng,
-      boundaryCoordinates: tank.boundaryCoordinates || tank.boundary_coordinates,
-      boundaryMethod: tank.boundaryMethod || tank.boundary_method,
-      boundaryAreaAcres: tank.boundaryAreaAcres || tank.boundary_area_acres,
-      location: tank.location || farmer?.location || farmer?.village || 'Aquaculture Zone',
-      locality: farmer?.village || farmer?.location || tank.location || 'Aquaculture Zone',
-      distance: distanceStr,
-      status: tank.testStatus || tank.status || 'Optimal',
-      due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue' || tank.isDue,
-      species: tank.species || 'Vannamei',
-      size: tank.size || (tank.acres ? `${tank.acres} Acres` : '1.5 Acres'),
-      acres: tank.acres || tank.area_acres || 1.5,
-      doc: tank.doc,
-      abw: tank.abw,
-      salinity: tank.salinity
-    };
-  });
+      return {
+        id: tank.id,
+        name: tank.name,
+        farmer: farmer?.name || tank.farmerName || '',
+        farmerId: farmer?.id || tank.farmerId || tank.farmer_id,
+        latitude: lat,
+        longitude: lng,
+        boundaryCoordinates: tank.boundaryCoordinates || tank.boundary_coordinates,
+        boundaryMethod: tank.boundaryMethod || tank.boundary_method,
+        boundaryAreaAcres: tank.boundaryAreaAcres || tank.boundary_area_acres,
+        location: tank.location || farmer?.location || farmer?.village || 'Aquaculture Zone',
+        locality: farmer?.village || farmer?.location || tank.location || 'Aquaculture Zone',
+        distance: distanceStr,
+        status: tank.testStatus || tank.status || 'Optimal',
+        due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue' || tank.isDue,
+        species: tank.species || 'Vannamei',
+        size: tank.size || (tank.acres ? `${tank.acres} Acres` : '1.5 Acres'),
+        acres: tank.acres || tank.area_acres || 1.5,
+        doc: tank.doc,
+        abw: tank.abw,
+        salinity: tank.salinity
+      };
+    });
 
   // Load GPS on mount & refresh if stale
   useEffect(() => {
