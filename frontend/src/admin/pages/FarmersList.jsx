@@ -70,6 +70,16 @@ const FarmersList = () => {
 
   useEffect(() => {
     fetchAllData();
+    const handleFarmerChange = () => {
+      adminService.clearCache('/farmers');
+      fetchAllData();
+    };
+    window.addEventListener('farmerCreated', handleFarmerChange);
+    window.addEventListener('adminDataChanged', handleFarmerChange);
+    return () => {
+      window.removeEventListener('farmerCreated', handleFarmerChange);
+      window.removeEventListener('adminDataChanged', handleFarmerChange);
+    };
   }, []);
 
   // Filters state
@@ -199,19 +209,16 @@ const FarmersList = () => {
   };
 
   // 1. Add Farmer Submit
-  const handleAddFarmerSubmit = (e) => {
+  const handleAddFarmerSubmit = async (e) => {
     e.preventDefault();
     if (!newFarmer.name.trim()) return;
 
-    const nextNumber = farmers.length + 1;
-    const newId = `FAR-${String(100 + nextNumber)}`;
     const selectedRegionObj = regions.find(r => r.id === newFarmer.regionId) || regions[0];
     const selectedAgentObj = allAgents.find(a => a.id === newFarmer.agentId) || allAgents[0];
 
     const totalAcresCalculated = newFarmer.tankSizes.reduce((acc, s) => acc + (parseFloat(s) || 0), 0);
 
     const tankBreakdown = newFarmer.tankSizes.map((size, idx) => ({
-      id: `T-${newId}-${idx + 1}`,
       name: `Tank ${idx + 1}`,
       acres: parseFloat(size) || 0,
       waterSource: newFarmer.waterSource,
@@ -224,14 +231,14 @@ const FarmersList = () => {
     const farmerPayload = {
       name: newFarmer.name.trim(),
       phone: newFarmer.phone.trim(),
-      region: selectedRegionObj.name,
-      regionId: selectedRegionObj.id,
+      region: selectedRegionObj?.name,
+      regionId: selectedRegionObj?.id,
       location: `${newFarmer.village.trim() || newFarmer.locality}, ${newFarmer.locality}`,
       locality: newFarmer.locality,
       village: newFarmer.village.trim() || `${newFarmer.locality} Village`,
-      agentId: selectedAgentObj.id,
-      agent: selectedAgentObj.name,
-      incharge: selectedAgentObj.incharge || 'Ravi Kumar',
+      agentId: selectedAgentObj?.id,
+      agent: selectedAgentObj?.name,
+      incharge: selectedAgentObj?.incharge || 'Ravi Kumar',
       waterSource: newFarmer.waterSource,
       acres: `${totalAcresCalculated.toFixed(1)} Acres`,
       totalAcres: totalAcresCalculated,
@@ -241,27 +248,40 @@ const FarmersList = () => {
       status: 'Active'
     };
 
-    if (createFarmerWithTanks) {
-      createFarmerWithTanks(selectedAgentObj.id, farmerPayload, tankBreakdown);
-    } else {
-      setFarmers(prev => [{ ...farmerPayload, id: newId }, ...prev]);
+    try {
+      setLoading(true);
+      if (createFarmerWithTanks) {
+        await createFarmerWithTanks(selectedAgentObj?.id, farmerPayload, tankBreakdown);
+      } else {
+        await adminService.createFarmer(farmerPayload);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${farmerPayload.name} added successfully!`);
+      setShowAddModal(false);
+
+      // Reset Form
+      setNewFarmer({
+        name: '',
+        phone: '+91 ',
+        regionId: defaultRegion.id,
+        locality: defaultLocName,
+        village: '',
+        agentId: allAgents[0]?.id || 'EMP-AGT-01',
+        waterSource: 'Creek / Estuary',
+        tankCount: 1,
+        tankSizes: [4.5]
+      });
+    } catch (err) {
+      console.error('[FarmersList] handleAddFarmerSubmit failed:', err);
+      showToast(`Failed to add farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-
-    showToast(`Farmer ${farmerPayload.name} added successfully!`);
-    setShowAddModal(false);
-
-    // Reset Form
-    setNewFarmer({
-      name: '',
-      phone: '+91 ',
-      regionId: defaultRegion.id,
-      locality: defaultLocName,
-      village: '',
-      agentId: allAgents[0]?.id || 'EMP-AGT-01',
-      waterSource: 'Creek / Estuary',
-      tankCount: 1,
-      tankSizes: [4.5]
-    });
   };
 
   // 2. Open Edit Farmer Modal
@@ -287,7 +307,7 @@ const FarmersList = () => {
   };
 
   // Handle Edit Farmer Submit
-  const handleEditFarmerSubmit = (e) => {
+  const handleEditFarmerSubmit = async (e) => {
     e.preventDefault();
     if (!editFarmer.name.trim() || !selectedFarmer) return;
 
@@ -313,13 +333,27 @@ const FarmersList = () => {
       status: editFarmer.status
     };
 
-    if (updateFarmer) {
-      updateFarmer(selectedFarmer.id, updatedFarmer);
+    try {
+      setLoading(true);
+      if (updateFarmer) {
+        await updateFarmer(selectedFarmer.id, updatedFarmer);
+      } else {
+        await adminService.updateFarmer(selectedFarmer.id, updatedFarmer);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
+      setShowEditModal(false);
+      setSelectedFarmer(null);
+    } catch (err) {
+      console.error('[FarmersList] handleEditFarmerSubmit failed:', err);
+      showToast(`Failed to update farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-    setFarmers(prev => prev.map(f => f.id === selectedFarmer.id ? updatedFarmer : f));
-    showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
-    setShowEditModal(false);
-    setSelectedFarmer(null);
   };
 
   // 3. Delete / Remove Farmer
@@ -329,16 +363,31 @@ const FarmersList = () => {
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!selectedFarmer) return;
 
-    if (deleteFarmer) {
-      deleteFarmer(selectedFarmer.id);
+    try {
+      setLoading(true);
+      if (deleteFarmer) {
+        await deleteFarmer(selectedFarmer.id);
+      } else {
+        await adminService.deleteFarmer(selectedFarmer.id);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${selectedFarmer.name} (${selectedFarmer.id}) removed from directory.`);
+      setShowDeleteModal(false);
+      setSelectedFarmer(null);
+    } catch (err) {
+      console.error('[FarmersList] handleConfirmDelete failed:', err);
+      showToast(`Failed to delete farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-    setFarmers(prev => prev.filter(f => f.id !== selectedFarmer.id));
-    showToast(`Farmer ${selectedFarmer.name} (${selectedFarmer.id}) removed from directory.`);
-    setShowDeleteModal(false);
-    setSelectedFarmer(null);
   };
 
   // Helper to calculate FCR for a tank

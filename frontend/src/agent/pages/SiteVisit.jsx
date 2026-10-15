@@ -32,6 +32,7 @@ const SiteVisit = () => {
   const [session, setSession] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [returnToSubmit, setReturnToSubmit] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { getTankById, getDraft, saveDraft, submitRecord } = useMockData();
   
   // GPS State
@@ -309,6 +310,8 @@ const SiteVisit = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+
     const { ph, ammonia, nitrate, salinity } = formData.water;
     if (!ph || !ammonia || !nitrate || !salinity) {
       alert('Water Analysis requires mandatory fields:\n• pH Level\n• Ammonia (NH3)\n• Nitrate (NO3)\n• Salinity\nPlease fill them before submitting.');
@@ -326,70 +329,29 @@ const SiteVisit = () => {
       return;
     }
 
-    const now = new Date(locationFix.timestamp || Date.now());
-    const formattedDate = now.toISOString().split('T')[0];
-    const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    setIsSubmitting(true);
+    try {
+      const now = new Date(locationFix.timestamp || Date.now());
+      const formattedDate = now.toISOString().split('T')[0];
+      const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
-    const resolvedUserId = isIncharge
-      ? (session?.inchargeId || session?.id || 'INC001')
-      : (session?.agentId || session?.id || 'agent001');
-    const resolvedUserName = session?.name || (isIncharge ? 'Incharge' : 'Ramesh');
+      const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
+      const resolvedUserId = isIncharge
+        ? (session?.inchargeId || session?.id || 'INC001')
+        : (session?.agentId || session?.id || 'agent001');
+      const resolvedUserName = session?.name || (isIncharge ? 'Incharge' : 'Ramesh');
 
-    const enrichedWater = {
-      ...formData.water,
-      ph: formData.water.ph ?? '',
-      ammonia: formData.water.ammonia ?? '',
-      nitrate: formData.water.nitrate ?? '',
-      salinity: formData.water.salinity ?? '',
-      nitrite: formData.water.nitrate ?? '', // backwards compatibility
-    };
+      const enrichedWater = {
+        ...formData.water,
+        ph: formData.water.ph ?? '',
+        ammonia: formData.water.ammonia ?? '',
+        nitrate: formData.water.nitrate ?? '',
+        salinity: formData.water.salinity ?? '',
+        nitrite: formData.water.nitrate ?? '', // backwards compatibility
+      };
 
-    // 1. Submit Water Analysis Record
-    submitRecord({
-      tankId,
-      farmerId: tank?.farmerId,
-      agentId: resolvedUserId,
-      userId: resolvedUserId,
-      userName: resolvedUserName,
-      role: resolvedRole,
-      submittedBy: resolvedRole,
-      testType: 'Water Analysis',
-      recordType: 'WATER_QUALITY',
-      formData: {
-        ...formData,
-        water: enrichedWater,
-      },
-      data: enrichedWater,
-      latitude: locationFix.latitude,
-      longitude: locationFix.longitude,
-      accuracy: locationFix.accuracy,
-      date: formattedDate,
-      submissionTime: formattedTime,
-      timestamp: now.toISOString(),
-      locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
-      gps: {
-        latitude: locationFix.latitude,
-        longitude: locationFix.longitude,
-        accuracy: locationFix.accuracy,
-        timestamp: locationFix.timestamp,
-        locality: locationFix.locality,
-        verified: true,
-      },
-      submittedAt: now.toISOString()
-    });
-
-    // 2. Submit Feed Record if feed parameters are entered
-    const hasFeedData = Boolean(
-      formData.feed.dayFeed ||
-      formData.feed.cumulativeFeed ||
-      formData.feed.totalBiomass ||
-      formData.feed.fcr ||
-      formData.feed.abw ||
-      formData.feed.doc
-    );
-    if (hasFeedData) {
-      submitRecord({
+      // 1. Submit Water Analysis Record (mandatory)
+      await submitRecord({
         tankId,
         farmerId: tank?.farmerId,
         agentId: resolvedUserId,
@@ -397,10 +359,13 @@ const SiteVisit = () => {
         userName: resolvedUserName,
         role: resolvedRole,
         submittedBy: resolvedRole,
-        testType: 'Feed Test',
-        recordType: 'FEED_ENTRY',
-        formData: formData.feed,
-        data: formData.feed,
+        testType: 'Water Analysis',
+        recordType: 'WATER_QUALITY',
+        formData: {
+          ...formData,
+          water: enrichedWater,
+        },
+        data: enrichedWater,
         latitude: locationFix.latitude,
         longitude: locationFix.longitude,
         accuracy: locationFix.accuracy,
@@ -418,85 +383,132 @@ const SiteVisit = () => {
         },
         submittedAt: now.toISOString()
       });
-    }
 
-    // 3. Submit Disease Observation if disease symptoms or remarks are entered
-    const hasDiseaseData = Boolean(
-      (formData.disease.observations && formData.disease.observations.length > 0) ||
-      formData.disease.remarks
-    );
-    if (hasDiseaseData) {
-      submitRecord({
-        tankId,
-        farmerId: tank?.farmerId,
-        agentId: resolvedUserId,
-        userId: resolvedUserId,
-        userName: resolvedUserName,
-        role: resolvedRole,
-        submittedBy: resolvedRole,
-        testType: 'Disease Observation',
-        recordType: 'DISEASE_ENTRY',
-        formData: formData.disease,
-        data: formData.disease,
-        latitude: locationFix.latitude,
-        longitude: locationFix.longitude,
-        accuracy: locationFix.accuracy,
-        date: formattedDate,
-        submissionTime: formattedTime,
-        timestamp: now.toISOString(),
-        locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
-        gps: {
+      // 2. Submit Feed Record if feed parameters are entered
+      const hasFeedData = Boolean(
+        formData.feed.dayFeed ||
+        formData.feed.cumulativeFeed ||
+        formData.feed.totalBiomass ||
+        formData.feed.fcr ||
+        formData.feed.abw ||
+        formData.feed.doc
+      );
+      if (hasFeedData) {
+        await submitRecord({
+          tankId,
+          farmerId: tank?.farmerId,
+          agentId: resolvedUserId,
+          userId: resolvedUserId,
+          userName: resolvedUserName,
+          role: resolvedRole,
+          submittedBy: resolvedRole,
+          testType: 'Feed Test',
+          recordType: 'FEED_ENTRY',
+          formData: formData.feed,
+          data: formData.feed,
           latitude: locationFix.latitude,
           longitude: locationFix.longitude,
           accuracy: locationFix.accuracy,
-          timestamp: locationFix.timestamp,
-          locality: locationFix.locality,
-          verified: true,
-        },
-        submittedAt: now.toISOString()
-      });
-    }
+          date: formattedDate,
+          submissionTime: formattedTime,
+          timestamp: now.toISOString(),
+          locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+          gps: {
+            latitude: locationFix.latitude,
+            longitude: locationFix.longitude,
+            accuracy: locationFix.accuracy,
+            timestamp: locationFix.timestamp,
+            locality: locationFix.locality,
+            verified: true,
+          },
+          submittedAt: now.toISOString()
+        });
+      }
 
-    // 4. Submit Medication Log if medication entered
-    const hasMedicationData = Boolean(
-      formData.medication.product ||
-      formData.medication.treatmentType ||
-      formData.medication.dosage
-    );
-    if (hasMedicationData) {
-      submitRecord({
-        tankId,
-        farmerId: tank?.farmerId,
-        agentId: resolvedUserId,
-        userId: resolvedUserId,
-        userName: resolvedUserName,
-        role: resolvedRole,
-        submittedBy: resolvedRole,
-        testType: 'Medication',
-        recordType: 'MEDICATION',
-        formData: formData.medication,
-        data: formData.medication,
-        latitude: locationFix.latitude,
-        longitude: locationFix.longitude,
-        accuracy: locationFix.accuracy,
-        date: formattedDate,
-        submissionTime: formattedTime,
-        timestamp: now.toISOString(),
-        locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
-        gps: {
+      // 3. Submit Disease Observation if disease symptoms or remarks are entered
+      const hasDiseaseData = Boolean(
+        (formData.disease.observations && formData.disease.observations.length > 0) ||
+        formData.disease.remarks
+      );
+      if (hasDiseaseData) {
+        await submitRecord({
+          tankId,
+          farmerId: tank?.farmerId,
+          agentId: resolvedUserId,
+          userId: resolvedUserId,
+          userName: resolvedUserName,
+          role: resolvedRole,
+          submittedBy: resolvedRole,
+          testType: 'Disease Observation',
+          recordType: 'DISEASE_ENTRY',
+          formData: formData.disease,
+          data: formData.disease,
           latitude: locationFix.latitude,
           longitude: locationFix.longitude,
           accuracy: locationFix.accuracy,
-          timestamp: locationFix.timestamp,
-          locality: locationFix.locality,
-          verified: true,
-        },
-        submittedAt: now.toISOString()
-      });
-    }
+          date: formattedDate,
+          submissionTime: formattedTime,
+          timestamp: now.toISOString(),
+          locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+          gps: {
+            latitude: locationFix.latitude,
+            longitude: locationFix.longitude,
+            accuracy: locationFix.accuracy,
+            timestamp: locationFix.timestamp,
+            locality: locationFix.locality,
+            verified: true,
+          },
+          submittedAt: now.toISOString()
+        });
+      }
 
-    alert('Site Visit submitted successfully! Field tests recorded.');
-    navigate(targetTankUrl);
+      // 4. Submit Medication Log if medication entered
+      const hasMedicationData = Boolean(
+        formData.medication.product ||
+        formData.medication.treatmentType ||
+        formData.medication.dosage
+      );
+      if (hasMedicationData) {
+        await submitRecord({
+          tankId,
+          farmerId: tank?.farmerId,
+          agentId: resolvedUserId,
+          userId: resolvedUserId,
+          userName: resolvedUserName,
+          role: resolvedRole,
+          submittedBy: resolvedRole,
+          testType: 'Medication',
+          recordType: 'MEDICATION',
+          formData: formData.medication,
+          data: formData.medication,
+          latitude: locationFix.latitude,
+          longitude: locationFix.longitude,
+          accuracy: locationFix.accuracy,
+          date: formattedDate,
+          submissionTime: formattedTime,
+          timestamp: now.toISOString(),
+          locality: locationFix.locality || (tank?.location || 'Coastal Aquaculture Zone'),
+          gps: {
+            latitude: locationFix.latitude,
+            longitude: locationFix.longitude,
+            accuracy: locationFix.accuracy,
+            timestamp: locationFix.timestamp,
+            locality: locationFix.locality,
+            verified: true,
+          },
+          submittedAt: now.toISOString()
+        });
+      }
+
+      setIsSubmitting(false);
+      alert('Site Visit submitted successfully! Field tests recorded.');
+      navigate(targetTankUrl);
+    } catch (err) {
+      console.error('[SiteVisit] Submission failed:', err);
+      setIsSubmitting(false);
+      const msg = err.response?.data?.message || err.message || 'Failed to submit visit record';
+      alert(`Submission failed: ${msg}. Your entered test data is preserved. Please try again.`);
+    }
   };
 
   const renderStepContent = () => {
@@ -1063,10 +1075,18 @@ const SiteVisit = () => {
               </button>
               <button 
                 className="btn-primary"
-                style={{ backgroundColor: '#22A65A', width: '100%', padding: '16px', fontSize: '15px' }}
+                style={{
+                  backgroundColor: '#22A65A',
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '15px',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  opacity: isSubmitting ? 0.7 : 1
+                }}
                 onClick={handleSubmit}
+                disabled={isSubmitting}
               >
-                <Send size={18} /> SUBMIT TESTS
+                <Send size={18} /> {isSubmitting ? 'SUBMITTING...' : 'SUBMIT TESTS'}
               </button>
               <button
                 type="button"

@@ -21,6 +21,12 @@ const normalizeUser = (u) => {
   };
 };
 
+const parseBoundaryCoords = (c) => {
+  if (!c) return null;
+  if (typeof c === 'object') return c;
+  try { return JSON.parse(c); } catch { return null; }
+};
+
 class DataStore {
   constructor() { }
 
@@ -477,6 +483,9 @@ class DataStore {
           COALESCE(f.name, '') as farmer_name,
           COALESCE(f.location, '') as farmer_location,
           COALESCE(f.village, '') as farmer_village,
+          COALESCE(f.phone, '') as farmer_phone,
+          f.latitude as farmer_latitude,
+          f.longitude as farmer_longitude,
           COALESCE(a.name, '') as agent_name,
           COALESCE(a.locality, '') as agent_locality,
           COALESCE(i.name, '') as incharge_name,
@@ -523,6 +532,12 @@ class DataStore {
         farmer: r.farmer_name,
         location: r.farmer_location || r.location || '',
         locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || 'Bhimavaram',
+        latitude: r.latitude != null && !isNaN(Number(r.latitude))
+          ? Number(r.latitude)
+          : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+        longitude: r.longitude != null && !isNaN(Number(r.longitude))
+          ? Number(r.longitude)
+          : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
         agentId: r.agent_id,
         agent: r.agent_name,
         inchargeId: r.incharge_id,
@@ -534,6 +549,11 @@ class DataStore {
         nextTest: r.next_test,
         status: r.status || 'ACTIVE',
         cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+        boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
+        boundaryMethod: r.boundary_method || null,
+        boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
+        boundaryQuality: r.boundary_quality || null,
+        boundaryCapturedAt: r.boundary_captured_at || null,
       }));
     } catch (err) {
       console.error('[DB Error in getTanks]', err.message);
@@ -551,6 +571,8 @@ class DataStore {
           COALESCE(f.location, '') as farmer_location,
           COALESCE(f.village, '') as farmer_village,
           COALESCE(f.phone, '') as farmer_phone,
+          f.latitude as farmer_latitude,
+          f.longitude as farmer_longitude,
           COALESCE(a.name, '') as agent_name,
           COALESCE(a.phone, '') as agent_phone,
           COALESCE(a.locality, '') as agent_locality,
@@ -577,6 +599,12 @@ class DataStore {
           farmerPhone: r.farmer_phone,
           location: r.farmer_location || r.location || '',
           locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
+          latitude: r.latitude != null && !isNaN(Number(r.latitude))
+            ? Number(r.latitude)
+            : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+          longitude: r.longitude != null && !isNaN(Number(r.longitude))
+            ? Number(r.longitude)
+            : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
           agentId: r.agent_id,
           agent: r.agent_name,
           agentPhone: r.agent_phone,
@@ -589,6 +617,11 @@ class DataStore {
           nextTest: r.next_test,
           status: r.status || 'ACTIVE',
           cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+          boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
+          boundaryMethod: r.boundary_method || null,
+          boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
+          boundaryQuality: r.boundary_quality || null,
+          boundaryCapturedAt: r.boundary_captured_at || null,
         };
       }
       return null;
@@ -620,6 +653,12 @@ class DataStore {
     }
 
     const id = data.id || `T_${Date.now().toString(36).toUpperCase()}`;
+    const formatBoundaryCoords = (c) => {
+      if (!c) return null;
+      if (typeof c === 'string') return c;
+      return JSON.stringify(c);
+    };
+
     const newTank = {
       id,
       name: cleanName,
@@ -643,17 +682,34 @@ class DataStore {
       water_source: data.waterSource || 'Bore Well',
       culture_type: data.cultureType || 'Semi-Intensive',
       stocking_date: data.stockingDate || new Date().toISOString().split('T')[0],
+      boundary_coordinates: formatBoundaryCoords(data.boundaryCoordinates),
+      boundary_method: data.boundaryMethod || null,
+      boundary_area_acres: data.boundaryAreaAcres != null && data.boundaryAreaAcres !== '' ? parseFloat(data.boundaryAreaAcres) : null,
+      boundary_quality: data.boundaryQuality || null,
+      boundary_captured_at: data.boundaryCapturedAt ? new Date(data.boundaryCapturedAt) : (data.boundaryCoordinates ? new Date() : null),
     };
 
     try {
       await query(
-        `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, acres, area_acres, doc, salinity, species, water_source, culture_type, stocking_date) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO tanks (
+          id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, 
+          abw, biomass, fcr, last_test, next_test, size, acres, area_acres, doc, 
+          salinity, species, water_source, culture_type, stocking_date,
+          boundary_coordinates, boundary_method, boundary_area_acres, boundary_quality, boundary_captured_at
+        ) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
            assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
-           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), acres=VALUES(acres), area_acres=VALUES(area_acres), doc=VALUES(doc),
-           salinity=VALUES(salinity), species=VALUES(species), water_source=VALUES(water_source), culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date)`,
+           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), 
+           size=VALUES(size), acres=VALUES(acres), area_acres=VALUES(area_acres), doc=VALUES(doc),
+           salinity=VALUES(salinity), species=VALUES(species), water_source=VALUES(water_source), 
+           culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date),
+           boundary_coordinates=COALESCE(VALUES(boundary_coordinates), boundary_coordinates),
+           boundary_method=COALESCE(VALUES(boundary_method), boundary_method),
+           boundary_area_acres=COALESCE(VALUES(boundary_area_acres), boundary_area_acres),
+           boundary_quality=COALESCE(VALUES(boundary_quality), boundary_quality),
+           boundary_captured_at=COALESCE(VALUES(boundary_captured_at), boundary_captured_at)`,
         [
           newTank.id,
           newTank.name,
@@ -677,6 +733,11 @@ class DataStore {
           newTank.water_source,
           newTank.culture_type,
           newTank.stocking_date,
+          newTank.boundary_coordinates,
+          newTank.boundary_method,
+          newTank.boundary_area_acres,
+          newTank.boundary_quality,
+          newTank.boundary_captured_at,
         ]
       );
       if (newTank.farmer_id) {
@@ -715,6 +776,26 @@ class DataStore {
       if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
       if (updates.cultureType !== undefined) { fields.push('culture_type = ?'); params.push(updates.cultureType); }
       if (updates.stockingDate !== undefined) { fields.push('stocking_date = ?'); params.push(updates.stockingDate); }
+      if (updates.boundaryCoordinates !== undefined) {
+        fields.push('boundary_coordinates = ?');
+        params.push(updates.boundaryCoordinates ? (typeof updates.boundaryCoordinates === 'string' ? updates.boundaryCoordinates : JSON.stringify(updates.boundaryCoordinates)) : null);
+      }
+      if (updates.boundaryMethod !== undefined) {
+        fields.push('boundary_method = ?');
+        params.push(updates.boundaryMethod || null);
+      }
+      if (updates.boundaryAreaAcres !== undefined) {
+        fields.push('boundary_area_acres = ?');
+        params.push(updates.boundaryAreaAcres != null && updates.boundaryAreaAcres !== '' ? parseFloat(updates.boundaryAreaAcres) : null);
+      }
+      if (updates.boundaryQuality !== undefined) {
+        fields.push('boundary_quality = ?');
+        params.push(updates.boundaryQuality || null);
+      }
+      if (updates.boundaryCapturedAt !== undefined) {
+        fields.push('boundary_captured_at = ?');
+        params.push(updates.boundaryCapturedAt ? new Date(updates.boundaryCapturedAt) : null);
+      }
 
       if (fields.length > 0) {
         params.push(id);
@@ -1125,7 +1206,7 @@ class DataStore {
           t.fcr as tank_fcr,
           t.abw as tank_abw,
           t.doc as tank_doc,
-          COALESCE(h.revenue, h.total_value, (h.quantity_kg * COALESCE(h.price_per_kg, 0))) as computed_revenue
+          COALESCE(h.harvested_biomass, h.total_biomass_kg, 0) as computed_quantity_kg
         FROM harvests h
         LEFT JOIN tanks t ON h.tank_id = t.id
         LEFT JOIN farmers f ON (h.farmer_id = f.id OR t.farmer_id = f.id)
@@ -1143,27 +1224,32 @@ class DataStore {
       sql += ' ORDER BY COALESCE(h.date, h.harvest_date, h.created_at) DESC';
 
       const rows = await query(sql, params);
-      return rows.map((r) => ({
-        ...r,
-        id: String(r.id),
-        tankId: r.tank_id,
-        tankName: r.tank_name,
-        farmerId: r.farmer_id,
-        farmerName: r.farmer_name,
-        date: r.date || (r.harvest_date ? String(r.harvest_date).split('T')[0] : ''),
-        quantityKg: Number(r.quantity_kg || 0),
-        countPerKg: r.count_per_kg || (r.average_weight_g ? Math.round(1000 / Number(r.average_weight_g)) : 30),
-        quality: r.quality || 'A Grade',
-        pricePerKg: Number(r.price_per_kg || 0),
-        revenue: Number(r.computed_revenue || 0),
-        fcr: r.fcr || r.tank_fcr || '1.25',
-        abw: r.abw || r.tank_abw || '14.5g',
-        doc: r.doc || r.tank_doc || 0,
-        buyerName: r.buyer_name || 'Exporter',
-        remarks: r.remarks || '',
-        harvestType: r.harvest_type || 'Harvest',
-        cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
-      }));
+      return rows.map((r) => {
+        const qty = Number(r.harvested_biomass != null ? r.harvested_biomass : (r.total_biomass_kg != null ? r.total_biomass_kg : (r.computed_quantity_kg || 0)));
+        return {
+          ...r,
+          id: String(r.id),
+          tankId: r.tank_id,
+          tankName: r.tank_name,
+          farmerId: r.farmer_id,
+          farmerName: r.farmer_name,
+          date: r.date || (r.harvest_date ? String(r.harvest_date).split('T')[0] : ''),
+          quantityKg: qty,
+          harvestedBiomass: qty,
+          totalBiomassKg: r.total_biomass_kg != null ? Number(r.total_biomass_kg) : qty,
+          countPerKg: r.abw ? (parseFloat(r.abw) > 0 ? Math.round(1000 / parseFloat(r.abw)) : 30) : 30,
+          quality: 'A Grade',
+          pricePerKg: 0,
+          revenue: 0,
+          fcr: r.fcr || r.tank_fcr || '1.25',
+          abw: r.abw || r.tank_abw || '14.5g',
+          doc: r.doc != null ? r.doc : (r.tank_doc || 0),
+          buyerName: r.buyer_name || 'Exporter',
+          remarks: r.remarks || '',
+          harvestType: r.harvest_type || 'Harvest',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+        };
+      });
     } catch (err) {
       console.error('[DB Error in getHarvests]', err.message);
       throw new Error(`[DB Error in getHarvests]: ${err.message}`);
@@ -1237,8 +1323,8 @@ class DataStore {
 
     try {
       await query(
-        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, date, harvest_date, harvested_biomass, total_biomass_kg, doc, abw, buyer_name, remarks) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newHarvest.id,
           newHarvest.harvest_code,
@@ -1248,12 +1334,10 @@ class DataStore {
           newHarvest.harvest_type,
           newHarvest.date,
           newHarvest.harvest_date,
-          newHarvest.quantity_kg,
-          newHarvest.count_per_kg,
-          newHarvest.quality,
-          newHarvest.price_per_kg,
-          newHarvest.revenue,
-          newHarvest.total_value,
+          q,
+          q,
+          data.doc != null ? Number(data.doc) : null,
+          data.abw ? String(data.abw) : null,
           newHarvest.buyer_name,
           newHarvest.remarks,
         ]
@@ -1371,8 +1455,8 @@ class DataStore {
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')) as pendingTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'due') as dueTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'overdue') as overdueTests,
-          (SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) FROM harvests) as totalHarvestRevenue,
-          (SELECT COALESCE(SUM(quantity_kg), 0) FROM harvests) as harvestTotalKg,
+          0 as totalHarvestRevenue,
+          (SELECT COALESCE(SUM(COALESCE(harvested_biomass, total_biomass_kg, 0)), 0) FROM harvests) as harvestTotalKg,
           (SELECT COUNT(DISTINCT id) FROM harvests) as harvestsCount,
           (SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0') as avg_fcr,
           (SELECT ROUND(AVG(CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(6,2))), 2) FROM tanks WHERE abw IS NOT NULL AND abw != '') as avg_abw,

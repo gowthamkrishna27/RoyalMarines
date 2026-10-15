@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { getSession } from "../agent/utils/agentAuth";
 import { apiClient } from "../utils/apiClient";
+import { adminService } from "../admin/utils/adminService";
 // Zero mock data - Initial state is empty arrays until populated by MySQL APIs
 const initialRegions = [];
 const initialIncharges = [];
@@ -52,6 +53,7 @@ export const deduplicateFarmers = (farmers) => {
 };
 
 const getInitialDb = () => {
+  // Business data starts empty - authoritative source is live MySQL API
   const fallbackDb = {
     regions: initialRegions,
     incharges: initialIncharges,
@@ -68,7 +70,9 @@ const getInitialDb = () => {
 
   if (typeof window === "undefined") return fallbackDb;
 
+  // Clean up legacy stale local storage keys confirmed to cause data pollution
   [
+    "aqua_feed_clean_database_v1",
     "aqua_feed_mock_database_v7",
     "aqua_feed_mock_database_v8",
     "aqua_feed_mock_database_v9",
@@ -84,25 +88,14 @@ const getInitialDb = () => {
     } catch (e) {}
   });
 
+  // Preserve legitimately stored user drafts
   try {
-    const savedData = localStorage.getItem("aqua_feed_clean_database_v1");
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      if (parsed) {
-        parsed.tanks = normalizeTanks(parsed.tanks || []);
-        return parsed;
-      }
+    const savedDrafts = localStorage.getItem("aqua_feed_drafts");
+    if (savedDrafts) {
+      fallbackDb.drafts = JSON.parse(savedDrafts) || [];
     }
-  } catch (e) {
-    console.error("Error parsing storage:", e);
-  }
-
-  try {
-    localStorage.setItem(
-      "aqua_feed_clean_database_v1",
-      JSON.stringify(fallbackDb),
-    );
   } catch (e) {}
+
   return fallbackDb;
 };
 
@@ -430,9 +423,67 @@ export const MockDataProvider = ({ children }) => {
   const [toastMessage, setToastMessage] = useState("");
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [dbConnected, setDbConnected] = useState(true);
+  const [dbError, setDbError] = useState(null);
 
+  // Granular, authoritative refresh methods:
+  const refreshFarmers = async () => {
+    try {
+      const res = await apiClient.get("/farmers");
+      const list = Array.isArray(res?.data) ? res.data : [];
+      const deduplicated = deduplicateFarmers(list);
+      setDb((prev) => ({ ...prev, farmers: deduplicated }));
+      return deduplicated;
+    } catch (err) {
+      console.error("[MockDataContext] refreshFarmers error:", err.message);
+      setDbError(`Farmers fetch failed: ${err.message}`);
+      throw err;
+    }
+  };
+
+  const refreshTanks = async () => {
+    try {
+      const res = await apiClient.get("/tanks");
+      const list = Array.isArray(res?.data) ? res.data : [];
+      const normalized = normalizeTanks(list);
+      setDb((prev) => ({ ...prev, tanks: normalized }));
+      return normalized;
+    } catch (err) {
+      console.error("[MockDataContext] refreshTanks error:", err.message);
+      setDbError(`Tanks fetch failed: ${err.message}`);
+      throw err;
+    }
+  };
+
+  const refreshSubmissions = async () => {
+    try {
+      const res = await apiClient.get("/submissions");
+      const list = Array.isArray(res?.data) ? res.data : [];
+      setDb((prev) => ({ ...prev, submissions: list }));
+      return list;
+    } catch (err) {
+      console.error("[MockDataContext] refreshSubmissions error:", err.message);
+      setDbError(`Submissions fetch failed: ${err.message}`);
+      throw err;
+    }
+  };
+
+  const refreshHarvests = async () => {
+    try {
+      const res = await apiClient.get("/harvests");
+      const list = Array.isArray(res?.data) ? res.data : [];
+      setDb((prev) => ({ ...prev, harvests: list }));
+      return list;
+    } catch (err) {
+      console.error("[MockDataContext] refreshHarvests error:", err.message);
+      setDbError(`Harvests fetch failed: ${err.message}`);
+      throw err;
+    }
+  };
+
+  // Comprehensive initial load
   const fetchDataFromDb = async () => {
     setIsLoadingDb(true);
+    setDbError(null);
     try {
       const [
         farmersRes,
@@ -452,51 +503,65 @@ export const MockDataProvider = ({ children }) => {
         apiClient.get("/analytics/incharges"),
       ]);
 
-      const apiFarmers = farmersRes.status === 'fulfilled' && Array.isArray(farmersRes.value?.data) ? farmersRes.value.data : [];
-      const apiTanks = tanksRes.status === 'fulfilled' && Array.isArray(tanksRes.value?.data) ? tanksRes.value.data : [];
-      const apiSubs = subsRes.status === 'fulfilled' && Array.isArray(subsRes.value?.data) ? subsRes.value.data : [];
-      const apiHarvests = harvestsRes.status === 'fulfilled' && Array.isArray(harvestsRes.value?.data) ? harvestsRes.value.data : [];
-      const apiAgents = agentsRes.status === 'fulfilled' && Array.isArray(agentsRes.value?.data) ? agentsRes.value.data : [];
-      const apiRegions = regionsRes.status === 'fulfilled' && Array.isArray(regionsRes.value?.data) ? regionsRes.value.data : [];
-      const apiIncharges = inchargesRes.status === 'fulfilled' && Array.isArray(inchargesRes.value?.data) ? inchargesRes.value.data : [];
+      const errors = [];
+      if (farmersRes.status === 'rejected') errors.push(`Farmers: ${farmersRes.reason?.message}`);
+      if (tanksRes.status === 'rejected') errors.push(`Tanks: ${tanksRes.reason?.message}`);
+      if (subsRes.status === 'rejected') errors.push(`Submissions: ${subsRes.reason?.message}`);
+      if (harvestsRes.status === 'rejected') errors.push(`Harvests: ${harvestsRes.reason?.message}`);
 
-      if (apiFarmers.length > 0 || apiTanks.length > 0 || apiSubs.length > 0 || apiAgents.length > 0 || apiRegions.length > 0 || apiIncharges.length > 0 || apiHarvests.length > 0) {
-        setDb(prev => {
-          const rawFarmers = apiFarmers.length > 0 ? apiFarmers : prev.farmers;
-          const mergedFarmers = deduplicateFarmers(rawFarmers);
-          const rawTanks = apiTanks.length > 0 ? apiTanks : prev.tanks;
-          const mergedTanks = normalizeTanks(rawTanks);
-          const mergedSubs = apiSubs.length > 0 ? apiSubs : (prev.submissions || []);
-          const mergedHarvests = apiHarvests.length > 0 ? apiHarvests : (prev.harvests || []);
-          const mergedAgents = apiAgents.length > 0 ? apiAgents : (prev.agents || []);
-          const mergedRegions = apiRegions.length > 0 ? apiRegions : (prev.regions || []);
-          const mergedIncharges = apiIncharges.length > 0 ? apiIncharges : (prev.incharges || []);
-
-          const updatedDb = {
-            ...prev,
-            farmers: mergedFarmers,
-            tanks: mergedTanks,
-            submissions: mergedSubs,
-            harvests: mergedHarvests,
-            agents: mergedAgents,
-            regions: mergedRegions,
-            incharges: mergedIncharges,
-          };
-
-          try {
-            localStorage.setItem(
-              "aqua_feed_clean_database_v1",
-              JSON.stringify(updatedDb),
-            );
-          } catch (e) {}
-
-          return updatedDb;
-        });
-        setDbConnected(true);
+      if (errors.length > 0) {
+        console.warn("[MockDataContext] DB endpoint errors:", errors);
+        setDbError(errors.join("; "));
       }
+
+      setDb(prev => {
+        // Authoritative from MySQL: if fulfilled, respect the returned array even if empty []
+        const rawFarmers = farmersRes.status === 'fulfilled' && Array.isArray(farmersRes.value?.data)
+          ? farmersRes.value.data
+          : prev.farmers;
+        const mergedFarmers = deduplicateFarmers(rawFarmers);
+
+        const rawTanks = tanksRes.status === 'fulfilled' && Array.isArray(tanksRes.value?.data)
+          ? tanksRes.value.data
+          : prev.tanks;
+        const mergedTanks = normalizeTanks(rawTanks);
+
+        const mergedSubs = subsRes.status === 'fulfilled' && Array.isArray(subsRes.value?.data)
+          ? subsRes.value.data
+          : (prev.submissions || []);
+
+        const mergedHarvests = harvestsRes.status === 'fulfilled' && Array.isArray(harvestsRes.value?.data)
+          ? harvestsRes.value.data
+          : (prev.harvests || []);
+
+        const mergedAgents = agentsRes.status === 'fulfilled' && Array.isArray(agentsRes.value?.data)
+          ? agentsRes.value.data
+          : (prev.agents || []);
+
+        const mergedRegions = regionsRes.status === 'fulfilled' && Array.isArray(regionsRes.value?.data)
+          ? regionsRes.value.data
+          : (prev.regions || []);
+
+        const mergedIncharges = inchargesRes.status === 'fulfilled' && Array.isArray(inchargesRes.value?.data)
+          ? inchargesRes.value.data
+          : (prev.incharges || []);
+
+        return {
+          ...prev,
+          farmers: mergedFarmers,
+          tanks: mergedTanks,
+          submissions: mergedSubs,
+          harvests: mergedHarvests,
+          agents: mergedAgents,
+          regions: mergedRegions,
+          incharges: mergedIncharges,
+        };
+      });
+      setDbConnected(errors.length === 0);
     } catch (err) {
       console.warn("[MockDataContext] Live DB fetch error:", err.message);
       setDbConnected(false);
+      setDbError(err.message);
     } finally {
       setIsLoadingDb(false);
     }
@@ -504,20 +569,39 @@ export const MockDataProvider = ({ children }) => {
 
   useEffect(() => {
     fetchDataFromDb();
-    const handleDbRefresh = () => {
-      fetchDataFromDb();
+
+    // Targeted event listeners: refresh only datasets affected by the specific mutation
+    const handleFarmerRefresh = () => {
+      refreshFarmers().catch(() => {});
     };
-    window.addEventListener('harvestCreated', handleDbRefresh);
-    window.addEventListener('submissionCreated', handleDbRefresh);
-    window.addEventListener('adminDataChanged', handleDbRefresh);
-    window.addEventListener('farmerCreated', handleDbRefresh);
-    window.addEventListener('tankCreated', handleDbRefresh);
+    const handleTankRefresh = () => {
+      refreshTanks().catch(() => {});
+    };
+    const handleSubmissionRefresh = () => {
+      refreshSubmissions().catch(() => {});
+      refreshTanks().catch(() => {});
+    };
+    const handleHarvestRefresh = () => {
+      refreshHarvests().catch(() => {});
+      refreshTanks().catch(() => {});
+      refreshFarmers().catch(() => {});
+    };
+    const handleAdminRefresh = () => {
+      fetchDataFromDb().catch(() => {});
+    };
+
+    window.addEventListener('farmerCreated', handleFarmerRefresh);
+    window.addEventListener('tankCreated', handleTankRefresh);
+    window.addEventListener('submissionCreated', handleSubmissionRefresh);
+    window.addEventListener('harvestCreated', handleHarvestRefresh);
+    window.addEventListener('adminDataChanged', handleAdminRefresh);
+
     return () => {
-      window.removeEventListener('harvestCreated', handleDbRefresh);
-      window.removeEventListener('submissionCreated', handleDbRefresh);
-      window.removeEventListener('adminDataChanged', handleDbRefresh);
-      window.removeEventListener('farmerCreated', handleDbRefresh);
-      window.removeEventListener('tankCreated', handleDbRefresh);
+      window.removeEventListener('farmerCreated', handleFarmerRefresh);
+      window.removeEventListener('tankCreated', handleTankRefresh);
+      window.removeEventListener('submissionCreated', handleSubmissionRefresh);
+      window.removeEventListener('harvestCreated', handleHarvestRefresh);
+      window.removeEventListener('adminDataChanged', handleAdminRefresh);
     };
   }, []);
 
@@ -771,26 +855,44 @@ export const MockDataProvider = ({ children }) => {
       });
   };
 
-  const assignFarmerToIncharge = (farmerId, inchargeId) => {
-    setDb((prev) => ({
-      ...prev,
-      farmers: prev.farmers.map((f) =>
-        f.id === farmerId ? { ...f, inchargeId } : f,
-      ),
-    }));
-    apiClient.put(`/farmers/${farmerId}`, { inchargeId }).catch(() => {});
-    showToast(`Farmer assigned to Incharge!`);
+  const assignFarmerToIncharge = async (farmerId, inchargeId) => {
+    try {
+      await apiClient.put(`/farmers/${farmerId}`, { inchargeId });
+      setDb((prev) => ({
+        ...prev,
+        farmers: prev.farmers.map((f) =>
+          f.id === farmerId ? { ...f, inchargeId } : f,
+        ),
+      }));
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer assigned to Incharge!`);
+    } catch (err) {
+      console.error("[MockDataContext] assignFarmerToIncharge failed:", err);
+      showToast(`Failed to assign farmer: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
-  const assignTankToIncharge = (tankId, inchargeId) => {
-    setDb((prev) => ({
-      ...prev,
-      tanks: prev.tanks.map((t) =>
-        t.id === tankId ? { ...t, inchargeId } : t,
-      ),
-    }));
-    apiClient.put(`/tanks/${tankId}`, { inchargeId }).catch(() => {});
-    showToast(`Tank assigned to Incharge!`);
+  const assignTankToIncharge = async (tankId, inchargeId) => {
+    try {
+      await apiClient.put(`/tanks/${tankId}`, { inchargeId });
+      setDb((prev) => ({
+        ...prev,
+        tanks: prev.tanks.map((t) =>
+          t.id === tankId ? { ...t, inchargeId } : t,
+        ),
+      }));
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank assigned to Incharge!`);
+    } catch (err) {
+      console.error("[MockDataContext] assignTankToIncharge failed:", err);
+      showToast(`Failed to assign tank: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
   const assignAgentToIncharge = (agentId, inchargeId) => {
@@ -839,91 +941,61 @@ export const MockDataProvider = ({ children }) => {
 
   // --- Actions ---
 
-  const updateTank = (tankId, updates) => {
-    setDb((prev) => ({
-      ...prev,
-      tanks: prev.tanks.map((t) =>
-        t.id === tankId ? { ...t, ...updates } : t,
-      ),
-    }));
-    apiClient.put(`/tanks/${tankId}`, updates).catch(() => {});
-    showToast(`Tank ${tankId} updated!`);
-  };
+  const updateTank = async (tankId, updates) => {
+    try {
+      const res = await apiClient.put(`/tanks/${tankId}`, updates);
+      const canonicalTank = res?.data || { id: tankId, ...updates };
 
-  const updateFarmer = (farmerId, updates) => {
-    setDb((prev) => ({
-      ...prev,
-      farmers: prev.farmers.map((f) =>
-        f.id === farmerId ? { ...f, ...updates } : f,
-      ),
-    }));
-    apiClient.put(`/farmers/${farmerId}`, updates).catch(() => {});
-    showToast(`Farmer ${farmerId} updated!`);
-  };
-
-  const submitRecord = (submissionData) => {
-    const newSubmission = {
-      id: `SUB${Date.now()}`,
-      status: "PENDING_VERIFICATION",
-      submittedAgo: "Just now",
-      date: new Date().toISOString().split("T")[0],
-      ...submissionData,
-    };
-
-    setDb((prev) => {
-      const formattedDate = new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-      const newTanks = prev.tanks.map((t) => {
-        if (t.id === submissionData.tankId) {
-          const isFinal =
-            submissionData.harvest &&
-            (submissionData.harvest.type === "Final" ||
-              submissionData.harvest.harvestType === "Final Harvest");
-          return {
-            ...t,
-            testStatus: "Completed",
-            isOverdue: false,
-            lastTest: formattedDate,
-            nextTest: "Due Next Week",
-            ...(isFinal
-              ? { status: "Harvested", finalHarvestCompleted: true }
-              : {}),
-          };
-        }
-        return t;
-      });
-      const newDrafts = prev.drafts.filter(
-        (d) => d.tankId !== submissionData.tankId,
-      );
-
-      const farmer = prev.farmers.find((f) => f.id === submissionData.farmerId);
-      const tank = prev.tanks.find((t) => t.id === submissionData.tankId);
-      const actionText = `${submissionData.testType || "Test"} Submitted`;
-      const detailText = `${submissionData.testType || "Test"} completed for ${farmer ? farmer.name : "Farmer"} • ${tank ? tank.name : "Tank"}`;
-      const timeStr = `${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-
-      return {
+      setDb((prev) => ({
         ...prev,
-        submissions: [...prev.submissions, newSubmission],
-        tanks: newTanks,
-        drafts: newDrafts,
-        activities: [
-          {
-            id: Date.now(),
-            time: timeStr,
-            action: actionText,
-            detail: detailText,
-          },
-          ...(prev.activities || []),
-        ],
-      };
-    });
-    apiClient
-      .post("/submissions", {
-        id: newSubmission.id,
+        tanks: prev.tanks.map((t) =>
+          t.id === tankId ? { ...t, ...canonicalTank } : t,
+        ),
+      }));
+
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('tankCreated', { detail: canonicalTank }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank ${canonicalTank.name || tankId} updated!`);
+      return canonicalTank;
+    } catch (err) {
+      console.error("[MockDataContext] updateTank failed:", err);
+      showToast(`Failed to update tank: ${err.message || 'API error'}`);
+      throw err;
+    }
+  };
+
+  const updateFarmer = async (farmerId, updates) => {
+    try {
+      const res = await apiClient.put(`/farmers/${farmerId}`, updates);
+      const canonicalFarmer = res?.data || { id: farmerId, ...updates };
+
+      setDb((prev) => ({
+        ...prev,
+        farmers: prev.farmers.map((f) =>
+          f.id === farmerId ? { ...f, ...canonicalFarmer } : f,
+        ),
+      }));
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer ${canonicalFarmer.name || farmerId} updated!`);
+      return canonicalFarmer;
+    } catch (err) {
+      console.error("[MockDataContext] updateFarmer failed:", err);
+      showToast(`Failed to update farmer: ${err.message || 'API error'}`);
+      throw err;
+    }
+  };
+
+  const submitRecord = async (submissionData) => {
+    try {
+      const res = await apiClient.post("/submissions", {
         farmerId: submissionData.farmerId,
         tankId: submissionData.tankId,
         testType: submissionData.testType || "Water Quality Test",
@@ -931,7 +1003,7 @@ export const MockDataProvider = ({ children }) => {
         userId: submissionData.userId || submissionData.agentId || "agent001",
         userName: submissionData.userName || submissionData.agentName || null,
         role: submissionData.role || submissionData.submittedBy || "Agent",
-        date: newSubmission.date,
+        date: submissionData.date || new Date().toISOString().split("T")[0],
         submissionTime:
           submissionData.submissionTime ||
           new Date().toLocaleTimeString("en-US", {
@@ -948,41 +1020,135 @@ export const MockDataProvider = ({ children }) => {
         locality:
           submissionData.locality || submissionData.gps?.locality || null,
         data: submissionData.data || submissionData,
-      })
-      .catch(() => {});
-    showToast("Record submitted for verification!");
+      });
+
+      const canonicalSub = res?.data;
+      if (!canonicalSub) {
+        throw new Error(res?.message || "Failed to submit record to database");
+      }
+
+      setDb((prev) => {
+        const formattedDate = new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+        const newTanks = prev.tanks.map((t) => {
+          if (t.id === submissionData.tankId) {
+            const isFinal =
+              submissionData.harvest &&
+              (submissionData.harvest.type === "Final" ||
+                submissionData.harvest.harvestType === "Final Harvest");
+            return {
+              ...t,
+              testStatus: "Completed",
+              isOverdue: false,
+              lastTest: formattedDate,
+              nextTest: "Due Next Week",
+              ...(isFinal
+                ? { status: "Harvested", finalHarvestCompleted: true }
+                : {}),
+            };
+          }
+          return t;
+        });
+        const newDrafts = prev.drafts.filter(
+          (d) => d.tankId !== submissionData.tankId,
+        );
+
+        const farmer = prev.farmers.find((f) => f.id === submissionData.farmerId);
+        const tank = prev.tanks.find((t) => t.id === submissionData.tankId);
+        const actionText = `${submissionData.testType || "Test"} Submitted`;
+        const detailText = `${submissionData.testType || "Test"} completed for ${farmer ? farmer.name : "Farmer"} • ${tank ? tank.name : "Tank"}`;
+        const timeStr = `${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+        return {
+          ...prev,
+          submissions: [canonicalSub, ...prev.submissions.filter(s => s.id !== canonicalSub.id)],
+          tanks: newTanks,
+          drafts: newDrafts,
+          activities: [
+            {
+              id: Date.now(),
+              time: timeStr,
+              action: actionText,
+              detail: detailText,
+            },
+            ...(prev.activities || []),
+          ],
+        };
+      });
+
+      adminService.clearCache('/submissions');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/admin/submission-locations?date=today');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: canonicalSub }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast("Record submitted for verification!");
+      return canonicalSub;
+    } catch (err) {
+      console.error("[MockDataContext] submitRecord failed:", err);
+      showToast(`Failed to submit record: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
-  const updateSubmissionStatus = (submissionId, newStatus, notes = "") => {
-    setDb((prev) => ({
-      ...prev,
-      submissions: prev.submissions.map((s) =>
-        s.id === submissionId ? { ...s, status: newStatus } : s,
-      ),
-    }));
-    apiClient
-      .patch(`/submissions/${submissionId}/verify`, {
+  const updateSubmissionStatus = async (submissionId, newStatus, notes = "") => {
+    try {
+      const res = await apiClient.patch(`/submissions/${submissionId}/verify`, {
         status: newStatus,
         notes,
-      })
-      .catch(() => {});
-    showToast(`Submission marked as ${newStatus}`);
+      });
+      const canonicalSub = res?.data;
+
+      setDb((prev) => ({
+        ...prev,
+        submissions: prev.submissions.map((s) =>
+          s.id === submissionId ? { ...s, status: newStatus, ...(canonicalSub || {}) } : s,
+        ),
+      }));
+
+      adminService.clearCache('/submissions');
+      adminService.clearCache('/admin/submission-locations?date=today');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: canonicalSub }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Submission marked as ${newStatus}`);
+      return canonicalSub;
+    } catch (err) {
+      console.error("[MockDataContext] updateSubmissionStatus failed:", err);
+      showToast(`Failed to update submission: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
-  const assignFarmerToAgent = (farmerId, newAgentId) => {
-    setDb((prev) => {
-      const newFarmers = prev.farmers.map((f) =>
-        f.id === farmerId ? { ...f, agentId: newAgentId } : f,
-      );
-      const newTanks = prev.tanks.map((t) =>
-        t.farmerId === farmerId ? { ...t, agentId: newAgentId } : t,
-      );
-      return { ...prev, farmers: newFarmers, tanks: newTanks };
-    });
-    apiClient
-      .put(`/farmers/${farmerId}`, { agentId: newAgentId })
-      .catch(() => {});
-    showToast(`Farmer reassigned successfully!`);
+  const assignFarmerToAgent = async (farmerId, newAgentId) => {
+    try {
+      await apiClient.put(`/farmers/${farmerId}`, { agentId: newAgentId });
+      setDb((prev) => {
+        const newFarmers = prev.farmers.map((f) =>
+          f.id === farmerId ? { ...f, agentId: newAgentId } : f,
+        );
+        const newTanks = prev.tanks.map((t) =>
+          t.farmerId === farmerId ? { ...t, agentId: newAgentId } : t,
+        );
+        return { ...prev, farmers: newFarmers, tanks: newTanks };
+      });
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer reassigned successfully!`);
+    } catch (err) {
+      console.error("[MockDataContext] assignFarmerToAgent failed:", err);
+      showToast(`Failed to reassign farmer: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
   const addAgent = (agentData) => {
@@ -996,297 +1162,286 @@ export const MockDataProvider = ({ children }) => {
     showToast(`Agent ${agentData.name} added!`);
   };
 
-  const createFarmerWithTanks = (agentId, farmerData, tanksData = []) => {
-    let newFarmerId = null;
-    setDb((prev) => {
-      // Check for duplicate farmer by phone or (name + location)
-      const cleanPhone = (farmerData.phone || "").replace(/\D/g, "");
-      const cleanName = (farmerData.name || "").trim().toLowerCase();
-      const cleanLoc = (farmerData.village || farmerData.location || "")
-        .trim()
-        .toLowerCase();
+  const createFarmerWithTanks = async (agentId, farmerData, tanksData = []) => {
+    const cleanPhone = (farmerData.phone || "").replace(/\D/g, "");
+    const cleanName = (farmerData.name || "").trim().toLowerCase();
+    const cleanLoc = (farmerData.village || farmerData.location || "")
+      .trim()
+      .toLowerCase();
 
-      const existingFarmer = (prev.farmers || []).find((f) => {
-        const fPhone = (f.phone || "").replace(/\D/g, "");
-        if (cleanPhone && fPhone && cleanPhone === fPhone) return true;
-        const fName = (f.name || "").trim().toLowerCase();
-        const fLoc = (f.village || f.location || "").trim().toLowerCase();
-        if (
-          cleanName &&
-          fName &&
-          cleanName === fName &&
-          (cleanLoc === fLoc || !cleanLoc || !fLoc)
-        )
-          return true;
-        return false;
-      });
+    // Check client-side for existing duplicate farmer
+    const existingFarmer = (db.farmers || []).find((f) => {
+      const fPhone = (f.phone || "").replace(/\D/g, "");
+      if (cleanPhone && fPhone && cleanPhone === fPhone) return true;
+      const fName = (f.name || "").trim().toLowerCase();
+      const fLoc = (f.village || f.location || "").trim().toLowerCase();
+      if (
+        cleanName &&
+        fName &&
+        cleanName === fName &&
+        (cleanLoc === fLoc || !cleanLoc || !fLoc)
+      )
+        return true;
+      return false;
+    });
 
-      if (existingFarmer) {
-        newFarmerId = existingFarmer.id;
-        showToast(`Farmer ${farmerData.name} is already registered!`);
-        return prev;
-      }
+    if (existingFarmer) {
+      showToast(`Farmer ${farmerData.name} is already registered!`);
+      return existingFarmer;
+    }
 
-      const nextFarmerNum =
-        prev.farmers.length > 0
-          ? Math.max(
-              ...prev.farmers.map(
-                (f) => parseInt((f.id || "").replace(/\D/g, "")) || 0,
-              ),
-            ) + 1
-          : 1;
-      newFarmerId = `F${nextFarmerNum.toString().padStart(3, "0")}`;
-
-      let startTankNum =
-        prev.tanks.length > 0
-          ? Math.max(
-              ...prev.tanks.map(
-                (t) => parseInt((t.id || "").replace(/\D/g, "")) || 0,
-              ),
-            ) + 1
-          : 1;
-
-      const isAssignedToIncharge =
-        farmerData.assignedTo === "Incharge" ||
-        (!agentId &&
-          !farmerData.agentId &&
-          (farmerData.inchargeId ||
-            farmerData.role === "INCHARGE" ||
-            farmerData.role === "ASM"));
-      const targetAgentId = isAssignedToIncharge
-        ? null
-        : agentId || farmerData.agentId || "agent001";
-      const targetInchargeId =
-        farmerData.inchargeId ||
-        (targetAgentId
-          ? prev.agents?.find((a) => a.id === targetAgentId)?.inchargeId ||
-            "INC001"
-          : "INC001");
-      const assignedTo = isAssignedToIncharge
+    const isAssignedToIncharge =
+      farmerData.assignedTo === "Incharge" ||
+      (!agentId &&
+        !farmerData.agentId &&
+        (farmerData.inchargeId ||
+          farmerData.role === "INCHARGE" ||
+          farmerData.role === "ASM"));
+    const targetAgentId = isAssignedToIncharge
+      ? null
+      : agentId || farmerData.agentId || null;
+    const targetInchargeId =
+      farmerData.inchargeId ||
+      (targetAgentId
+        ? db.agents?.find((a) => a.id === targetAgentId)?.inchargeId || null
+        : null);
+    const assignedTo = isAssignedToIncharge
+      ? "Incharge"
+      : farmerData.assignedTo || (targetAgentId ? "Agent" : "Incharge");
+    const assignedBy =
+      farmerData.assignedBy ||
+      (isAssignedToIncharge
         ? "Incharge"
-        : farmerData.assignedTo || (targetAgentId ? "Agent" : "Incharge");
-      const assignedBy =
-        farmerData.assignedBy ||
-        (isAssignedToIncharge
-          ? "Incharge"
-          : targetAgentId
-            ? "Agent"
-            : "Incharge");
+        : targetAgentId
+          ? "Agent"
+          : "Incharge");
 
-      const newTanks = (tanksData || []).map((tankData, index) => {
-        const tankNum = startTankNum + index;
-        return {
-          id: `T${tankNum.toString().padStart(3, "0")}`,
-          name: tankData.name || `Tank ${index + 1}`,
-          farmerId: newFarmerId,
-          agentId: targetAgentId,
-          inchargeId: targetInchargeId,
-          assignedTo: assignedTo,
-          assignedBy: assignedBy,
-          status: "ACTIVE",
-          testStatus: "Due",
-          isOverdue: false,
-          abw: tankData.abw || "12g",
-          biomass: tankData.biomass || "800kg",
-          fcr: tankData.fcr || "1.2",
-          acres: tankData.area || tankData.acres || "2.5 Acres",
-          size: tankData.area
-            ? `${tankData.area} Acres`
-            : tankData.size || "2.5 Acres",
-          salinity: tankData.salinity ? `${tankData.salinity} ppt` : "16 ppt",
-          waterSource:
-            tankData.waterSource || farmerData.waterSource || "Canal",
-          species: tankData.species || "Vannamei",
-          cultureType: tankData.cultureType || "Semi-Intensive",
-          stockingDate:
-            tankData.stockingDate || new Date().toISOString().split("T")[0],
-          ...tankData,
-          lastTest: new Date().toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          }),
-          nextTest: "Due This Week",
-        };
-      });
+    const totalAcres =
+      farmerData.acres || farmerData.extent || (tanksData.length ? tanksData.length * 2.5 : null);
 
-      const totalAcres =
-        farmerData.acres || farmerData.extent || newTanks.length * 2.5;
-      const newFarmer = {
-        id: newFarmerId,
-        name: farmerData.name,
-        status: farmerData.status || "ACTIVE",
-        agentId: targetAgentId,
-        inchargeId: targetInchargeId,
-        assignedTo: assignedTo,
-        assignedBy: assignedBy,
-        phone: farmerData.phone,
-        location:
-          farmerData.location ||
-          (farmerData.village
-            ? `${farmerData.village}${farmerData.area ? `, ${farmerData.area}` : ""}`
-            : "Bhimavaram"),
-        village: farmerData.village || farmerData.location || "Bhimavaram",
-        acres: totalAcres,
-        extent: totalAcres,
-        numberOfTanks: String(newTanks.length || 1),
-        waterSource: farmerData.waterSource || "Canal",
-        gps: farmerData.gps || null,
+    const farmerPayload = {
+      name: farmerData.name,
+      phone: farmerData.phone,
+      location:
+        farmerData.location ||
+        (farmerData.village
+          ? `${farmerData.village}${farmerData.area ? `, ${farmerData.area}` : ""}`
+          : "Bhimavaram"),
+      acres: totalAcres != null ? parseFloat(totalAcres) : null,
+      waterSource: farmerData.waterSource || "Canal",
+      agentId: targetAgentId,
+      inchargeId: targetInchargeId,
+      assignedTo: assignedTo,
+      assignedBy: assignedBy,
+      status: farmerData.status || "ACTIVE",
+    };
+
+    // 1. Post farmer to backend MySQL
+    const farmerRes = await apiClient.post("/farmers", farmerPayload);
+    const canonicalFarmer = farmerRes?.data;
+    if (!canonicalFarmer || !canonicalFarmer.id) {
+      throw new Error(farmerRes?.message || "Failed to register farmer in database");
+    }
+
+    // 2. Post tanks linked to canonicalFarmer.id
+    const savedTanks = [];
+    const failedTanks = [];
+
+    for (let i = 0; i < tanksData.length; i++) {
+      const tankItem = tanksData[i];
+      const tankPayload = {
+        name: tankItem.name || `Tank ${i + 1}`,
+        farmerId: canonicalFarmer.id,
+        acres: tankItem.acres != null ? String(tankItem.acres) : (tankItem.area != null ? String(tankItem.area) : "2.5"),
+        size: tankItem.size || (tankItem.acres ? `${tankItem.acres} Acres` : "2.5 Acres"),
+        waterSource: tankItem.waterSource || canonicalFarmer.waterSource || "Canal",
+        salinity: tankItem.salinity ? `${tankItem.salinity} ppt` : "16 ppt",
+        species: tankItem.species || "Vannamei",
+        cultureType: tankItem.cultureType || "Semi-Intensive",
+        stockingDate: tankItem.stockingDate || new Date().toISOString().split("T")[0],
+        abw: tankItem.abw ? String(tankItem.abw) : "12g",
+        biomass: tankItem.biomass ? String(tankItem.biomass) : "800kg",
+        fcr: tankItem.fcr ? String(tankItem.fcr) : "1.2",
+        boundaryCoordinates: tankItem.boundaryCoordinates || null,
+        boundaryMethod: tankItem.boundaryMethod || null,
+        boundaryAreaAcres: tankItem.boundaryAreaAcres || null,
+        boundaryQuality: tankItem.boundaryQuality || null,
+        boundaryCapturedAt: tankItem.boundaryCapturedAt || null,
       };
 
-      apiClient
-        .post("/farmers", newFarmer)
-        .then(() => {
-          newTanks.forEach((t) => apiClient.post("/tanks", t).catch(() => {}));
-        })
-        .catch(() => {});
-      showToast(
-        `Added Farmer ${farmerData.name} with ${newTanks.length} tanks!`,
-      );
-
-      return {
-        ...prev,
-        farmers: deduplicateFarmers([...prev.farmers, newFarmer]),
-        tanks: [...prev.tanks, ...newTanks],
-        activities: [
-          {
-            id: Date.now(),
-            time: `${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-            action: "Farmer Registered",
-            detail: `Added Farmer ${newFarmer.name} (${newFarmer.id}) with ${newTanks.length} tanks`,
-          },
-          ...(prev.activities || []),
-        ],
-      };
-    });
-    return newFarmerId;
-  };
-
-  const addTank = (tankData) => {
-    setDb((prev) => {
-      const nextTankNum =
-        prev.tanks.length > 0
-          ? Math.max(
-              ...prev.tanks.map((t) => parseInt(t.id.replace("T", "")) || 0),
-            ) + 1
-          : 1;
-      const newTankId = `T${nextTankNum.toString().padStart(3, "0")}`;
-      const farmer = prev.farmers.find((f) => f.id === tankData.farmerId);
-      const existingFarmerTanks = prev.tanks.filter(
-        (t) => t.farmerId === tankData.farmerId,
-      );
-      const defaultFarmerTankName = `Tank ${existingFarmerTanks.length + 1}`;
-      const newTank = {
-        id: newTankId,
-        name: tankData.name || defaultFarmerTankName,
-        farmerId: tankData.farmerId,
-        agentId: tankData.agentId || farmer?.agentId || null,
-        inchargeId: tankData.inchargeId || farmer?.inchargeId || "INC001",
-        status: "ACTIVE",
-        testStatus: "Due",
-        abw: tankData.abw || "10g",
-        biomass: tankData.biomass || "500kg",
-        fcr: tankData.fcr || "1.2",
-        lastTest: new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        nextTest: "TBD",
-        acres: tankData.acres || "3 Acres",
-        salinity: tankData.salinity || "15 ppt",
-        waterSource: tankData.waterSource || "Borewell",
-      };
-      apiClient.post("/tanks", newTank).catch(() => {});
-      showToast(`Tank ${newTank.name} (${newTankId}) added successfully!`);
-      return {
-        ...prev,
-        tanks: [...prev.tanks, newTank],
-      };
-    });
-  };
-
-  const editTank = (tankId, updatedData) => {
-    setDb((prev) => ({
-      ...prev,
-      tanks: prev.tanks.map((t) =>
-        t.id === tankId ? { ...t, ...updatedData } : t,
-      ),
-    }));
-    apiClient.put(`/tanks/${tankId}`, updatedData).catch(() => {});
-    showToast(`Tank ${tankId} updated successfully!`);
-  };
-
-  const deleteTank = (tankId) => {
-    setDb((prev) => ({
-      ...prev,
-      tanks: prev.tanks.filter((t) => t.id !== tankId),
-    }));
-    apiClient.delete(`/tanks/${tankId}`).catch(() => {});
-    showToast(`Tank ${tankId} deleted successfully!`);
-  };
-
-  const createFarmerByMobile = (farmerData) => {
-    setDb((prev) => {
-      const cleanPhone = (farmerData.phone || "").replace(/[^0-9]/g, "");
-      const existing = prev.farmers.find(
-        (f) => (f.phone || "").replace(/[^0-9]/g, "") === cleanPhone,
-      );
-      if (existing && cleanPhone.length > 5) {
-        showToast(
-          `Mobile ${farmerData.phone} linked to existing farmer ${existing.name} (${existing.id})!`,
-        );
-        if (farmerData.agentId) {
-          return {
-            ...prev,
-            farmers: prev.farmers.map((f) =>
-              f.id === existing.id ? { ...f, agentId: farmerData.agentId } : f,
-            ),
-          };
+      try {
+        const tankRes = await apiClient.post("/tanks", tankPayload);
+        if (tankRes?.data) {
+          savedTanks.push(tankRes.data);
         }
-        return prev;
+      } catch (tErr) {
+        console.error(`[MockDataContext] Failed to create tank "${tankPayload.name}":`, tErr);
+        failedTanks.push({ name: tankPayload.name, error: tErr.message });
+      }
+    }
+
+    // Update in-memory db with authoritative records
+    setDb((prev) => ({
+      ...prev,
+      farmers: deduplicateFarmers([canonicalFarmer, ...prev.farmers.filter((f) => f.id !== canonicalFarmer.id)]),
+      tanks: normalizeTanks([...prev.tanks.filter((t) => !savedTanks.some((st) => st.id === t.id)), ...savedTanks]),
+      activities: [
+        {
+          id: Date.now(),
+          time: `${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+          action: "Farmer Registered",
+          detail: `Added Farmer ${canonicalFarmer.name} (${canonicalFarmer.id}) with ${savedTanks.length} tanks`,
+        },
+        ...(prev.activities || []),
+      ],
+    }));
+
+    // Invalidate caches
+    adminService.clearCache('/farmers');
+    adminService.clearCache('/tanks');
+    adminService.clearCache('/analytics/summary');
+
+    // Notify listeners
+    window.dispatchEvent(new CustomEvent('farmerCreated', { detail: canonicalFarmer }));
+    if (savedTanks.length > 0) {
+      window.dispatchEvent(new CustomEvent('tankCreated', { detail: savedTanks }));
+    }
+    window.dispatchEvent(new CustomEvent('adminDataChanged'));
+
+    if (failedTanks.length > 0) {
+      const partialMsg = `Farmer ${canonicalFarmer.name} registered, but ${failedTanks.length} of ${tanksData.length} tank(s) failed to save.`;
+      showToast(partialMsg);
+      const partialErr = new Error(partialMsg);
+      partialErr.partialFailure = true;
+      partialErr.farmer = canonicalFarmer;
+      partialErr.failedTanks = failedTanks;
+      throw partialErr;
+    }
+
+    showToast(`Added Farmer ${canonicalFarmer.name} with ${savedTanks.length} tanks!`);
+    return canonicalFarmer;
+  };
+
+  const addTank = async (tankData) => {
+    try {
+      const res = await apiClient.post("/tanks", tankData);
+      const canonicalTank = res?.data;
+      if (!canonicalTank) {
+        throw new Error(res?.message || "Failed to create tank in database");
       }
 
-      const nextFarmerNum =
-        prev.farmers.length > 0
-          ? Math.max(
-              ...prev.farmers.map((f) => parseInt(f.id.replace("F", "")) || 0),
-            ) + 1
-          : 1;
-      const newFarmerId = `F${nextFarmerNum.toString().padStart(3, "0")}`;
-
-      const newFarmer = {
-        id: newFarmerId,
-        name: farmerData.name,
-        status: "ACTIVE",
-        agentId: farmerData.agentId || "agent001",
-        phone: farmerData.phone,
-        location: farmerData.location || farmerData.village || "Bhimavaram",
-        acres: farmerData.acres || 10,
-        waterSource: farmerData.waterSource || "Borewell",
-        mobileVerified: true,
-        linkedAt: new Date().toLocaleDateString(),
-      };
-
-      showToast(
-        `Farmer ${farmerData.name} registered & linked via mobile ${farmerData.phone}!`,
-      );
-
-      return {
+      setDb((prev) => ({
         ...prev,
-        farmers: [...prev.farmers, newFarmer],
-      };
-    });
+        tanks: normalizeTanks([...prev.tanks.filter((t) => t.id !== canonicalTank.id), canonicalTank]),
+      }));
+
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('tankCreated', { detail: canonicalTank }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank ${canonicalTank.name} added successfully!`);
+      return canonicalTank;
+    } catch (err) {
+      console.error("[MockDataContext] addTank failed:", err);
+      showToast(`Failed to add tank: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
-  const deleteFarmer = (farmerId) => {
-    setDb((prev) => ({
-      ...prev,
-      farmers: prev.farmers.filter((f) => f.id !== farmerId),
-      tanks: prev.tanks.filter((t) => t.farmerId !== farmerId),
-    }));
-    apiClient.delete(`/farmers/${farmerId}`).catch(() => {});
-    showToast(`Farmer ${farmerId} and associated tanks removed.`);
+  const editTank = async (tankId, updatedData) => {
+    try {
+      const res = await apiClient.put(`/tanks/${tankId}`, updatedData);
+      const canonicalTank = res?.data || { id: tankId, ...updatedData };
+
+      setDb((prev) => ({
+        ...prev,
+        tanks: prev.tanks.map((t) =>
+          t.id === tankId ? { ...t, ...canonicalTank } : t,
+        ),
+      }));
+
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('tankCreated', { detail: canonicalTank }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank ${canonicalTank.name || tankId} updated successfully!`);
+      return canonicalTank;
+    } catch (err) {
+      console.error("[MockDataContext] editTank failed:", err);
+      showToast(`Failed to update tank: ${err.message || 'API error'}`);
+      throw err;
+    }
+  };
+
+  const deleteTank = async (tankId) => {
+    try {
+      await apiClient.delete(`/tanks/${tankId}`);
+      setDb((prev) => ({
+        ...prev,
+        tanks: prev.tanks.filter((t) => t.id !== tankId),
+      }));
+
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank ${tankId} deleted successfully!`);
+    } catch (err) {
+      console.error("[MockDataContext] deleteTank failed:", err);
+      showToast(`Failed to delete tank: ${err.message || 'API error'}`);
+      throw err;
+    }
+  };
+
+  const createFarmerByMobile = async (farmerData) => {
+    const cleanPhone = (farmerData.phone || "").replace(/[^0-9]/g, "");
+    const existing = db.farmers.find(
+      (f) => (f.phone || "").replace(/[^0-9]/g, "") === cleanPhone,
+    );
+    if (existing && cleanPhone.length > 5) {
+      showToast(
+        `Mobile ${farmerData.phone} linked to existing farmer ${existing.name} (${existing.id})!`,
+      );
+      if (farmerData.agentId) {
+        return updateFarmer(existing.id, { agentId: farmerData.agentId });
+      }
+      return existing;
+    }
+
+    return createFarmerWithTanks(farmerData.agentId, {
+      name: farmerData.name,
+      phone: farmerData.phone,
+      location: farmerData.location || farmerData.village || "Bhimavaram",
+      acres: farmerData.acres || 10,
+      waterSource: farmerData.waterSource || "Borewell",
+    }, []);
+  };
+
+  const deleteFarmer = async (farmerId) => {
+    try {
+      await apiClient.delete(`/farmers/${farmerId}`);
+      setDb((prev) => ({
+        ...prev,
+        farmers: prev.farmers.filter((f) => f.id !== farmerId),
+        tanks: prev.tanks.filter((t) => t.farmerId !== farmerId),
+      }));
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer ${farmerId} and associated tanks removed.`);
+    } catch (err) {
+      console.error("[MockDataContext] deleteFarmer failed:", err);
+      showToast(`Failed to delete farmer: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
   const saveDraft = (draft) => {
@@ -1554,7 +1709,7 @@ export const MockDataProvider = ({ children }) => {
     return timeline.slice(0, 15);
   };
 
-  const recordFieldEntry = (entryData) => {
+  const recordFieldEntry = async (entryData) => {
     const {
       agentId = "agent001",
       farmerId,
@@ -1567,7 +1722,6 @@ export const MockDataProvider = ({ children }) => {
       offline = false,
     } = entryData;
 
-    const subId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const formattedDate = new Date().toISOString().split("T")[0];
     const farmer = (db?.farmers || []).find((f) => f.id === farmerId);
     const tank = (db?.tanks || []).find((t) => t.id === tankId);
@@ -1606,154 +1760,57 @@ export const MockDataProvider = ({ children }) => {
         hour12: true,
       });
 
-    const newRecord = {
-      id: subId,
-      submissionId: subId,
-      agentId: resolvedUserId,
-      userId: resolvedUserId,
-      userName: resolvedUserName,
-      role: resolvedRole,
-      farmerId,
-      tankId,
-      recordType,
-      testType:
-        recordType === "WATER_QUALITY"
-          ? "Water Analysis"
-          : recordType === "FEED_ENTRY"
-            ? "Feed Test"
-            : recordType === "DISEASE" || recordType === "DISEASE_OBSERVATION"
-              ? "Disease"
-              : recordType === "BIOMASS_SAMPLING"
-                ? "Biomass"
-                : recordType === "MORTALITY_LOG"
-                  ? "Mortality"
-                  : recordType === "MEDICATION"
-                    ? "Medication"
-                    : recordType === "FARM_ACTIVITY"
-                      ? "Farm Activity"
-                      : recordType === "HARVEST" ||
-                          recordType === "HARVEST_ENTRY"
-                        ? "Harvest"
-                        : recordType === "PHOTO_OBSERVATION"
-                          ? "Photo"
-                          : "Field Test",
-      date: formattedDate,
-      submissionTime: resolvedTime,
-      submittedAgo: "Just now",
-      status: "PENDING_VERIFICATION",
-      data,
-      notes,
-      photo,
-      latitude: resolvedLatitude,
-      longitude: resolvedLongitude,
-      accuracy: resolvedAccuracy,
-      gps:
-        gps ||
-        (resolvedLatitude && resolvedLongitude
-          ? {
-              latitude: resolvedLatitude,
-              longitude: resolvedLongitude,
-              accuracy: resolvedAccuracy,
-              locality:
-                entryData.locality ||
-                (farmer ? farmer.location : "Aquaculture Zone"),
-              verified: true,
-            }
-          : null),
-      offline: !!offline,
-      createdAt: new Date().toISOString(),
-    };
-
-    setDb((prev) => {
-      // Update tank status & performance metrics
-      const newTanks = (prev.tanks || []).map((t) => {
-        if (t.id === tankId) {
-          const tankUpdates = {
-            ...t,
-            lastTest: new Date().toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-            testStatus: "Completed",
-          };
-
-          if (data.biomass) tankUpdates.biomass = data.biomass;
-          if (data.abw) tankUpdates.abw = data.abw;
-          if (data.fcr) tankUpdates.fcr = data.fcr;
-          if (data.salinity) tankUpdates.salinity = `${data.salinity} ppt`;
-
-          if (
-            (recordType === "HARVEST_ENTRY" || recordType === "HARVEST") &&
-            (data.harvestType === "Final Harvest" || data.isFinal)
-          ) {
-            tankUpdates.status = "Harvested";
-            tankUpdates.finalHarvestCompleted = true;
-          }
-
-          return tankUpdates;
-        }
-        return t;
-      });
-
-      const actionText = `${newRecord.testType} Logged`;
-      const detailText = `${newRecord.testType} completed for ${farmer ? farmer.name : farmerId} • ${tank ? tank.name : tankId}`;
-      const timeStr = new Date().toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-
-      const newActivities = [
-        {
-          id: Date.now(),
-          time: timeStr,
-          action: actionText,
-          detail: detailText,
-        },
-        ...(prev.activities || []),
-      ];
-
-      return {
-        ...prev,
-        submissions: [newRecord, ...(prev.submissions || [])],
-        tanks: newTanks,
-        activities: newActivities,
-        drafts: (prev.drafts || []).filter((d) => d.tankId !== tankId),
-      };
-    });
-
-    apiClient
-      .post("/submissions", {
-        id: newRecord.id,
-        farmerId: newRecord.farmerId,
-        tankId: newRecord.tankId,
-        testType: newRecord.testType,
-        agentId: newRecord.agentId,
-        userId: newRecord.userId,
-        userName: newRecord.userName,
-        role: newRecord.role,
-        date: newRecord.date,
-        submissionTime: newRecord.submissionTime,
-        status: newRecord.status,
-        data: newRecord.data,
-        latitude: newRecord.latitude,
-        longitude: newRecord.longitude,
-        accuracy: newRecord.accuracy,
+    try {
+      const subRes = await apiClient.post("/submissions", {
+        farmerId,
+        tankId,
+        testType:
+          recordType === "WATER_QUALITY"
+            ? "Water Analysis"
+            : recordType === "FEED_ENTRY"
+              ? "Feed Test"
+              : recordType === "DISEASE" || recordType === "DISEASE_OBSERVATION"
+                ? "Disease"
+                : recordType === "BIOMASS_SAMPLING"
+                  ? "Biomass"
+                  : recordType === "MORTALITY_LOG"
+                    ? "Mortality"
+                    : recordType === "MEDICATION"
+                      ? "Medication"
+                      : recordType === "FARM_ACTIVITY"
+                        ? "Farm Activity"
+                        : recordType === "HARVEST" || recordType === "HARVEST_ENTRY"
+                          ? "Harvest"
+                          : recordType === "PHOTO_OBSERVATION"
+                            ? "Photo"
+                            : "Field Test",
+        agentId: resolvedUserId,
+        userId: resolvedUserId,
+        userName: resolvedUserName,
+        role: resolvedRole,
+        date: formattedDate,
+        submissionTime: resolvedTime,
+        status: "PENDING_VERIFICATION",
+        data,
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
+        accuracy: resolvedAccuracy,
         locality:
-          newRecord.gps?.locality ||
-          (farmer ? farmer.location : "Aquaculture Zone"),
-      })
-      .catch(() => {});
+          entryData.locality ||
+          (gps?.locality || (farmer ? farmer.location : "Aquaculture Zone")),
+      });
 
-    if (recordType === "HARVEST_ENTRY" || recordType === "HARVEST") {
-      apiClient
-        .post("/harvests", {
-          farmerId: newRecord.farmerId,
-          tankId: newRecord.tankId,
-          date: newRecord.date,
+      const canonicalSub = subRes?.data;
+      if (!canonicalSub) {
+        throw new Error(subRes?.message || "Failed to save submission to database");
+      }
+
+      let canonicalHarvest = null;
+      if (recordType === "HARVEST_ENTRY" || recordType === "HARVEST") {
+        const hRes = await apiClient.post("/harvests", {
+          farmerId,
+          tankId,
+          date: formattedDate,
           quantityKg: parseFloat(data.harvestedBiomass || data.quantityKg || 0),
           countPerKg: parseFloat(
             data.abw ? 1000 / parseFloat(data.abw) : data.countPerKg || 40,
@@ -1763,62 +1820,138 @@ export const MockDataProvider = ({ children }) => {
           revenue:
             parseFloat(data.harvestedBiomass || data.quantityKg || 0) *
             parseFloat(data.pricePerKg || 380),
-        })
-        .catch(() => {});
+          harvestType: data.harvestType || (data.isFinal ? "Final Harvest" : "Partial Harvest"),
+          isFinal: Boolean(data.isFinal || data.harvestType === "Final Harvest"),
+        });
+        canonicalHarvest = hRes?.data;
+      }
+
+      // Update in-memory state
+      setDb((prev) => {
+        const newTanks = (prev.tanks || []).map((t) => {
+          if (t.id === tankId) {
+            const tankUpdates = {
+              ...t,
+              lastTest: new Date().toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              }),
+              testStatus: "Completed",
+            };
+
+            if (data.biomass) tankUpdates.biomass = data.biomass;
+            if (data.abw) tankUpdates.abw = data.abw;
+            if (data.fcr) tankUpdates.fcr = data.fcr;
+            if (data.salinity) tankUpdates.salinity = `${data.salinity} ppt`;
+
+            if (
+              (recordType === "HARVEST_ENTRY" || recordType === "HARVEST") &&
+              (data.harvestType === "Final Harvest" || data.isFinal)
+            ) {
+              tankUpdates.status = "Harvested";
+              tankUpdates.finalHarvestCompleted = true;
+            }
+
+            return tankUpdates;
+          }
+          return t;
+        });
+
+        const actionText = `${canonicalSub.testType || "Field Test"} Logged`;
+        const detailText = `${canonicalSub.testType || "Field Test"} completed for ${farmer ? farmer.name : farmerId} • ${tank ? tank.name : tankId}`;
+        const timeStr = new Date().toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        return {
+          ...prev,
+          submissions: [canonicalSub, ...prev.submissions.filter((s) => s.id !== canonicalSub.id)],
+          tanks: newTanks,
+          harvests: canonicalHarvest ? [canonicalHarvest, ...(prev.harvests || []).filter((h) => h.id !== canonicalHarvest.id)] : prev.harvests,
+          activities: [
+            { id: Date.now(), time: timeStr, action: actionText, detail: detailText },
+            ...(prev.activities || []),
+          ],
+          drafts: (prev.drafts || []).filter((d) => d.tankId !== tankId),
+        };
+      });
+
+      // Clear caches
+      adminService.clearCache('/submissions');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/admin/submission-locations?date=today');
+      adminService.clearCache('/analytics/summary');
+      if (canonicalHarvest) {
+        adminService.clearCache('/harvests');
+        adminService.clearCache('/farmers');
+      }
+
+      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: canonicalSub }));
+      if (canonicalHarvest) {
+        window.dispatchEvent(new CustomEvent('harvestCreated', { detail: canonicalHarvest }));
+      }
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+
+      showToast(`Field record saved successfully! GPS coordinates attached.`);
+      return canonicalSub;
+    } catch (err) {
+      console.error("[MockDataContext] recordFieldEntry failed:", err);
+      showToast(`Failed to save field record: ${err.message || 'API error'}`);
+      throw err;
     }
-    showToast(`Field record saved successfully! GPS coordinates attached.`);
-    return newRecord;
   };
 
-  const addPondToFarmer = (farmerId, pondData) => {
-    setDb((prev) => {
-      const nextTankNum =
-        prev.tanks.length > 0
-          ? Math.max(
-              ...prev.tanks.map((t) => parseInt(t.id.replace("T", "")) || 0),
-            ) + 1
-          : 1;
-      const newTankId = `T${nextTankNum.toString().padStart(3, "0")}`;
-      const farmer = prev.farmers.find((f) => f.id === farmerId);
-
-      const newTank = {
-        id: newTankId,
-        name: pondData.name || `Tank ${nextTankNum}`,
+  const addPondToFarmer = async (farmerId, pondData) => {
+    try {
+      const farmer = db.farmers?.find((f) => f.id === farmerId);
+      const res = await apiClient.post("/tanks", {
+        name: pondData.name || `Tank ${(db.tanks?.filter((t) => t.farmerId === farmerId).length || 0) + 1}`,
         farmerId,
-        agentId: pondData.agentId || farmer?.agentId || "agent001",
-        status: pondData.status || "ACTIVE",
-        testStatus: "Due",
+        acres: pondData.acres || pondData.area || 2.5,
+        size: pondData.size || (pondData.area ? `${pondData.area} Acres` : "2.5 Acres"),
+        waterSource: pondData.waterSource || farmer?.waterSource || "Canal",
+        salinity: pondData.salinity ? `${pondData.salinity} ppt` : "16 ppt",
         species: pondData.species || "Vannamei",
         cultureType: pondData.cultureType || "Semi-Intensive",
-        stockingDate:
-          pondData.stockingDate || new Date().toISOString().split("T")[0],
-        seedQuantity: pondData.seedQuantity || "200,000",
-        area: pondData.area ? `${pondData.area} Acres` : "2.5 Acres",
-        acres: pondData.area ? `${pondData.area} Acres` : "2.5 Acres",
-        waterArea: pondData.waterArea
-          ? `${pondData.waterArea} Acres`
-          : "2.2 Acres",
+        stockingDate: pondData.stockingDate || new Date().toISOString().split("T")[0],
         abw: pondData.abw || "10g",
         biomass: pondData.biomass || "600kg",
         fcr: pondData.fcr || "1.15",
-        salinity: pondData.salinity ? `${pondData.salinity} ppt` : "16 ppt",
-        lastTest: new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        nextTest: "28 Aug 2026",
-        gps: pondData.gps || null,
-        notes: pondData.notes || "",
-      };
+        boundaryCoordinates: pondData.boundaryCoordinates || null,
+        boundaryMethod: pondData.boundaryMethod || null,
+        boundaryAreaAcres: pondData.boundaryAreaAcres || null,
+        boundaryQuality: pondData.boundaryQuality || null,
+        boundaryCapturedAt: pondData.boundaryCapturedAt || null,
+      });
 
-      apiClient.post("/tanks", newTank).catch(() => {});
-      showToast(`Tank ${newTank.name} added to farmer!`);
-      return {
+      const canonicalTank = res?.data;
+      if (!canonicalTank) {
+        throw new Error(res?.message || "Failed to add tank to database");
+      }
+
+      setDb((prev) => ({
         ...prev,
-        tanks: [...prev.tanks, newTank],
-      };
-    });
+        tanks: normalizeTanks([...prev.tanks.filter((t) => t.id !== canonicalTank.id), canonicalTank]),
+      }));
+
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      window.dispatchEvent(new CustomEvent('tankCreated', { detail: canonicalTank }));
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Tank ${canonicalTank.name} added to farmer!`);
+      return canonicalTank;
+    } catch (err) {
+      console.error("[MockDataContext] addPondToFarmer error:", err);
+      showToast(`Failed to add tank: ${err.message || 'API error'}`);
+      throw err;
+    }
   };
 
   const addTankToFarmer = addPondToFarmer;
@@ -1879,6 +2012,13 @@ export const MockDataProvider = ({ children }) => {
         markAllNotificationsRead,
         refreshDb: fetchDataFromDb,
         fetchDataFromDb,
+        refreshFarmers,
+        refreshTanks,
+        refreshSubmissions,
+        refreshHarvests,
+        dbError,
+        dbConnected,
+        isLoadingDb,
       }}
     >
       {children}

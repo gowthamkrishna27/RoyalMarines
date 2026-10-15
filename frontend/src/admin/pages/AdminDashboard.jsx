@@ -106,14 +106,21 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadDashboardData(false);
     const handleRefresh = () => {
+      try {
+        sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+      } catch {}
       loadDashboardData(true);
     };
     window.addEventListener('submissionCreated', handleRefresh);
     window.addEventListener('harvestCreated', handleRefresh);
+    window.addEventListener('farmerCreated', handleRefresh);
+    window.addEventListener('tankCreated', handleRefresh);
     window.addEventListener('adminDataChanged', handleRefresh);
     return () => {
       window.removeEventListener('submissionCreated', handleRefresh);
       window.removeEventListener('harvestCreated', handleRefresh);
+      window.removeEventListener('farmerCreated', handleRefresh);
+      window.removeEventListener('tankCreated', handleRefresh);
       window.removeEventListener('adminDataChanged', handleRefresh);
     };
   }, []);

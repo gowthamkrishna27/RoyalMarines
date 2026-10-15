@@ -10,26 +10,40 @@ const Verifications = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchSubmissions = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await apiClient.get('/submissions');
-        if (res?.data && Array.isArray(res.data)) {
-          setSubmissions(res.data);
-        } else {
-          setSubmissions([]);
-        }
-      } catch (err) {
-        console.error('Failed to load submissions:', err);
-        setError('Unable to load verification data from database. Please try again.');
-      } finally {
-        setLoading(false);
+  const fetchSubmissions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.get('/submissions');
+      if (res?.data && Array.isArray(res.data)) {
+        setSubmissions(res.data);
+      } else {
+        setSubmissions([]);
       }
+    } catch (err) {
+      console.error('Failed to load submissions:', err);
+      setError('Unable to load verification data from database. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubmissions();
+
+    const handleRefresh = () => {
+      fetchSubmissions();
     };
 
-    fetchSubmissions();
+    window.addEventListener('submissionCreated', handleRefresh);
+    window.addEventListener('submissionStatusChanged', handleRefresh);
+    window.addEventListener('adminDataChanged', handleRefresh);
+
+    return () => {
+      window.removeEventListener('submissionCreated', handleRefresh);
+      window.removeEventListener('submissionStatusChanged', handleRefresh);
+      window.removeEventListener('adminDataChanged', handleRefresh);
+    };
   }, []);
 
   const filteredSubmissions = submissions.filter((s) => {

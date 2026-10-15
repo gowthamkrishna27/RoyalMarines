@@ -105,7 +105,7 @@ export const getDashboardData = async (req, res) => {
     const harvestQuery = `
       SELECT 
         DATE_FORMAT(COALESCE(harvest_date, date, created_at), '%Y-%m-%d') as period,
-        COALESCE(SUM(quantity_kg), 0) as harvested_biomass
+        COALESCE(SUM(COALESCE(harvested_biomass, total_biomass_kg, 0)), 0) as harvested_biomass
       FROM harvests
       WHERE tank_id IN (${inClause})
       GROUP BY period
@@ -133,7 +133,7 @@ export const getDashboardData = async (req, res) => {
     const [tankKpi] = await query(kpiTankQuery);
 
     const [harvestKpi] = await query(`
-      SELECT COALESCE(SUM(quantity_kg), 0) as totalHarvest 
+      SELECT COALESCE(SUM(COALESCE(harvested_biomass, total_biomass_kg, 0)), 0) as totalHarvest 
       FROM harvests 
       WHERE tank_id IN (${inClause})
     `);

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Droplet } from 'lucide-react';
+import { ArrowLeft, Save, Droplet, MapPin } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
+import TankBoundaryEditor from '../../components/TankBoundaryEditor';
 
 const AddTanks = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [tanksData, setTanksData] = useState([]);
+  const [boundaryModalTankIndex, setBoundaryModalTankIndex] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { createFarmerWithTanks } = useMockData();
 
   const farmerData = location.state?.farmerData;
@@ -46,7 +49,9 @@ const AddTanks = () => {
     setTanksData(newTanks);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+
     for (let i = 0; i < tanksData.length; i++) {
       const t = tanksData[i];
       if ((t.brooder === 'Others' || t.brooder === 'Other') && !t.customBrooder?.trim()) {
@@ -63,9 +68,23 @@ const AddTanks = () => {
       customBrooder: tank.customBrooder?.trim() || '',
     }));
 
-    const newFarmerId = createFarmerWithTanks(session.agentId, farmerData, resolvedTanks);
-    alert('Farmer and tanks saved successfully!');
-    navigate('/dashboard');
+    setIsSaving(true);
+    try {
+      await createFarmerWithTanks(session.agentId, farmerData, resolvedTanks);
+      setIsSaving(false);
+      alert('Farmer and tanks saved successfully!');
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('[AddTanks] handleSave failed:', err);
+      setIsSaving(false);
+      if (err.partialFailure) {
+        alert(`Farmer was created (ID: ${err.farmerId}), but some tanks failed to save: ${err.message}.`);
+        navigate('/dashboard');
+      } else {
+        const msg = err.response?.data?.message || err.message || 'Failed to save farmer and tanks to database';
+        alert(`Error saving farmer: ${msg}`);
+      }
+    }
   };
 
   return (
@@ -245,15 +264,100 @@ const AddTanks = () => {
                 </select>
               </div>
             </div>
+
+            {/* Tank Boundary (Satellite / GPS Walk) Registration */}
+            <div style={{
+              gridColumn: '1 / -1',
+              marginTop: '12px',
+              padding: '12px 14px',
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MapPin size={16} color="#2563EB" />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                    Tank Boundary Registration
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>
+                    {tank.boundaryCoordinates
+                      ? `✓ Captured via ${tank.boundaryMethod === 'gps_walk' ? 'GPS Walk' : 'Satellite'} (${tank.boundaryAreaAcres || '--'} Acres)`
+                      : 'Capture boundary via Satellite Map or Walk-Around GPS (Optional)'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBoundaryModalTankIndex(index)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 14px',
+                  backgroundColor: tank.boundaryCoordinates ? '#EFF6FF' : '#2563EB',
+                  color: tank.boundaryCoordinates ? '#2563EB' : '#FFFFFF',
+                  border: tank.boundaryCoordinates ? '1px solid #BFDBFE' : 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {tank.boundaryCoordinates ? 'Edit Boundary' : '+ Set Boundary'}
+              </button>
+            </div>
           </div>
         </div>
       ))}
 
       <div style={{ marginTop: '24px', marginBottom: '40px' }}>
-        <button className="btn-primary" style={{ backgroundColor: '#22A65A' }} onClick={handleSave}>
-          <Save size={18} /> Save Farmer & Tanks
+        <button
+          className="btn-primary"
+          style={{
+            backgroundColor: '#22A65A',
+            cursor: isSaving ? 'not-allowed' : 'pointer',
+            opacity: isSaving ? 0.7 : 1
+          }}
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          <Save size={18} /> {isSaving ? 'Saving...' : 'Save Farmer & Tanks'}
         </button>
       </div>
+
+      {boundaryModalTankIndex !== null && (
+        <TankBoundaryEditor
+          isOpen={boundaryModalTankIndex !== null}
+          onClose={() => setBoundaryModalTankIndex(null)}
+          onSaveBoundary={(boundaryData) => {
+            setTanksData(prev => {
+              const updated = [...prev];
+              updated[boundaryModalTankIndex] = {
+                ...updated[boundaryModalTankIndex],
+                boundaryCoordinates: boundaryData.boundaryCoordinates,
+                boundaryMethod: boundaryData.boundaryMethod,
+                boundaryAreaAcres: boundaryData.boundaryAreaAcres,
+                boundaryQuality: boundaryData.boundaryQuality,
+                boundaryCapturedAt: boundaryData.boundaryCapturedAt,
+              };
+              return updated;
+            });
+            setBoundaryModalTankIndex(null);
+          }}
+          initialBoundary={tanksData[boundaryModalTankIndex]?.boundaryCoordinates ? {
+            coordinates: tanksData[boundaryModalTankIndex].boundaryCoordinates.coordinates,
+            boundaryMethod: tanksData[boundaryModalTankIndex].boundaryMethod,
+            points: tanksData[boundaryModalTankIndex].boundaryCoordinates.points || null,
+          } : null}
+          tankName={`Tank ${boundaryModalTankIndex + 1}`}
+          enteredAcres={tanksData[boundaryModalTankIndex]?.size ? `${tanksData[boundaryModalTankIndex].size} Acres` : ''}
+          initialLocation={null}
+        />
+      )}
 
     </div>
   );
