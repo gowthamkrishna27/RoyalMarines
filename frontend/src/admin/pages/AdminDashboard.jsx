@@ -4,7 +4,7 @@ import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
   Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp,
-  ClipboardList
+  ClipboardList, UserCheck, UserX
 } from 'lucide-react';
 
 import adminService from '../utils/adminService';
@@ -120,6 +120,8 @@ const AdminDashboard = () => {
 
   // Real database statistics derived directly from MySQL API
   const totalFarmers = summary?.totalFarmers ?? farmers.length;
+  const activeFarmers = summary?.activeFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'ACTIVE').length;
+  const inactiveFarmers = summary?.inactiveFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'INACTIVE').length;
   const totalTanks = summary?.totalTanks ?? allTanks.length;
   const activeTanks = summary?.activeTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
   const harvestedTanks = summary?.harvestedTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
@@ -323,6 +325,42 @@ const AdminDashboard = () => {
             {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
           </div>
           <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1b: Active Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Active')}
+          title="Click to view active farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>ACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+              <UserCheck size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : activeFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#16A34A' }}>View Active <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1c: Inactive Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Inactive')}
+          title="Click to view inactive farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>INACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+              <UserX size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : inactiveFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#DC2626' }}>View Inactive <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 2: Total Tanks */}
@@ -958,7 +996,7 @@ const styles = {
 
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
     gap: '16px'
   },
 

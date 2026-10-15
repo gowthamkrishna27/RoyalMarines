@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
 import { adminService } from '../utils/adminService';
 import { useMockData } from '../../context/MockDataContext';
@@ -12,6 +12,8 @@ import {
 
 const FarmersList = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
   const [regions, setRegions] = useState([]);
   const [allAgents, setAllAgents] = useState([]);
@@ -71,10 +73,23 @@ const FarmersList = () => {
   }, []);
 
   // Filters state
+  const queryStatus = searchParams.get('status') || location.state?.status;
+  const initialStatus = queryStatus 
+    ? (queryStatus.toLowerCase() === 'active' ? 'Active' : queryStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'ALL')
+    : 'ALL';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
   const [tankFilter, setTankFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+
+  useEffect(() => {
+    const qStatus = searchParams.get('status') || location.state?.status;
+    if (qStatus) {
+      if (qStatus.toLowerCase() === 'active') setStatusFilter('Active');
+      else if (qStatus.toLowerCase() === 'inactive') setStatusFilter('Inactive');
+    }
+  }, [searchParams, location.state]);
 
   // Expanded tanks breakdown per farmer (toggle row)
   const [expandedFarmerIds, setExpandedFarmerIds] = useState({});

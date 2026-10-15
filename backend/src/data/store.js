@@ -96,22 +96,48 @@ class DataStore {
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id,
           COALESCE(tc.tanks_count, 0) as tanks_count,
-          COALESCE(tc.active_ponds, 0) as active_ponds
+          COALESCE(tc.active_ponds, 0) as active_ponds,
+          CASE 
+            WHEN COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.tanks_count, 0) = COALESCE(tc.completed_tanks, 0) 
+            THEN 'INACTIVE'
+            ELSE COALESCE(f.status, 'ACTIVE')
+          END as computed_status
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
         LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
         LEFT JOIN regions r ON i.region_id = r.id
         LEFT JOIN (
           SELECT 
-            farmer_id, 
-            COUNT(*) as tanks_count, 
-            SUM(CASE WHEN LOWER(COALESCE(status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds 
-          FROM tanks 
-          GROUP BY farmer_id
+            t.farmer_id, 
+            COUNT(DISTINCT t.id) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(t.status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
         ) tc ON tc.farmer_id = f.id
         WHERE 1=1
       `;
       const params = [];
+
+      if (filter.status && filter.status !== 'ALL') {
+        const targetStatus = filter.status.toUpperCase();
+        if (targetStatus === 'INACTIVE') {
+          sql += " AND (COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.tanks_count, 0) = COALESCE(tc.completed_tanks, 0))";
+        } else if (targetStatus === 'ACTIVE') {
+          sql += " AND (COALESCE(tc.tanks_count, 0) = 0 OR COALESCE(tc.tanks_count, 0) > COALESCE(tc.completed_tanks, 0))";
+        }
+      }
 
       if (filter.agentId) {
         sql += ' AND f.agent_id = ?';
@@ -163,7 +189,7 @@ class DataStore {
         tanks_count: Number(r.tanks_count || 0),
         activePonds: Number(r.active_ponds || 0),
         active_ponds: Number(r.active_ponds || 0),
-        status: r.status || 'ACTIVE',
+        status: r.computed_status || r.status || 'ACTIVE',
       }));
     } catch (err) {
       console.error('[DB Error in getFarmers]', err.message);
@@ -183,18 +209,34 @@ class DataStore {
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id,
           COALESCE(tc.tanks_count, 0) as tanks_count,
-          COALESCE(tc.active_ponds, 0) as active_ponds
+          COALESCE(tc.active_ponds, 0) as active_ponds,
+          CASE 
+            WHEN COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.completed_tanks, 0) = COALESCE(tc.tanks_count, 0) THEN 'INACTIVE'
+            ELSE COALESCE(f.status, 'ACTIVE')
+          END as computed_status
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
         LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
         LEFT JOIN regions r ON i.region_id = r.id
         LEFT JOIN (
           SELECT 
-            farmer_id, 
-            COUNT(*) as tanks_count, 
-            SUM(CASE WHEN LOWER(COALESCE(status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds 
-          FROM tanks 
-          GROUP BY farmer_id
+            t.farmer_id, 
+            COUNT(DISTINCT t.id) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(t.status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
         ) tc ON tc.farmer_id = f.id
         WHERE f.id = ? OR f.farmer_code = ?
         LIMIT 1`,
@@ -221,7 +263,7 @@ class DataStore {
           tanks_count: Number(r.tanks_count || 0),
           activePonds: Number(r.active_ponds || 0),
           active_ponds: Number(r.active_ponds || 0),
-          status: r.status || 'ACTIVE',
+          status: r.computed_status || r.status || 'ACTIVE',
         };
       }
       return null;
@@ -336,6 +378,91 @@ class DataStore {
     } catch (err) {
       console.error('[DB Error in deleteFarmer]', err.message);
       throw new Error(`[DB Error in deleteFarmer]: ${err.message}`);
+    }
+  }
+
+  // --- Farmer Lifecycle & Status Recalculation ---
+
+  async recalculateFarmerStatus(farmerId) {
+    if (!farmerId) return null;
+    this._ensureDb();
+    try {
+      const fRows = await query('SELECT id, status FROM farmers WHERE id = ? LIMIT 1', [farmerId]);
+      if (!fRows || fRows.length === 0) return null;
+      const fRow = fRows[0];
+
+      const counts = await query(
+        `SELECT 
+           COUNT(DISTINCT t.id) as total_tanks,
+           COUNT(DISTINCT CASE 
+             WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                  AND fh.tank_id IS NOT NULL 
+             THEN t.id 
+             ELSE NULL 
+           END) as completed_tanks
+         FROM tanks t
+         LEFT JOIN (
+           SELECT DISTINCT tank_id, culture_cycle_id 
+           FROM harvests 
+           WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+         ) fh ON fh.tank_id = t.id 
+              AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+         WHERE t.farmer_id = ?`,
+        [farmerId]
+      );
+
+      const totalTanks = Number(counts[0]?.total_tanks || 0);
+      const completedTanks = Number(counts[0]?.completed_tanks || 0);
+
+      let newStatus = fRow.status || 'ACTIVE';
+      if (totalTanks > 0) {
+        newStatus = (completedTanks === totalTanks) ? 'INACTIVE' : 'ACTIVE';
+      }
+
+      if (newStatus !== fRow.status) {
+        await query('UPDATE farmers SET status = ? WHERE id = ?', [newStatus, farmerId]);
+      }
+
+      return newStatus;
+    } catch (err) {
+      console.error(`[Error in recalculateFarmerStatus for ${farmerId}]`, err.message);
+      throw err;
+    }
+  }
+
+  async recalculateAllFarmerStatuses() {
+    this._ensureDb();
+    try {
+      await query(`
+        UPDATE farmers f
+        LEFT JOIN (
+          SELECT 
+            t.farmer_id,
+            COUNT(DISTINCT t.id) as total_tanks,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
+        ) tc ON tc.farmer_id = f.id
+        SET f.status = CASE 
+          WHEN COALESCE(tc.total_tanks, 0) > 0 AND COALESCE(tc.total_tanks, 0) = COALESCE(tc.completed_tanks, 0) 
+          THEN 'INACTIVE'
+          ELSE 'ACTIVE'
+        END
+        WHERE COALESCE(tc.total_tanks, 0) > 0
+      `);
+    } catch (err) {
+      console.error('[Error in recalculateAllFarmerStatuses]', err.message);
     }
   }
 
@@ -552,6 +679,9 @@ class DataStore {
           newTank.stocking_date,
         ]
       );
+      if (newTank.farmer_id) {
+        await this.recalculateFarmerStatus(newTank.farmer_id).catch(() => {});
+      }
       return this.getTankById(newTank.id);
     } catch (err) {
       console.error('[DB Error in createTank]', err.message);
@@ -589,6 +719,12 @@ class DataStore {
       if (fields.length > 0) {
         params.push(id);
         await query(`UPDATE tanks SET ${fields.join(', ')} WHERE id = ?`, params);
+        if (updates.status !== undefined || updates.farmerId !== undefined) {
+          const tank = await this.getTankById(id);
+          if (tank?.farmerId) {
+            await this.recalculateFarmerStatus(tank.farmerId).catch(() => {});
+          }
+        }
       }
       return this.getTankById(id);
     } catch (err) {
@@ -600,7 +736,11 @@ class DataStore {
   async deleteTank(id) {
     this._ensureDb();
     try {
+      const tank = await this.getTankById(id);
       const res = await query('DELETE FROM tanks WHERE id = ?', [id]);
+      if (tank?.farmerId) {
+        await this.recalculateFarmerStatus(tank.farmerId).catch(() => {});
+      }
       return res.affectedRows > 0;
     } catch (err) {
       console.error('[DB Error in deleteTank]', err.message);
@@ -1134,6 +1274,10 @@ class DataStore {
         });
       }
 
+      if (farmerId) {
+        await this.recalculateFarmerStatus(farmerId).catch(() => {});
+      }
+
       return newHarvest;
     } catch (err) {
       console.error('[DB Error in createHarvest]', err.message);
@@ -1191,7 +1335,12 @@ class DataStore {
       ]
     );
 
-    return await this.getTankById(tankId);
+    const updatedTank = await this.getTankById(tankId);
+    if (updatedTank?.farmerId) {
+      await this.recalculateFarmerStatus(updatedTank.farmerId).catch(() => {});
+    }
+
+    return updatedTank;
   }
 
   // --- Summary & Analytics ---
@@ -1202,6 +1351,20 @@ class DataStore {
       const [res] = await query(`
         SELECT 
           (SELECT COUNT(DISTINCT id) FROM farmers) as totalFarmers,
+          (SELECT COUNT(DISTINCT f.id) FROM farmers f
+           WHERE (
+             SELECT COUNT(DISTINCT t.id) FROM tanks t
+             WHERE t.farmer_id = f.id
+               AND LOWER(COALESCE(t.status, '')) = 'harvested'
+               AND EXISTS (
+                 SELECT 1 FROM harvests h 
+                 WHERE h.tank_id = t.id 
+                   AND LOWER(COALESCE(h.harvest_type, '')) LIKE '%final%'
+                   AND (h.culture_cycle_id = t.culture_cycle_id OR h.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+               )
+           ) = (SELECT COUNT(DISTINCT t.id) FROM tanks t WHERE t.farmer_id = f.id)
+           AND (SELECT COUNT(DISTINCT t.id) FROM tanks t WHERE t.farmer_id = f.id) > 0
+          ) as inactiveFarmers,
           (SELECT COUNT(DISTINCT id) FROM tanks) as totalTanks,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'ACTIVE') as activeTanks,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'HARVESTED') as harvestedTanks,
@@ -1223,8 +1386,14 @@ class DataStore {
           (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('PENDING', 'PENDING_VERIFICATION')) as pendingSubmissions
       `);
 
+      const totalFarmers = Number(res?.totalFarmers || 0);
+      const inactiveFarmers = Number(res?.inactiveFarmers || 0);
+      const activeFarmers = Math.max(0, totalFarmers - inactiveFarmers);
+
       return {
-        totalFarmers: Number(res?.totalFarmers || 0),
+        totalFarmers,
+        activeFarmers,
+        inactiveFarmers,
         totalTanks: Number(res?.totalTanks || 0),
         activeTanks: Number(res?.activeTanks || 0),
         harvestedTanks: Number(res?.harvestedTanks || 0),

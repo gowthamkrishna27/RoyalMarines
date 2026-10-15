@@ -3,13 +3,14 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 export const getFarmers = async (req, res) => {
   try {
-    const { agentId, inchargeId, regionId, region, search, limit } = req.query;
+    const { agentId, inchargeId, regionId, region, search, limit, status } = req.query;
     const farmers = await store.getFarmers({
       agentId,
       inchargeId,
       regionId: regionId || region,
       search,
       limit,
+      status,
     });
     return sendSuccess(res, farmers, 'Farmers retrieved successfully', 200, {
       total: farmers.length,
