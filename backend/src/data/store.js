@@ -698,28 +698,17 @@ class DataStore {
           s.test_type AS testType,
           s.tank_id AS tankId,
           s.farmer_id AS farmerId,
-<<<<<<< HEAD
-          COALESCE(f.name, ft.name, '') AS farmerName,
+          COALESCE(NULLIF(f.name, ''), NULLIF(ft.name, ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmerName')), ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmer_name')), ''), '') AS farmerName,
           COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
-=======
-          COALESCE(s.locality, a.locality, '') AS locality,
->>>>>>> d57cb175a0bbffd0bcd4e0f8d321499291bc6a9b
           s.status
         FROM submissions s
         LEFT JOIN agents a ON a.id = COALESCE(s.user_id, s.agent_id)
         LEFT JOIN incharges inc ON inc.id = COALESCE(s.user_id, s.agent_id)
         LEFT JOIN users u ON u.id = COALESCE(s.user_id, s.agent_id)
-        LEFT JOIN agents a ON (s.user_id = a.id OR s.agent_id = a.id)
-        LEFT JOIN incharges inc ON (s.user_id = inc.id OR s.agent_id = inc.id)
-        LEFT JOIN users u ON (s.user_id = u.id OR s.agent_id = u.id)
-<<<<<<< HEAD
         LEFT JOIN farmers f ON (s.farmer_id = f.id OR s.farmer_id = f.farmer_code)
         LEFT JOIN tanks t ON (s.tank_id = t.id)
         LEFT JOIN farmers ft ON (t.farmer_id = ft.id OR t.farmer_id = ft.farmer_code)
         WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
-=======
-        WHERE 1=1
->>>>>>> d57cb175a0bbffd0bcd4e0f8d321499291bc6a9b
       `;
       const params = [];
 
@@ -745,7 +734,6 @@ class DataStore {
       sql += ' ORDER BY s.created_at DESC';
 
       const rows = await query(sql, params);
-<<<<<<< HEAD
       return rows
         .filter((r) => r.latitude != null && r.longitude != null && !isNaN(parseFloat(r.latitude)) && !isNaN(parseFloat(r.longitude)))
         .map((r) => ({
@@ -766,25 +754,6 @@ class DataStore {
           locality: r.locality || 'No location available',
           status: r.status,
         }));
-=======
-      return rows.map((r) => ({
-        submissionId: r.submissionId,
-        userId: r.userId || '',
-        userName: r.userName || '',
-        role: r.role || 'Agent',
-        latitude: r.latitude != null ? parseFloat(r.latitude) : null,
-        longitude: r.longitude != null ? parseFloat(r.longitude) : null,
-        accuracy: r.accuracy != null ? parseFloat(r.accuracy) : null,
-        date: r.date,
-        submissionTime: r.submissionTime,
-        submittedAt: r.submittedAt ? new Date(r.submittedAt).toISOString() : new Date().toISOString(),
-        testType: r.testType,
-        tankId: r.tankId,
-        farmerId: r.farmerId,
-        locality: r.locality || '',
-        status: r.status,
-      }));
->>>>>>> d57cb175a0bbffd0bcd4e0f8d321499291bc6a9b
     } catch (err) {
       console.error('[DB Error in getSubmissionLocations]', err.message);
       throw new Error(`[DB Error in getSubmissionLocations]: ${err.message}`);
@@ -1668,13 +1637,8 @@ class DataStore {
       }
 
       return rows.map((r) => {
-<<<<<<< HEAD
         const locSet = regionLocMap[r.name] || regionLocMap[r.id] || regionLocMap[r.code] || new Set();
         const localities = Array.from(locSet).map(l => ({ id: `LOC-${r.id}-${l.toLowerCase().replace(/\s+/g, '-')}`, name: l }));
-=======
-        const locSet = regionLocMap[r.name] || new Set();
-        const localities = Array.from(locSet).map(l => ({ id: `LOC-${l}`, name: l }));
->>>>>>> d57cb175a0bbffd0bcd4e0f8d321499291bc6a9b
         return {
           ...r,
           id: String(r.id),
