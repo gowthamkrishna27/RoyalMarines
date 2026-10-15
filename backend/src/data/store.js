@@ -395,7 +395,7 @@ class DataStore {
         farmerName: r.farmer_name,
         farmer: r.farmer_name,
         location: r.farmer_location || r.location || '',
-        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
+        locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || 'Bhimavaram',
         agentId: r.agent_id,
         agent: r.agent_name,
         inchargeId: r.incharge_id,

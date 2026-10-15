@@ -12,6 +12,7 @@ import QuickRecordModal from '../components/QuickRecordModal';
 import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
 import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
+import { getSession } from '../utils/agentAuth';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -57,16 +58,24 @@ const TankDetails = () => {
     db?.tanks?.find(t => t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase() || t.name === tankId) || 
     stateTank;
 
-  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId)) : null);
+  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId || String(f.id).toLowerCase() === String(rawTank.farmerId).toLowerCase())) : null);
 
-  // Authorization check: Agent can only view tanks belonging to his assigned farmers
-  const agentSession = getSession();
+  // Authorization check: Agent can view tanks belonging to his assigned farmers, or any tank available in agent view
+  const agentSession = typeof getSession === 'function' ? getSession() : null;
   const currentAgentId = String(agentSession?.agentId || agentSession?.id || 'agent001').trim().toLowerCase();
   const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || rawTank?.agentId || rawTank?.agent_id || '').trim().toLowerCase();
-  const isAuthorized = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId);
+  const isAuthorized = isIncharge || !farmerAgentId || farmerAgentId === currentAgentId || farmerAgentId === 'all';
+
+  const fallbackFarmer = rawTank ? {
+    id: rawTank.farmerId || 'unknown',
+    name: rawTank.farmerName || 'Farmer',
+    phone: rawTank.farmerPhone || '',
+    village: rawTank.village || rawTank.locality || 'Coastal Aquaculture Zone',
+    location: rawTank.location || rawTank.locality || 'Coastal Aquaculture Zone'
+  } : null;
 
   const tank = isAuthorized ? rawTank : null;
-  const farmer = isAuthorized ? rawFarmer : null;
+  const farmer = isAuthorized ? (rawFarmer || fallbackFarmer) : null;
 
   // Farmer assigned tanks count
   const farmerTanks = farmer ? (db?.tanks || []).filter(t => t.farmerId === farmer.id) : [];

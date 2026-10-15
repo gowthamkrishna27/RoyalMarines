@@ -44,7 +44,7 @@ const SiteVisit = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    water: { date: new Date().toISOString().split('T')[0], ph: '', ammonia: '', nitrate: '', salinity: '' },
+    water: { date: new Date().toISOString().split('T')[0], doc: '', salinity: '', ph: '', alkalinity: '', hardness: '', ammonia: '', nitrate: '', nitrite: '', k: '', do: '', h2s: '', chlorine: '', iron: '', waterColour: '' },
     feed: { doc: '', seed: '', abw: '', dayFeed: '', cumulativeFeed: '', totalBiomass: '', fcr: '', checkTrayFeed: '', checkTrayTime: '', remarks: '' },
     medication: { treatmentType: '', category: '', product: '', dosage: '', remarks: '' },
     disease: { observations: [], remarks: '' },
@@ -181,6 +181,13 @@ const SiteVisit = () => {
   }
 
   const handleNext = () => {
+    if (currentStep === 1) {
+      const { ph, ammonia, nitrate, salinity } = formData.water;
+      if (!ph || !ammonia || !nitrate || !salinity) {
+        alert('Please fill all mandatory water analysis parameters:\n• pH Level\n• Ammonia (NH3)\n• Nitrate (NO3)\n• Salinity');
+        return;
+      }
+    }
     if (currentStep === 0) {
       setCurrentStep('MENU');
     } else if (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 4) {
@@ -259,18 +266,24 @@ const SiteVisit = () => {
     return null;
   };
 
-  const renderInput = (section, field, label, type="text", placeholder="") => {
+  const renderInput = (section, field, label, type = "text", placeholder = "", isRequired = false) => {
     const value = formData[section][field];
     const warning = section === 'water' ? checkWaterWarning(field, value) : null;
-    
+    const isMandatory = isRequired || (section === 'water' && ['ph', 'ammonia', 'nitrate', 'salinity', 'date'].includes(field));
     return (
       <div className="input-group">
-        <label style={styles.label}>{label}</label>
+        <label style={styles.label}>
+          {label}
+          {isMandatory && (
+            <span style={{ color: '#DC2626', marginLeft: '4px', fontWeight: 'bold' }}>*</span>
+          )}
+        </label>
         <div className="input-field" style={warning ? { border: '1px solid var(--status-orange)' } : {}}>
           <input 
             type={type} 
             placeholder={placeholder}
             value={value}
+            required={isMandatory}
             readOnly={field === 'fcr'}
             style={field === 'fcr' ? { color: 'var(--color-primary)', fontWeight: 'bold' } : {}}
             onChange={e => updateFormData(section, field, e.target.value)}
@@ -296,6 +309,13 @@ const SiteVisit = () => {
   };
 
   const handleSubmit = async () => {
+    const { ph, ammonia, nitrate, salinity } = formData.water;
+    if (!ph || !ammonia || !nitrate || !salinity) {
+      alert('Water Analysis requires mandatory fields:\n• pH Level\n• Ammonia (NH3)\n• Nitrate (NO3)\n• Salinity\nPlease fill them before submitting.');
+      setCurrentStep(1);
+      return;
+    }
+
     let locationFix;
     try {
       // Capture actual device GPS at the exact moment of pressing Submit
@@ -668,30 +688,34 @@ const SiteVisit = () => {
       case 1:
         return (
           <div style={styles.stepContainer}>
-            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', fontWeight: '800', color: '#1A2FB8', letterSpacing: '0.5px' }}>
-                WATER QUALITY PARAMETERS
+            <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A2FB8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Water Quality Analysis
               </span>
-              <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
-                4 Parameters Analysis
-              </span>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={styles.stepBackBtn}
+              >
+                <ArrowLeft size={14} /> Back to Menu
+              </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: '14px' }}>
-              {/* 1. Date */}
               {renderInput('water', 'date', 'Test Date', 'date')}
-
-              {/* 2. pH: 7.5 to 8.5 */}
-              {renderInput('water', 'ph', 'pH Level (Optimal 7.5 - 8.5)', 'number', 'e.g. 7.8')}
-
-              {/* 3. Ammonia: 0 to >0.5 ppm */}
-              {renderInput('water', 'ammonia', 'Ammonia - NH3 (< 0.5 ppm)', 'number', 'e.g. 0.05')}
-
-              {/* 4. Nitrate: ppm */}
-              {renderInput('water', 'nitrate', 'Nitrate - NO3 (< 20 ppm)', 'number', 'e.g. 2.0')}
-
-              {/* 5. Salinity: 0 - 30 ppt */}
-              {renderInput('water', 'salinity', 'Salinity (0 - 30 ppt)', 'number', 'e.g. 15.0')}
+              {renderInput('water', 'doc', 'DOC / Day of Culture', 'number')}
+              {renderInput('water', 'ph', 'pH Level', 'number', 'e.g. 7.8')}
+              {renderInput('water', 'salinity', 'Salinity (ppt)', 'number', 'e.g. 15.0')}
+              {renderInput('water', 'ammonia', 'Ammonia - NH3 (ppm)', 'number', 'e.g. 0.05')}
+              {renderInput('water', 'nitrate', 'Nitrate - NO3 (ppm)', 'number', 'e.g. 2.0')}
+              {renderInput('water', 'alkalinity', 'Alkalinity (ppm)', 'number', 'e.g. 140')}
+              {renderInput('water', 'hardness', 'Hardness (ppm)', 'number', 'e.g. 1500')}
+              {renderInput('water', 'nitrite', 'Nitrite (ppm)', 'number', 'e.g. 0.1')}
+              {renderInput('water', 'k', 'Potassium - K (ppm)', 'number', 'e.g. 400')}
+              {renderInput('water', 'do', 'Dissolved Oxygen (mg/L)', 'number', 'e.g. 5.5')}
+              {renderInput('water', 'h2s', 'H2S (ppm)', 'number', 'e.g. 0.01')}
+              {renderInput('water', 'chlorine', 'Chlorine (ppm)', 'number', 'e.g. 0.00')}
+              {renderInput('water', 'iron', 'Iron - Fe (ppm)', 'number', 'e.g. 0.01')}
+              {renderInput('water', 'waterColour', 'Water Colour', 'text', 'e.g. Light Green')}
             </div>
           </div>
         );
@@ -699,6 +723,18 @@ const SiteVisit = () => {
       case 2:
         return (
           <div style={styles.stepContainer}>
+            <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A2FB8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Feed Test
+              </span>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={styles.stepBackBtn}
+              >
+                <ArrowLeft size={14} /> Back to Menu
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2">
               {renderInput('feed', 'doc', 'DOC', 'number')}
               {renderInput('feed', 'seed', 'Seed', 'number')}
@@ -717,6 +753,18 @@ const SiteVisit = () => {
       case 3:
         return (
           <div style={styles.stepContainer}>
+            <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A2FB8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Medication Record
+              </span>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={styles.stepBackBtn}
+              >
+                <ArrowLeft size={14} /> Back to Menu
+              </button>
+            </div>
             <div className="input-group">
               <label style={styles.label}>Treatment Type</label>
               <div className="input-field">
@@ -737,6 +785,18 @@ const SiteVisit = () => {
       case 4:
         return (
           <div style={styles.stepContainer}>
+            <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A2FB8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Disease Observation
+              </span>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={styles.stepBackBtn}
+              >
+                <ArrowLeft size={14} /> Back to Menu
+              </button>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <label style={{ ...styles.label, margin: 0 }}>Observed Shrimp Diseases</label>
               <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>📷 Shrimp Photo Compilation</span>
@@ -835,6 +895,18 @@ const SiteVisit = () => {
       case 5:
         return (
           <div style={styles.stepContainer}>
+            <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A2FB8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Review All Test Records
+              </span>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={styles.stepBackBtn}
+              >
+                <ArrowLeft size={14} /> Back to Menu
+              </button>
+            </div>
             <div style={styles.reviewBox}>
               {/* 1. Water Quality */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
@@ -904,7 +976,16 @@ const SiteVisit = () => {
 
       <div className="card">
         <div style={styles.cardHeader}>
-          <h2 style={{...styles.title, textAlign: currentStep === 'MENU' ? 'center' : 'left'}}>{currentStep === 'MENU' ? `${tank.name} - Tests` : STEPS[currentStep]}</h2>
+          {currentStep !== 'MENU' && currentStep !== 0 && (
+            <button
+              type="button"
+              onClick={handleBack}
+              style={styles.headerBackBtn}
+            >
+              <ArrowLeft size={16} /> {returnToSubmit ? 'Back to Review' : 'Back to Tests Menu'}
+            </button>
+          )}
+          <h2 style={{ ...styles.title, textAlign: currentStep === 'MENU' ? 'center' : 'left' }}>{currentStep === 'MENU' ? `${tank.name} - Tests` : STEPS[currentStep]}</h2>
           {currentStep !== 'MENU' && <div style={styles.subtitle}>{tank.name} - Step {currentStep + 1} of {STEPS.length}</div>}
         </div>
 
@@ -924,21 +1005,40 @@ const SiteVisit = () => {
         {/* Footer Actions */}
         <div style={styles.footer}>
           {currentStep === 0 ? (
-            <button 
-              className="btn-primary"
-              onClick={handleNext}
-              disabled={gpsStatus !== 'success'}
-            >
-              Continue
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', width: '100%' }}>
+              <button
+                type="button"
+                style={styles.footerBackBtn}
+                onClick={handleBack}
+              >
+                <ArrowLeft size={16} /> Cancel Visit
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleNext}
+                disabled={gpsStatus !== 'success'}
+                style={{ width: '100%', padding: '15px', fontSize: '15px' }}
+              >
+                Continue
+              </button>
+            </div>
           ) : currentStep === 'MENU' ? (
-            <button 
-              className="btn-primary"
-              onClick={handleNext}
-              style={{ width: '100%', padding: '16px', fontSize: '15px' }}
-            >
-              EDIT & SUBMIT
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+              <button
+                className="btn-primary"
+                onClick={handleNext}
+                style={{ width: '100%', padding: '16px', fontSize: '15px' }}
+              >
+                EDIT & SUBMIT
+              </button>
+              <button
+                type="button"
+                style={styles.footerBackBtn}
+                onClick={handleBack}
+              >
+                <ArrowLeft size={16} /> Back to Tank Details
+              </button>
+            </div>
           ) : currentStep === 5 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
               <button 
@@ -968,15 +1068,31 @@ const SiteVisit = () => {
               >
                 <Send size={18} /> SUBMIT TESTS
               </button>
+              <button
+                type="button"
+                style={styles.footerBackBtn}
+                onClick={handleBack}
+              >
+                <ArrowLeft size={16} /> Back to Tests Menu
+              </button>
             </div>
           ) : (
-            <button 
-              className="btn-primary"
-              onClick={handleNext}
-              style={{ width: '100%', padding: '16px', fontSize: '15px' }}
-            >
-              Save & Return
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', width: '100%' }}>
+              <button
+                type="button"
+                style={styles.footerBackBtn}
+                onClick={handleBack}
+              >
+                <ArrowLeft size={16} /> Back
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleNext}
+                style={{ width: '100%', padding: '15px', fontSize: '15px' }}
+              >
+                Save & Return
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -989,6 +1105,47 @@ const styles = {
   backBtn: { display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#17233C', fontWeight: '600', cursor: 'pointer', fontSize: '15px' },
   draftBtn: { display: 'flex', alignItems: 'center', gap: '6px', background: '#EAF3FF', border: '1px solid #DCE4EE', padding: '6px 12px', borderRadius: '6px', color: '#2563D9', fontWeight: '600', cursor: 'pointer', fontSize: '13px' },
   cardHeader: { marginBottom: '16px' },
+  headerBackBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'none',
+    border: 'none',
+    color: '#1A2FB8',
+    fontSize: '13.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    marginBottom: '8px',
+    padding: 0
+  },
+  stepBackBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: '#F1F5F9',
+    border: '1px solid #CBD5E1',
+    borderRadius: '6px',
+    padding: '5px 12px',
+    color: '#334155',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  footerBackBtn: {
+    width: '100%',
+    padding: '14px',
+    backgroundColor: '#FFFFFF',
+    color: '#475569',
+    border: '1.5px solid #CBD5E1',
+    borderRadius: '10px',
+    fontSize: '14.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px'
+  },
   title: { fontSize: '20px', fontWeight: '700', color: '#17233C', marginBottom: '4px' },
   subtitle: { fontSize: '13px', color: '#64748B' },
   progressContainer: { height: '6px', backgroundColor: '#DCE4EE', borderRadius: '3px', overflow: 'hidden', marginBottom: '24px' },

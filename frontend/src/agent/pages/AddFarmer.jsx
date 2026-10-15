@@ -127,6 +127,7 @@ const AddFarmer = () => {
       soilType: 'Loam',
       hatchery: 'Golden Marine Hatchery',
       brooder: 'Kona Bay',
+      customBrooder: '',
       seedDate: new Date().toISOString().split('T')[0],
       seedStockingLak: '2.5',
       feedType: 'Premium',
@@ -169,6 +170,7 @@ const AddFarmer = () => {
         soilType: 'Loam',
         hatchery: 'Golden Marine Hatchery',
         brooder: 'Kona Bay',
+        customBrooder: '',
         seedDate: new Date().toISOString().split('T')[0],
         seedStockingLak: '2.5',
         feedType: 'Premium',
@@ -196,6 +198,15 @@ const AddFarmer = () => {
 
   const handleFinalSave = () => {
     if (isSaving) return;
+
+    for (let i = 0; i < tanksData.length; i++) {
+      const t = tanksData[i];
+      if ((t.brooder === 'Others' || t.brooder === 'Other') && !t.customBrooder?.trim()) {
+        alert(`Please specify other brooder details for ${t.name || `Tank ${i + 1}`}.`);
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
@@ -206,6 +217,14 @@ const AddFarmer = () => {
       const resolvedWaterSource = farmerForm.waterSource === 'Others'
         ? (farmerForm.customWaterSource?.trim() || 'Others')
         : farmerForm.waterSource;
+
+      const resolvedTanks = tanksData.map(tank => ({
+        ...tank,
+        brooder: (tank.brooder === 'Others' || tank.brooder === 'Other')
+          ? (tank.customBrooder?.trim() || 'Others')
+          : tank.brooder,
+        customBrooder: tank.customBrooder?.trim() || '',
+      }));
 
       const farmerPayload = {
         name: farmerForm.name.trim(),
@@ -218,7 +237,7 @@ const AddFarmer = () => {
         waterSource: resolvedWaterSource,
         acres: finalAcres,
         extent: finalAcres,
-        numberOfTanks: tanksData.length.toString(),
+        numberOfTanks: resolvedTanks.length.toString(),
         status: farmerForm.status,
         gps: gpsData,
       };
@@ -230,7 +249,7 @@ const AddFarmer = () => {
         farmerPayload.assignedTo = 'Incharge';
         farmerPayload.assignedBy = 'Incharge';
 
-        createFarmerWithTanks(null, farmerPayload, tanksData);
+        createFarmerWithTanks(null, farmerPayload, resolvedTanks);
         navigate(`${inchargeBasePath}/my-farmers`);
       } else {
         const agentId = session?.agentId || 'agent001';
@@ -238,7 +257,7 @@ const AddFarmer = () => {
         farmerPayload.assignedTo = 'Agent';
         farmerPayload.assignedBy = 'Agent';
 
-        createFarmerWithTanks(agentId, farmerPayload, tanksData);
+        createFarmerWithTanks(agentId, farmerPayload, resolvedTanks);
         navigate('/farmers');
       }
     } catch (err) {
@@ -483,18 +502,6 @@ const AddFarmer = () => {
                       required
                     />
                   </div>
-
-                  {tanksData.length > 1 && (
-                    <button
-                      type="button"
-                      className="transition-all duration-150 hover:opacity-80 active:scale-90 cursor-pointer"
-                      style={styles.removePondBtn}
-                      onClick={() => handleRemoveTank(idx)}
-                      title="Remove Tank"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
                 </div>
 
                 <div style={styles.grid2Col}>
@@ -570,8 +577,26 @@ const AddFarmer = () => {
                       <option value="Kona Bay">Kona Bay</option>
                       <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                       <option value="American Penaeid">American Penaeid</option>
-                      <option value="Other">Other</option>
+                      <option value="Others">Others</option>
+
                     </select>
+
+                    {(tank.brooder === 'Others' || tank.brooder === 'Other') && (
+                      <div style={{ marginTop: '8px' }}>
+                        <label style={{ ...styles.fieldLabel, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                          Specify Other Brooder Details *
+                        </label>
+                        <input
+                          type="text"
+                          value={tank.customBrooder || ''}
+                          onChange={(e) => handleTankChange(idx, 'customBrooder', e.target.value)}
+                          style={styles.textInput}
+                          placeholder="Enter other brooder details (e.g. Local Hatchery Brooder)"
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* 6. Seed Date */}
