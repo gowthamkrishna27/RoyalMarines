@@ -152,6 +152,13 @@ export const adminService = {
     return Array.isArray(res?.data) ? res.data : [];
   },
 
+  async getTodaySubmissions(force = false) {
+    return fetchWithCache('/admin/submission-locations?date=today', async () => {
+      const res = await apiClient.get('/admin/submission-locations?date=today');
+      return Array.isArray(res?.data) ? res.data : [];
+    }, DEFAULT_TTL_MS, force);
+  },
+
   async getFieldStaff() {
     const res = await apiClient.get('/admin/field-staff');
     return Array.isArray(res?.data) ? res.data : [];
@@ -178,6 +185,24 @@ export const adminService = {
   async updateTank(id, updates) {
     memoryCache.clear();
     const res = await apiClient.put(`/tanks/${id}`, updates);
+    return res?.data || null;
+  },
+
+  async createFarmer(payload) {
+    memoryCache.clear();
+    const res = await apiClient.post('/farmers', payload);
+    return res?.data || null;
+  },
+
+  async updateFarmer(id, updates) {
+    memoryCache.clear();
+    const res = await apiClient.put(`/farmers/${id}`, updates);
+    return res?.data || null;
+  },
+
+  async deleteFarmer(id) {
+    memoryCache.clear();
+    const res = await apiClient.delete(`/farmers/${id}`);
     return res?.data || null;
   },
 

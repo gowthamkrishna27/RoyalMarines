@@ -389,14 +389,7 @@ export const MockDataProvider = ({ children }) => {
       fetchDataFromDb();
     }, []);
 
-    // Save to LocalStorage whenever DB changes
-    useEffect(() => {
-      if (db) {
-        try {
-          localStorage.setItem('aqua_feed_clean_database_v1', JSON.stringify(db));
-        } catch (e) { }
-      }
-    }, [db]);
+    // Data source is exclusively MySQL DB via API - no redundant synchronous localStorage serialization
 
     // Sync profile changes to MockDataContext state
     useEffect(() => {
