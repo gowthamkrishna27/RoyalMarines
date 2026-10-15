@@ -645,12 +645,16 @@ class DataStore {
           s.test_type AS testType,
           s.tank_id AS tankId,
           s.farmer_id AS farmerId,
+          COALESCE(f.name, ft.name, '') AS farmerName,
           COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
           s.status
         FROM submissions s
         LEFT JOIN agents a ON (s.user_id = a.id OR s.agent_id = a.id)
         LEFT JOIN incharges inc ON (s.user_id = inc.id OR s.agent_id = inc.id)
         LEFT JOIN users u ON (s.user_id = u.id OR s.agent_id = u.id)
+        LEFT JOIN farmers f ON (s.farmer_id = f.id OR s.farmer_id = f.farmer_code)
+        LEFT JOIN tanks t ON (s.tank_id = t.id)
+        LEFT JOIN farmers ft ON (t.farmer_id = ft.id OR t.farmer_id = ft.farmer_code)
         WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
       `;
       const params = [];
@@ -693,6 +697,7 @@ class DataStore {
           testType: r.testType,
           tankId: r.tankId,
           farmerId: r.farmerId,
+          farmerName: r.farmerName || '',
           locality: r.locality || 'No location available',
           status: r.status,
         }));
@@ -1325,9 +1330,33 @@ class DataStore {
         console.warn('[Warning getting region localities]', locErr.message);
       }
 
+      // Also fetch from localities table
+      try {
+        const customLocRows = await query(`
+          SELECT l.name as locality, r.name as region_name, r.id as region_id, r.code as region_code
+          FROM localities l
+          JOIN regions r ON (r.id = l.region_id OR r.code = l.region_id)
+          WHERE l.name IS NOT NULL AND l.name != ''
+        `);
+        for (const loc of customLocRows) {
+          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+          regionLocMap[loc.region_name].add(loc.locality);
+          if (loc.region_id) {
+            if (!regionLocMap[loc.region_id]) regionLocMap[loc.region_id] = new Set();
+            regionLocMap[loc.region_id].add(loc.locality);
+          }
+          if (loc.region_code) {
+            if (!regionLocMap[loc.region_code]) regionLocMap[loc.region_code] = new Set();
+            regionLocMap[loc.region_code].add(loc.locality);
+          }
+        }
+      } catch (custLocErr) {
+        // Table may not have records yet
+      }
+
       return rows.map((r) => {
-        const locSet = regionLocMap[r.name] || new Set();
-        const localities = Array.from(locSet).map(l => ({ name: l }));
+        const locSet = regionLocMap[r.name] || regionLocMap[r.id] || regionLocMap[r.code] || new Set();
+        const localities = Array.from(locSet).map(l => ({ id: `LOC-${r.id}-${l.toLowerCase().replace(/\s+/g, '-')}`, name: l }));
         return {
           ...r,
           id: String(r.id),
@@ -1352,6 +1381,126 @@ class DataStore {
     this._ensureDb();
     const list = await this.getRegions();
     return list.find((r) => String(r.id) === String(id) || String(r.code) === String(id)) || null;
+  }
+
+  async createRegion(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      if (!name) {
+        const err = new Error('Region name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region already exists (case-insensitive duplicate prevention)
+      const existing = await query('SELECT id, name FROM regions WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Region "${name}" already exists! Duplicate regions are not allowed.`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // Generate next REGxxx ID
+      let newId = data.id && String(data.id).startsWith('REG') ? String(data.id).trim() : null;
+      if (!newId) {
+        const rows = await query("SELECT id FROM regions WHERE id LIKE 'REG%'");
+        let maxNum = 0;
+        for (const row of rows) {
+          const match = String(row.id).match(/^REG(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        let counter = maxNum + 1;
+        while (true) {
+          const candidateId = `REG${String(counter).padStart(3, '0')}`;
+          const [exists] = await query('SELECT id FROM regions WHERE id = ? LIMIT 1', [candidateId]);
+          if (!exists) {
+            newId = candidateId;
+            break;
+          }
+          counter++;
+        }
+      }
+
+      const code = data.code || newId;
+      const status = data.status || 'ACTIVE';
+      const activePonds = Number(data.activePonds || data.active_ponds || 0);
+      const totalYield = data.totalYield || data.total_yield || '0 Tons';
+      const avgFcr = data.avgFcr || data.avg_fcr || 1.25;
+
+      await query(
+        `INSERT INTO regions (id, code, name, active_ponds, total_yield, avg_fcr, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId, code, name, activePonds, totalYield, avgFcr, status]
+      );
+
+      return {
+        id: newId,
+        code,
+        name,
+        activePonds,
+        totalYield,
+        avgFcr,
+        status,
+        localities: []
+      };
+    } catch (err) {
+      console.error('[DB Error in createRegion]', err.message);
+      throw err;
+    }
+  }
+
+  async createLocality(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      const regionId = (data.regionId || data.region_id || '').trim();
+
+      if (!name) {
+        const err = new Error('Locality name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!regionId) {
+        const err = new Error('Region ID is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region exists
+      const [reg] = await query('SELECT id, name FROM regions WHERE id = ? OR code = ? OR LOWER(name) = LOWER(?) LIMIT 1', [regionId, regionId, regionId]);
+      if (!reg) {
+        const err = new Error(`Region "${regionId}" not found`);
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const actualRegionId = reg.id;
+
+      // Check duplicate locality for this region
+      const existing = await query('SELECT id FROM localities WHERE region_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [actualRegionId, name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Locality "${name}" already exists in region "${reg.name}"!`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const newId = `LOC-${actualRegionId}-${Date.now().toString(36)}`;
+      await query('INSERT INTO localities (id, region_id, name) VALUES (?, ?, ?)', [newId, actualRegionId, name]);
+
+      return {
+        id: newId,
+        regionId: actualRegionId,
+        regionName: reg.name,
+        name
+      };
+    } catch (err) {
+      console.error('[DB Error in createLocality]', err.message);
+      throw err;
+    }
   }
 
   // --- Incharges ---
