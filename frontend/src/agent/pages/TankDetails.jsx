@@ -35,13 +35,8 @@ const TankDetails = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-<<<<<<< HEAD
-  const isIncharge = location.pathname.startsWith('/incharge');
-  const { getTankById, getFarmerById, db, editTank } = useMockData();
-=======
   const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
-  const { getTankById, getFarmerById, db } = useMockData();
->>>>>>> 69d1bc3ab3af77575d0776a6aa06499328880e51
+  const { getTankById, getFarmerById, db, editTank } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isHarvestModalOpen, setIsHarvestModalOpen] = useState(false);
@@ -213,15 +208,10 @@ const TankDetails = () => {
     }
   });
 
-<<<<<<< HEAD
   const nextPartialTitle = partialCount === 0 ? 'Partial Harvest' : `Partial Harvest ${partialCount + 1}`;
 
   const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') || 
     (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || tankStoreData?.finalHarvestCompleted);
-=======
-  const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') ||
-    (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted);
->>>>>>> 69d1bc3ab3af77575d0776a6aa06499328880e51
 
   const filterSubmissions = (type) => {
     const target = type.toUpperCase();
@@ -360,14 +350,7 @@ const TankDetails = () => {
               type="button" 
               style={styles.harvestActionBtn}
               onClick={() => {
-<<<<<<< HEAD
                 setIsHarvestTypeChoiceOpen(true);
-=======
-                const harvestPath = location.pathname.startsWith('/asm') 
-                  ? '/asm/harvest' 
-                  : (isIncharge ? '/incharge/harvest' : '/harvest');
-                navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
->>>>>>> 69d1bc3ab3af77575d0776a6aa06499328880e51
               }}
               title="Record Crop Harvest"
             >
@@ -567,14 +550,7 @@ const TankDetails = () => {
                   type="button"
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
-<<<<<<< HEAD
                     setIsHarvestTypeChoiceOpen(true);
-=======
-                    const harvestPath = location.pathname.startsWith('/asm') 
-                      ? '/asm/harvest' 
-                      : (isIncharge ? '/incharge/harvest' : '/harvest');
-                    navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
->>>>>>> 69d1bc3ab3af77575d0776a6aa06499328880e51
                   }}
                 >
                   <Plus size={14} strokeWidth={2.5} />
