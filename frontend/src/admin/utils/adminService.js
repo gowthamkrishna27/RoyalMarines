@@ -254,6 +254,41 @@ export const adminService = {
     this.invalidateSubmissionCache();
     const res = await apiClient.patch(`/submissions/${id}/verify`, { status, notes });
     return res?.data || null;
+  },
+
+  invalidateComplianceCache() {
+    for (const key of memoryCache.keys()) {
+      if (key.includes('/tanks/compliance')) {
+        memoryCache.delete(key);
+      }
+    }
+  },
+
+  async getComplianceDueList(params = null, force = false) {
+    const cacheKey = '/tanks/compliance/due-list' + (params ? JSON.stringify(params) : '');
+    return fetchWithCache(cacheKey, async () => {
+      const res = await apiClient.get('/tanks/compliance/due-list', params);
+      return res?.data || {
+        counts: { totalActiveTanks: 0, compliantCount: 0, dueCount: 0, addressedCount: 0, totalDueTests: 0 },
+        dueList: [],
+        addressedList: [],
+        compliantList: [],
+        allTanks: []
+      };
+    }, DEFAULT_TTL_MS, force);
+  },
+
+  async submitFollowup(payload) {
+    this.invalidateComplianceCache();
+    const res = await apiClient.post('/tanks/compliance/follow-up', payload);
+    return res?.data || null;
+  },
+
+  async getFollowupHistory(tankId, cycleKey = null) {
+    let url = `/tanks/compliance/follow-up/${tankId}`;
+    if (cycleKey) url += `?cycleKey=${encodeURIComponent(cycleKey)}`;
+    const res = await apiClient.get(url);
+    return Array.isArray(res?.data) ? res.data : [];
   }
 };
 

@@ -1183,7 +1183,17 @@ class DataStore {
         }
       }
 
-      // 3. Create Audit Log entry
+      // 3. Auto-resolve active due follow-up cycles if this is a qualifying non-harvest test
+      if (!isHarvest) {
+        try {
+          await query(
+            `UPDATE tank_due_followups SET resolved_at = NOW() WHERE tank_id = ? AND resolved_at IS NULL`,
+            [data.tankId]
+          );
+        } catch (fupResolveErr) { }
+      }
+
+      // 4. Create Audit Log entry
       try {
         await query(
           `INSERT INTO audit_logs (action, module, record_id, performed_by, notes) VALUES (?, ?, ?, ?, ?)`,
@@ -2343,6 +2353,433 @@ class DataStore {
       console.error('[DB Error in unassignAgentFromIncharge]', err.message);
       throw new Error(`[DB Error in unassignAgentFromIncharge]: ${err.message}`);
     }
+  }
+
+  // =========================================================================
+  // WEEKLY TANK-TEST COMPLIANCE & FOLLOW-UP MESSAGING SYSTEM
+  // =========================================================================
+
+  /**
+   * Calculates weekly test compliance and follow-up tracking for active culture tanks.
+   * Rolling 7-day compliance rule: A tank is compliant if and only if a qualifying non-harvest
+   * test is recorded within the last 7 days.
+   * Distinguishes test compliance (COMPLIANT vs DUE) from follow-up status (DUE vs ADDRESSED).
+   */
+  async getTankComplianceList(options = {}) {
+    this._ensureDb();
+    const { user, agentId, inchargeId, tankId } = options;
+
+    let sql = `
+      SELECT
+        t.id as tank_id,
+        t.name as tank_name,
+        t.farmer_id,
+        f.name as farmer_name,
+        f.phone as farmer_phone,
+        COALESCE(f.village, f.location, 'Aquaculture Zone') as farmer_village,
+        t.agent_id,
+        COALESCE(a.name, u_ag.name, 'Unassigned') as agent_name,
+        COALESCE(a.phone, u_ag.phone, '') as agent_phone,
+        COALESCE(t.incharge_id, a.incharge_id) as incharge_id,
+        COALESCE(inc.name, u_inc.name, 'Unassigned') as incharge_name,
+        COALESCE(t.status, 'ACTIVE') as tank_status,
+        t.test_status,
+        t.doc,
+        t.abw,
+        t.size,
+        t.acres,
+        t.created_at as tank_created_at,
+        latest_sub.id as latest_test_id,
+        latest_sub.test_type as latest_test_type,
+        latest_sub.date as latest_test_date,
+        latest_sub.submission_time as latest_test_time,
+        latest_sub.created_at as latest_test_created_at
+      FROM tanks t
+      INNER JOIN farmers f ON t.farmer_id = f.id
+      LEFT JOIN agents a ON t.agent_id = a.id
+      LEFT JOIN users u_ag ON t.agent_id = u_ag.id
+      LEFT JOIN incharges inc ON inc.id = COALESCE(t.incharge_id, a.incharge_id)
+      LEFT JOIN users u_inc ON u_inc.id = COALESCE(t.incharge_id, a.incharge_id)
+      LEFT JOIN (
+        SELECT s1.id, s1.tank_id, s1.test_type, s1.date, s1.submission_time, s1.created_at
+        FROM submissions s1
+        INNER JOIN (
+          SELECT tank_id, MAX(created_at) as max_created
+          FROM submissions
+          WHERE UPPER(COALESCE(test_type, '')) NOT LIKE '%HARVEST%'
+            AND UPPER(COALESCE(test_type, '')) NOT IN ('FCR', 'FARM_ACTIVITY', 'GENERIC_ACTIVITY', 'ACTIVITY')
+            AND UPPER(COALESCE(status, '')) NOT IN ('FAILED', 'REJECTED')
+          GROUP BY tank_id
+        ) s2 ON s1.tank_id = s2.tank_id AND s1.created_at = s2.max_created
+      ) latest_sub ON t.id = latest_sub.tank_id
+      WHERE (t.status IS NULL OR UPPER(t.status) != 'HARVESTED')
+        AND (f.status IS NULL OR UPPER(f.status) = 'ACTIVE')
+    `;
+
+    const params = [];
+
+    // Role-based authorization scoping
+    if (user) {
+      const uRole = String(user.role || '').toUpperCase();
+      if (uRole === 'AGENT' || uRole === 'TECHNICIAN') {
+        sql += ` AND (t.agent_id = ? OR f.agent_id = ?)`;
+        params.push(user.id, user.id);
+      } else if (uRole === 'INCHARGE' || uRole === 'ASM') {
+        sql += ` AND (t.incharge_id = ? OR a.incharge_id = ? OR f.incharge_id = ?)`;
+        params.push(user.id, user.id, user.id);
+      }
+    }
+
+    if (agentId) {
+      sql += ` AND t.agent_id = ?`;
+      params.push(agentId);
+    }
+    if (inchargeId) {
+      sql += ` AND (t.incharge_id = ? OR a.incharge_id = ?)`;
+      params.push(inchargeId, inchargeId);
+    }
+    if (tankId) {
+      sql += ` AND t.id = ?`;
+      params.push(tankId);
+    }
+
+    sql += ` ORDER BY t.name ASC, t.id ASC`;
+
+    const rows = await query(sql, params);
+    const now = new Date();
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const formatIST = (dateObj) => {
+      if (!dateObj) return '-';
+      const d = new Date(dateObj);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    };
+
+    const formatISTDateOnly = (dateObj) => {
+      if (!dateObj) return '-';
+      const d = new Date(dateObj);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    };
+
+    const tanksCompliance = rows.map(r => {
+      let lastTestTime = null;
+      if (r.latest_test_created_at) {
+        lastTestTime = new Date(r.latest_test_created_at);
+      } else if (r.latest_test_date) {
+        lastTestTime = new Date(r.latest_test_date);
+      }
+
+      const hasTest = !!lastTestTime;
+      const diffMs = hasTest ? (now.getTime() - lastTestTime.getTime()) : null;
+      const isCompliant = hasTest && diffMs <= SEVEN_DAYS_MS;
+
+      let dueDate = null;
+      let daysOverdue = 0;
+      let cycleNumber = 1;
+
+      if (hasTest) {
+        dueDate = new Date(lastTestTime.getTime() + SEVEN_DAYS_MS);
+        if (!isCompliant) {
+          const overdueMs = now.getTime() - dueDate.getTime();
+          daysOverdue = Math.max(1, Math.floor(overdueMs / (24 * 60 * 60 * 1000)));
+          cycleNumber = Math.max(1, Math.floor(overdueMs / SEVEN_DAYS_MS) + 1);
+        }
+      } else {
+        const activationTime = r.tank_created_at ? new Date(r.tank_created_at) : new Date(now.getTime() - SEVEN_DAYS_MS);
+        dueDate = new Date(activationTime.getTime() + SEVEN_DAYS_MS);
+        const overdueMs = now.getTime() - dueDate.getTime();
+        daysOverdue = overdueMs > 0 ? Math.max(1, Math.floor(overdueMs / (24 * 60 * 60 * 1000))) : 1;
+        cycleNumber = Math.max(1, Math.floor(Math.max(0, overdueMs) / SEVEN_DAYS_MS) + 1);
+      }
+
+      const cycleKey = `${r.tank_id}_c${hasTest ? lastTestTime.toISOString().split('T')[0] : 'initial'}_w${cycleNumber}`;
+
+      return {
+        tankId: r.tank_id,
+        tankName: r.tank_name,
+        farmerId: r.farmer_id,
+        farmerName: r.farmer_name,
+        farmerPhone: r.farmer_phone,
+        farmerVillage: r.farmer_village,
+        agentId: r.agent_id,
+        agentName: r.agent_name,
+        agentPhone: r.agent_phone,
+        inchargeId: r.incharge_id,
+        inchargeName: r.incharge_name,
+        doc: r.doc || 0,
+        abw: r.abw || '0.0g',
+        size: r.size || (r.acres ? `${r.acres} Acres` : '2.0 Acres'),
+        lastTestId: r.latest_test_id,
+        lastTestType: r.latest_test_type || null,
+        lastTestTimestamp: lastTestTime ? lastTestTime.toISOString() : null,
+        lastTestDisplay: formatIST(lastTestTime),
+        dueDateTimestamp: dueDate.toISOString(),
+        dueDateDisplay: formatISTDateOnly(dueDate),
+        isCompliant,
+        complianceStatus: isCompliant ? 'COMPLIANT' : 'DUE',
+        daysOverdue: isCompliant ? 0 : daysOverdue,
+        cycleKey,
+        cycleNumber
+      };
+    });
+
+    // Batch query for follow-ups for all due tanks
+    const dueTanks = tanksCompliance.filter(t => !t.isCompliant);
+    const cycleKeys = Array.from(new Set(dueTanks.map(t => t.cycleKey)));
+
+    const followupsByCycle = new Map();
+    if (cycleKeys.length > 0) {
+      const placeholders = cycleKeys.map(() => '?').join(',');
+      const fupRows = await query(
+        `SELECT * FROM tank_due_followups
+         WHERE cycle_key IN (${placeholders})
+         ORDER BY created_at DESC`,
+        cycleKeys
+      );
+
+      for (const f of fupRows) {
+        if (!followupsByCycle.has(f.cycle_key)) {
+          followupsByCycle.set(f.cycle_key, []);
+        }
+        followupsByCycle.get(f.cycle_key).push({
+          id: f.id,
+          tankId: f.tank_id,
+          farmerId: f.farmer_id,
+          agentId: f.agent_id,
+          inchargeId: f.incharge_id,
+          cycleKey: f.cycle_key,
+          senderId: f.sender_id,
+          senderName: f.sender_name,
+          senderRole: f.sender_role,
+          recipientId: f.recipient_id,
+          recipientName: f.recipient_name,
+          message: f.message,
+          status: f.status,
+          createdAt: f.created_at ? f.created_at.toISOString() : null,
+          createdAtDisplay: formatIST(f.created_at)
+        });
+      }
+    }
+
+    const decoratedTanks = tanksCompliance.map(t => {
+      const fList = followupsByCycle.get(t.cycleKey) || [];
+      const hasFollowup = fList.length > 0;
+      const latestFollowup = hasFollowup ? fList[0] : null;
+
+      return {
+        ...t,
+        followupStatus: hasFollowup ? 'ADDRESSED' : 'DUE',
+        followupCount: fList.length,
+        latestFollowup,
+        followups: fList
+      };
+    });
+
+    const dueList = decoratedTanks.filter(t => !t.isCompliant && t.followupStatus === 'DUE');
+    const addressedList = decoratedTanks.filter(t => !t.isCompliant && t.followupStatus === 'ADDRESSED');
+    const compliantList = decoratedTanks.filter(t => t.isCompliant);
+
+    return {
+      counts: {
+        totalActiveTanks: decoratedTanks.length,
+        compliantCount: compliantList.length,
+        dueCount: dueList.length,
+        addressedCount: addressedList.length,
+        totalDueTests: dueList.length + addressedList.length
+      },
+      dueList,
+      addressedList,
+      compliantList,
+      allTanks: decoratedTanks
+    };
+  }
+
+  /**
+   * Submits an authorized follow-up message for a due tank cycle.
+   * Transitions the cycle to ADDRESSED.
+   * Sender identity is strictly derived from the authenticated user.
+   */
+  async createTankFollowup(data, user) {
+    this._ensureDb();
+    if (!data.tankId) throw new Error('tankId is required');
+    const message = (data.message || '').trim();
+    if (!message) throw new Error('Follow-up message cannot be empty');
+
+    const senderId = user?.id || 'ADM001';
+    let senderRole = String(user?.role || 'ADMIN').toUpperCase();
+    let senderName = user?.name || user?.username || '';
+
+    // If senderName is not supplied in session, resolve from database users table
+    if (!senderName) {
+      try {
+        const u = await query('SELECT name, full_name, role FROM users WHERE id = ? LIMIT 1', [senderId]);
+        if (u && u.length > 0) {
+          senderName = u[0].name || u[0].full_name || senderId;
+          if (!user?.role) senderRole = String(u[0].role || 'ADMIN').toUpperCase();
+        }
+      } catch (e) { }
+    }
+    if (!senderName) {
+      senderName = senderRole === 'ADMIN' ? 'System Administrator' : senderId;
+    }
+
+    // Verify tank existence and associations
+    const tRows = await query(
+      `SELECT t.id, t.name, t.farmer_id, t.agent_id, t.incharge_id, f.name as farmer_name, a.name as agent_name, inc.name as incharge_name
+       FROM tanks t
+       LEFT JOIN farmers f ON t.farmer_id = f.id
+       LEFT JOIN agents a ON t.agent_id = a.id
+       LEFT JOIN incharges inc ON inc.id = COALESCE(t.incharge_id, a.incharge_id)
+       WHERE t.id = ? LIMIT 1`,
+      [data.tankId]
+    );
+
+    if (!tRows || tRows.length === 0) {
+      throw new Error(`Tank ${data.tankId} not found`);
+    }
+
+    const tank = tRows[0];
+
+    // Role-based authorization enforcement
+    if (senderRole === 'INCHARGE' || senderRole === 'ASM') {
+      const isAuthorizedIncharge = tank.incharge_id === senderId;
+      if (!isAuthorizedIncharge) {
+        throw new Error('Forbidden: You are not authorized to follow up on this tank');
+      }
+    } else if (senderRole === 'AGENT' || senderRole === 'TECHNICIAN') {
+      const isAuthorizedAgent = tank.agent_id === senderId;
+      if (!isAuthorizedAgent) {
+        throw new Error('Forbidden: You are not authorized to reply to this tank');
+      }
+    }
+
+    // Determine current cycle key for tank
+    let cycleKey = data.cycleKey;
+    if (!cycleKey) {
+      const compliance = await this.getTankComplianceList({ tankId: data.tankId });
+      const currentItem = compliance.allTanks?.[0];
+      cycleKey = currentItem?.cycleKey || `${data.tankId}_cinitial_w1`;
+    }
+
+    // Idempotent submission: prevent duplicate record on double-click or fast retry within 5 seconds
+    const recentDup = await query(
+      `SELECT id, created_at FROM tank_due_followups
+       WHERE tank_id = ? AND cycle_key = ? AND sender_id = ? AND message = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
+       LIMIT 1`,
+      [data.tankId, cycleKey, senderId, message]
+    );
+    if (recentDup && recentDup.length > 0) {
+      return {
+        id: recentDup[0].id,
+        tankId: data.tankId,
+        cycleKey,
+        senderId,
+        senderName,
+        senderRole,
+        message,
+        status: 'ADDRESSED',
+        isDuplicateSuppressed: true
+      };
+    }
+
+    const id = `FUP_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const recipientId = data.recipientId || tank.agent_id || null;
+    const recipientName = data.recipientName || tank.agent_name || 'Assigned Staff';
+
+    await query(
+      `INSERT INTO tank_due_followups (id, tank_id, farmer_id, agent_id, incharge_id, cycle_key, sender_id, sender_name, sender_role, recipient_id, recipient_name, message, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADDRESSED')`,
+      [id, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id, cycleKey, senderId, senderName, senderRole, recipientId, recipientName, message]
+    );
+
+    // Audit log
+    try {
+      await query(
+        `INSERT INTO audit_logs (action, module, entity_type, record_id, entity_id, performed_by, user_id, notes, details)
+         VALUES ('FOLLOW_UP_SENT', 'COMPLIANCE', 'TANK', ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          data.tankId,
+          senderName,
+          senderId,
+          `Follow-up submitted by ${senderName} (${senderRole}): "${message.slice(0, 100)}"`,
+          JSON.stringify({ tankId: data.tankId, cycleKey, recipientId, message })
+        ]
+      );
+    } catch (e) { }
+
+    return {
+      id,
+      tankId: data.tankId,
+      farmerId: tank.farmer_id,
+      agentId: tank.agent_id,
+      inchargeId: tank.incharge_id,
+      cycleKey,
+      senderId,
+      senderName,
+      senderRole,
+      recipientId,
+      recipientName,
+      message,
+      status: 'ADDRESSED',
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Retrieves full chronological follow-up conversation history for a tank.
+   */
+  async getTankFollowupHistory(tankId, cycleKey = null) {
+    this._ensureDb();
+    let sql = `SELECT * FROM tank_due_followups WHERE tank_id = ?`;
+    const params = [tankId];
+    if (cycleKey) {
+      sql += ` AND cycle_key = ?`;
+      params.push(cycleKey);
+    }
+    sql += ` ORDER BY created_at ASC`;
+    const rows = await query(sql, params);
+    return rows.map(f => ({
+      id: f.id,
+      tankId: f.tank_id,
+      farmerId: f.farmer_id,
+      agentId: f.agent_id,
+      inchargeId: f.incharge_id,
+      cycleKey: f.cycle_key,
+      senderId: f.sender_id,
+      senderName: f.sender_name,
+      senderRole: f.sender_role,
+      recipientId: f.recipient_id,
+      recipientName: f.recipient_name,
+      message: f.message,
+      status: f.status,
+      resolvedAt: f.resolved_at,
+      createdAt: f.created_at ? f.created_at.toISOString() : null,
+      createdAtDisplay: new Date(f.created_at).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    }));
   }
 }
 

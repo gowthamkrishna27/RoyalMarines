@@ -1981,6 +1981,21 @@ export const MockDataProvider = ({ children }) => {
 
   const addTankToFarmer = addPondToFarmer;
 
+  // Weekly Tank-Test Compliance & Follow-up Messaging Methods
+  const getComplianceDueList = async (params = null, force = false) => {
+    return adminService.getComplianceDueList(params, force);
+  };
+
+  const submitFollowup = async (payload) => {
+    const res = await adminService.submitFollowup(payload);
+    window.dispatchEvent(new CustomEvent('complianceFollowupCreated', { detail: res }));
+    return res;
+  };
+
+  const getFollowupHistory = async (tankId, cycleKey = null) => {
+    return adminService.getFollowupHistory(tankId, cycleKey);
+  };
+
   return (
     <MockDataContext.Provider
       value={{
@@ -1989,6 +2004,9 @@ export const MockDataProvider = ({ children }) => {
         refreshDb: fetchDataFromDb,
         isLoadingDb,
         dbConnected,
+        getComplianceDueList,
+        submitFollowup,
+        getFollowupHistory,
         getAgentById,
         getFarmersByAgentId,
         getFarmerById,

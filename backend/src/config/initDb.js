@@ -287,6 +287,33 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 11. Tank Due Follow-ups Table (Weekly testing monitoring and follow-up conversation threads)
+    await query(`
+      CREATE TABLE IF NOT EXISTS tank_due_followups (
+        id VARCHAR(50) PRIMARY KEY,
+        tank_id VARCHAR(50) NOT NULL,
+        farmer_id VARCHAR(50) NOT NULL,
+        agent_id VARCHAR(50) NULL,
+        incharge_id VARCHAR(50) NULL,
+        cycle_key VARCHAR(100) NOT NULL,
+        sender_id VARCHAR(50) NOT NULL,
+        sender_name VARCHAR(150) NOT NULL,
+        sender_role VARCHAR(50) NOT NULL,
+        recipient_id VARCHAR(50) NULL,
+        recipient_name VARCHAR(150) NULL,
+        message TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'ADDRESSED',
+        resolved_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_fup_tank (tank_id),
+        INDEX idx_fup_cycle (cycle_key),
+        INDEX idx_fup_tank_cycle (tank_id, cycle_key),
+        INDEX idx_fup_agent (agent_id),
+        INDEX idx_fup_incharge (incharge_id),
+        INDEX idx_fup_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;
   } catch (error) {

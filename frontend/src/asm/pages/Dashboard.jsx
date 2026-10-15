@@ -16,6 +16,7 @@ import QuickRecordModal from '../../agent/components/QuickRecordModal';
 import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS, getDistanceMeters } from '../../agent/utils/gpsService';
 import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 import { getInchargeSession } from '../utils/inchargeAuth';
+import WeeklyComplianceFollowup from '../../components/WeeklyComplianceFollowup';
 
 const COMPLIANCE_COLORS = ['#16A34A', '#D97706', '#DC2626', '#64748B'];
 
@@ -781,12 +782,21 @@ const Dashboard = () => {
             isPositive={false}
             icon={AlertTriangle}
             color="#DC2626"
-            onClick={() => setShowAgentOverdueModal(true)}
+            onClick={() => {
+              const el = document.getElementById('asm-weekly-compliance-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+              else setShowAgentOverdueModal(true);
+            }}
           />
         </div>
 
-
-
+        {/* Weekly Tank-Test Follow-up & Due Tracking Section (Requirement 4) */}
+        <div id="asm-weekly-compliance-section">
+          <WeeklyComplianceFollowup
+            portalType="ASM"
+            inchargeId={session?.inchargeId || 'INC001'}
+          />
+        </div>
 
       </div>
 

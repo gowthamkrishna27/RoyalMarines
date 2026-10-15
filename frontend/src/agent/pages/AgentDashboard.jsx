@@ -11,6 +11,7 @@ import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS, getDistanc
 import QuickRecordModal from '../components/QuickRecordModal';
 import FarmLeafletMap from '../components/FarmLeafletMap';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
+import WeeklyComplianceFollowup from '../../components/WeeklyComplianceFollowup';
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
@@ -341,7 +342,11 @@ const AgentDashboard = () => {
 
               <div
                 style={{ ...styles.metricCol, cursor: 'pointer', padding: '16px 12px', backgroundColor: overdueTanksList.length > 0 ? '#FEF2F2' : '#F8FAFC', borderRadius: '12px', border: overdueTanksList.length > 0 ? '1px solid #FECACA' : '1px solid #F1F5F9' }}
-                onClick={() => navigate('/farmers', { state: { filterMode: 'DUE' } })}
+                onClick={() => {
+                  const el = document.getElementById('agent-weekly-compliance-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  else navigate('/farmers', { state: { filterMode: 'DUE' } });
+                }}
                 className="transition-all hover:brightness-95 active:scale-95 cursor-pointer"
                 title="View farmers with Overdue Tests"
               >
@@ -351,6 +356,14 @@ const AgentDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Weekly Tank-Test Reminders & Follow-up Conversation (Requirement 5) */}
+      <div id="agent-weekly-compliance-section">
+        <WeeklyComplianceFollowup
+          portalType="AGENT"
+          agentId={agentId}
+        />
       </div>
 
       {/* 4. Recent Records Section */}

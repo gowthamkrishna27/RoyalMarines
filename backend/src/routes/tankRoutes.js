@@ -8,8 +8,19 @@ import {
   deleteTank,
   restockTank,
 } from '../controllers/tankController.js';
+import { authenticate } from '../middleware/auth.js';
+import {
+  getComplianceDueList,
+  createComplianceFollowup,
+  getComplianceFollowupHistory,
+} from '../controllers/tankComplianceController.js';
 
 const router = Router();
+
+// Weekly Tank Testing Compliance & Follow-Up Routes
+router.get('/compliance/due-list', authenticate, getComplianceDueList);
+router.post('/compliance/follow-up', authenticate, createComplianceFollowup);
+router.get('/compliance/follow-up/:tankId', authenticate, getComplianceFollowupHistory);
 
 router.get('/', getTanks);
 router.get('/:id', getTankById);

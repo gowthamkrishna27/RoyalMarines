@@ -9,6 +9,7 @@ import {
 
 import adminService from '../utils/adminService';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
+import WeeklyComplianceFollowup from '../../components/WeeklyComplianceFollowup';
 
 const DASHBOARD_CACHE_KEY = 'royal_admin_dashboard_cache_v1';
 const CACHE_MAX_AGE_MS = 60 * 1000; // 60s max session cache freshness
@@ -48,6 +49,7 @@ const AdminDashboard = () => {
   const [dueTab, setDueTab] = useState('ALL'); // 'ALL' | 'OVERDUE' | 'DUE'
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
+  const [complianceCounts, setComplianceCounts] = useState(null);
 
   const [todayLocationCount, setTodayLocationCount] = useState(initialCache?.todayLocationCount ?? null);
 
@@ -59,7 +61,7 @@ const AdminDashboard = () => {
         setIsSyncing(true);
       }
       setError(null);
-      const [sum, tks, fms, ags, incs, hrvs, subs, todayLocs] = await Promise.all([
+      const [sum, tks, fms, ags, incs, hrvs, subs, todayLocs, compRes] = await Promise.all([
         adminService.getSummary(force),
         adminService.getTanks(force),
         adminService.getFarmers(force),
@@ -67,7 +69,8 @@ const AdminDashboard = () => {
         adminService.getIncharges(force),
         adminService.getHarvests(force),
         adminService.getSubmissions(force),
-        adminService.getTodaySubmissions(force).catch(() => [])
+        adminService.getTodaySubmissions(force).catch(() => []),
+        adminService.getComplianceDueList(null, force).catch(() => null)
       ]);
       setSummary(sum);
       setAllTanks(Array.isArray(tks) ? tks : []);
@@ -76,6 +79,9 @@ const AdminDashboard = () => {
       setIncharges(Array.isArray(incs) ? incs : []);
       setLiveHarvests(Array.isArray(hrvs) ? hrvs : []);
       setSubmissions(Array.isArray(subs) ? subs : []);
+      if (compRes?.counts) {
+        setComplianceCounts(compRes.counts);
+      }
       if (Array.isArray(todayLocs)) {
         setTodayLocationCount(todayLocs.length);
       }
@@ -452,8 +458,12 @@ const AdminDashboard = () => {
         {/* Card 7: Tests Due */}
         <div
           style={{ ...styles.kpiCard, border: '1px solid #FECACA' }}
-          onClick={() => setShowDueTestsModal(true)}
-          title="Click to view all organization-wide due & overdue tests"
+          onClick={() => {
+            const el = document.getElementById('weekly-compliance-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+            else setShowDueTestsModal(true);
+          }}
+          title="Click to view weekly tank-test follow-up and due tracking"
         >
           <div style={styles.kpiHeader}>
             <span style={{ ...styles.kpiLabel, color: '#64748B' }}>TESTS DUE</span>
@@ -465,14 +475,24 @@ const AdminDashboard = () => {
             {isLoading ? (
               <div style={{ ...styles.skeletonValue, width: '90px', backgroundColor: '#FEE2E2' }} />
             ) : (
-              `${dueAndOverdueTanks.length} Tanks`
+              `${complianceCounts?.totalDueTests ?? dueAndOverdueTanks.length} Tanks`
             )}
           </div>
           <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>View All Due Tests <ArrowUpRight size={12} /></div>
-            <span>({isLoading ? '...' : overdueCount} Overdue)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Weekly Due Tracking <ArrowUpRight size={12} /></div>
+            <span>({isLoading ? '...' : (complianceCounts?.dueCount ?? overdueCount)} Due, {isLoading ? '...' : (complianceCounts?.addressedCount ?? 0)} Addressed)</span>
           </div>
         </div>
+      </div>
+
+      {/* 2b. Weekly Tank-Test Follow-up & Due Tracking Section (Requirement 3) */}
+      <div id="weekly-compliance-section">
+        <WeeklyComplianceFollowup
+          portalType="ADMIN"
+          onComplianceUpdated={(data) => {
+            if (data?.counts) setComplianceCounts(data.counts);
+          }}
+        />
       </div>
 
       {/* 3. Operational Harvest & Records Section */}

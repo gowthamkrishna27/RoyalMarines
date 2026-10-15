@@ -5,7 +5,8 @@ import {
   ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2,
   Scale, Wheat, Fish, Activity, TrendingUp, Droplets,
   Skull, Pill, ClipboardList, Camera, Clock, Lock,
-  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck, Bug
+  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck, Bug,
+  Send, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
@@ -14,6 +15,7 @@ import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../asm/utils/inchargeAuth';
+import adminService from '../../admin/utils/adminService';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -53,6 +55,65 @@ const TankDetails = () => {
       return {};
     }
   });
+
+  const [tankCompliance, setTankCompliance] = useState(null);
+  const [tankFollowups, setTankFollowups] = useState([]);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [replySuccess, setReplySuccess] = useState('');
+  const [replyError, setReplyError] = useState('');
+
+  const loadTankCompliance = async () => {
+    if (!tankId) return;
+    try {
+      const res = await adminService.getComplianceDueList({ tankId });
+      if (res?.allTanks && res.allTanks.length > 0) {
+        setTankCompliance(res.allTanks[0]);
+      }
+      const history = await adminService.getFollowupHistory(tankId);
+      setTankFollowups(history || []);
+    } catch (e) {
+      console.warn('[TankDetails] Error fetching compliance:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadTankCompliance();
+    const handleRefresh = () => loadTankCompliance();
+    window.addEventListener('complianceFollowupCreated', handleRefresh);
+    window.addEventListener('submissionCreated', handleRefresh);
+    return () => {
+      window.removeEventListener('complianceFollowupCreated', handleRefresh);
+      window.removeEventListener('submissionCreated', handleRefresh);
+    };
+  }, [tankId]);
+
+  const handleReplySubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = (replyText || '').trim();
+    if (!trimmed) {
+      setReplyError('Please write a reply before submitting.');
+      return;
+    }
+    setIsSubmittingReply(true);
+    setReplyError('');
+    setReplySuccess('');
+    try {
+      await adminService.submitFollowup({
+        tankId: tankId,
+        cycleKey: tankCompliance?.cycleKey,
+        message: trimmed
+      });
+      setReplyText('');
+      setReplySuccess('Reply recorded successfully in conversation!');
+      await loadTankCompliance();
+      setTimeout(() => setReplySuccess(''), 4000);
+    } catch (err) {
+      setReplyError(err.message || 'Failed to submit reply');
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
 
   const stateTank = location.state?.tank;
   const stateFarmer = location.state?.farmer;
@@ -485,6 +546,213 @@ const TankDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* 4b. Weekly Testing Due & Follow-up Conversation (Requirement 5) */}
+      {!hasFinalHarvest && (tankCompliance || tankFollowups.length > 0) && (
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '14px',
+          border: tankCompliance && !tankCompliance.isCompliant ? '1px solid #FECACA' : '1px solid #E2E8F0',
+          padding: '16px 20px',
+          margin: '16px 0',
+          boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
+        }}>
+          {/* Card Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: tankCompliance && !tankCompliance.isCompliant ? '#FEF2F2' : '#F0FDF4',
+                color: tankCompliance && !tankCompliance.isCompliant ? '#DC2626' : '#16A34A',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Clock size={17} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    Weekly Test Due &amp; Follow-up Conversation
+                  </h3>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: tankCompliance && !tankCompliance.isCompliant ? '#FEE2E2' : '#DCFCE7',
+                    color: tankCompliance && !tankCompliance.isCompliant ? '#DC2626' : '#166534',
+                    border: tankCompliance && !tankCompliance.isCompliant ? '1px solid #FECACA' : '1px solid #BBF7D0'
+                  }}>
+                    {tankCompliance && !tankCompliance.isCompliant
+                      ? `${tankCompliance.daysOverdue} Days Overdue (Test Pending)`
+                      : 'Compliant (Tested within 7 days)'}
+                  </span>
+                  {tankCompliance && !tankCompliance.isCompliant && (
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: tankCompliance.followupStatus === 'ADDRESSED' ? '#DBEAFE' : '#FEF3C7',
+                      color: tankCompliance.followupStatus === 'ADDRESSED' ? '#1D4ED8' : '#B45309',
+                      border: tankCompliance.followupStatus === 'ADDRESSED' ? '1px solid #BFDBFE' : '1px solid #FDE68A'
+                    }}>
+                      {tankCompliance.followupStatus === 'ADDRESSED' ? '🔵 Addressed' : '🟡 Awaiting Follow-up'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                  Last test: <strong>{tankCompliance?.lastTestDisplay || tank.lastTest || 'None'}</strong> • Next test due by: <strong>{tankCompliance?.dueDateDisplay || tank.nextTest || 'This Week'}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Record Test CTA */}
+            <button
+              type="button"
+              onClick={() => {
+                setModalInitialType('WATER_QUALITY');
+                setIsRecordModalOpen(true);
+              }}
+              style={{
+                backgroundColor: '#16A34A',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)'
+              }}
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              <span>Record Qualifying Test Now</span>
+            </button>
+          </div>
+
+          {/* Conversation Thread */}
+          {tankFollowups.length > 0 && (
+            <div style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '10px',
+              border: '1px solid #E2E8F0',
+              padding: '12px',
+              marginBottom: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                Conversation History ({tankFollowups.length} Messages)
+              </span>
+              {tankFollowups.map((fup) => {
+                const isAdmin = (fup.senderRole || '').toUpperCase() === 'ADMIN';
+                const isAsm = (fup.senderRole || '').toUpperCase() === 'INCHARGE' || (fup.senderRole || '').toUpperCase() === 'ASM';
+                return (
+                  <div key={fup.id} style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                    padding: '8px 12px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          backgroundColor: isAdmin ? '#DCFCE7' : isAsm ? '#DBEAFE' : '#FEF3C7',
+                          color: isAdmin ? '#166534' : isAsm ? '#1E40AF' : '#92400E',
+                          padding: '1px 6px',
+                          borderRadius: '4px'
+                        }}>
+                          {fup.senderRole}
+                        </span>
+                        <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                          {fup.senderName}
+                        </span>
+                        {fup.recipientName && (
+                          <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                            → {fup.recipientName}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#94A3B8' }}>
+                        {fup.createdAtDisplay}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '12.5px', color: '#334155', lineHeight: '1.4' }}>
+                      {fup.message}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Reply Form */}
+          <form onSubmit={handleReplySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {replyError && (
+              <div style={{ padding: '6px 10px', borderRadius: '6px', backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: '12px' }}>
+                {replyError}
+              </div>
+            )}
+            {replySuccess && (
+              <div style={{ padding: '6px 10px', borderRadius: '6px', backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '12px' }}>
+                {replySuccess}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Reply to follow-up (e.g. 'Visiting pond today at 3pm to test water quality & DO')..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                disabled={isSubmittingReply}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '13px',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isSubmittingReply || !replyText.trim()}
+                style={{
+                  backgroundColor: '#03358F',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: isSubmittingReply || !replyText.trim() ? 'not-allowed' : 'pointer',
+                  opacity: isSubmittingReply || !replyText.trim() ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Send size={13} />
+                <span>{isSubmittingReply ? 'Sending...' : 'Send Reply'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* 5. ACTIVITY SECTIONS TABS */}
