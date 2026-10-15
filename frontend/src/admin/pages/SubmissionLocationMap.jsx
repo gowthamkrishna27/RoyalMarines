@@ -10,7 +10,7 @@ import {
 import apiClient from '../../utils/apiClient';
 
 // Custom Map Icons
-const createMarkerIcon = (role, isSelected = false) => {
+const createMarkerIcon = (role, isSelected = false, isHighDrift = false) => {
   const isAgent = role?.toLowerCase() === 'agent';
   const primaryColor = isAgent ? '#2563EB' : '#EA580C'; // 🔵 Agent / 🟠 Incharge
   const darkColor = isAgent ? '#1D4ED8' : '#C2410C';
@@ -19,6 +19,7 @@ const createMarkerIcon = (role, isSelected = false) => {
   const iconHtml = `
     <div style="position: relative; width: 36px; height: 44px; display: flex; align-items: center; justify-content: center;">
       ${isSelected ? `<div style="position: absolute; top: -6px; left: -6px; width: 48px; height: 48px; border-radius: 50%; background: ${haloColor}; animation: pulseRing 1.5s infinite;"></div>` : ''}
+      ${isHighDrift ? `<div style="position: absolute; top: -4px; right: -4px; width: 14px; height: 14px; border-radius: 50%; background: #EF4444; border: 2px solid #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; font-weight: 800;" title="Accuracy > 200m">!</div>` : ''}
       <svg viewBox="0 0 36 44" width="36" height="44" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(15, 23, 42, 0.4));">
         <path d="M18 0C8.06 0 0 8.06 0 18C0 31.5 18 44 18 44C18 44 36 31.5 36 18C36 8.06 27.94 0 18 0Z" fill="${darkColor}"/>
         <circle cx="18" cy="18" r="14" fill="${primaryColor}"/>
@@ -330,6 +331,10 @@ const SubmissionLocationMap = () => {
             <span style={{ ...styles.legendDot, background: '#EA580C' }} />
             <span>Incharge Submission</span>
           </div>
+          <div style={styles.legendItem}>
+            <span style={{ ...styles.legendDot, background: '#EF4444' }} />
+            <span style={{ color: '#DC2626', fontWeight: 600 }}>Accuracy &gt; 200m (Red Alert)</span>
+          </div>
           <div style={styles.legendDivider} />
           <div style={styles.legendHelp}>
             Click marker or "View" below to inspect GPS details
@@ -356,7 +361,8 @@ const SubmissionLocationMap = () => {
           {submissions.map((sub) => {
             const isAgent = sub.role?.toLowerCase() === 'agent';
             const isSelected = selectedMarkerId === sub.submissionId;
-            const icon = createMarkerIcon(sub.role, isSelected);
+            const isHighDrift = sub.accuracy != null && Number(sub.accuracy) > 200;
+            const icon = createMarkerIcon(sub.role, isSelected, isHighDrift);
 
             return (
               <Marker
@@ -377,72 +383,86 @@ const SubmissionLocationMap = () => {
                       ...styles.popupHeader,
                       borderLeftColor: isAgent ? '#2563EB' : '#EA580C'
                     }}>
-                      <div>
-                        <div style={styles.popupRoleBadgeRow}>
-                          <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
-                            {sub.role}
-                          </span>
-                          <span style={styles.popupSubId}>
-                            {sub.submissionId}
-                          </span>
+                        <div>
+                          <div style={styles.popupRoleBadgeRow}>
+                            <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
+                              {sub.role}
+                            </span>
+                            <span style={styles.popupSubId}>
+                              {sub.submissionId}
+                            </span>
+                          </div>
+                          <h4 style={styles.popupUserName}>{sub.userName}</h4>
                         </div>
-                        <h4 style={styles.popupUserName}>{sub.userName}</h4>
-                      </div>
-                    </div>
-
-                    {/* Popup Body Details */}
-                    <div style={styles.popupBody}>
-                      <div style={styles.popupField}>
-                        <span style={styles.popupFieldLabel}>Submitted:</span>
-                        <span style={styles.popupFieldValue}>
-                          {formatDateDisplay(sub.date || sub.submittedAt, '07 Oct 2026')}&nbsp;•&nbsp;
-                          <strong>{sub.submissionTime || 'Field Time'}</strong>
-                        </span>
                       </div>
 
-                      {sub.testType && (
+                      {/* Popup Body Details */}
+                      <div style={styles.popupBody}>
                         <div style={styles.popupField}>
-                          <span style={styles.popupFieldLabel}>Record Type:</span>
-                          <span style={styles.popupFieldValue}>{sub.testType}</span>
-                        </div>
-                      )}
-
-                      {sub.tankId && (
-                        <div style={styles.popupField}>
-                          <span style={styles.popupFieldLabel}>Tank / Farmer:</span>
+                          <span style={styles.popupFieldLabel}>Submitted:</span>
                           <span style={styles.popupFieldValue}>
-                            {sub.tankId} {sub.farmerId ? `(${sub.farmerId})` : ''}
+                            {formatDateDisplay(sub.date || sub.submittedAt, '07 Oct 2026')}&nbsp;•&nbsp;
+                            <strong>{sub.submissionTime || 'Field Time'}</strong>
                           </span>
                         </div>
-                      )}
 
-                      {sub.locality && (
-                        <div style={styles.popupField}>
-                          <span style={styles.popupFieldLabel}>Locality:</span>
-                          <span style={styles.popupFieldValue}>📍 {sub.locality}</span>
-                        </div>
-                      )}
+                        {sub.testType && (
+                          <div style={styles.popupField}>
+                            <span style={styles.popupFieldLabel}>Record Type:</span>
+                            <span style={styles.popupFieldValue}>{sub.testType}</span>
+                          </div>
+                        )}
 
-                      <div style={styles.popupGpsBox}>
-                        <div style={styles.popupGpsRow}>
-                          <span>Latitude:</span>
-                          <code style={styles.popupCode}>{sub.latitude?.toFixed(6)}</code>
-                        </div>
-                        <div style={styles.popupGpsRow}>
-                          <span>Longitude:</span>
-                          <code style={styles.popupCode}>{sub.longitude?.toFixed(6)}</code>
-                        </div>
-                        <div style={styles.popupGpsRow}>
-                          <span>Accuracy:</span>
-                          <span style={styles.accuracyTag}>
-                            {sub.accuracy ? `± ${Math.round(sub.accuracy)} meters` : 'High precision'}
-                          </span>
+                        {(sub.tankId || sub.farmerName || sub.farmerId) && (
+                          <div style={styles.popupField}>
+                            <span style={styles.popupFieldLabel}>Tank / Farmer:</span>
+                            <span style={styles.popupFieldValue}>
+                              {sub.tankId ? <strong>{sub.tankId}</strong> : null}
+                              {sub.tankId && (sub.farmerName || sub.farmerId) ? ' • ' : ''}
+                              {sub.farmerName ? <span>{sub.farmerName}</span> : null}
+                              {sub.farmerId ? (
+                                <span style={{ color: '#64748B', marginLeft: sub.farmerName ? 4 : 0 }}>
+                                  ({sub.farmerId})
+                                </span>
+                              ) : null}
+                            </span>
+                          </div>
+                        )}
+
+                        {sub.locality && (
+                          <div style={styles.popupField}>
+                            <span style={styles.popupFieldLabel}>Locality:</span>
+                            <span style={styles.popupFieldValue}>📍 {sub.locality}</span>
+                          </div>
+                        )}
+
+                        <div style={styles.popupGpsBox}>
+                          <div style={styles.popupGpsRow}>
+                            <span>Latitude:</span>
+                            <code style={styles.popupCode}>{sub.latitude?.toFixed(6)}</code>
+                          </div>
+                          <div style={styles.popupGpsRow}>
+                            <span>Longitude:</span>
+                            <code style={styles.popupCode}>{sub.longitude?.toFixed(6)}</code>
+                          </div>
+                          <div style={styles.popupGpsRow}>
+                            <span>Accuracy:</span>
+                            <span style={isHighDrift ? styles.accuracyTagDanger : styles.accuracyTag}>
+                              {isHighDrift ? '🔴 ' : ''}
+                              {sub.accuracy ? `± ${Math.round(sub.accuracy)} meters` : 'High precision'}
+                            </span>
+                          </div>
+                          {isHighDrift && (
+                            <div style={styles.driftWarningRow}>
+                              <span style={styles.driftWarningDot}>!</span>
+                              <span>Accuracy distance exceeds 200m threshold</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
+                  </Popup>
+                </Marker>
             );
           })}
         </MapContainer>
@@ -497,6 +517,7 @@ const SubmissionLocationMap = () => {
                 submissions.map((sub) => {
                   const isAgent = sub.role?.toLowerCase() === 'agent';
                   const isSelected = selectedMarkerId === sub.submissionId;
+                  const isHighDrift = sub.accuracy != null && Number(sub.accuracy) > 200;
 
                   return (
                     <tr
@@ -546,8 +567,8 @@ const SubmissionLocationMap = () => {
                         </div>
                       </td>
                       <td style={styles.td}>
-                        <span style={styles.accuracyTag}>
-                          ± {Math.round(sub.accuracy || 12)}m
+                        <span style={isHighDrift ? styles.accuracyTagDanger : styles.accuracyTag}>
+                          {isHighDrift ? '🔴 ' : ''}± {Math.round(sub.accuracy || 12)}m
                         </span>
                       </td>
                       <td style={{ ...styles.td, textAlign: 'right' }}>
@@ -1046,8 +1067,51 @@ const styles = {
     fontWeight: '600',
     color: '#15803D',
     backgroundColor: '#DCFCE7',
-    padding: '2px 6px',
-    borderRadius: '4px'
+    padding: '2px 8px',
+    borderRadius: '4px',
+    border: '1px solid #86EFAC',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px'
+  },
+  accuracyTagDanger: {
+    fontSize: '11.5px',
+    fontWeight: '700',
+    color: '#DC2626',
+    backgroundColor: '#FEE2E2',
+    padding: '2px 8px',
+    borderRadius: '4px',
+    border: '1px solid #FCA5A5',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    boxShadow: '0 1px 2px rgba(220, 38, 38, 0.12)'
+  },
+  driftWarningRow: {
+    marginTop: '6px',
+    padding: '4px 8px',
+    backgroundColor: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: '4px',
+    fontSize: '10.5px',
+    fontWeight: '600',
+    color: '#DC2626',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px'
+  },
+  driftWarningDot: {
+    width: '13px',
+    height: '13px',
+    borderRadius: '50%',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '9px',
+    fontWeight: '800',
+    flexShrink: 0
   },
   viewBtn: {
     display: 'inline-flex',

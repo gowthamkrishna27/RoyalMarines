@@ -4,21 +4,24 @@ import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
   Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp,
-  ClipboardList
+  ClipboardList, UserCheck, UserX
 } from 'lucide-react';
 
 import adminService from '../utils/adminService';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
 
 const DASHBOARD_CACHE_KEY = 'royal_admin_dashboard_cache_v1';
+const CACHE_MAX_AGE_MS = 60 * 1000; // 60s max session cache freshness
 
 const getInitialDashboardCache = () => {
   try {
-    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY) || localStorage.getItem(DASHBOARD_CACHE_KEY);
+    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && parsed.summary) {
-        return parsed;
+      if (parsed && typeof parsed === 'object' && parsed.summary && parsed.updatedAt) {
+        if (Date.now() - parsed.updatedAt < CACHE_MAX_AGE_MS) {
+          return parsed;
+        }
       }
     }
   } catch {}
@@ -90,13 +93,10 @@ const AdminDashboard = () => {
           updatedAt: Date.now()
         });
         sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
-        localStorage.setItem(DASHBOARD_CACHE_KEY, payload);
       } catch {}
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      if (!summary) {
-        setError('Could not connect to database API. Click to retry.');
-      }
+      setError('Could not connect to live database API. Please check your connection.');
     } finally {
       setIsLoading(false);
       setIsSyncing(false);
@@ -120,6 +120,8 @@ const AdminDashboard = () => {
 
   // Real database statistics derived directly from MySQL API
   const totalFarmers = summary?.totalFarmers ?? farmers.length;
+  const activeFarmers = summary?.activeFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'ACTIVE').length;
+  const inactiveFarmers = summary?.inactiveFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'INACTIVE').length;
   const totalTanks = summary?.totalTanks ?? allTanks.length;
   const activeTanks = summary?.activeTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
   const harvestedTanks = summary?.harvestedTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
@@ -170,7 +172,6 @@ const AdminDashboard = () => {
 
   const [docInput, setDocInput] = useState('');
   const [showHarvestedModal, setShowHarvestedModal] = useState(false);
-  const [showAllHarvests, setShowAllHarvests] = useState(false);
 
   // Unified live records combining Harvests and Test Submissions
   const allRecords = useMemo(() => {
@@ -242,10 +243,8 @@ const AdminDashboard = () => {
     return [...exactMatches, ...lowerDescending];
   }, [allRecords, docInput]);
 
-  // Initially show ONLY 5 records, or all remaining records if present and expanded
-  const displayedHarvestRecords = showAllHarvests
-    ? filteredHarvests
-    : filteredHarvests.slice(0, 5);
+  // Show the first 5 records in the combined Harvest and FCR section (Requirement 4)
+  const displayedHarvestRecords = filteredHarvests.slice(0, 5);
 
   // Today's Date and Today Submissions Count
   const todayDateStr = useMemo(() => {
@@ -289,6 +288,25 @@ const AdminDashboard = () => {
         </button>
       </div>
 
+      {/* Error State Alert Banner with Retry */}
+      {error && (
+        <div style={styles.errorBanner}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle size={20} color="#DC2626" />
+            <span style={{ color: '#B91C1C', fontWeight: 600, fontSize: '14px' }}>
+              {error}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadDashboardData(true)}
+            style={styles.retryBtn}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* 2. KPI Stat Cards Row */}
       <div style={styles.kpiGrid}>
         {/* Card 1: Total Farmers */}
@@ -307,6 +325,42 @@ const AdminDashboard = () => {
             {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
           </div>
           <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1b: Active Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Active')}
+          title="Click to view active farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>ACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+              <UserCheck size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : activeFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#16A34A' }}>View Active <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1c: Inactive Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Inactive')}
+          title="Click to view inactive farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>INACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+              <UserX size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : inactiveFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#DC2626' }}>View Inactive <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 2: Total Tanks */}
@@ -551,7 +605,7 @@ const AdminDashboard = () => {
           </table>
         </div>
 
-        {/* ONE Show More / Show Less button - reveals remaining records in place if present */}
+        {/* ONE Show More button that navigates to the existing full combined records page (Requirement 5) */}
         {filteredHarvests.length > 5 && (
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
             <button
@@ -572,19 +626,11 @@ const AdminDashboard = () => {
                 boxShadow: '0 2px 6px rgba(3, 53, 143, 0.2)',
                 transition: 'all 0.2s ease'
               }}
-              onClick={() => setShowAllHarvests(prev => !prev)}
+              onClick={() => navigate('/admin/field-data')}
+              title="Click to view full Harvest & FCR records page"
             >
-              {showAllHarvests ? (
-                <>
-                  <span>Show Less</span>
-                  <ChevronUp size={16} />
-                </>
-              ) : (
-                <>
-                  <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
-                  <ChevronDown size={16} />
-                </>
-              )}
+              <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
+              <ArrowUpRight size={16} />
             </button>
           </div>
         )}
@@ -834,7 +880,12 @@ const AdminDashboard = () => {
 
       {/* Modals */}
       {showHarvestedModal && (
-        <HarvestedTanksModal onClose={() => setShowHarvestedModal(false)} />
+        <HarvestedTanksModal
+          onClose={() => setShowHarvestedModal(false)}
+          tanks={allTanks}
+          farmers={farmers}
+          harvests={liveHarvests}
+        />
       )}
 
 
@@ -945,7 +996,7 @@ const styles = {
 
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
     gap: '16px'
   },
 
@@ -1535,6 +1586,29 @@ const styles = {
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer'
+  },
+
+  errorBanner: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 18px',
+    backgroundColor: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: '10px',
+    marginBottom: '8px'
+  },
+
+  retryBtn: {
+    padding: '6px 14px',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 600,
+    fontSize: '12.5px',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease'
   }
 };
 

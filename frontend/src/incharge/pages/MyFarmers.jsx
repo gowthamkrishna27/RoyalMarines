@@ -178,6 +178,14 @@ const MyFarmers = () => {
                   <span>{farmer.tankCount} Tanks</span>
                   <span>•</span>
                   <span>{farmer.villageName}</span>
+                  <span>•</span>
+                  <span style={{
+                    color: (farmer.status || '').toUpperCase() === 'INACTIVE' ? '#DC2626' : '#16A34A',
+                    fontWeight: 600,
+                    fontSize: '11px'
+                  }}>
+                    {(farmer.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'}
+                  </span>
                 </div>
               </div>
 

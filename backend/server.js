@@ -13,6 +13,13 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   const dbStatus = await checkDatabaseConnection();
   if (dbStatus.success) {
     await initializeDatabaseSchema();
+    try {
+      const { store } = await import('./src/data/store.js');
+      await store.recalculateAllFarmerStatuses();
+      console.log('✅ Farmer Active/Inactive lifecycle statuses reconciled with database');
+    } catch (err) {
+      console.error('[Error during initial farmer status reconciliation]', err.message);
+    }
   }
 });
 

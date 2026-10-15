@@ -22,6 +22,39 @@ export const getRegions = async (req, res) => {
   }
 };
 
+export const createRegion = async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return sendError(res, 'Region name is required', 400);
+    }
+    const created = await store.createRegion(req.body);
+    return sendSuccess(res, created, 'Region created successfully in database', 201);
+  } catch (error) {
+    console.error('[Error in createRegion]', error);
+    const status = error.statusCode || (error.message.includes('already exists') ? 409 : 500);
+    return sendError(res, error.message || 'Failed to create region in database', status);
+  }
+};
+
+export const createLocality = async (req, res) => {
+  try {
+    const { name, regionId } = req.body;
+    if (!name || !name.trim()) {
+      return sendError(res, 'Locality name is required', 400);
+    }
+    if (!regionId || !regionId.trim()) {
+      return sendError(res, 'Region is required', 400);
+    }
+    const created = await store.createLocality(req.body);
+    return sendSuccess(res, created, 'Locality created successfully in database', 201);
+  } catch (error) {
+    console.error('[Error in createLocality]', error);
+    const status = error.statusCode || (error.message.includes('already exists') ? 409 : 500);
+    return sendError(res, error.message || 'Failed to create locality in database', status);
+  }
+};
+
 export const getAgents = async (req, res) => {
   try {
     const agents = await store.getAgents();
@@ -64,10 +97,10 @@ export const getDashboardData = async (req, res) => {
     }
 
     if (!tankIds || !Array.isArray(tankIds) || tankIds.length === 0) {
-      return sendSuccess(res, { 
-        waterQuality: [], 
-        trend: [], 
-        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 } 
+      return sendSuccess(res, {
+        waterQuality: [],
+        trend: [],
+        kpis: { abw: '0.0', fcr: '0.00', feed: 0, activeTanks: 0, totalBiomass: 0, totalHarvest: 0, compliance: '0%', pending: 0 }
       }, 'Empty filters');
     }
 
@@ -105,7 +138,7 @@ export const getDashboardData = async (req, res) => {
     const harvestQuery = `
       SELECT 
         DATE_FORMAT(COALESCE(harvest_date, date, created_at), '%Y-%m-%d') as period,
-        COALESCE(SUM(quantity_kg), 0) as harvested_biomass
+        COALESCE(SUM(harvested_biomass), 0) as harvested_biomass
       FROM harvests
       WHERE tank_id IN (${inClause})
       GROUP BY period
@@ -133,7 +166,7 @@ export const getDashboardData = async (req, res) => {
     const [tankKpi] = await query(kpiTankQuery);
 
     const [harvestKpi] = await query(`
-      SELECT COALESCE(SUM(quantity_kg), 0) as totalHarvest 
+      SELECT COALESCE(SUM(harvested_biomass), 0) as totalHarvest 
       FROM harvests 
       WHERE tank_id IN (${inClause})
     `);
