@@ -127,6 +127,16 @@ const FarmerDetails = () => {
                 : session?.name || 'Ramesh'}
             </span>
           </div>
+          <div style={styles.infoCol}>
+            <span style={styles.infoLabel}>Status</span>
+            <span style={{
+              ...styles.infoValue,
+              color: (farmer.status || '').toUpperCase() === 'INACTIVE' ? '#DC2626' : '#16A34A',
+              fontWeight: 700
+            }}>
+              {(farmer.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'}
+            </span>
+          </div>
         </div>
       </div>
 

@@ -3,25 +3,52 @@ import { X, CheckCircle2, Search, Scale, User, MapPin } from 'lucide-react';
 import HarvestReportModal from './HarvestReportModal';
 import { useMockData } from '../../context/MockDataContext';
 
-const HarvestedTanksModal = ({ onClose }) => {
+const HarvestedTanksModal = ({ onClose, tanks = null, farmers = null, harvests = null }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTank, setSelectedTank] = useState(null);
   const mockData = useMockData();
   const db = mockData?.db;
   
-  // Get harvested tanks from the DB
-  const rawHarvestedTanks = db?.tanks?.filter(t => t.status === 'Harvested') || [];
+  const tanksList = Array.isArray(tanks) && tanks.length > 0 ? tanks : (db?.tanks || []);
+  const farmersList = Array.isArray(farmers) && farmers.length > 0 ? farmers : (db?.farmers || []);
+  const harvestsList = Array.isArray(harvests) && harvests.length > 0 ? harvests : (db?.harvests || []);
+
+  // Get harvested tanks from genuine DB records
+  const rawHarvestedTanks = tanksList.filter(t => (t.status || '').toUpperCase() === 'HARVESTED');
   
   // Map them to include farmer info
   const harvestedTanks = rawHarvestedTanks.map(tank => {
-    const farmer = db?.farmers?.find(f => f.id === tank.farmerId);
+    const farmer = farmersList.find(f => String(f.id) === String(tank.farmerId || tank.farmer_id));
     return {
       ...tank,
-      farmer: farmer?.name || 'Unknown Farmer',
-      location: farmer?.location || 'Unknown Location',
+      farmer: farmer?.name || tank.farmerName || 'Unknown Farmer',
+      location: farmer?.location || farmer?.village || tank.location || 'Unknown Location',
       extent: farmer?.acres ? `${farmer.acres} Acres` : tank.size || 'Unknown Size'
     };
   });
+
+  // Calculate genuine statistics
+  const totalClosedCount = harvestedTanks.length;
+
+  const harvestedTankIds = new Set(rawHarvestedTanks.map(t => String(t.id)));
+  const relatedHarvests = harvestsList.filter(h => harvestedTankIds.has(String(h.tankId)));
+  const totalRealizedBiomass = relatedHarvests.reduce((sum, h) => sum + (Number(h.quantityKg) || 0), 0)
+    || rawHarvestedTanks.reduce((sum, t) => sum + (Number(String(t.biomass || 0).replace(/[^0-9.]/g, '')) || 0), 0);
+
+  const validWeights = rawHarvestedTanks
+    .map(t => parseFloat(String(t.abw || '').replace(/[^0-9.]/g, '')))
+    .filter(v => !isNaN(v) && v > 0);
+  const avgWeight = validWeights.length > 0
+    ? (validWeights.reduce((a, b) => a + b, 0) / validWeights.length).toFixed(1)
+    : '0.0';
+  const countEst = Number(avgWeight) > 0 ? Math.round(1000 / Number(avgWeight)) : 0;
+
+  const validFcrs = rawHarvestedTanks
+    .map(t => parseFloat(t.fcr))
+    .filter(v => !isNaN(v) && v > 0);
+  const avgFcr = validFcrs.length > 0
+    ? (validFcrs.reduce((a, b) => a + b, 0) / validFcrs.length).toFixed(2)
+    : '-';
 
   const filteredTanks = harvestedTanks.filter(tank => 
     tank.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,23 +77,33 @@ const HarvestedTanksModal = ({ onClose }) => {
             </button>
           </div>
 
-          {/* Top Summary Bar */}
+          {/* Top Summary Bar with Genuine Metrics */}
           <div style={styles.summaryContainer}>
             <div style={styles.summaryCard}>
               <span style={styles.summaryLabel}>TOTAL CLOSED TANKS</span>
-              <span style={styles.summaryValue}>{harvestedTanks.length} Tanks</span>
+              <span style={styles.summaryValue}>{totalClosedCount} Tanks</span>
             </div>
             <div style={styles.summaryCard}>
               <span style={styles.summaryLabel}>TOTAL REALIZED BIOMASS</span>
-              <span style={{ ...styles.summaryValue, color: '#2563EB' }}>17,800 kg</span>
+              <span style={{ ...styles.summaryValue, color: '#2563EB' }}>
+                {totalRealizedBiomass > 0 ? `${Math.round(totalRealizedBiomass).toLocaleString()} kg` : '0 kg'}
+              </span>
             </div>
             <div style={styles.summaryCard}>
               <span style={styles.summaryLabel}>AVG FINAL WEIGHT</span>
-              <span style={{ ...styles.summaryValue, color: '#16A34A' }}>32.2g <span style={{ fontSize: '13px', fontWeight: 500, color: '#64748B' }}>(~31 count)</span></span>
+              <span style={{ ...styles.summaryValue, color: '#16A34A' }}>
+                {Number(avgWeight) > 0 ? (
+                  <>
+                    {avgWeight}g <span style={{ fontSize: '13px', fontWeight: 500, color: '#64748B' }}>({countEst > 0 ? `~${countEst} count` : ''})</span>
+                  </>
+                ) : (
+                  '-'
+                )}
+              </span>
             </div>
             <div style={styles.summaryCard}>
               <span style={styles.summaryLabel}>AVG CYCLE FCR</span>
-              <span style={{ ...styles.summaryValue, color: '#D97706' }}>1.17</span>
+              <span style={{ ...styles.summaryValue, color: '#D97706' }}>{avgFcr}</span>
             </div>
           </div>
 
@@ -123,10 +160,11 @@ const HarvestedTanksModal = ({ onClose }) => {
         </div>
       </div>
 
-      {/* Render detailed report modal if a tank is selected */}
+      {/* Render detailed report modal with genuine harvests if a tank is selected */}
       {selectedTank && (
         <HarvestReportModal 
           tank={selectedTank} 
+          harvests={harvestsList}
           onClose={() => setSelectedTank(null)} 
         />
       )}

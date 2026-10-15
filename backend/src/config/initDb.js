@@ -51,6 +51,18 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 3b. Localities Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS localities (
+        id VARCHAR(50) PRIMARY KEY,
+        region_id VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_reg (region_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     // 4. Incharges Table
     await query(`
       CREATE TABLE IF NOT EXISTS incharges (

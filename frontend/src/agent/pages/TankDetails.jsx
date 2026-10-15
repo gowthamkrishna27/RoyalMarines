@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2, 
-  Scale, Wheat, Fish, Activity, TrendingUp, Droplets, 
-  Skull, Pill, ClipboardList, Camera, Clock, Lock, 
+import {
+  ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2,
+  Scale, Wheat, Fish, Activity, TrendingUp, Droplets,
+  Skull, Pill, ClipboardList, Camera, Clock, Lock,
   X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
@@ -55,12 +55,12 @@ const TankDetails = () => {
   const stateTank = location.state?.tank;
   const stateFarmer = location.state?.farmer;
 
-  const rawTank = (getTankById ? getTankById(tankId) : null) || 
+  const rawTank = (getTankById ? getTankById(tankId) : null) ||
     db?.tanks?.find(t => {
       const tId = String(t.id || '').toLowerCase();
       const target = String(tankId || '').toLowerCase();
       return tId === target || tId.replace(/^t0*/, '') === target.replace(/^t0*/, '') || t.name === tankId;
-    }) || 
+    }) ||
     stateTank;
 
   const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId || String(f.id) === String(rawTank.farmerId))) : null);
@@ -104,8 +104,8 @@ const TankDetails = () => {
           <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748B' }}>
             This tank is either not registered or belongs to a farmer not assigned to your account.
           </p>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={handleBack}
             style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#1A2FB8', color: '#FFFFFF', fontWeight: '600', cursor: 'pointer' }}
           >
@@ -155,8 +155,8 @@ const TankDetails = () => {
 
   // Also include harvests from tankSubmissions where testType or recordType is harvest
   tankSubmissions.forEach(sub => {
-    const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') || 
-                         (sub.recordType || '').toUpperCase().includes('HARVEST');
+    const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') ||
+      (sub.recordType || '').toUpperCase().includes('HARVEST');
     if (isSubHarvest) {
       const sData = sub.data || {};
       const exists = rawHarvests.some(r => r.id === sub.id || (r.date === sub.date && r.harvestedBiomass === (sData.harvestedBiomass || sData.quantityKg)));
@@ -196,7 +196,7 @@ const TankDetails = () => {
     }
   });
 
-  const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') || 
+  const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') ||
     (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted);
 
   const filterSubmissions = (type) => {
@@ -218,18 +218,18 @@ const TankDetails = () => {
   const totalFeedUsed = parseFloat(tankStoreData?.totalFeed || 16000);
 
   // Find latest field records for present metrics
-  const latestFeedTest = tankSubmissions.find(s => 
+  const latestFeedTest = tankSubmissions.find(s =>
     (s.testType || s.recordType || '').toUpperCase().includes('FEED')
   );
-  const latestBiomassTest = tankSubmissions.find(s => 
+  const latestBiomassTest = tankSubmissions.find(s =>
     (s.testType || s.recordType || '').toUpperCase().includes('BIOMASS')
   );
 
   // Present Biomass (Current active standing biomass in pond)
   const presentBiomass = parseFloat(
-    latestFeedTest?.data?.totalBiomass || 
-    latestBiomassTest?.data?.totalBiomass || 
-    tank.biomass || 
+    latestFeedTest?.data?.totalBiomass ||
+    latestBiomassTest?.data?.totalBiomass ||
+    tank.biomass ||
     '14035'
   );
 
@@ -304,7 +304,7 @@ const TankDetails = () => {
       {/* 1. PAGE HEADER */}
       {/* ========================================================= */}
       <div style={styles.topHeaderBar}>
-        <button 
+        <button
           type="button"
           style={styles.backButton}
           onClick={handleBack}
@@ -347,8 +347,8 @@ const TankDetails = () => {
               <span>Harvest</span>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               style={styles.primaryNewRecordBtn}
               onClick={() => {
                 setModalInitialType('WATER_QUALITY');
@@ -517,8 +517,8 @@ const TankDetails = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 style={{
                   ...styles.addHarvestActionBtn,
                   backgroundColor: '#FFFFFF',
@@ -535,8 +535,8 @@ const TankDetails = () => {
               </button>
 
               {!hasFinalHarvest ? (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
                     const harvestPath = location.pathname.startsWith('/asm') 
@@ -741,17 +741,17 @@ const TankDetails = () => {
               <h3 style={styles.sectionTitle}>{tabLabel} Records</h3>
 
               {!hasFinalHarvest ? (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
                     setModalInitialType(
                       activeTab === 'WATER' ? 'WATER_QUALITY' :
-                      activeTab === 'FEED' ? 'FEED_ENTRY' :
-                      activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
-                      activeTab === 'MEDICATION' ? 'MEDICATION' :
-                      activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
-                      activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                        activeTab === 'FEED' ? 'FEED_ENTRY' :
+                          activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
+                            activeTab === 'MEDICATION' ? 'MEDICATION' :
+                              activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                                activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
                     );
                     setIsRecordModalOpen(true);
                   }}
@@ -776,7 +776,7 @@ const TankDetails = () => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {tabRecords.map((rec) => (
-                    <div 
+                    <div
                       key={rec.id}
                       style={styles.recordListItem}
                       onClick={() => setSelectedReadRecord(rec)}
@@ -808,14 +808,14 @@ const TankDetails = () => {
       {/* READ-ONLY RECORD MODAL */}
       {/* ========================================================= */}
       {selectedReadRecord && createPortal(
-        <div 
+        <div
           className="animate-backdrop-in"
-          style={styles.modalOverlay} 
+          style={styles.modalOverlay}
           onClick={() => setSelectedReadRecord(null)}
         >
-          <div 
+          <div
             className="animate-modal-in"
-            style={styles.modalCard} 
+            style={styles.modalCard}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={styles.modalHeader}>
@@ -827,9 +827,9 @@ const TankDetails = () => {
                   {selectedReadRecord.testType || selectedReadRecord.recordType}
                 </h3>
               </div>
-              <button 
-                type="button" 
-                style={styles.closeBtn} 
+              <button
+                type="button"
+                style={styles.closeBtn}
                 onClick={() => setSelectedReadRecord(null)}
                 aria-label="Close"
               >
@@ -869,53 +869,53 @@ const TankDetails = () => {
                   <div style={styles.dataContainer}>
                     <div style={styles.dataHeading}>Logged Field Parameters</div>
                     {Object.entries(parsedData).map(([k, v]) => {
-                    if (v && typeof v === 'object' && !Array.isArray(v)) {
-                      const detected = Object.entries(v);
+                      if (v && typeof v === 'object' && !Array.isArray(v)) {
+                        const detected = Object.entries(v);
+                        return (
+                          <div key={k} style={{ ...styles.dataRow, flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                            <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
+                            {detected.length === 0 ? (
+                              <span style={{ ...styles.dataVal, color: '#16A34A', fontWeight: '700' }}>None Detected (Normal)</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                                {detected.map(([diseaseName, level]) => (
+                                  <span
+                                    key={diseaseName}
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: '700',
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      backgroundColor: level === 'Severe' ? '#FEE2E2' : '#FEF3C7',
+                                      color: level === 'Severe' ? '#DC2626' : '#B45309',
+                                      border: level === 'Severe' ? '1px solid #FECACA' : '1px solid #FDE68A'
+                                    }}
+                                  >
+                                    {diseaseName}: {level}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
                       return (
-                        <div key={k} style={{ ...styles.dataRow, flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <div key={k} style={styles.dataRow}>
                           <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
-                          {detected.length === 0 ? (
-                            <span style={{ ...styles.dataVal, color: '#16A34A', fontWeight: '700' }}>None Detected (Normal)</span>
-                          ) : (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-                              {detected.map(([diseaseName, level]) => (
-                                <span 
-                                  key={diseaseName} 
-                                  style={{
-                                    fontSize: '11px',
-                                    fontWeight: '700',
-                                    padding: '2px 8px',
-                                    borderRadius: '6px',
-                                    backgroundColor: level === 'Severe' ? '#FEE2E2' : '#FEF3C7',
-                                    color: level === 'Severe' ? '#DC2626' : '#B45309',
-                                    border: level === 'Severe' ? '1px solid #FECACA' : '1px solid #FDE68A'
-                                  }}
-                                >
-                                  {diseaseName}: {level}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <span style={styles.dataVal}>{String(v)}</span>
                         </div>
                       );
-                    }
-                    return (
-                      <div key={k} style={styles.dataRow}>
-                        <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
-                        <span style={styles.dataVal}>{String(v)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                    })}
+                  </div>
                 );
               })()}
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
+              <button
                 type="button"
                 className="transition-all duration-150 active:scale-98 cursor-pointer"
-                style={styles.modalDoneBtn} 
+                style={styles.modalDoneBtn}
                 onClick={() => setSelectedReadRecord(null)}
               >
                 Done
@@ -929,7 +929,7 @@ const TankDetails = () => {
       {/* ========================================================= */}
       {/* QUICK RECORD MODAL */}
       {/* ========================================================= */}
-      <QuickRecordModal 
+      <QuickRecordModal
         isOpen={isRecordModalOpen}
         onClose={() => {
           setIsRecordModalOpen(false);

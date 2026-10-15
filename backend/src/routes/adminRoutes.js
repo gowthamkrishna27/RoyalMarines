@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { getSubmissionLocations, getFieldStaff } from '../controllers/adminController.js';
 import { 
+  getRegions,
+  createRegion,
+  createLocality,
   getAgents,
   getAgentById,
   createAgent,
@@ -21,6 +24,11 @@ const router = Router();
 // Real-time submission location map endpoints
 router.get('/submission-locations', getSubmissionLocations);
 router.get('/field-staff', getFieldStaff);
+
+// Regions & Localities REST API
+router.get('/regions', getRegions);
+router.post('/regions', createRegion);
+router.post('/localities', createLocality);
 
 // Agents / Technicians REST API
 router.get('/agents', getAgents);

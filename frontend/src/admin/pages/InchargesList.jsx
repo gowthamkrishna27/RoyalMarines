@@ -97,6 +97,30 @@ const InchargesList = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState('');
 
+  // Comprehensive list of all available regions from database and assigned incharges
+  const allAvailableRegions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (regions || []).forEach(r => {
+      const regName = (r.name || '').trim();
+      if (regName && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: r.id || r.code || regName, name: regName });
+      }
+    });
+
+    (incharges || []).forEach(inc => {
+      const regName = (inc.region || '').trim();
+      if (regName && regName !== 'Unknown Region' && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: inc.regionId || regName, name: regName });
+      }
+    });
+
+    return list;
+  }, [regions, incharges]);
+
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -179,7 +203,7 @@ const InchargesList = () => {
           farmers: totalFarmersUnderIncharge > 0 ? totalFarmersUnderIncharge : (inc.farmers || 0)
         };
       }).filter(inc => {
-      const term = (searchTerm || '').toLowerCase();
+      const term = (searchTerm || '').toLowerCase().trim();
       const matchesSearch =
         !term ||
         inc.name?.toLowerCase().includes(term) ||
@@ -189,7 +213,17 @@ const InchargesList = () => {
         inc.region?.toLowerCase().includes(term) ||
         inc.locality?.toLowerCase().includes(term);
 
-      const matchesRegion = regionFilter === 'ALL' || inc.region === regionFilter || inc.region?.includes(regionFilter);
+      const matchesRegion =
+        regionFilter === 'ALL' ||
+        inc.region === regionFilter ||
+        inc.regionId === regionFilter ||
+        (inc.region && regionFilter && inc.region.toLowerCase().trim() === regionFilter.toLowerCase().trim()) ||
+        (inc.region && regionFilter && (
+          inc.region.toLowerCase().includes(regionFilter.toLowerCase()) ||
+          regionFilter.toLowerCase().includes(inc.region.toLowerCase())
+        )) ||
+        (inc.regionId && regionFilter && inc.regionId.toLowerCase() === regionFilter.toLowerCase());
+
       const matchesStatus = statusFilter === 'ALL' || (inc.status || 'ACTIVE').toUpperCase() === statusFilter.toUpperCase();
 
       return matchesSearch && matchesRegion && matchesStatus;
@@ -645,6 +679,76 @@ const InchargesList = () => {
       {/* ────────────────────────────────────────────────
           3. UNIFIED STICKY FILTER TOOLBAR (44px Height, 12px Radius)
           ──────────────────────────────────────────────── */}
+      <div style={styles.stickyFilterToolbar}>
+        {/* Search Input */}
+        <div style={styles.searchBox}>
+          <Search size={15} style={styles.searchIcon} />
+          <input
+            type="text"
+            placeholder="Search ASMs by name, phone, email, region..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+            aria-label="Search ASMs"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              style={styles.clearSearchBtn}
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Selects & Actions */}
+        <div style={styles.filterControls}>
+          {/* Region Select */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by region"
+            >
+              <option value="ALL">All Regions</option>
+              {allAvailableRegions.map(r => (
+                <option key={r.id || r.name} value={r.name}>{r.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Status Select */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by status"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              style={styles.resetButton}
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </div>
 
 
       {/* ────────────────────────────────────────────────

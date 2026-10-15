@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Scale, User, Phone, MapPin, CheckCircle, Plus, 
-  Trash2, Info, FileSpreadsheet, Calendar, Sparkles,
-  AlertTriangle, Lock, RefreshCw, X, ArrowRight, Check, Users, ChevronDown,
+  AlertTriangle, Lock, RefreshCw, X, ArrowRight, ArrowLeft, Check, Users, ChevronDown,
   Leaf, Flag, BadgeCheck
 } from 'lucide-react';
 import { getSession } from '../utils/agentAuth';
@@ -744,9 +743,36 @@ const Harvest = () => {
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* 1. Header Bar with TWO explicit buttons */}
+      {/* 1. Header Bar with Back button */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>
+          <button 
+            type="button" 
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate(isIncharge ? '/incharge/dashboard' : '/dashboard');
+              }
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: '8px',
+              color: '#334155',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              marginRight: '6px'
+            }}
+            title="Go Back"
+          >
+            <ArrowLeft size={16} strokeWidth={2.4} /> Back
+          </button>
           <div style={styles.iconCircle}>
             <Scale size={24} color="#1A2FB8" strokeWidth={2.4} />
           </div>

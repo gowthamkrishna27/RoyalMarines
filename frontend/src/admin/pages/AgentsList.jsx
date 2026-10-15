@@ -76,9 +76,96 @@ const AgentsList = () => {
   // Filters and search state
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
+  const [localityFilter, setLocalityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('NAME');
   const [toastMessage, setToastMessage] = useState('');
+
+  // Handle region filter change and sync location options
+  const handleRegionChange = (newRegion) => {
+    setRegionFilter(newRegion);
+    setLocalityFilter('ALL');
+  };
+
+  // Comprehensive list of all available regions from database and assigned agents
+  const allAvailableRegions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (regions || []).forEach(r => {
+      const regName = (r.name || '').trim();
+      if (regName && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: r.id || r.code || regName, name: regName, localities: r.localities || [] });
+      }
+    });
+
+    (agents || []).forEach(ag => {
+      const regName = (ag.region || '').trim();
+      if (regName && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: ag.regionId || regName, name: regName, localities: [] });
+      }
+    });
+
+    return list;
+  }, [regions, agents]);
+
+  // Dynamic available locations/localities based on selected region
+  const availableLocations = useMemo(() => {
+    const locSet = new Set();
+    const result = [];
+
+    const addLoc = (locName) => {
+      if (!locName) return;
+      const clean = locName.trim();
+      if (clean && !locSet.has(clean.toLowerCase())) {
+        locSet.add(clean.toLowerCase());
+        result.push(clean);
+      }
+    };
+
+    if (regionFilter !== 'ALL') {
+      const matchedRegion = (regions || []).find(r =>
+        r.name?.toLowerCase().trim() === regionFilter.toLowerCase().trim() ||
+        r.id === regionFilter ||
+        r.code === regionFilter
+      );
+      if (matchedRegion && Array.isArray(matchedRegion.localities)) {
+        matchedRegion.localities.forEach(loc => {
+          const lName = typeof loc === 'string' ? loc : loc.name;
+          addLoc(lName);
+        });
+      }
+
+      (agents || []).forEach(ag => {
+        const matchesThisRegion =
+          ag.region === regionFilter ||
+          ag.regionId === regionFilter ||
+          (ag.region && ag.region.toLowerCase().trim() === regionFilter.toLowerCase().trim());
+        if (matchesThisRegion) {
+          addLoc(ag.locality);
+          addLoc(ag.assignedArea);
+        }
+      });
+    } else {
+      (regions || []).forEach(r => {
+        if (Array.isArray(r.localities)) {
+          r.localities.forEach(loc => {
+            const lName = typeof loc === 'string' ? loc : loc.name;
+            addLoc(lName);
+          });
+        }
+      });
+
+      (agents || []).forEach(ag => {
+        addLoc(ag.locality);
+        addLoc(ag.assignedArea);
+      });
+    }
+
+    return result.sort((a, b) => a.localeCompare(b));
+  }, [regions, agents, regionFilter]);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -167,16 +254,22 @@ const AgentsList = () => {
   const handleResetFilters = () => {
     setSearchTerm('');
     setRegionFilter('ALL');
+    setLocalityFilter('ALL');
     setStatusFilter('ALL');
     setSortBy('NAME');
   };
 
-  const hasActiveFilters = searchTerm !== '' || regionFilter !== 'ALL' || statusFilter !== 'ALL' || sortBy !== 'NAME';
+  const hasActiveFilters =
+    searchTerm !== '' ||
+    regionFilter !== 'ALL' ||
+    localityFilter !== 'ALL' ||
+    statusFilter !== 'ALL' ||
+    sortBy !== 'NAME';
 
   // Filter and sort agents
   const filteredAgents = useMemo(() => {
     return agents.filter(ag => {
-      const term = searchTerm.toLowerCase();
+      const term = (searchTerm || '').toLowerCase().trim();
       const matchesSearch =
         !term ||
         ag.name?.toLowerCase().includes(term) ||
@@ -188,10 +281,43 @@ const AgentsList = () => {
         ag.locality?.toLowerCase().includes(term) ||
         ag.assignedArea?.toLowerCase().includes(term);
 
-      const matchesRegion = regionFilter === 'ALL' || ag.region === regionFilter || ag.region?.includes(regionFilter);
+      const matchesRegion = (() => {
+        if (regionFilter === 'ALL') return true;
+        if (ag.region === regionFilter || ag.regionId === regionFilter) return true;
+        if (ag.region && ag.region.toLowerCase().trim() === regionFilter.toLowerCase().trim()) return true;
+        if (ag.region && (
+          ag.region.toLowerCase().includes(regionFilter.toLowerCase()) ||
+          regionFilter.toLowerCase().includes(ag.region.toLowerCase())
+        )) return true;
+        if (ag.regionId && ag.regionId.toLowerCase() === regionFilter.toLowerCase()) return true;
+
+        const matchedRegion = (regions || []).find(r =>
+          r.name?.toLowerCase().trim() === regionFilter.toLowerCase().trim() ||
+          r.id === regionFilter ||
+          r.code === regionFilter
+        );
+        if (matchedRegion && Array.isArray(matchedRegion.localities)) {
+          const locNames = matchedRegion.localities.map(l => (typeof l === 'string' ? l : l.name || '').toLowerCase().trim());
+          if (ag.locality && locNames.includes(ag.locality.toLowerCase().trim())) return true;
+          if (ag.assignedArea && locNames.includes(ag.assignedArea.toLowerCase().trim())) return true;
+        }
+
+        return false;
+      })();
+
+      const matchesLocality = (() => {
+        if (localityFilter === 'ALL') return true;
+        const targetLoc = localityFilter.toLowerCase().trim();
+        if (ag.locality && ag.locality.toLowerCase().trim() === targetLoc) return true;
+        if (ag.assignedArea && ag.assignedArea.toLowerCase().trim() === targetLoc) return true;
+        if (ag.locality && ag.locality.toLowerCase().includes(targetLoc)) return true;
+        if (ag.assignedArea && ag.assignedArea.toLowerCase().includes(targetLoc)) return true;
+        return false;
+      })();
+
       const matchesStatus = statusFilter === 'ALL' || (ag.status || 'ACTIVE').toUpperCase() === statusFilter.toUpperCase();
 
-      return matchesSearch && matchesRegion && matchesStatus;
+      return matchesSearch && matchesRegion && matchesLocality && matchesStatus;
     }).sort((a, b) => {
       if (sortBy === 'NAME') {
         return (a.name || '').localeCompare(b.name || '');
@@ -206,7 +332,7 @@ const AgentsList = () => {
       }
       return 0;
     });
-  }, [agents, searchTerm, regionFilter, statusFilter, sortBy]);
+  }, [agents, regions, searchTerm, regionFilter, localityFilter, statusFilter, sortBy]);
 
   // Filter assigned farmers for the selected agent modal
   const filteredAgentFarmers = useMemo(() => {
@@ -699,7 +825,83 @@ const AgentsList = () => {
           )}
         </div>
 
+        {/* Filter Selects & Actions */}
+        <div style={styles.filterControls}>
+          {/* Region Filter */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={regionFilter}
+              onChange={(e) => handleRegionChange(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by region"
+            >
+              <option value="ALL">All Regions</option>
+              {allAvailableRegions.map(r => (
+                <option key={r.id || r.name} value={r.name}>{r.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
 
+          {/* Location / Locality Filter */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={localityFilter}
+              onChange={(e) => setLocalityFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by location"
+            >
+              <option value="ALL">All Locations</option>
+              {availableLocations.map(loc => (
+                <option key={loc} value={loc}>{loc}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Status Filter */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by status"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Sort By Filter */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Sort agents"
+            >
+              <option value="NAME">Sort: Name (A-Z)</option>
+              <option value="FARMERS">Sort: Most Farmers</option>
+              <option value="TESTS">Sort: Most Tests</option>
+              <option value="DUE">Sort: Pending Tests</option>
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              style={styles.resetButton}
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ────────────────────────────────────────────────
@@ -710,13 +912,12 @@ const AgentsList = () => {
           <table style={styles.table}>
             <thead>
               <tr style={styles.tableHeaderRow}>
-                <th style={{ ...styles.th, width: '22%' }}>AGENT NAME</th>
-                <th style={{ ...styles.th, width: '20%' }}>CONTACT</th>
-                <th style={{ ...styles.th, width: '18%' }}>LOCATION &amp; ASM</th>
-                <th style={{ ...styles.th, width: '12%' }}>REGION</th>
-                <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>TESTS</th>
+                <th style={{ ...styles.th, width: '24%' }}>AGENT NAME</th>
+                <th style={{ ...styles.th, width: '22%' }}>CONTACT</th>
+                <th style={{ ...styles.th, width: '20%' }}>LOCATION &amp; ASM</th>
+                <th style={{ ...styles.th, width: '14%' }}>REGION</th>
                 <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>DUE TESTS</th>
-                <th style={{ ...styles.th, width: '8%', textAlign: 'center' }}>ACTIONS</th>
+                <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -784,28 +985,11 @@ const AgentsList = () => {
                       {/* 4. Region Column */}
                       <td style={styles.td}>
                         <span style={styles.regionBadge}>
-                          {ag.locality || ag.region || '-'}
+                          {ag.region || ag.locality || '-'}
                         </span>
                       </td>
 
-                      {/* 5. Tests Column (Clickable to tests modal) */}
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          style={styles.testsLinkButton}
-                          onClick={() => {
-                            setSelectedAgentForTests(ag);
-                            setTestsModalSearch('');
-                            setTestsModalFilter('ALL');
-                          }}
-                          title={`Click to view test records conducted by ${ag.shortName || ag.name}`}
-                        >
-                          <span style={styles.testsNumber}>{ag.tests || 0}</span>
-                          <span style={styles.testsCaption}>Tests</span>
-                        </button>
-                      </td>
-
-                      {/* 6. Due Tests Column (Amber Warning Badge - Clickable to due tests modal) */}
+                      {/* 5. Due Tests Column (Amber Warning Badge - Clickable to due tests modal) */}
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <button
                           type="button"
@@ -885,7 +1069,7 @@ const AgentsList = () => {
                    PREMIUM EMPTY STATE
                    ──────────────────────────────────────────────── */
                 <tr>
-                  <td colSpan={9} style={styles.emptyStateCell}>
+                  <td colSpan={6} style={styles.emptyStateCell}>
                     <div style={styles.emptyStateContainer}>
                       <div style={styles.emptyStateIconCircle}>
                         <UserCheck size={32} strokeWidth={1.5} color="#64748B" />

@@ -29,6 +29,7 @@ const AddTanks = () => {
       soilType: 'Loam',
       hatchery: 'Golden Marine Hatchery',
       brooder: 'Kona Bay',
+      customBrooder: '',
       seedDate: new Date().toISOString().split('T')[0],
       seedStockingLak: '2.5',
       feedType: 'Premium',
@@ -46,8 +47,23 @@ const AddTanks = () => {
   };
 
   const handleSave = () => {
-    // Validate if necessary, then save
-    const newFarmerId = createFarmerWithTanks(session.agentId, farmerData, tanksData);
+    for (let i = 0; i < tanksData.length; i++) {
+      const t = tanksData[i];
+      if ((t.brooder === 'Others' || t.brooder === 'Other') && !t.customBrooder?.trim()) {
+        alert(`Please specify other brooder details for Tank ${i + 1}.`);
+        return;
+      }
+    }
+
+    const resolvedTanks = tanksData.map(tank => ({
+      ...tank,
+      brooder: (tank.brooder === 'Others' || tank.brooder === 'Other')
+        ? (tank.customBrooder?.trim() || 'Others')
+        : tank.brooder,
+      customBrooder: tank.customBrooder?.trim() || '',
+    }));
+
+    const newFarmerId = createFarmerWithTanks(session.agentId, farmerData, resolvedTanks);
     alert('Farmer and tanks saved successfully!');
     navigate('/dashboard');
   };
@@ -152,9 +168,26 @@ const AddTanks = () => {
                   <option value="Kona Bay">Kona Bay</option>
                   <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                   <option value="American Penaeid">American Penaeid</option>
+                  <option value="Others">Others</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
+              {(tank.brooder === 'Others' || tank.brooder === 'Other') && (
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ ...styles.label, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                    Specify Other Brooder Details *
+                  </label>
+                  <input
+                    type="text"
+                    value={tank.customBrooder || ''}
+                    onChange={e => handleTankChange(index, 'customBrooder', e.target.value)}
+                    style={styles.input}
+                    placeholder="Enter other brooder details (mandatory)"
+                    required
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
 
             {/* 6. Seed Date */}

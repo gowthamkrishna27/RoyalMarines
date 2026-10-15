@@ -23,6 +23,7 @@ const Analytics = () => {
       adminService.getFarmers(force),
       adminService.getTanks(force)
     ]).then(([r, i, a, f, t]) => {
+
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
         const mappedRegs = r.value.map(reg => ({
           id: String(reg.code || reg.id),
