@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Scale, User, Phone, MapPin, CheckCircle, Plus, 
+  Trash2, Info, FileSpreadsheet, Calendar, Sparkles,
   AlertTriangle, Lock, RefreshCw, X, ArrowRight, ArrowLeft, Check, Users, ChevronDown,
   Leaf, Flag, BadgeCheck
 } from 'lucide-react';
