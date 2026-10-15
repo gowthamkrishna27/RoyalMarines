@@ -30,7 +30,7 @@ const Farmers = () => {
   }, [location.state, location.search]);
 
   const agentId = session?.agentId || 'agent001';
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
 
   const farmerItems = assignedFarmers.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);

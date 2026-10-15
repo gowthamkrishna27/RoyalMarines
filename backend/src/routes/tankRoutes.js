@@ -6,6 +6,7 @@ import {
   updateTank,
   recordWaterParameters,
   deleteTank,
+  restockTank,
 } from '../controllers/tankController.js';
 
 const router = Router();
@@ -16,5 +17,6 @@ router.post('/', createTank);
 router.put('/:id', updateTank);
 router.delete('/:id', deleteTank);
 router.post('/:id/water-tests', recordWaterParameters);
+router.post('/:id/restock', restockTank);
 
 export default router;

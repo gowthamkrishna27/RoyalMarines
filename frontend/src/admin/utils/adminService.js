@@ -54,7 +54,14 @@ export const adminService = {
   async getRegions(force = false) {
     return fetchWithCache('/analytics/regions', async () => {
       const res = await apiClient.get('/analytics/regions');
-      return Array.isArray(res?.data) ? res.data : [];
+      const list = Array.isArray(res?.data) ? res.data : [];
+      return list.map(r => ({
+        ...r,
+        id: String(r.code || r.id),
+        code: r.code || r.id,
+        name: r.name,
+        localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+      }));
     }, DEFAULT_TTL_MS, force);
   },
 

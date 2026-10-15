@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp
+  Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp,
+  ClipboardList
 } from 'lucide-react';
 
 import adminService from '../utils/adminService';
@@ -45,6 +46,8 @@ const AdminDashboard = () => {
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
+  const [todayLocationCount, setTodayLocationCount] = useState(initialCache?.todayLocationCount ?? null);
+
   const loadDashboardData = async (force = false) => {
     try {
       if (force || !summary) {
@@ -53,22 +56,26 @@ const AdminDashboard = () => {
         setIsSyncing(true);
       }
       setError(null);
-      const [sum, tks, fms, ags, incs, hrvs, subs] = await Promise.all([
+      const [sum, tks, fms, ags, incs, hrvs, subs, todayLocs] = await Promise.all([
         adminService.getSummary(force),
         adminService.getTanks(force),
         adminService.getFarmers(force),
         adminService.getAgents(force),
         adminService.getIncharges(force),
         adminService.getHarvests(force),
-        adminService.getSubmissions(force)
+        adminService.getSubmissions(force),
+        adminService.getTodaySubmissions(force).catch(() => [])
       ]);
       setSummary(sum);
-      setAllTanks(tks);
-      setFarmers(fms);
-      setAgents(ags);
-      setIncharges(incs);
-      setLiveHarvests(hrvs);
-      setSubmissions(subs);
+      setAllTanks(Array.isArray(tks) ? tks : []);
+      setFarmers(Array.isArray(fms) ? fms : []);
+      setAgents(Array.isArray(ags) ? ags : []);
+      setIncharges(Array.isArray(incs) ? incs : []);
+      setLiveHarvests(Array.isArray(hrvs) ? hrvs : []);
+      setSubmissions(Array.isArray(subs) ? subs : []);
+      if (Array.isArray(todayLocs)) {
+        setTodayLocationCount(todayLocs.length);
+      }
 
       try {
         const payload = JSON.stringify({
@@ -79,6 +86,7 @@ const AdminDashboard = () => {
           incharges: incs,
           harvests: hrvs,
           submissions: subs,
+          todayLocationCount: Array.isArray(todayLocs) ? todayLocs.length : null,
           updatedAt: Date.now()
         });
         sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
@@ -86,7 +94,9 @@ const AdminDashboard = () => {
       } catch {}
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError('Could not connect to database API. Click to retry.');
+      if (!summary) {
+        setError('Could not connect to database API. Click to retry.');
+      }
     } finally {
       setIsLoading(false);
       setIsSyncing(false);
@@ -94,15 +104,17 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    loadDashboardData();
-    const handleSubCreated = () => {
-      loadDashboardData();
+    loadDashboardData(false);
+    const handleRefresh = () => {
+      loadDashboardData(true);
     };
-    window.addEventListener('submissionCreated', handleSubCreated);
-    window.addEventListener('harvestCreated', handleSubCreated);
+    window.addEventListener('submissionCreated', handleRefresh);
+    window.addEventListener('harvestCreated', handleRefresh);
+    window.addEventListener('adminDataChanged', handleRefresh);
     return () => {
-      window.removeEventListener('submissionCreated', handleSubCreated);
-      window.removeEventListener('harvestCreated', handleSubCreated);
+      window.removeEventListener('submissionCreated', handleRefresh);
+      window.removeEventListener('harvestCreated', handleRefresh);
+      window.removeEventListener('adminDataChanged', handleRefresh);
     };
   }, []);
 
@@ -115,11 +127,11 @@ const AdminDashboard = () => {
   const avgAbwVal = summary?.avgAbw || '0.0g';
 
   // Real Due and Overdue Tests across all tanks
-  const dueAndOverdueTanks = allTanks
+  const dueAndOverdueTanks = (allTanks || [])
     .filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase()))
     .map((t, idx) => {
-      const farmer = farmers.find(f => String(f.id) === String(t.farmerId || t.farmer_id));
-      const agent = agents.find(a => String(a.id) === String(t.agentId || t.agent_id));
+      const farmer = (farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+      const agent = (agents || []).find(a => String(a.id) === String(t.agentId || t.agent_id));
       const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
       const testType = 'Routine Water & Telemetry Audit';
 
@@ -235,11 +247,47 @@ const AdminDashboard = () => {
     ? filteredHarvests
     : filteredHarvests.slice(0, 5);
 
+  // Today's Date and Today Submissions Count
+  const todayDateStr = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const todaySubmissionsCount = useMemo(() => {
+    if (todayLocationCount !== null) return todayLocationCount;
+    if (!Array.isArray(submissions)) return 0;
+    return submissions.filter(s => {
+      const sDate = s.date || (s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : '');
+      return sDate === todayDateStr;
+    }).length;
+  }, [todayLocationCount, submissions, todayDateStr]);
+
   return (
     <div style={styles.dashboardContainer}>
 
-      {/* 1. Header Section */}
-      <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
+      {/* 1. Header Section with Today Submissions option */}
+      <div style={styles.headerRow}>
+        <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
+
+        <button
+          type="button"
+          onClick={() => navigate('/admin/submission-locations')}
+          style={styles.todaySubmissionsBtn}
+          title="Click to view Today's Submissions List"
+        >
+          <div style={styles.todaySubmissionsIconWrap}>
+            <ClipboardList size={18} color="#0284C7" />
+          </div>
+          <span style={styles.todaySubmissionsTitle}>Today Submissions</span>
+          <span style={styles.todayCountPill}>
+            {todaySubmissionsCount} Today
+          </span>
+          <ArrowUpRight size={15} color="#0284C7" />
+        </button>
+      </div>
 
       {/* 2. KPI Stat Cards Row */}
       <div style={styles.kpiGrid}>
@@ -827,12 +875,65 @@ const styles = {
     letterSpacing: '0.5px'
   },
 
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+    marginBottom: '8px'
+  },
+
   headerTitle: {
     fontSize: '28px',
     fontWeight: 700,
     color: '#0F172A',
-    margin: '0 0 8px 0',
+    margin: 0,
     letterSpacing: '-0.02em'
+  },
+
+  todaySubmissionsBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #BAE6FD',
+    borderRadius: '14px',
+    padding: '8px 16px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 10px rgba(2, 132, 199, 0.08)',
+    transition: 'all 0.15s ease',
+    fontFamily: 'inherit'
+  },
+
+  todaySubmissionsIconWrap: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '10px',
+    backgroundColor: '#E0F2FE',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid #BAE6FD',
+    flexShrink: 0
+  },
+
+  todaySubmissionsTitle: {
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#0F172A',
+    letterSpacing: '-0.01em'
+  },
+
+  todayCountPill: {
+    fontSize: '11.5px',
+    fontWeight: 700,
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+    border: '1px solid #BBF7D0',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    letterSpacing: '0.02em'
   },
 
   headerSubtitle: {

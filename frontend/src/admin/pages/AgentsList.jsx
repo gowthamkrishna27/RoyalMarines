@@ -189,8 +189,9 @@ const AgentsList = () => {
 
   // Helper: Get localities for region
   const getLocalitiesForRegion = (regionId) => {
-    const region = regions.find(r => r.id === regionId);
-    return region?.localities || [];
+    const region = (regions || []).find(r => r.id === regionId || r.name === regionId);
+    if (!region) return [];
+    return Array.isArray(region.localities) ? region.localities : [{ id: `LOC-${region.code || region.id}`, name: region.name }];
   };
 
   // Helper: Get initials for avatar

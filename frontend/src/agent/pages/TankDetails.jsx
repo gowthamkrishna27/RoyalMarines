@@ -12,6 +12,7 @@ import QuickRecordModal from '../components/QuickRecordModal';
 import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
 import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
+import { getSession } from '../utils/agentAuth';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -53,35 +54,32 @@ const TankDetails = () => {
   const stateTank = location.state?.tank;
   const stateFarmer = location.state?.farmer;
 
-  const resolvedTank = (getTankById ? getTankById(tankId) : null) || 
+  const rawTank = (getTankById ? getTankById(tankId) : null) || 
     db?.tanks?.find(t => t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase() || t.name === tankId) || 
-    stateTank || {
-      id: tankId || 'T1',
-      name: tankId && tankId.startsWith('T') ? `Tank ${tankId.replace('T', '')}` : (tankId || 'Tank 1'),
-      species: 'Vannamei (Shrimp)',
-      acres: '11',
-      area: '11',
-      farmerId: stateFarmer?.id || '',
-      status: 'Active',
-      seedStocked: 95000,
-      stockingDate: '2026-06-20',
-      waterSource: 'Canal',
-      salinity: '14 ppt',
-      soilType: 'Clay Loam'
-    };
+    stateTank;
 
-  const tank = resolvedTank;
-  const farmer = stateFarmer || (tank?.farmerId ? ((getFarmerById ? getFarmerById(tank.farmerId) : null) || db?.farmers?.find(f => f.id === tank.farmerId)) : null) || {
-    id: 'F1',
-    name: tank.farmerName || 'Farmer',
-    phone: '+91 9876543231',
-    location: 'Chinnamiram East',
-    assignedAgent: 'Ramesh'
-  };
+  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId || String(f.id).toLowerCase() === String(rawTank.farmerId).toLowerCase())) : null);
+
+  // Authorization check: Agent can view tanks belonging to his assigned farmers, or any tank available in agent view
+  const agentSession = typeof getSession === 'function' ? getSession() : null;
+  const currentAgentId = String(agentSession?.agentId || agentSession?.id || 'agent001').trim().toLowerCase();
+  const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || rawTank?.agentId || rawTank?.agent_id || '').trim().toLowerCase();
+  const isAuthorized = isIncharge || !farmerAgentId || farmerAgentId === currentAgentId || farmerAgentId === 'all';
+
+  const fallbackFarmer = rawTank ? {
+    id: rawTank.farmerId || 'unknown',
+    name: rawTank.farmerName || 'Farmer',
+    phone: rawTank.farmerPhone || '',
+    village: rawTank.village || rawTank.locality || 'Coastal Aquaculture Zone',
+    location: rawTank.location || rawTank.locality || 'Coastal Aquaculture Zone'
+  } : null;
+
+  const tank = isAuthorized ? rawTank : null;
+  const farmer = isAuthorized ? (rawFarmer || fallbackFarmer) : null;
 
   // Farmer assigned tanks count
   const farmerTanks = farmer ? (db?.tanks || []).filter(t => t.farmerId === farmer.id) : [];
-  const assignedTanksCount = farmerTanks.length > 0 ? farmerTanks.length : 2;
+  const assignedTanksCount = farmerTanks.length > 0 ? farmerTanks.length : 0;
   const assignedTanksText = assignedTanksCount === 1 ? '1 Tank' : `${assignedTanksCount} Tanks`;
 
   // Listen for harvest updates
@@ -99,6 +97,26 @@ const TankDetails = () => {
     if (idA === idB) return true;
     return normalizeId(idA) === normalizeId(idB);
   };
+
+  if (!tank || !farmer) {
+    return (
+      <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ backgroundColor: '#FFFFFF', padding: '28px', borderRadius: '12px', border: '1px solid #E2E8F0', maxWidth: '440px', width: '100%', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '700', color: '#0F172A' }}>Tank Not Accessible</h3>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748B' }}>
+            This tank is either not registered or belongs to a farmer not assigned to your account.
+          </p>
+          <button 
+            type="button" 
+            onClick={handleBack}
+            style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#1A2FB8', color: '#FFFFFF', fontWeight: '600', cursor: 'pointer' }}
+          >
+            ← Back to Farmers
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const storeKey = `${farmer?.id || ''}_${tank.id}`;
   const tankStoreData = harvestStore[storeKey];
@@ -314,7 +332,8 @@ const TankDetails = () => {
               type="button" 
               style={styles.harvestActionBtn}
               onClick={() => {
-                setIsTakeHarvestModalOpen(true);
+                const harvestPath = isIncharge ? '/incharge/harvest' : '/harvest';
+                navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
               }}
               title="Record Crop Harvest"
             >
@@ -514,7 +533,8 @@ const TankDetails = () => {
                   type="button" 
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
-                    setIsTakeHarvestModalOpen(true);
+                    const harvestPath = isIncharge ? '/incharge/harvest' : '/harvest';
+                    navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
                   }}
                 >
                   <Plus size={14} strokeWidth={2.5} />
@@ -829,10 +849,18 @@ const TankDetails = () => {
                 </span>
               </div>
 
-              {selectedReadRecord.data && (
-                <div style={styles.dataContainer}>
-                  <div style={styles.dataHeading}>Logged Field Parameters</div>
-                  {Object.entries(selectedReadRecord.data).map(([k, v]) => {
+              {selectedReadRecord.data && (() => {
+                let parsedData = selectedReadRecord.data;
+                if (typeof parsedData === 'string') {
+                  try { parsedData = JSON.parse(parsedData); } catch (e) { parsedData = {}; }
+                }
+                if (!parsedData || typeof parsedData !== 'object' || Array.isArray(parsedData)) {
+                  return null;
+                }
+                return (
+                  <div style={styles.dataContainer}>
+                    <div style={styles.dataHeading}>Logged Field Parameters</div>
+                    {Object.entries(parsedData).map(([k, v]) => {
                     if (v && typeof v === 'object' && !Array.isArray(v)) {
                       const detected = Object.entries(v);
                       return (
@@ -871,7 +899,8 @@ const TankDetails = () => {
                     );
                   })}
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
