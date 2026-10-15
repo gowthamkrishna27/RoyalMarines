@@ -197,12 +197,14 @@ export const initializeDatabaseSchema = async () => {
         date VARCHAR(50) NULL,
         harvest_date DATE NULL,
         harvest_type VARCHAR(50) DEFAULT 'FINAL',
-        quantity_kg DECIMAL(14, 2) NULL,
-        count_per_kg INT NULL,
-        quality VARCHAR(50) NULL,
-        price_per_kg DECIMAL(12, 2) NULL,
-        revenue DECIMAL(16, 2) NULL,
-        total_value DECIMAL(16, 2) NULL,
+        doc INT NULL,
+        abw VARCHAR(20) NULL,
+        harvested_number INT NULL,
+        harvested_biomass DECIMAL(14, 2) NULL,
+        total_harvested_seed BIGINT NULL,
+        total_biomass_kg DECIMAL(14, 2) NULL,
+        total_feed_kg DECIMAL(14, 2) NULL,
+        fcr DECIMAL(5, 2) NULL,
         buyer_name VARCHAR(150) NULL,
         remarks TEXT NULL,
         recorded_by VARCHAR(50) NULL,
@@ -210,6 +212,7 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+<<<<<<< HEAD
     // Ensure all columns exist on harvests table
     const harvestColAlters = [
       'ALTER TABLE harvests ADD COLUMN culture_cycle_id VARCHAR(50) NULL',
@@ -228,11 +231,24 @@ export const initializeDatabaseSchema = async () => {
       'ALTER TABLE harvests ADD COLUMN buyer_name VARCHAR(150) NULL',
       'ALTER TABLE harvests ADD COLUMN remarks TEXT NULL',
       'ALTER TABLE harvests ADD COLUMN recorded_by VARCHAR(50) NULL'
+=======
+    // Ensure all individual & cumulative columns exist on harvests table
+    const harvestColAlters = [
+      'ALTER TABLE harvests ADD COLUMN doc INT NULL AFTER harvest_type',
+      'ALTER TABLE harvests ADD COLUMN abw VARCHAR(20) NULL AFTER doc',
+      'ALTER TABLE harvests ADD COLUMN harvested_number INT NULL AFTER abw',
+      'ALTER TABLE harvests ADD COLUMN harvested_biomass DECIMAL(14, 2) NULL AFTER harvested_number',
+      'ALTER TABLE harvests ADD COLUMN total_harvested_seed BIGINT NULL AFTER harvested_biomass',
+      'ALTER TABLE harvests ADD COLUMN total_biomass_kg DECIMAL(14, 2) NULL AFTER total_harvested_seed',
+      'ALTER TABLE harvests ADD COLUMN total_feed_kg DECIMAL(14, 2) NULL AFTER total_biomass_kg',
+      'ALTER TABLE harvests ADD COLUMN fcr DECIMAL(5, 2) NULL AFTER total_feed_kg'
+>>>>>>> 6da6b32ca2cceb5ad55583e07dd269b338108ed5
     ];
     for (const alt of harvestColAlters) {
       try { await query(alt); } catch (e) { }
     }
 
+<<<<<<< HEAD
     // Backfill any existing harvest rows that have harvested_biomass but missing quantity_kg or revenue
     try {
       await query(`
@@ -271,6 +287,32 @@ export const initializeDatabaseSchema = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+=======
+    // Safely copy legacy quantity_kg data into harvested_biomass if quantity_kg exists
+    try {
+      await query(`
+        UPDATE harvests 
+        SET harvested_biomass = quantity_kg 
+        WHERE harvested_biomass IS NULL AND quantity_kg IS NOT NULL
+      `);
+    } catch (e) { }
+
+    // Safely remove deprecated columns requested by user
+    const deprecatedCols = [
+      'quantity_kg',
+      'count_per_kg',
+      'survival_pct',
+      'quality',
+      'price_per_kg',
+      'revenue',
+      'total_value'
+    ];
+    for (const col of deprecatedCols) {
+      try {
+        await query(`ALTER TABLE harvests DROP COLUMN ${col}`);
+      } catch (e) { }
+    }
+>>>>>>> 6da6b32ca2cceb5ad55583e07dd269b338108ed5
 
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;

@@ -6,15 +6,19 @@ import {
   Building, FileText, Check, Lock
 } from 'lucide-react';
 import apiClient from '../../utils/apiClient';
+import { useMockData } from '../../context/MockDataContext';
 
 const TakeHarvestModal = ({ 
   isOpen, 
   onClose, 
   tank, 
   farmer, 
-  onSuccess 
+  onSuccess,
+  initialHarvestType = 'Partial Harvest'
 }) => {
   if (!isOpen || !tank) return null;
+
+  const { editTank } = useMockData() || {};
 
   const farmerName = farmer?.name || tank.farmer || tank.farmerName || 'Farmer';
   const farmerLocality = farmer?.location || farmer?.locality || farmer?.village || tank.locality || 'Bhimavaram';
@@ -25,7 +29,7 @@ const TakeHarvestModal = ({
   const defaultAbw = tank.abw ? parseFloat(tank.abw) : 24.5;
 
   // Form State
-  const [harvestType, setHarvestType] = useState('Partial Harvest'); // 'Partial Harvest' | 'Final Harvest'
+  const [harvestType, setHarvestType] = useState(initialHarvestType || 'Partial Harvest'); // 'Partial Harvest' | 'Final Harvest'
   const [harvestDate, setHarvestDate] = useState(new Date().toISOString().split('T')[0]);
   const [doc, setDoc] = useState(currentDoc);
   const [abw, setAbw] = useState(defaultAbw);
@@ -35,6 +39,26 @@ const TakeHarvestModal = ({
   const [remarks, setRemarks] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [savedData, setSavedData] = useState(null);
+
+  // Sync initialHarvestType when prop updates
+  useEffect(() => {
+    if (initialHarvestType) {
+      setHarvestType(initialHarvestType);
+    }
+  }, [initialHarvestType]);
+
+  // Read existing store to compute next partial number
+  const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
+  let existingStoreHarvests = [];
+  try {
+    const rawStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+    if (rawStore[storeKey]?.harvests && Array.isArray(rawStore[storeKey].harvests)) {
+      existingStoreHarvests = rawStore[storeKey].harvests;
+    }
+  } catch (e) {}
+
+  const existingPartialsCount = existingStoreHarvests.filter(h => !h.isFinal && h.harvestType !== 'Final Harvest').length;
+  const currentPartialTitle = existingPartialsCount === 0 ? 'Partial Harvest' : `Partial Harvest ${existingPartialsCount + 1}`;
 
   // Dynamic calculations
   const numAbw = parseFloat(abw) || 0;
@@ -66,12 +90,13 @@ const TakeHarvestModal = ({
     }
 
     const isFinal = harvestType === 'Final Harvest';
-    const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
+
+    const displayTitle = isFinal ? 'Final Harvest' : currentPartialTitle;
 
     const newHarvestRecord = {
       id: `harvest_${Date.now()}`,
       harvestType: harvestType,
-      displayTitle: isFinal ? 'Final Harvest (Cycle Closed)' : 'Partial Harvest',
+      displayTitle: displayTitle,
       isFinal: isFinal,
       date: harvestDate,
       doc: parseInt(doc, 10) || currentDoc,
@@ -119,7 +144,7 @@ const TakeHarvestModal = ({
         farmerId,
         date: harvestDate,
         quantityKg: numBiomass,
-        countPerKg: calculatedCount,
+        countPerKg: countPerKg,
         quality: 'Grade A',
         pricePerKg: 380,
         revenue: revenueVal,
@@ -142,6 +167,13 @@ const TakeHarvestModal = ({
       }).catch(err => console.warn('[TakeHarvestModal] Failed to post submission:', err));
 
       if (isFinal) {
+        if (typeof editTank === 'function') {
+          editTank(tank.id, {
+            status: 'Harvested',
+            testStatus: 'Completed',
+            nextTest: 'Cycle Closed'
+          });
+        }
         apiClient.put(`/tanks/${tank.id}`, {
           status: 'Harvested',
           testStatus: 'Completed',
@@ -321,10 +353,10 @@ const TakeHarvestModal = ({
                           fontWeight: '800', 
                           color: harvestType === 'Partial Harvest' ? '#1A2FB8' : '#0F172A' 
                         }}>
-                          Partial Harvest
+                          {currentPartialTitle}
                         </span>
                       </div>
-                      <span style={styles.partialTag}>Thinning</span>
+                      <span style={styles.partialTag}>{existingPartialsCount === 0 ? 'Thinning' : `Harvest #${existingPartialsCount + 1}`}</span>
                     </div>
                     <p style={styles.typeDesc}>
                       Selective netting to reduce density. Culture continues in the pond.
@@ -359,7 +391,9 @@ const TakeHarvestModal = ({
                           Final Harvest
                         </span>
                       </div>
-                      <span style={styles.finalTag}>Cycle Complete</span>
+                      <span style={{ ...styles.finalTag, backgroundColor: '#FEF2F2', color: '#DC2626', borderColor: '#FECACA' }}>
+                        Locks Tank
+                      </span>
                     </div>
                     <p style={styles.typeDesc}>
                       Complete pond drainage harvest. Concludes culture cycle.

@@ -34,7 +34,7 @@ const AsmRoutes = () => {
       <Route path="work" element={<Agents />} />
       <Route path="my-farmers" element={<MyFarmers />} />
       <Route path="my-tanks" element={<MyTanks />} />
-      <Route path="farmers" element={<MyFarmers />} />
+      <Route path="farmers" element={<Farmers />} />
       <Route path="farmers/:farmerId" element={<FarmerDetails />} />
       <Route path="add-farmer" element={<AddFarmer />} />
       <Route path="add-tanks" element={<AddTanks />} />
