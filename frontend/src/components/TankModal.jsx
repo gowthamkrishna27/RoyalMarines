@@ -113,6 +113,8 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
 
     const payload = {
       ...formData,
+      stockingDate: formData.seedDate || formData.stockingDate,
+      seedDate: formData.seedDate || formData.stockingDate,
       brooder: (formData.brooder === 'Others' || formData.brooder === 'Other')
         ? (formData.customBrooder?.trim() || 'Others')
         : formData.brooder,

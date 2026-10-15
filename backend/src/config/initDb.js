@@ -243,6 +243,11 @@ export const initializeDatabaseSchema = async () => {
       try { await query(alt); } catch (e) { }
     }
 
+    // Ensure tanks table has seed_date column
+    try {
+      await query('ALTER TABLE tanks ADD COLUMN seed_date VARCHAR(50) NULL AFTER stocking_date');
+    } catch (e) { }
+
     // Safely sync legacy and modern harvest biomass / quantity columns
     try {
       await query(`

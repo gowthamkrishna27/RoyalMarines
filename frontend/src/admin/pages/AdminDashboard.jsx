@@ -24,7 +24,7 @@ const getInitialDashboardCache = () => {
         }
       }
     }
-  } catch {}
+  } catch { }
   return null;
 };
 
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
           updatedAt: Date.now()
         });
         sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
-      } catch {}
+      } catch { }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Could not connect to live database API. Please check your connection.');
@@ -108,7 +108,7 @@ const AdminDashboard = () => {
     const handleRefresh = () => {
       try {
         sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
-      } catch {}
+      } catch { }
       loadDashboardData(true);
     };
     window.addEventListener('submissionCreated', handleRefresh);
