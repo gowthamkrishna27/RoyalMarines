@@ -95,12 +95,20 @@ class DataStore {
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id,
-          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id) as tanks_count,
-          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id AND LOWER(COALESCE(t.status, '')) != 'harvested') as active_ponds
+          COALESCE(tc.tanks_count, 0) as tanks_count,
+          COALESCE(tc.active_ponds, 0) as active_ponds
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
-        LEFT JOIN incharges i ON COALESCE(f.incharge_id, a.incharge_id) = i.id
+        LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
         LEFT JOIN regions r ON i.region_id = r.id
+        LEFT JOIN (
+          SELECT 
+            farmer_id, 
+            COUNT(*) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds 
+          FROM tanks 
+          GROUP BY farmer_id
+        ) tc ON tc.farmer_id = f.id
         WHERE 1=1
       `;
       const params = [];
@@ -174,12 +182,20 @@ class DataStore {
           COALESCE(i.name, '') as incharge_name,
           COALESCE(r.name, '') as region_name,
           COALESCE(r.id, r.code, i.region_id, '') as region_id,
-          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id) as tanks_count,
-          (SELECT COUNT(*) FROM tanks t WHERE t.farmer_id = f.id AND LOWER(COALESCE(t.status, '')) != 'harvested') as active_ponds
+          COALESCE(tc.tanks_count, 0) as tanks_count,
+          COALESCE(tc.active_ponds, 0) as active_ponds
         FROM farmers f
         LEFT JOIN agents a ON f.agent_id = a.id
-        LEFT JOIN incharges i ON COALESCE(f.incharge_id, a.incharge_id) = i.id
+        LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
         LEFT JOIN regions r ON i.region_id = r.id
+        LEFT JOIN (
+          SELECT 
+            farmer_id, 
+            COUNT(*) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds 
+          FROM tanks 
+          GROUP BY farmer_id
+        ) tc ON tc.farmer_id = f.id
         WHERE f.id = ? OR f.farmer_code = ?
         LIMIT 1`,
         [id, id]
@@ -690,6 +706,9 @@ class DataStore {
 >>>>>>> d57cb175a0bbffd0bcd4e0f8d321499291bc6a9b
           s.status
         FROM submissions s
+        LEFT JOIN agents a ON a.id = COALESCE(s.user_id, s.agent_id)
+        LEFT JOIN incharges inc ON inc.id = COALESCE(s.user_id, s.agent_id)
+        LEFT JOIN users u ON u.id = COALESCE(s.user_id, s.agent_id)
         LEFT JOIN agents a ON (s.user_id = a.id OR s.agent_id = a.id)
         LEFT JOIN incharges inc ON (s.user_id = inc.id OR s.agent_id = inc.id)
         LEFT JOIN users u ON (s.user_id = u.id OR s.agent_id = u.id)
@@ -716,10 +735,10 @@ class DataStore {
 
       if (filter.date && filter.date !== 'ALL') {
         if (filter.date.toLowerCase() === 'today') {
-          sql += ' AND (s.date = DATE_FORMAT(NOW(), \'%Y-%m-%d\') OR DATE(s.created_at) = CURDATE())';
+          sql += ' AND (s.date = CURDATE() OR (s.created_at >= CURDATE() AND s.created_at < CURDATE() + INTERVAL 1 DAY))';
         } else {
-          sql += ' AND (s.date = ? OR DATE(s.created_at) = ?)';
-          params.push(filter.date, filter.date);
+          sql += ' AND (s.date = ? OR (s.created_at >= ? AND s.created_at < ? + INTERVAL 1 DAY))';
+          params.push(filter.date, filter.date, filter.date);
         }
       }
 
@@ -820,15 +839,15 @@ class DataStore {
       } catch (fErr) { }
     }
 
-    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') || 
-                                data.recordType === 'HARVEST_ENTRY' || 
-                                data.recordType === 'HARVEST';
+    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') ||
+      data.recordType === 'HARVEST_ENTRY' ||
+      data.recordType === 'HARVEST';
 
     // If tank is in Harvested status or Cycle Closed, prevent routine tests
     if (currentTank && !isHarvestSubmission) {
-      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' || 
-                       String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
-                       String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
+      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
       if (isClosed && String(currentTank.status || '').toUpperCase() === 'HARVESTED') {
         const err = new Error('Tank cycle is completed and harvested. Testing is closed for this cycle until restocked.');
         err.statusCode = 400;
@@ -1333,7 +1352,7 @@ class DataStore {
           COUNT(DISTINCT CASE WHEN LOWER(t.test_status) IN ('due', 'overdue') THEN t.id END) as due_tests_count
         FROM agents a
         LEFT JOIN incharges i ON a.incharge_id = i.id
-        LEFT JOIN regions r ON (i.region_id = r.id OR (r.code = i.region_id AND NOT EXISTS (SELECT 1 FROM regions r2 WHERE r2.id = i.region_id)))
+        LEFT JOIN regions r ON (i.region_id = r.id OR i.region_id = r.code)
         LEFT JOIN farmers f ON f.agent_id = a.id
         LEFT JOIN tanks t ON (t.agent_id = a.id OR t.farmer_id = f.id)
         WHERE 1=1
@@ -1593,31 +1612,35 @@ class DataStore {
         params.push(filter.status);
       }
       sql += ' GROUP BY r.id, r.code, r.name, r.status, r.created_at, r.updated_at, r.active_ponds, r.total_yield, r.avg_fcr ORDER BY r.name ASC';
-      const rows = await query(sql, params);
 
-      // Fetch distinct localities for each region
+      // Execute main region aggregation and distinct localities concurrently
+      const locSql = `
+        SELECT DISTINCT 
+          r.name as region_name,
+          COALESCE(a.locality, f.village, f.location) as locality
+        FROM regions r
+        LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
+        LEFT JOIN agents a ON a.incharge_id = i.id
+        LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
+        WHERE (a.locality IS NOT NULL AND a.locality != '')
+           OR (f.village IS NOT NULL AND f.village != '')
+           OR (f.location IS NOT NULL AND f.location != '')
+      `;
+
+      const [rows, locRows] = await Promise.all([
+        query(sql, params),
+        query(locSql).catch((locErr) => {
+          console.warn('[Warning getting region localities]', locErr.message);
+          return [];
+        }),
+      ]);
+
       let regionLocMap = {};
-      try {
-        const locRows = await query(`
-          SELECT DISTINCT 
-            r.name as region_name,
-            COALESCE(a.locality, f.village, f.location) as locality
-          FROM regions r
-          LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
-          LEFT JOIN agents a ON a.incharge_id = i.id
-          LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
-          WHERE (a.locality IS NOT NULL AND a.locality != '')
-             OR (f.village IS NOT NULL AND f.village != '')
-             OR (f.location IS NOT NULL AND f.location != '')
-        `);
-        for (const loc of locRows) {
-          if (!loc.locality) continue;
-          const clean = loc.locality.split(',')[0].trim();
-          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
-          regionLocMap[loc.region_name].add(clean);
-        }
-      } catch (locErr) {
-        console.warn('[Warning getting region localities]', locErr.message);
+      for (const loc of (locRows || [])) {
+        if (!loc.locality) continue;
+        const clean = loc.locality.split(',')[0].trim();
+        if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+        regionLocMap[loc.region_name].add(clean);
       }
 
       // Also fetch from localities table
