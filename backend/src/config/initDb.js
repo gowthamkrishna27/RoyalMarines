@@ -210,6 +210,68 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Ensure all columns exist on harvests table
+    const harvestColAlters = [
+      'ALTER TABLE harvests ADD COLUMN culture_cycle_id VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN harvest_code VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN tank_id VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN farmer_id VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN date VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN harvest_date DATE NULL',
+      "ALTER TABLE harvests ADD COLUMN harvest_type VARCHAR(50) DEFAULT 'FINAL'",
+      'ALTER TABLE harvests ADD COLUMN quantity_kg DECIMAL(14, 2) DEFAULT 0',
+      'ALTER TABLE harvests ADD COLUMN count_per_kg INT NULL',
+      "ALTER TABLE harvests ADD COLUMN quality VARCHAR(50) DEFAULT 'A Grade'",
+      'ALTER TABLE harvests ADD COLUMN price_per_kg DECIMAL(12, 2) DEFAULT 0',
+      'ALTER TABLE harvests ADD COLUMN revenue DECIMAL(16, 2) DEFAULT 0',
+      'ALTER TABLE harvests ADD COLUMN total_value DECIMAL(16, 2) DEFAULT 0',
+      'ALTER TABLE harvests ADD COLUMN buyer_name VARCHAR(150) NULL',
+      'ALTER TABLE harvests ADD COLUMN remarks TEXT NULL',
+      'ALTER TABLE harvests ADD COLUMN recorded_by VARCHAR(50) NULL'
+    ];
+    for (const alt of harvestColAlters) {
+      try { await query(alt); } catch (e) { }
+    }
+
+    // Backfill any existing harvest rows that have harvested_biomass but missing quantity_kg or revenue
+    try {
+      await query(`
+        UPDATE harvests 
+        SET quantity_kg = CAST(REGEXP_REPLACE(COALESCE(harvested_biomass, total_biomass_kg, '0'), '[^0-9.]', '') AS DECIMAL(14, 2))
+        WHERE (quantity_kg IS NULL OR quantity_kg = 0) 
+          AND (harvested_biomass IS NOT NULL OR total_biomass_kg IS NOT NULL)
+      `);
+      await query(`
+        UPDATE harvests 
+        SET price_per_kg = 350
+        WHERE (price_per_kg IS NULL OR price_per_kg = 0)
+      `);
+      await query(`
+        UPDATE harvests 
+        SET revenue = quantity_kg * COALESCE(price_per_kg, 350),
+            total_value = quantity_kg * COALESCE(price_per_kg, 350)
+        WHERE (revenue IS NULL OR revenue = 0) AND quantity_kg > 0
+      `);
+    } catch (e) { }
+
+    // 10. Audit Logs Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        action VARCHAR(100),
+        module VARCHAR(100),
+        entity_type VARCHAR(100),
+        record_id VARCHAR(50),
+        entity_id VARCHAR(50),
+        performed_by VARCHAR(50),
+        user_id VARCHAR(50),
+        ip_address VARCHAR(50),
+        notes TEXT,
+        details JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
     return true;
   } catch (error) {

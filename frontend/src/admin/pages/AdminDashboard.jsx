@@ -417,23 +417,6 @@ const AdminDashboard = () => {
           <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
         </div>
 
-        {/* Card 5: Average ABW */}
-        <div
-          style={styles.kpiCard}
-          title="Average body weight across active ponds"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>AVERAGE ABW</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F8FAFC', color: '#64748B' }}>
-              <Activity size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={{ ...styles.skeletonValue, width: '68px' }} /> : avgAbwVal}
-          </div>
-          <div style={styles.kpiSubtext}>Mean Body Weight</div>
-        </div>
-
         {/* Card 6: Total Incharges */}
         <div
           style={styles.kpiCard}
