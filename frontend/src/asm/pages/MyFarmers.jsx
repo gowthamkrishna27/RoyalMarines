@@ -331,7 +331,10 @@ const MyFarmers = () => {
                 <div style={styles.cardLeft}>
                   <span style={styles.farmerName}>{farmer.name}</span>
                   <span style={styles.farmerLocation}>
-                    {farmer.localityName || farmer.villageName || farmer.locality || 'Chinnamiram'}, {farmer.regionName || farmer.region || 'Coastal Region'}
+                    {farmer.localityName || farmer.villageName || farmer.locality || 'Chinnamiram'}, {farmer.regionName || farmer.region || 'Coastal Region'} • <span style={{
+                      color: (farmer.status || '').toUpperCase() === 'INACTIVE' ? '#DC2626' : '#16A34A',
+                      fontWeight: 600
+                    }}>{(farmer.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'}</span>
                   </span>
                 </div>
 

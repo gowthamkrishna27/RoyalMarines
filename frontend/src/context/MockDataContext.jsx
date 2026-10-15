@@ -504,6 +504,21 @@ export const MockDataProvider = ({ children }) => {
 
   useEffect(() => {
     fetchDataFromDb();
+    const handleDbRefresh = () => {
+      fetchDataFromDb();
+    };
+    window.addEventListener('harvestCreated', handleDbRefresh);
+    window.addEventListener('submissionCreated', handleDbRefresh);
+    window.addEventListener('adminDataChanged', handleDbRefresh);
+    window.addEventListener('farmerCreated', handleDbRefresh);
+    window.addEventListener('tankCreated', handleDbRefresh);
+    return () => {
+      window.removeEventListener('harvestCreated', handleDbRefresh);
+      window.removeEventListener('submissionCreated', handleDbRefresh);
+      window.removeEventListener('adminDataChanged', handleDbRefresh);
+      window.removeEventListener('farmerCreated', handleDbRefresh);
+      window.removeEventListener('tankCreated', handleDbRefresh);
+    };
   }, []);
 
     // Data source is exclusively MySQL DB via API - no redundant synchronous localStorage serialization

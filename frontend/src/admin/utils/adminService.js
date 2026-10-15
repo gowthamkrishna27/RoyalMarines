@@ -34,6 +34,8 @@ export const adminService = {
       const res = await apiClient.get('/analytics/summary');
       return res?.data || {
         totalFarmers: 0,
+        activeFarmers: 0,
+        inactiveFarmers: 0,
         totalTanks: 0,
         activeTanks: 0,
         harvestedTanks: 0,
