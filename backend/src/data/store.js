@@ -898,11 +898,15 @@ class DataStore {
               tankId: data.tankId,
               farmerId: farmerId || '',
               date: data.date || now.toISOString().split('T')[0],
-              quantityKg: qKg,
-              countPerKg: payload.abw ? Math.round(1000 / parseFloat(payload.abw)) : (payload.countPerKg || 40),
-              quality: payload.quality || 'Grade A',
-              pricePerKg: payload.pricePerKg || 380,
-              revenue: qKg * (payload.pricePerKg || 380),
+              harvestedBiomass: qKg,
+              doc: payload.doc,
+              abw: payload.abw,
+              harvestedNumber: payload.harvestedNumber,
+              totalHarvestedSeed: payload.totalHarvestedSeed,
+              totalBiomassKg: payload.totalBiomass,
+              totalFeedKg: payload.totalFeed,
+              fcr: payload.fcr,
+              buyerName: payload.buyer,
               remarks: payload.remarks || `${newSub.test_type} auto-recorded`
             });
           }
@@ -968,8 +972,7 @@ class DataStore {
           COALESCE(f.name, h.farmer_id) as farmer_name,
           t.fcr as tank_fcr,
           t.abw as tank_abw,
-          t.doc as tank_doc,
-          COALESCE(h.revenue, h.total_value, (h.quantity_kg * COALESCE(h.price_per_kg, 0))) as computed_revenue
+          t.doc as tank_doc
         FROM harvests h
         LEFT JOIN tanks t ON h.tank_id = t.id
         LEFT JOIN farmers f ON (h.farmer_id = f.id OR t.farmer_id = f.id)
@@ -995,14 +998,15 @@ class DataStore {
         farmerId: r.farmer_id,
         farmerName: r.farmer_name,
         date: r.date || (r.harvest_date ? String(r.harvest_date).split('T')[0] : ''),
-        quantityKg: Number(r.quantity_kg || 0),
-        countPerKg: r.count_per_kg || (r.average_weight_g ? Math.round(1000 / Number(r.average_weight_g)) : 30),
-        quality: r.quality || 'A Grade',
-        pricePerKg: Number(r.price_per_kg || 0),
-        revenue: Number(r.computed_revenue || 0),
-        fcr: r.fcr || r.tank_fcr || '1.25',
-        abw: r.abw || r.tank_abw || '14.5g',
-        doc: r.doc || r.tank_doc || 0,
+        harvestedBiomass: Number(r.harvested_biomass || 0),
+        quantityKg: Number(r.harvested_biomass || 0),
+        fcr: r.fcr != null ? Number(r.fcr) : (r.tank_fcr || '1.25'),
+        abw: r.abw != null ? r.abw : (r.tank_abw || '14.5g'),
+        doc: r.doc != null ? Number(r.doc) : (r.tank_doc || 0),
+        harvestedNumber: r.harvested_number != null ? Number(r.harvested_number) : null,
+        totalHarvestedSeed: r.total_harvested_seed != null ? Number(r.total_harvested_seed) : null,
+        totalBiomassKg: r.total_biomass_kg != null ? Number(r.total_biomass_kg) : null,
+        totalFeedKg: r.total_feed_kg != null ? Number(r.total_feed_kg) : null,
         buyerName: r.buyer_name || 'Exporter',
         remarks: r.remarks || '',
         harvestType: r.harvest_type || 'Harvest',
@@ -1017,7 +1021,8 @@ class DataStore {
   async createHarvest(data) {
     this._ensureDb();
     if (!data.tankId) throw new Error('tankId is required');
-    if (!data.quantityKg) throw new Error('quantityKg is required');
+    const bCheck = data.harvestedBiomass !== undefined ? data.harvestedBiomass : data.quantityKg;
+    if (bCheck === undefined || bCheck === null) throw new Error('harvestedBiomass is required');
 
     const cleanDate = data.date || new Date().toISOString().split('T')[0];
 
@@ -1056,9 +1061,15 @@ class DataStore {
     }
 
     const id = data.id || `HARV${String(Date.now()).slice(-4)}`;
-    const q = Number(data.quantityKg) || 0;
-    const price = Number(data.pricePerKg) || 380;
-    const rev = Number(data.revenue) || (q * price);
+    const b = Number(data.harvestedBiomass !== undefined ? data.harvestedBiomass : (data.quantityKg || 0)) || 0;
+
+    const doc = data.doc != null ? Number(data.doc) : null;
+    const abw = data.abw != null ? (typeof data.abw === 'number' ? `${data.abw}g` : String(data.abw)) : null;
+    const harvestedNumber = data.harvestedNumber != null ? Number(data.harvestedNumber) : (data.harvest_number != null ? Number(data.harvest_number) : null);
+    const totalHarvestedSeed = data.totalHarvestedSeed != null ? Number(data.totalHarvestedSeed) : null;
+    const totalBiomassKg = data.totalBiomassKg != null ? Number(data.totalBiomassKg) : (data.totalBiomass != null ? Number(data.totalBiomass) : null);
+    const totalFeedKg = data.totalFeedKg != null ? Number(data.totalFeedKg) : (data.totalFeed != null ? Number(data.totalFeed) : null);
+    const fcr = data.fcr != null ? Number(data.fcr) : null;
 
     const newHarvest = {
       id,
@@ -1069,20 +1080,27 @@ class DataStore {
       harvest_type: harvestType,
       date: cleanDate,
       harvest_date: cleanDate,
-      quantity_kg: q,
-      count_per_kg: data.countPerKg ? Number(data.countPerKg) : 30,
-      quality: data.quality || 'A Grade',
-      price_per_kg: price,
-      revenue: rev,
-      total_value: rev,
+      harvested_biomass: b,
+      doc,
+      abw,
+      harvested_number: harvestedNumber,
+      total_harvested_seed: totalHarvestedSeed,
+      total_biomass_kg: totalBiomassKg,
+      total_feed_kg: totalFeedKg,
+      fcr,
       buyer_name: data.buyerName || 'Local Exporter',
       remarks: data.remarks || '',
     };
 
     try {
       await query(
-        `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO harvests (
+          id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type, 
+          date, harvest_date, doc, abw, harvested_number, harvested_biomass,
+          total_harvested_seed, total_biomass_kg, total_feed_kg, fcr, 
+          buyer_name, remarks
+        ) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newHarvest.id,
           newHarvest.harvest_code,
@@ -1092,12 +1110,14 @@ class DataStore {
           newHarvest.harvest_type,
           newHarvest.date,
           newHarvest.harvest_date,
-          newHarvest.quantity_kg,
-          newHarvest.count_per_kg,
-          newHarvest.quality,
-          newHarvest.price_per_kg,
-          newHarvest.revenue,
-          newHarvest.total_value,
+          newHarvest.doc,
+          newHarvest.abw,
+          newHarvest.harvested_number,
+          newHarvest.harvested_biomass,
+          newHarvest.total_harvested_seed,
+          newHarvest.total_biomass_kg,
+          newHarvest.total_feed_kg,
+          newHarvest.fcr,
           newHarvest.buyer_name,
           newHarvest.remarks,
         ]
@@ -1192,8 +1212,8 @@ class DataStore {
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')) as pendingTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'due') as dueTests,
           (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'overdue') as overdueTests,
-          (SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) FROM harvests) as totalHarvestRevenue,
-          (SELECT COALESCE(SUM(quantity_kg), 0) FROM harvests) as harvestTotalKg,
+          (SELECT 0) as totalHarvestRevenue,
+          (SELECT COALESCE(SUM(harvested_biomass), 0) FROM harvests) as harvestTotalKg,
           (SELECT COUNT(DISTINCT id) FROM harvests) as harvestsCount,
           (SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0') as avg_fcr,
           (SELECT ROUND(AVG(CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(6,2))), 2) FROM tanks WHERE abw IS NOT NULL AND abw != '') as avg_abw,

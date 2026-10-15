@@ -33,6 +33,8 @@ const FarmerDetails = () => {
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
+    } else if (location.pathname.startsWith('/asm')) {
+      navigate('/asm/farmers');
     } else if (location.pathname.startsWith('/incharge')) {
       navigate('/incharge/my-farmers');
     } else {
@@ -46,7 +48,7 @@ const FarmerDetails = () => {
         <div style={styles.errorCard}>
           <p>Farmer not found or not assigned to your account.</p>
           <button style={styles.backBtn} onClick={handleBack}>
-            ← Back to My Farmers
+            ← Back to Farmers
           </button>
         </div>
       </div>
@@ -61,8 +63,9 @@ const FarmerDetails = () => {
 
   const handleOpenHarvest = (tankId = null) => {
     const targetTank = tankId || (tanks[0]?.id || '');
+    const isAsm = location.pathname.startsWith('/asm');
     const isInc = location.pathname.startsWith('/incharge');
-    const harvestPath = isInc ? '/incharge/harvest' : '/harvest';
+    const harvestPath = isAsm ? '/asm/harvest' : (isInc ? '/incharge/harvest' : '/harvest');
     navigate(`${harvestPath}?farmerId=${farmer.id}&tankId=${targetTank}`);
   };
 
@@ -153,7 +156,9 @@ const FarmerDetails = () => {
                   key={tank.id}
                   style={styles.pondCard}
                   onClick={() => {
-                    if (location.pathname.startsWith('/incharge')) {
+                    if (location.pathname.startsWith('/asm')) {
+                      navigate(`/asm/tanks/${tank.id}`);
+                    } else if (location.pathname.startsWith('/incharge')) {
                       navigate(`/incharge/tanks/${tank.id}`);
                     } else {
                       navigate(`/tanks/${tank.id}`);

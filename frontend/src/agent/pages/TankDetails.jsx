@@ -12,6 +12,8 @@ import QuickRecordModal from '../components/QuickRecordModal';
 import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
 import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
+import { getSession } from '../utils/agentAuth';
+import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -33,7 +35,7 @@ const TankDetails = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isIncharge = location.pathname.startsWith('/incharge');
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
   const { getTankById, getFarmerById, db } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -54,19 +56,24 @@ const TankDetails = () => {
   const stateFarmer = location.state?.farmer;
 
   const rawTank = (getTankById ? getTankById(tankId) : null) || 
-    db?.tanks?.find(t => t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase() || t.name === tankId) || 
+    db?.tanks?.find(t => {
+      const tId = String(t.id || '').toLowerCase();
+      const target = String(tankId || '').toLowerCase();
+      return tId === target || tId.replace(/^t0*/, '') === target.replace(/^t0*/, '') || t.name === tankId;
+    }) || 
     stateTank;
 
-  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId)) : null);
+  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId || String(f.id) === String(rawTank.farmerId))) : null);
 
-  // Authorization check: Agent can only view tanks belonging to his assigned farmers
-  const agentSession = getSession();
+  // Authorization check: Agent can only view tanks belonging to his assigned farmers; ASM/Incharge can view all tanks
+  const agentSession = getSession ? getSession() : null;
+  const inchargeSession = getInchargeSession ? getInchargeSession() : null;
   const currentAgentId = String(agentSession?.agentId || agentSession?.id || 'agent001').trim().toLowerCase();
   const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || rawTank?.agentId || rawTank?.agent_id || '').trim().toLowerCase();
-  const isAuthorized = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId);
+  const isAuthorized = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId) || !farmerAgentId;
 
   const tank = isAuthorized ? rawTank : null;
-  const farmer = isAuthorized ? rawFarmer : null;
+  const farmer = isAuthorized ? (rawFarmer || (tank ? { id: tank.farmerId, name: tank.farmerName || 'Farmer' } : null)) : null;
 
   // Farmer assigned tanks count
   const farmerTanks = farmer ? (db?.tanks || []).filter(t => t.farmerId === farmer.id) : [];
@@ -270,7 +277,13 @@ const TankDetails = () => {
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
-    } else if (isIncharge) {
+    } else if (location.pathname.startsWith('/asm')) {
+      if (farmer?.id) {
+        navigate(`/asm/farmers/${farmer.id}`);
+      } else {
+        navigate('/asm/farmers');
+      }
+    } else if (location.pathname.startsWith('/incharge')) {
       if (farmer?.id) {
         navigate(`/incharge/farmers/${farmer.id}`);
       } else {
@@ -323,7 +336,9 @@ const TankDetails = () => {
               type="button" 
               style={styles.harvestActionBtn}
               onClick={() => {
-                const harvestPath = isIncharge ? '/incharge/harvest' : '/harvest';
+                const harvestPath = location.pathname.startsWith('/asm') 
+                  ? '/asm/harvest' 
+                  : (isIncharge ? '/incharge/harvest' : '/harvest');
                 navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
               }}
               title="Record Crop Harvest"
@@ -524,7 +539,9 @@ const TankDetails = () => {
                   type="button" 
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
-                    const harvestPath = isIncharge ? '/incharge/harvest' : '/harvest';
+                    const harvestPath = location.pathname.startsWith('/asm') 
+                      ? '/asm/harvest' 
+                      : (isIncharge ? '/incharge/harvest' : '/harvest');
                     navigate(`${harvestPath}?farmerId=${tank.farmerId || farmer?.id}&tankId=${tank.id}`);
                   }}
                 >

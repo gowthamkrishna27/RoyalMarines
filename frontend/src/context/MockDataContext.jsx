@@ -491,7 +491,16 @@ export const MockDataProvider = ({ children }) => {
 
     const getTankById = (id) => {
       if (!db || !db.tanks || !id) return null;
-      const tank = db.tanks.find(t => t.id === id || String(t.id).toLowerCase() === String(id).toLowerCase());
+      const cleanId = String(id).trim().toLowerCase();
+      const numId = cleanId.replace(/^t0*/, '');
+      const tank = db.tanks.find(t => {
+        const tId = String(t.id || '').trim().toLowerCase();
+        if (tId === cleanId) return true;
+        if (tId && numId && tId.replace(/^t0*/, '') === numId) return true;
+        if (String(t.tank_id || '').trim().toLowerCase() === cleanId) return true;
+        if (String(t.name || '').trim().toLowerCase() === cleanId) return true;
+        return false;
+      });
       if (!tank) return null;
       return tank;
     };

@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Scale, User, Phone, MapPin, CheckCircle, Plus, 
   Trash2, Info, FileSpreadsheet, Calendar, Sparkles,
-  AlertTriangle, Lock, RefreshCw, X, ArrowRight, Check, Users
+  AlertTriangle, Lock, RefreshCw, X, ArrowRight, Check, Users, ChevronDown,
+  Leaf, Flag, BadgeCheck
 } from 'lucide-react';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../asm/utils/inchargeAuth';
@@ -58,11 +59,12 @@ const Harvest = () => {
 
   // Form Fields
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
-  const [formDoc, setFormDoc] = useState(77);
-  const [formAbw, setFormAbw] = useState(24.5);
+  const [formDoc, setFormDoc] = useState('');
+  const [formAbw, setFormAbw] = useState('');
+  const [formHarvestedNumber, setFormHarvestedNumber] = useState('');
   const [formBiomass, setFormBiomass] = useState('');
   const [formFeed, setFormFeed] = useState('');
-  const [formBuyer, setFormBuyer] = useState('Royals Marine Processing Unit 1');
+  const [formBuyer, setFormBuyer] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
 
   // Restock Modal State
@@ -232,8 +234,8 @@ const Harvest = () => {
           date: h.date,
           doc: h.doc || activeTank?.doc || 77,
           abw: h.abw || activeTank?.abw || 25,
-          harvestedBiomass: h.quantityKg || h.quantity_kg || 0,
-          harvestedNumber: h.harvestedNumber || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
+          harvestedBiomass: h.harvestedBiomass || h.harvested_biomass || h.quantityKg || h.quantity_kg || 0,
+          harvestedNumber: h.harvestedNumber || h.harvested_number || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
           feedConsumed: h.feedConsumed || 0,
           fcr: h.fcr || activeTank?.fcr || '1.18',
           buyer: h.buyerName || h.buyer || 'Royals Marine Processing Unit 1',
@@ -332,20 +334,142 @@ const Harvest = () => {
     ? (totalFeed / totalHarvestedBiomass).toFixed(2)
     : '0.00';
 
+  // Auto calculate biomass from Harvest Number & ABW: (Harvest Number * ABW) / 1000
+  const autoCalcBiomass = (numStr, abwStr) => {
+    const num = parseFloat(numStr);
+    const abw = parseFloat(abwStr);
+    if (!isNaN(num) && num > 0 && !isNaN(abw) && abw > 0) {
+      const kg = (num * abw) / 1000;
+      return Number.isInteger(kg) ? String(kg) : String(parseFloat(kg.toFixed(2)));
+    }
+    return '';
+  };
+
+  const handleHarvestNumberChange = (val) => {
+    setFormHarvestedNumber(val);
+    const computed = autoCalcBiomass(val, formAbw);
+    if (computed) {
+      setFormBiomass(computed);
+    }
+  };
+
+  const handleAbwChange = (val) => {
+    setFormAbw(val);
+    if (formHarvestedNumber) {
+      const computed = autoCalcBiomass(formHarvestedNumber, val);
+      if (computed) {
+        setFormBiomass(computed);
+      }
+    }
+  };
+
+  // --- Cycle Cumulative Calculations for Final Harvest ---
+  // Fetch and filter previous partial harvest records strictly for the same tank and culture cycle
+  const seenHarvestKeys = new Set();
+  const previousPartialHarvests = rawHarvests.filter((h) => {
+    // 1. Tank match
+    if (!isTankMatch(h.tankId || activeTank.id, selectedTankId)) return false;
+    // 2. Same culture cycle
+    const cycle = h.cultureCycleId || h.culture_cycle_id || 'CYCLE_1';
+    if (cycle !== currentCycleId) return false;
+    // 3. Must be partial harvest (not final)
+    const isFinal = Boolean(
+      h.isFinal || 
+      String(h.harvestType || '').toLowerCase().includes('final') ||
+      String(h.testType || '').toLowerCase().includes('final')
+    );
+    if (isFinal) return false;
+
+    // 4. Deduplicate to include every valid partial harvest exactly once
+    const uKey = h.id ? String(h.id) : `${h.date}_${h.harvestedBiomass}`;
+    if (seenHarvestKeys.has(uKey)) return false;
+    seenHarvestKeys.add(uKey);
+    return true;
+  });
+
+  // Sum of previous partial harvest piece counts
+  const prevPartialHarvestNumber = previousPartialHarvests.reduce((sum, h) => {
+    const num = parseFloat(h.harvestedNumber) || 0;
+    if (num > 0) return sum + num;
+    const biomass = parseFloat(h.harvestedBiomass) || 0;
+    const abw = parseFloat(h.abw) || 0;
+    if (biomass > 0 && abw > 0) {
+      return sum + Math.round((biomass * 1000) / abw);
+    }
+    return sum;
+  }, 0);
+
+  // Sum of previous partial harvest biomass (kg)
+  const prevPartialBiomass = previousPartialHarvests.reduce((sum, h) => {
+    return sum + (parseFloat(h.harvestedBiomass) || 0);
+  }, 0);
+
+  // Current Final Harvest inputs:
+  const currentFinalNumber = parseFloat(formHarvestedNumber) || 
+    (parseFloat(formBiomass) > 0 && parseFloat(formAbw) > 0 
+      ? Math.round((parseFloat(formBiomass) * 1000) / parseFloat(formAbw)) 
+      : 0);
+
+  const currentFinalBiomass = parseFloat(formBiomass) || 
+    (parseFloat(formHarvestedNumber) > 0 && parseFloat(formAbw) > 0 
+      ? ((parseFloat(formHarvestedNumber) * parseFloat(formAbw)) / 1000) 
+      : 0);
+
+  // 1. Harvest Number in Final Harvest & 2. Total Harvested Seed
+  const cumulativeTotalSeed = prevPartialHarvestNumber + currentFinalNumber;
+
+  // 3. Total Biomass (kg) = sum of all previous partial harvest biomasses + current final harvest biomass
+  const cumulativeTotalBiomass = prevPartialBiomass + currentFinalBiomass;
+
+  // 4. Total Feed = feed consumed during previous partial harvest periods + feed consumed for the final harvest/current cycle
+  // Avoid double-counting cumulative feed
+  const prevHarvestsFeed = previousPartialHarvests.reduce((sum, h) => sum + (parseFloat(h.feedConsumed) || 0), 0);
+  const tankStoreTotalFeed = parseFloat(currentStore.totalFeed) || 0;
+  
+  const tankFeedTests = (db?.submissions || []).filter(sub => 
+    isTankMatch(sub.tankId, selectedTankId) && 
+    ((sub.testType || '').toUpperCase().includes('FEED') || sub.recordType === 'FEED_ENTRY')
+  );
+  const latestFeedTest = tankFeedTests.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0];
+  const submissionCumFeed = parseFloat(latestFeedTest?.data?.cumulativeFeed || latestFeedTest?.data?.feed || 0);
+
+  let cumulativeTotalFeed = 0;
+  if (prevHarvestsFeed > 0) {
+    cumulativeTotalFeed = prevHarvestsFeed;
+  } else if (tankStoreTotalFeed > 0) {
+    cumulativeTotalFeed = tankStoreTotalFeed;
+  } else if (submissionCumFeed > 0) {
+    cumulativeTotalFeed = submissionCumFeed;
+  } else {
+    cumulativeTotalFeed = 3600;
+  }
+
+  // 5. FCR = Total Feed ÷ Total Biomass
+  const cumulativeFcr = cumulativeTotalBiomass > 0 
+    ? (cumulativeTotalFeed / cumulativeTotalBiomass).toFixed(2) 
+    : '0.00';
+
+  // 6. Survival % = (Total Harvested Seed ÷ Stocked Seed) * 100
+  const cumulativeSurvivalPct = seedStocked > 0 && cumulativeTotalSeed > 0
+    ? Math.min(100, ((cumulativeTotalSeed / seedStocked) * 100)).toFixed(2)
+    : '0.00';
+
   // Open harvest modal with specific type
-  const openHarvestModal = (type) => {
+  const openHarvestModal = (type = 'Partial Harvest') => {
     if (hasFinalHarvestInCycle) {
       setErrorMessage('A final harvest has already concluded this tank cycle. Please restock the tank to start a new cycle.');
       setTimeout(() => setErrorMessage(''), 4000);
       return;
     }
-    setModalHarvestType(type);
+    setModalHarvestType(type || 'Partial Harvest');
     setFormDate(new Date().toISOString().split('T')[0]);
-    setFormDoc(activeTank?.doc || 77);
-    setFormAbw(activeTank?.abw ? parseFloat(activeTank.abw) : 24.5);
+    setFormDoc(activeTank?.doc ? String(activeTank.doc) : '');
+    const currentAbw = activeTank?.abw ? String(parseFloat(activeTank.abw)) : '';
+    setFormAbw(currentAbw);
+    setFormHarvestedNumber('');
     setFormBiomass('');
     setFormFeed('');
-    setFormBuyer('Royals Marine Processing Unit 1');
+    setFormBuyer('');
     setFormRemarks('');
     setIsHarvestModalOpen(true);
   };
@@ -353,21 +477,49 @@ const Harvest = () => {
   // Submission handler
   const handleHarvestSubmit = async (e) => {
     e.preventDefault();
-    const numBiomass = parseFloat(formBiomass);
-    const numAbw = parseFloat(formAbw);
-    const numFeed = parseFloat(formFeed) || 0;
+    const isFinal = modalHarvestType === 'Final Harvest';
 
-    if (!numBiomass || numBiomass <= 0) {
-      alert('Please enter a valid harvested biomass greater than 0 kg.');
+    if (!formDate) {
+      alert('Please select a valid Harvest Date.');
       return;
     }
+
+    const numDoc = parseInt(formDoc, 10);
+    if (!numDoc || numDoc <= 0) {
+      alert('Please enter a valid Days of Culture (DOC) greater than 0.');
+      return;
+    }
+
+    const numAbw = parseFloat(formAbw);
     if (!numAbw || numAbw <= 0) {
       alert('Please enter a valid average body weight (ABW) greater than 0.');
       return;
     }
 
+    const numHarvestNumber = parseFloat(formHarvestedNumber);
+    if (!isFinal) {
+      if (!numHarvestNumber || numHarvestNumber <= 0) {
+        alert('Please enter a valid Harvest Number greater than 0.');
+        return;
+      }
+    }
+
+    // Auto-compute biomass if not already set
+    let numBiomass = parseFloat(formBiomass);
+    if ((!numBiomass || numBiomass <= 0) && numHarvestNumber > 0 && numAbw > 0) {
+      numBiomass = parseFloat(((numHarvestNumber * numAbw) / 1000).toFixed(2));
+      setFormBiomass(String(numBiomass));
+    }
+
+    if (!numBiomass || numBiomass <= 0) {
+      alert('Please enter a valid harvested biomass greater than 0 kg.');
+      return;
+    }
+
+    const numFeed = isFinal ? cumulativeTotalFeed : (parseFloat(formFeed) || 0);
+
     // For final harvest, show confirmation dialog if not confirmed yet
-    if (modalHarvestType === 'Final Harvest' && !isFinalConfirmationOpen) {
+    if (isFinal && !isFinalConfirmationOpen) {
       setIsFinalConfirmationOpen(true);
       return;
     }
@@ -376,8 +528,9 @@ const Harvest = () => {
     setErrorMessage('');
 
     try {
-      const isFinal = modalHarvestType === 'Final Harvest';
-      const calculatedCount = numBiomass > 0 && numAbw > 0 ? Math.round((numBiomass * 1000) / numAbw) : 0;
+      const calculatedCount = numHarvestNumber > 0 
+        ? Math.round(numHarvestNumber) 
+        : (numBiomass > 0 && numAbw > 0 ? Math.round((numBiomass * 1000) / numAbw) : 0);
       const countPerKg = numAbw > 0 ? Math.round(1000 / numAbw) : 40;
       const calculatedBatchFcr = numBiomass > 0 && numFeed > 0 ? (numFeed / numBiomass).toFixed(2) : '1.18';
 
@@ -386,24 +539,28 @@ const Harvest = () => {
         tankId: activeTank.id,
         farmerId: selectedFarmerId,
         date: formDate,
+        harvestedBiomass: numBiomass,
         quantityKg: numBiomass,
-        countPerKg,
         abw: `${numAbw}g`,
-        doc: Number(formDoc),
+        doc: numDoc,
         feedConsumed: numFeed,
-        quality: 'Grade A',
-        pricePerKg: 380,
-        revenue: numBiomass * 380,
-        buyerName: formBuyer || 'Royals Marine Processing Unit 1',
+        buyerName: formBuyer || (isFinal ? 'Royals Marine Processing Unit 1' : 'Local Harvest Operation'),
         remarks: formRemarks || (isFinal ? 'Final drainage harvest and cycle closure' : 'Partial thinning harvest'),
         harvestType: modalHarvestType,
         isFinal,
-        cultureCycleId: currentCycleId
+        cultureCycleId: currentCycleId,
+        harvestedNumber: calculatedCount,
+        ...(isFinal ? {
+          totalBiomass: cumulativeTotalBiomass,
+          totalHarvestedSeed: cumulativeTotalSeed,
+          totalFeed: cumulativeTotalFeed,
+          fcr: cumulativeFcr,
+        } : {})
       });
 
       const savedHarvest = harvestRes.data?.data || harvestRes.data;
 
-      // 2. Submit test submission record
+      // 2. Submit test submission record with full cumulative totals in data JSON
       const subId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       await apiClient.post('/submissions', {
         id: subId,
@@ -417,12 +574,21 @@ const Harvest = () => {
           harvestType: modalHarvestType,
           isFinal,
           abw: numAbw,
-          doc: formDoc,
+          doc: numDoc,
           harvestedBiomass: numBiomass,
           harvestedNumber: calculatedCount,
           feedConsumed: numFeed,
-          fcr: calculatedBatchFcr,
-          cultureCycleId: currentCycleId
+          fcr: isFinal ? cumulativeFcr : calculatedBatchFcr,
+          cultureCycleId: currentCycleId,
+          buyer: formBuyer,
+          remarks: formRemarks,
+          ...(isFinal ? {
+            totalBiomass: cumulativeTotalBiomass,
+            totalHarvestedSeed: cumulativeTotalSeed,
+            totalFeed: cumulativeTotalFeed,
+            cumulativeFcr,
+            survivalPct: cumulativeSurvivalPct,
+          } : {})
         },
         status: 'PENDING_VERIFICATION'
       }).catch(err => console.warn('[Harvest] Submission sync warning:', err));
@@ -440,15 +606,22 @@ const Harvest = () => {
         harvestedNumber: calculatedCount,
         harvestedBiomass: numBiomass,
         feedConsumed: numFeed,
-        fcr: calculatedBatchFcr,
+        fcr: isFinal ? cumulativeFcr : calculatedBatchFcr,
         remarks: formRemarks,
         buyer: formBuyer,
         cultureCycleId: currentCycleId,
-        recordedAt: new Date().toISOString()
+        recordedAt: new Date().toISOString(),
+        ...(isFinal ? {
+          totalBiomass: cumulativeTotalBiomass,
+          totalHarvestedSeed: cumulativeTotalSeed,
+          totalFeed: cumulativeTotalFeed,
+          cumulativeFcr,
+          survivalPct: cumulativeSurvivalPct,
+        } : {})
       };
 
       const updatedHarvests = [...rawHarvests, newRecord];
-      const updatedTotalFeed = (totalFeed + numFeed).toString();
+      const updatedTotalFeed = isFinal ? cumulativeTotalFeed.toString() : (totalFeed + numFeed).toString();
 
       const updatedStore = {
         ...harvestData,
@@ -585,34 +758,20 @@ const Harvest = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Partial Harvest & Final Harvest OR Restock Tank */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {/* Action Button: Single "Add Harvest" button directly opening Harvest Entry Modal OR Restock Tank */}
+        <div>
           {!hasFinalHarvestInCycle ? (
-            <>
-              {/* Button 1: Partial Harvest */}
-              <button 
-                type="button" 
-                style={styles.partialHarvestBtn}
-                onClick={() => openHarvestModal('Partial Harvest')}
-                className="transition-all hover:brightness-105 active:scale-98 cursor-pointer"
-                title="Record Partial / Intermediate Harvest"
-              >
-                <Scale size={16} strokeWidth={2.4} />
-                <span>Partial Harvest</span>
-              </button>
-
-              {/* Button 2: Final Harvest */}
-              <button 
-                type="button" 
-                style={styles.finalHarvestBtn}
-                onClick={() => openHarvestModal('Final Harvest')}
-                className="transition-all hover:brightness-105 active:scale-98 cursor-pointer"
-                title="Record Final Pond Drainage & Conclude Cycle"
-              >
-                <CheckCircle size={16} strokeWidth={2.4} />
-                <span>Final Harvest</span>
-              </button>
-            </>
+            <button 
+              type="button" 
+              style={styles.addHarvestMainBtn}
+              onClick={() => openHarvestModal('Partial Harvest')}
+              className="transition-all hover:brightness-105 active:scale-98 cursor-pointer"
+              title="Add Harvest Record"
+              id="add-harvest-btn"
+            >
+              <Plus size={17} strokeWidth={2.5} />
+              <span>Add Harvest</span>
+            </button>
           ) : (
             <button 
               type="button" 
@@ -942,7 +1101,7 @@ const Harvest = () => {
               No harvest records saved for {activeTank.name} yet.
             </p>
             <span style={{ fontSize: '13px', color: '#94A3B8' }}>
-              Click "Partial Harvest" or "Final Harvest" above to record entries.
+              Click "Add Harvest" above to record entries.
             </span>
           </div>
         ) : (
@@ -955,7 +1114,7 @@ const Harvest = () => {
                   <th style={styles.th}>Harvest Date</th>
                   <th style={styles.th}>DOC (Days)</th>
                   <th style={styles.th}>ABW (gm)</th>
-                  <th style={styles.th}>Harvested Seed</th>
+                  <th style={styles.th}>Harvest Number</th>
                   <th style={styles.th}>Biomass (kg)</th>
                   <th style={styles.th}>Remarks</th>
                   <th style={{ ...styles.th, textAlign: 'center' }}>Action</th>
@@ -1005,16 +1164,28 @@ const Harvest = () => {
 
       {/* HARVEST ENTRY FORM MODAL */}
       {isHarvestModalOpen && (
-        <div style={styles.modalBackdrop}>
-          <div style={styles.modalCard}>
-            <div style={styles.modalHeader}>
-              <div>
-                <h3 style={styles.modalTitle}>
-                  {modalHarvestType === 'Final Harvest' ? 'Final Harvest Entry' : 'Partial Harvest Entry'}
-                </h3>
-                <span style={styles.modalSubtitle}>
-                  {activeTank.name} • Farmer: {currentFarmer.name} • Cycle: {currentCycleId}
-                </span>
+        <div 
+          style={styles.cleanModalBackdrop}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsHarvestModalOpen(false);
+              setIsFinalConfirmationOpen(false);
+            }
+          }}
+        >
+          <div style={styles.cleanModalCard}>
+            {/* Modal Header */}
+            <div style={styles.cleanModalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BadgeCheck size={24} color="#2563EB" strokeWidth={2.4} />
+                </div>
+                <div>
+                  <h3 style={styles.cleanModalTitle}>Harvest Entry</h3>
+                  <span style={styles.cleanModalSubtitle}>
+                    {activeTank.name || 'Tank 2'} • Farmer: {currentFarmer.name || 'Bhanu'} • Cycle: {currentCycleId || 'CYCLE_1'}
+                  </span>
+                </div>
               </div>
               <button 
                 type="button"
@@ -1022,158 +1193,321 @@ const Harvest = () => {
                   setIsHarvestModalOpen(false);
                   setIsFinalConfirmationOpen(false);
                 }}
-                style={styles.closeBtn}
+                style={styles.cleanCloseBtn}
+                className="hover:text-slate-800 transition-colors"
+                title="Close"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleHarvestSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <div style={styles.modalBody}>
-                {/* Type Notification Pill */}
-                <div style={{
-                  ...styles.typeBanner,
-                  backgroundColor: modalHarvestType === 'Final Harvest' ? '#FEF3C7' : '#EFF6FF',
-                  borderColor: modalHarvestType === 'Final Harvest' ? '#FCD34D' : '#BFDBFE',
-                  color: modalHarvestType === 'Final Harvest' ? '#92400E' : '#1E40AF',
-                }}>
-                  {modalHarvestType === 'Final Harvest' ? (
-                    <>
-                      <AlertTriangle size={16} color="#B45309" />
-                      <span><strong>Notice:</strong> Submitting a Final Harvest will conclude cycle <strong>{currentCycleId}</strong>, close all routine tests, and permanently close harvest submissions for this cycle.</span>
-                    </>
-                  ) : (
-                    <>
-                      <Info size={16} color="#1A2FB8" />
-                      <span><strong>Notice:</strong> This partial harvest will be recorded as a new sequential entry without overwriting previous harvests. The tank remains <strong>Active</strong>.</span>
-                    </>
-                  )}
+              <div style={styles.cleanModalBody}>
+                {/* 1. Harvest Type Selection Cards: 2 Parallel Side-by-Side Cards */}
+                <div style={styles.harvestTypeGrid}>
+                  {/* Partial Harvest Card */}
+                  <div
+                    onClick={() => setModalHarvestType('Partial Harvest')}
+                    style={{
+                      ...styles.typeCardParallel,
+                      borderColor: modalHarvestType === 'Partial Harvest' ? '#2563EB' : '#E2E8F0',
+                      backgroundColor: modalHarvestType === 'Partial Harvest' ? '#EFF6FF' : '#FFFFFF',
+                      boxShadow: modalHarvestType === 'Partial Harvest' ? '0 1px 4px rgba(37, 99, 235, 0.12)' : 'none',
+                    }}
+                    className="cursor-pointer transition-all hover:border-blue-400"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        ...styles.cleanRadio,
+                        borderColor: modalHarvestType === 'Partial Harvest' ? '#2563EB' : '#CBD5E1',
+                        backgroundColor: modalHarvestType === 'Partial Harvest' ? '#2563EB' : 'transparent',
+                      }}>
+                        {modalHarvestType === 'Partial Harvest' && (
+                          <div style={styles.cleanRadioDot} />
+                        )}
+                      </div>
+                      <Leaf size={18} color={modalHarvestType === 'Partial Harvest' ? '#2563EB' : '#475569'} strokeWidth={2.2} />
+                      <span style={{
+                        fontSize: '14.5px',
+                        fontWeight: '700',
+                        color: modalHarvestType === 'Partial Harvest' ? '#1E40AF' : '#1E293B'
+                      }}>
+                        Partial Harvest
+                      </span>
+                    </div>
+                    <p style={styles.typeCardDesc}>
+                      Record a partial harvest from the current cycle.
+                    </p>
+                  </div>
+
+                  {/* Final Harvest Card */}
+                  <div
+                    onClick={() => setModalHarvestType('Final Harvest')}
+                    style={{
+                      ...styles.typeCardParallel,
+                      borderColor: modalHarvestType === 'Final Harvest' ? '#2563EB' : '#E2E8F0',
+                      backgroundColor: modalHarvestType === 'Final Harvest' ? '#EFF6FF' : '#FFFFFF',
+                      boxShadow: modalHarvestType === 'Final Harvest' ? '0 1px 4px rgba(37, 99, 235, 0.12)' : 'none',
+                    }}
+                    className="cursor-pointer transition-all hover:border-blue-400"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        ...styles.cleanRadio,
+                        borderColor: modalHarvestType === 'Final Harvest' ? '#2563EB' : '#CBD5E1',
+                        backgroundColor: modalHarvestType === 'Final Harvest' ? '#2563EB' : 'transparent',
+                      }}>
+                        {modalHarvestType === 'Final Harvest' && (
+                          <div style={styles.cleanRadioDot} />
+                        )}
+                      </div>
+                      <Flag size={18} color={modalHarvestType === 'Final Harvest' ? '#2563EB' : '#334155'} strokeWidth={2.2} />
+                      <span style={{
+                        fontSize: '14.5px',
+                        fontWeight: '700',
+                        color: modalHarvestType === 'Final Harvest' ? '#1E40AF' : '#1E293B'
+                      }}>
+                        Final Harvest
+                      </span>
+                    </div>
+                    <p style={styles.typeCardDesc}>
+                      Complete the cycle and close the pond.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Form Fields Grid */}
-                <div style={styles.formGrid}>
-                  {/* Harvest Date */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>
-                      Harvest Date <span style={{ color: '#DC2626' }}>*</span>
-                    </label>
-                    <input 
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      style={styles.formInput}
-                      required
-                    />
-                  </div>
+                {/* Form Fields: Pure Clean White */}
+                {/* Harvest Date */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>
+                    Harvest Date <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <input 
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    style={styles.fieldInput}
+                    required
+                  />
+                </div>
 
-                  {/* DOC */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>
-                      Days of Culture (DOC) <span style={{ color: '#DC2626' }}>*</span>
-                    </label>
-                    <input 
-                      type="number"
-                      value={formDoc}
-                      onChange={(e) => setFormDoc(e.target.value)}
-                      placeholder="e.g. 77"
-                      min="1"
-                      style={styles.formInput}
-                      required
-                    />
-                  </div>
+                {/* Days of Culture (DOC) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>
+                    Days of Culture (DOC) <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <input 
+                    type="number"
+                    value={formDoc}
+                    onChange={(e) => setFormDoc(e.target.value)}
+                    placeholder="e.g. 60"
+                    min="1"
+                    style={styles.fieldInput}
+                    required
+                  />
+                </div>
 
-                  {/* ABW */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>
-                      Average Body Weight (ABW in g) <span style={{ color: '#DC2626' }}>*</span>
+                {/* ABW and Harvest Number Row (2-columns) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                  <div>
+                    <label style={styles.fieldLabel}>
+                      Average Body Weight (ABW) (g) <span style={{ color: '#DC2626' }}>*</span>
                     </label>
                     <input 
                       type="number"
                       step="0.1"
                       value={formAbw}
-                      onChange={(e) => setFormAbw(e.target.value)}
-                      placeholder="e.g. 24.5"
+                      onChange={(e) => handleAbwChange(e.target.value)}
+                      placeholder="e.g. 16.5"
                       min="0.1"
-                      style={styles.formInput}
+                      style={styles.fieldInput}
                       required
                     />
-                    {parseFloat(formAbw) > 0 && (
-                      <span style={styles.formHelper}>
-                        ~{Math.round(1000 / parseFloat(formAbw))} Count / kg
-                      </span>
-                    )}
                   </div>
-
-                  {/* Biomass */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>
-                      Harvested Biomass (kg) <span style={{ color: '#DC2626' }}>*</span>
-                    </label>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ ...styles.fieldLabel, marginBottom: 0 }}>
+                        {modalHarvestType === 'Final Harvest' ? 'Harvest Number (Final Batch)' : 'Harvest Number'} <span style={{ color: '#DC2626' }}>*</span>
+                      </label>
+                      {modalHarvestType === 'Final Harvest' && (
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#1D4ED8', backgroundColor: '#EFF6FF', padding: '2px 6px', borderRadius: '4px' }}>
+                          Total: {cumulativeTotalSeed.toLocaleString()} pcs
+                        </span>
+                      )}
+                    </div>
                     <input 
                       type="number"
                       step="1"
-                      value={formBiomass}
-                      onChange={(e) => setFormBiomass(e.target.value)}
-                      placeholder="e.g. 1250"
+                      value={formHarvestedNumber}
+                      onChange={(e) => handleHarvestNumberChange(e.target.value)}
+                      placeholder={modalHarvestType === 'Final Harvest' ? "Final batch pieces (e.g. 48000)" : "e.g. 45000"}
                       min="1"
-                      style={styles.formInput}
-                      required
+                      style={styles.fieldInput}
+                      required={modalHarvestType === 'Partial Harvest'}
                     />
-                    {parseFloat(formBiomass) > 0 && parseFloat(formAbw) > 0 && (
-                      <span style={styles.formHelper}>
-                        ≈ {Math.round((parseFloat(formBiomass) * 1000) / parseFloat(formAbw)).toLocaleString()} shrimp pieces
+                    {modalHarvestType === 'Final Harvest' && (
+                      <span style={{ fontSize: '11px', color: '#64748B', display: 'block', marginTop: '3px' }}>
+                        Prev partials ({prevPartialHarvestNumber.toLocaleString()}) + final ({currentFinalNumber.toLocaleString()}) = <strong>{cumulativeTotalSeed.toLocaleString()} pcs</strong>
                       </span>
                     )}
-                  </div>
-
-                  {/* Feed Consumed */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>Feed Consumed for Batch (kg)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      value={formFeed}
-                      onChange={(e) => setFormFeed(e.target.value)}
-                      placeholder="e.g. 1450"
-                      style={styles.formInput}
-                    />
-                  </div>
-
-                  {/* Buyer */}
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>Buyer / Processing Plant</label>
-                    <input 
-                      type="text"
-                      value={formBuyer}
-                      onChange={(e) => setFormBuyer(e.target.value)}
-                      placeholder="e.g. Royals Marine Processing Unit 1"
-                      style={styles.formInput}
-                    />
                   </div>
                 </div>
 
-                {/* Remarks */}
-                <div style={{ ...styles.formGroup, marginTop: '12px' }}>
-                  <label style={styles.formLabel}>Weighment Notes / Remarks</label>
+                {/* Harvested Biomass Row (Auto-calculated: Harvest Number * ABW) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ ...styles.fieldLabel, marginBottom: 0 }}>
+                      {modalHarvestType === 'Final Harvest' ? 'Harvested Biomass (Final Batch) (kg)' : 'Harvested Biomass (kg)'} <span style={{ color: '#DC2626' }}>*</span>
+                    </label>
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#2563EB',
+                      backgroundColor: '#EFF6FF',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <Sparkles size={11} color="#2563EB" />
+                      Auto: (Harvest Number × ABW) ÷ 1,000
+                    </span>
+                  </div>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={formBiomass}
+                    onChange={(e) => setFormBiomass(e.target.value)}
+                    placeholder="Calculated automatically from Harvest Number & ABW"
+                    min="0.01"
+                    style={{
+                      ...styles.fieldInput,
+                      backgroundColor: '#F8FAFC',
+                      fontWeight: '600',
+                      color: '#1E40AF'
+                    }}
+                    required
+                  />
+                  {modalHarvestType === 'Final Harvest' && (
+                    <span style={{ fontSize: '11px', color: '#64748B', display: 'block', marginTop: '3px' }}>
+                      Prev biomass ({Number(prevPartialBiomass.toFixed(2)).toLocaleString()} kg) + final ({Number(currentFinalBiomass.toFixed(2)).toLocaleString()} kg) = <strong>{Number(cumulativeTotalBiomass.toFixed(2)).toLocaleString()} kg</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Buyer / Processing Plant (Text box for both Partial and Final Harvest) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.fieldLabel}>Buyer / Processing Plant</label>
+                  <input 
+                    type="text"
+                    value={formBuyer}
+                    onChange={(e) => setFormBuyer(e.target.value)}
+                    placeholder="Enter buyer or processing plant name..."
+                    style={styles.fieldInput}
+                  />
+                </div>
+
+                {/* Cycle Cumulative Summary Box for Final Harvest */}
+                {modalHarvestType === 'Final Harvest' && (
+                  <div style={styles.cumulativeSummaryCard}>
+                    <div style={styles.cumulativeHeader}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Sparkles size={16} color="#1D4ED8" strokeWidth={2.4} />
+                        <span style={styles.cumulativeTitle}>Cycle Cumulative Summary (Final Harvest)</span>
+                      </div>
+                      <span style={styles.cumulativeBadge}>
+                        {previousPartialHarvests.length} Partial{previousPartialHarvests.length === 1 ? '' : 's'} + Final • {currentCycleId}
+                      </span>
+                    </div>
+
+                    <div style={styles.cumulativeGrid}>
+                      {/* 1. Total Harvested Seed */}
+                      <div style={styles.cumKpiItem}>
+                        <span style={styles.cumKpiLabel}>Total Harvested Seed</span>
+                        <div style={styles.cumKpiValue}>
+                          {cumulativeTotalSeed.toLocaleString()} <span style={styles.cumKpiUnit}>pcs</span>
+                        </div>
+                        <div style={styles.cumKpiHelper}>
+                          {prevPartialHarvestNumber.toLocaleString()} prev + {currentFinalNumber.toLocaleString()} final
+                        </div>
+                      </div>
+
+                      {/* 2. Total Biomass (kg) */}
+                      <div style={styles.cumKpiItem}>
+                        <span style={styles.cumKpiLabel}>Total Biomass</span>
+                        <div style={{ ...styles.cumKpiValue, color: '#1D4ED8' }}>
+                          {Number(cumulativeTotalBiomass.toFixed(2)).toLocaleString()} <span style={styles.cumKpiUnit}>kg</span>
+                        </div>
+                        <div style={styles.cumKpiHelper}>
+                          {Number(prevPartialBiomass.toFixed(2)).toLocaleString()} kg prev + {Number(currentFinalBiomass.toFixed(2)).toLocaleString()} kg final
+                        </div>
+                      </div>
+
+                      {/* 3. Total Feed (kg) */}
+                      <div style={styles.cumKpiItem}>
+                        <span style={styles.cumKpiLabel}>Total Feed</span>
+                        <div style={{ ...styles.cumKpiValue, color: '#D97706' }}>
+                          {Number(cumulativeTotalFeed.toFixed(2)).toLocaleString()} <span style={styles.cumKpiUnit}>kg</span>
+                        </div>
+                        <div style={styles.cumKpiHelper}>
+                          Cycle cumulative feed
+                        </div>
+                      </div>
+
+                      {/* 4. FCR */}
+                      <div style={styles.cumKpiItem}>
+                        <span style={styles.cumKpiLabel}>Calculated FCR</span>
+                        <div style={{ ...styles.cumKpiValue, color: '#059669' }}>
+                          {cumulativeFcr}
+                        </div>
+                        <div style={styles.cumKpiHelper}>
+                          Total Feed ÷ Total Biomass
+                        </div>
+                      </div>
+
+                      {/* 5. Survival % */}
+                      <div style={{ ...styles.cumKpiItem, gridColumn: 'span 2' }}>
+                        <span style={styles.cumKpiLabel}>Survival Rate</span>
+                        <div style={{ ...styles.cumKpiValue, color: '#7C3AED' }}>
+                          {cumulativeSurvivalPct}%
+                        </div>
+                        <div style={styles.cumKpiHelper}>
+                          Stocked: {seedStocked.toLocaleString()} seeds • Harvested: {cumulativeTotalSeed.toLocaleString()} shrimp
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Weighment Notes / Remarks */}
+                <div style={{ marginBottom: '6px' }}>
+                  <label style={styles.fieldLabel}>Weighment Notes / Remarks</label>
                   <textarea 
                     value={formRemarks}
                     onChange={(e) => setFormRemarks(e.target.value)}
-                    placeholder="Enter notes on shrimp quality, count sampling, net weighment, etc."
-                    rows={2}
-                    style={styles.formTextarea}
+                    placeholder="Enter notes or remarks..."
+                    rows={3}
+                    style={{
+                      ...styles.fieldInput,
+                      resize: 'vertical',
+                      minHeight: '72px',
+                      lineHeight: '1.4'
+                    }}
                   />
                 </div>
               </div>
 
               {/* Modal Footer */}
-              <div style={styles.modalFooter}>
+              <div style={styles.cleanFooter}>
                 <button 
                   type="button"
                   onClick={() => {
                     setIsHarvestModalOpen(false);
                     setIsFinalConfirmationOpen(false);
                   }}
-                  style={styles.cancelBtn}
+                  style={styles.cleanFooterCancelBtn}
+                  className="transition-all hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1181,16 +1515,14 @@ const Harvest = () => {
                 <button 
                   type="submit"
                   disabled={isSubmitting}
-                  style={{
-                    ...styles.submitBtn,
-                    backgroundColor: modalHarvestType === 'Final Harvest' ? '#EA580C' : '#1A2FB8',
-                    opacity: isSubmitting ? 0.7 : 1,
-                  }}
+                  style={styles.cleanFooterSubmitBtn}
+                  className="transition-all hover:brightness-105 active:scale-98 cursor-pointer"
                 >
-                  <Scale size={16} />
-                  <span>
-                    {isSubmitting ? 'Saving...' : `Save ${modalHarvestType} Record`}
-                  </span>
+                  {isSubmitting 
+                    ? 'Saving...' 
+                    : modalHarvestType === 'Final Harvest' 
+                      ? 'Save Final Harvest' 
+                      : 'Save Partial Harvest'}
                 </button>
               </div>
             </form>
@@ -1213,6 +1545,26 @@ const Harvest = () => {
                 You are about to record the <strong>Final Harvest</strong> for <strong>{activeTank.name}</strong> ({currentCycleId}).
               </p>
               
+              <div style={{
+                margin: '16px 0',
+                padding: '12px 14px',
+                backgroundColor: '#F8FAFC',
+                borderRadius: '10px',
+                border: '1px solid #E2E8F0',
+                textAlign: 'left'
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#1E3A8A', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                  Cycle Final Summary Preview
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12.5px' }}>
+                  <div>Total Seed: <strong>{cumulativeTotalSeed.toLocaleString()} pcs</strong></div>
+                  <div>Total Biomass: <strong>{Number(cumulativeTotalBiomass.toFixed(2)).toLocaleString()} kg</strong></div>
+                  <div>Total Feed: <strong>{Number(cumulativeTotalFeed.toFixed(2)).toLocaleString()} kg</strong></div>
+                  <div>Final FCR: <strong>{cumulativeFcr}</strong></div>
+                  <div style={{ gridColumn: 'span 2' }}>Final Survival: <strong>{cumulativeSurvivalPct}%</strong></div>
+                </div>
+              </div>
+
               <div style={styles.confirmCallout}>
                 <ul style={{ margin: 0, paddingLeft: '18px', textAlign: 'left', fontSize: '12.5px', color: '#991B1B', lineHeight: '1.6' }}>
                   <li>All routine testing will be locked for this cycle.</li>
@@ -1383,6 +1735,188 @@ const styles = {
   subtitle: { 
     fontSize: '13px', 
     color: '#64748B' 
+  },
+  addHarvestMainBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '10px',
+    padding: '10px 18px',
+    fontSize: '13.5px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(26, 47, 184, 0.25)',
+  },
+  cleanModalBackdrop: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(241, 245, 249, 0.78)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    zIndex: 99999,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    padding: '24px 16px',
+    overflowY: 'auto',
+    boxSizing: 'border-box'
+  },
+  cleanModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '560px',
+    maxHeight: '94vh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.06)',
+    border: '1px solid #E2E8F0'
+  },
+  cleanModalHeader: {
+    padding: '16px 24px 12px 24px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF'
+  },
+  cleanModalIconBadge: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    backgroundColor: '#EFF6FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  cleanModalTitle: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: '-0.2px'
+  },
+  cleanModalSubtitle: {
+    fontSize: '12px',
+    color: '#64748B',
+    marginTop: '2px',
+    display: 'block'
+  },
+  cleanCloseBtn: {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#94A3B8',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '6px'
+  },
+  cleanModalBody: {
+    padding: '4px 24px 18px 24px',
+    overflowY: 'auto',
+    flex: 1,
+    backgroundColor: '#FFFFFF'
+  },
+  harvestTypeGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px',
+    marginBottom: '14px'
+  },
+  typeCardParallel: {
+    padding: '14px 14px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    userSelect: 'none'
+  },
+  cleanRadio: {
+    width: '18px',
+    height: '18px',
+    borderRadius: '50%',
+    border: '1.5px solid #CBD5E1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  cleanRadioDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#FFFFFF'
+  },
+  typeCardDesc: {
+    margin: '4px 0 0 28px',
+    fontSize: '11.5px',
+    color: '#64748B',
+    lineHeight: '1.4'
+  },
+  fieldLabel: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#1E293B',
+    display: 'block',
+    marginBottom: '6px'
+  },
+  fieldInput: {
+    width: '100%',
+    padding: '9px 12px',
+    borderRadius: '8px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    fontSize: '13.5px',
+    color: '#0F172A',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.15s ease'
+  },
+  cleanFooter: {
+    padding: '16px 24px',
+    borderTop: '1px solid #F1F5F9',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '12px',
+    backgroundColor: '#FFFFFF'
+  },
+  cleanFooterCancelBtn: {
+    padding: '8px 20px',
+    borderRadius: '8px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    color: '#475569',
+    fontSize: '13.5px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  cleanFooterSubmitBtn: {
+    padding: '8px 20px',
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: '#1D4ED8',
+    color: '#FFFFFF',
+    fontSize: '13.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(29, 78, 216, 0.3)'
+  },
+  radioInnerDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#FFFFFF',
   },
   partialHarvestBtn: {
     display: 'flex',
@@ -1709,8 +2243,9 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    backdropFilter: 'blur(4px)',
+    backgroundColor: 'rgba(241, 245, 249, 0.78)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     zIndex: 99999,
     display: 'flex',
     justifyContent: 'center',
@@ -1881,6 +2416,75 @@ const styles = {
     justifyContent: 'center',
     gap: '6px',
     cursor: 'pointer'
+  },
+  cumulativeSummaryCard: {
+    backgroundColor: '#F8FAFC',
+    border: '1.5px solid #DBEAFE',
+    borderRadius: '12px',
+    padding: '14px 16px',
+    marginBottom: '16px'
+  },
+  cumulativeHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '10px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #E2E8F0'
+  },
+  cumulativeTitle: {
+    fontSize: '13px',
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: '-0.1px'
+  },
+  cumulativeBadge: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#1D4ED8',
+    backgroundColor: '#EFF6FF',
+    padding: '2px 8px',
+    borderRadius: '10px',
+    border: '1px solid #BFDBFE'
+  },
+  cumulativeGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '10px'
+  },
+  cumKpiItem: {
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '8px',
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
+  },
+  cumKpiLabel: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px'
+  },
+  cumKpiValue: {
+    fontSize: '16px',
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: '1.2'
+  },
+  cumKpiUnit: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#64748B'
+  },
+  cumKpiHelper: {
+    fontSize: '10.5px',
+    color: '#64748B',
+    lineHeight: '1.3',
+    marginTop: '2px'
   }
 };
 
