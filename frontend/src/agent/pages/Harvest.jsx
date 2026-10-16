@@ -1054,46 +1054,7 @@ const Harvest = () => {
         </div>
       </div>
 
-      {/* 4. Automated Harvest Performance Report (KPIs) */}
-      <div style={{ ...styles.card, borderLeft: '4px solid #1A2FB8' }}>
-        <div style={styles.reportHeader}>
-          <div>
-            <h3 style={styles.sectionTitle}>Automated Harvest Performance Summary ({currentCycleId})</h3>
-            <span style={styles.reportSub}>Consolidated biomass and survival metrics for {activeTank.name}</span>
-          </div>
-          <span style={styles.autoCalcTag}>
-            <Sparkles size={13} /> Auto-Computed
-          </span>
-        </div>
-
-        <div style={styles.kpiGrid}>
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Total Harvested Seed</span>
-            <div style={styles.kpiVal}>{totalHarvestedSeed.toLocaleString()}</div>
-            <span style={styles.kpiFoot}>Nos across all stages</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Total Harvested Biomass</span>
-            <div style={{ ...styles.kpiVal, color: '#1A2FB8' }}>{totalHarvestedBiomass.toLocaleString()} kg</div>
-            <span style={styles.kpiFoot}>Aggregate crop yield</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Survival Rate</span>
-            <div style={{ ...styles.kpiVal, color: '#16A34A' }}>{survivalPct}%</div>
-            <span style={styles.kpiFoot}>(Harvested ÷ Stocked) × 100</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Calculated FCR</span>
-            <div style={{ ...styles.kpiVal, color: '#D97706' }}>{fcr}</div>
-            <span style={styles.kpiFoot}>Total Feed ÷ Biomass</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Dynamic Sequence Breakdown Table */}
+      {/* 4. Dynamic Sequence Breakdown Table */}
       <div style={styles.card}>
         <div style={styles.tableHeaderSection}>
           <div>
