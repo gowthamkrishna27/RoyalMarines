@@ -415,27 +415,45 @@ const Tests = () => {
 
                       {/* Test Category */}
                       <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <TestTube size={14} color="#1A2FB8" />
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
-                            {test.testType}
-                          </span>
-                        </div>
+                        {(() => {
+                          const isFeed = test.testType.toLowerCase().includes('feed') || test.testType.toLowerCase().includes('growth');
+                          const isHealth = test.testType.toLowerCase().includes('health') || test.testType.toLowerCase().includes('mortality') || test.testType.toLowerCase().includes('disease');
+                          const typeBg = isFeed ? '#EEF2FF' : isHealth ? '#FFE4E6' : '#E0F2FE';
+                          const typeColor = isFeed ? '#4338CA' : isHealth ? '#BE123C' : '#0369A1';
+                          const typeBorder = isFeed ? '#C7D2FE' : isHealth ? '#FECDD3' : '#BAE6FD';
+                          return (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              color: typeColor,
+                              backgroundColor: typeBg,
+                              border: `1px solid ${typeBorder}`,
+                              padding: '3px 8px',
+                              borderRadius: '6px'
+                            }}>
+                              <TestTube size={13} color={typeColor} />
+                              {test.testType}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Parameter Readings */}
                       <td style={styles.td}>
                         <div style={styles.readingsChipBox}>
-                          <span style={styles.paramPill}>
+                          <span style={{ fontSize: '11px', backgroundColor: '#F0F9FF', color: '#0284C7', padding: '2px 6px', borderRadius: '4px', border: '1px solid #BAE6FD', fontWeight: '600' }}>
                             pH: <b>{test.readings.ph}</b>
                           </span>
-                          <span style={styles.paramPill}>
+                          <span style={{ fontSize: '11px', backgroundColor: '#F0FDF4', color: '#0D9488', padding: '2px 6px', borderRadius: '4px', border: '1px solid #CCFBF1', fontWeight: '600' }}>
                             DO: <b>{test.readings.do} ppm</b>
                           </span>
-                          <span style={styles.paramPill}>
+                          <span style={{ fontSize: '11px', backgroundColor: '#EEF2FF', color: '#6366F1', padding: '2px 6px', borderRadius: '4px', border: '1px solid #C7D2FE', fontWeight: '600' }}>
                             Sal: <b>{test.readings.salinity}</b>
                           </span>
-                          <span style={styles.paramPill}>
+                          <span style={{ fontSize: '11px', backgroundColor: '#ECFDF5', color: '#059669', padding: '2px 6px', borderRadius: '4px', border: '1px solid #A7F3D0', fontWeight: '600' }}>
                             ABW: <b>{test.readings.abw}</b>
                           </span>
                         </div>
@@ -443,9 +461,15 @@ const Tests = () => {
 
                       {/* Submission Status */}
                       <td style={styles.td}>
-                        <span style={styles.approvedPill}>
-                          <CheckCircle2 size={11} /> Logged
-                        </span>
+                        {isApproved ? (
+                          <span style={styles.approvedPill}>
+                            <CheckCircle2 size={11} /> Verified
+                          </span>
+                        ) : (
+                          <span style={styles.pendingPill}>
+                            <Clock size={11} /> Pending Audit
+                          </span>
+                        )}
                       </td>
 
                       {/* Action */}

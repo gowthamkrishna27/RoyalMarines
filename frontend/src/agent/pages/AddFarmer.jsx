@@ -38,7 +38,6 @@ const AddFarmer = () => {
     waterSource: 'Canal',
     customWaterSource: '',
     numberOfTanks: '2',
-    extent: '',
     status: 'ACTIVE',
   });
 
@@ -116,31 +115,26 @@ const AddFarmer = () => {
       return;
     }
     const numTanks = parsedTanks;
-    const defaultTankArea = farmerForm.extent && parseFloat(farmerForm.extent) > 0
-      ? (parseFloat(farmerForm.extent) / numTanks).toFixed(1)
-      : '2.5';
-    const defaultWaterArea = (parseFloat(defaultTankArea) * 0.88).toFixed(1);
-
     const initialTanks = Array.from({ length: numTanks }, (_, i) => ({
       name: `Tank ${i + 1}`,
-      area: defaultTankArea,
-      waterArea: defaultWaterArea,
-      salinity: '16',
-      soilType: 'Loam',
-      hatchery: 'Golden Marine Hatchery',
-      brooder: 'Kona Bay',
+      area: '',
+      waterArea: '',
+      salinity: '',
+      soilType: '',
+      hatchery: '',
+      brooder: '',
       customBrooder: '',
-      seedDate: new Date().toISOString().split('T')[0],
-      seedStockingLak: '2.5',
-      feedType: 'Premium',
-      species: 'Vannamei',
+      seedDate: '',
+      seedStockingLak: '',
+      feedType: '',
+      species: '',
       cultureType: 'Semi-Intensive',
-      stockingDate: new Date().toISOString().split('T')[0],
-      seedQuantity: '250,000',
-      initialBiomass: '0',
-      biomass: '600kg',
-      abw: '10g',
-      fcr: '1.15',
+      stockingDate: '',
+      seedQuantity: '',
+      initialBiomass: '',
+      biomass: '',
+      abw: '',
+      fcr: '',
       status: 'ACTIVE',
       notes: '',
     }));
@@ -166,24 +160,24 @@ const AddFarmer = () => {
       ...prev,
       {
         name: `Tank ${prev.length + 1}`,
-        area: '2.5',
-        waterArea: '2.2',
-        salinity: '16',
-        soilType: 'Loam',
-        hatchery: 'Golden Marine Hatchery',
-        brooder: 'Kona Bay',
+        area: '',
+        waterArea: '',
+        salinity: '',
+        soilType: '',
+        hatchery: '',
+        brooder: '',
         customBrooder: '',
-        seedDate: new Date().toISOString().split('T')[0],
-        seedStockingLak: '2.5',
-        feedType: 'Premium',
-        species: 'Vannamei',
+        seedDate: '',
+        seedStockingLak: '',
+        feedType: '',
+        species: '',
         cultureType: 'Semi-Intensive',
-        stockingDate: new Date().toISOString().split('T')[0],
-        seedQuantity: '250,000',
-        initialBiomass: '0',
-        biomass: '500kg',
-        abw: '8g',
-        fcr: '1.2',
+        stockingDate: '',
+        seedQuantity: '',
+        initialBiomass: '',
+        biomass: '',
+        abw: '',
+        fcr: '',
         status: 'ACTIVE',
         notes: '',
       }
@@ -212,9 +206,7 @@ const AddFarmer = () => {
     setIsSaving(true);
     try {
       const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
-      const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0
-        ? parseFloat(farmerForm.extent)
-        : calculatedAcres;
+      const finalAcres = calculatedAcres;
 
       const resolvedWaterSource = farmerForm.waterSource === 'Others'
         ? (farmerForm.customWaterSource?.trim() || 'Others')
@@ -397,20 +389,6 @@ const AddFarmer = () => {
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Extent (Acres)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  name="extent"
-                  value={farmerForm.extent}
-                  onChange={handleFarmerChange}
-                  style={styles.textInput}
-                  placeholder="e.g. 5.0"
-                />
-              </div>
-
-              <div>
                 <label style={styles.fieldLabel}>Water Source</label>
                 <select
                   name="waterSource"
@@ -489,7 +467,7 @@ const AddFarmer = () => {
               <span style={styles.summarySub}>Configuring tanks for</span>
               <h3 style={styles.summaryFarmerName}>{farmerForm.name}</h3>
               <span style={styles.summaryMeta}>
-                📍 {farmerForm.village} • 📱 {farmerForm.phone} {farmerForm.extent ? `• 🌾 ${farmerForm.extent} Acres` : ''}
+                📍 {farmerForm.village} • 📱 {farmerForm.phone}
               </span>
             </div>
 
@@ -530,7 +508,7 @@ const AddFarmer = () => {
                       value={tank.area}
                       onChange={(e) => handleTankChange(idx, 'area', e.target.value)}
                       style={styles.textInput}
-                      placeholder="2.5"
+                      placeholder="e.g. 2.5"
                       required
                     />
                   </div>
@@ -544,7 +522,7 @@ const AddFarmer = () => {
                       value={tank.salinity}
                       onChange={(e) => handleTankChange(idx, 'salinity', e.target.value)}
                       style={styles.textInput}
-                      placeholder="16"
+                      placeholder="e.g. 16"
                       required
                     />
                   </div>
@@ -558,6 +536,7 @@ const AddFarmer = () => {
                       style={styles.textInput}
                       required
                     >
+                      <option value="">Select Soil Type</option>
                       <option value="Loam">Loam</option>
                       <option value="Clay">Clay</option>
                       <option value="Sandy">Sandy</option>
@@ -589,12 +568,12 @@ const AddFarmer = () => {
                       style={styles.textInput}
                       required
                     >
+                      <option value="">Select Brooder</option>
                       <option value="Syaqua">Syaqua</option>
                       <option value="Kona Bay">Kona Bay</option>
                       <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                       <option value="American Penaeid">American Penaeid</option>
                       <option value="Others">Others</option>
-
                     </select>
 
                     {(tank.brooder === 'Others' || tank.brooder === 'Other') && (
@@ -636,7 +615,7 @@ const AddFarmer = () => {
                       value={tank.seedStockingLak}
                       onChange={(e) => handleTankChange(idx, 'seedStockingLak', e.target.value)}
                       style={styles.textInput}
-                      placeholder="2.5"
+                      placeholder="e.g. 2.5"
                       required
                     />
                   </div>
@@ -650,6 +629,7 @@ const AddFarmer = () => {
                       style={styles.textInput}
                       required
                     >
+                      <option value="">Select Feed Type</option>
                       <option value="Premium">Premium</option>
                       <option value="Functional">Functional</option>
                       <option value="Hypro">Hypro</option>
@@ -667,6 +647,7 @@ const AddFarmer = () => {
                       onChange={(e) => handleTankChange(idx, 'species', e.target.value)}
                       style={styles.textInput}
                     >
+                      <option value="">Select Species</option>
                       <option value="Vannamei">Vannamei</option>
                       <option value="Monodon">Monodon (Black Tiger)</option>
                       <option value="Scampi">Scampi</option>

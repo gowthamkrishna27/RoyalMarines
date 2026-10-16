@@ -1235,32 +1235,111 @@ const Agents = () => {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {agentSubmissions.map((sub, idx) => (
-                        <div
-                          key={sub.id || idx}
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: '1px solid #E2E8F0',
-                            borderRadius: '10px',
-                            padding: '12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '6px'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
-                              {sub.testType || sub.title || 'Water Quality Test'}
-                            </span>
-                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#16A34A', backgroundColor: '#DCFCE7', padding: '2px 7px', borderRadius: '4px' }}>
-                              Verified
-                            </span>
+                      {agentSubmissions.map((sub, idx) => {
+                        const isPending = sub.status === 'PENDING_VERIFICATION' || sub.status === 'Pending';
+                        const isRejected = sub.status === 'REJECTED' || sub.status === 'Action Required';
+                        const isVerified = !isPending && !isRejected;
+
+                        const testType = sub.testType || sub.title || 'Water Quality Test';
+                        const isFeed = testType.toLowerCase().includes('feed') || testType.toLowerCase().includes('growth');
+                        const isHealth = testType.toLowerCase().includes('health') || testType.toLowerCase().includes('disease');
+                        const isHarvest = testType.toLowerCase().includes('harvest');
+
+                        const typeBg = isFeed ? '#EEF2FF' : isHealth ? '#FFE4E6' : isHarvest ? '#FEF3C7' : '#E0F2FE';
+                        const typeColor = isFeed ? '#4338CA' : isHealth ? '#BE123C' : isHarvest ? '#B45309' : '#0369A1';
+                        const typeBorder = isFeed ? '#C7D2FE' : isHealth ? '#FECDD3' : isHarvest ? '#FDE68A' : '#BAE6FD';
+
+                        const statusBg = isPending ? '#FEF3C7' : isRejected ? '#FEE2E2' : '#DCFCE7';
+                        const statusColor = isPending ? '#B45309' : isRejected ? '#DC2626' : '#15803D';
+                        const statusBorder = isPending ? '#FDE68A' : isRejected ? '#FECACA' : '#BBF7D0';
+                        const statusText = isPending ? '⏳ Pending Verification' : isRejected ? '⚠️ Action Required' : '✓ Verified';
+
+                        const wq = sub.data?.waterQuality || {};
+
+                        return (
+                          <div
+                            key={sub.id || idx}
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              border: '1px solid #E2E8F0',
+                              borderLeft: `4px solid ${isPending ? '#F59E0B' : isRejected ? '#EF4444' : '#10B981'}`,
+                              borderRadius: '10px',
+                              padding: '12px 14px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  color: typeColor,
+                                  backgroundColor: typeBg,
+                                  border: `1px solid ${typeBorder}`,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px'
+                                }}>
+                                  {testType}
+                                </span>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  color: '#1D4ED8',
+                                  backgroundColor: '#EFF6FF',
+                                  border: '1px solid #BFDBFE',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px'
+                                }}>
+                                  👤 Agent: {selectedAgent?.name || 'Field Agent'}
+                                </span>
+                              </div>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                color: statusColor,
+                                backgroundColor: statusBg,
+                                border: `1px solid ${statusBorder}`,
+                                padding: '2px 8px',
+                                borderRadius: '6px'
+                              }}>
+                                {statusText}
+                              </span>
+                            </div>
+
+                            <div style={{ fontSize: '12px', color: '#64748B' }}>
+                              Farmer: <strong style={{ color: '#0F172A' }}>{sub.farmerName || 'Farmer'}</strong> • Tank: <strong>{sub.tankName || 'Tank 1'}</strong> • Date: <strong>{sub.date || 'Today'}</strong>
+                            </div>
+
+                            {(wq.ph || wq.do || wq.salinity || sub.data?.abw) && (
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                {wq.ph && (
+                                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#0284C7', backgroundColor: '#F0F9FF', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E0F2FE' }}>
+                                    pH: {wq.ph}
+                                  </span>
+                                )}
+                                {wq.do && (
+                                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#0D9488', backgroundColor: '#F0FDF4', padding: '1px 6px', borderRadius: '4px', border: '1px solid #CCFBF1' }}>
+                                    DO: {wq.do} mg/L
+                                  </span>
+                                )}
+                                {wq.salinity && (
+                                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#6366F1', backgroundColor: '#EEF2FF', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E0E7FF' }}>
+                                    Salinity: {wq.salinity} ppt
+                                  </span>
+                                )}
+                                {sub.data?.abw && (
+                                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#16A34A', backgroundColor: '#F0FDF4', padding: '1px 6px', borderRadius: '4px', border: '1px solid #DCFCE7' }}>
+                                    ABW: {sub.data.abw}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ fontSize: '12px', color: '#64748B' }}>
-                            Farmer: <strong style={{ color: '#0F172A' }}>{sub.farmerName || 'Appala Raju'}</strong> • Tank: <strong>{sub.tankName || 'Tank 1'}</strong> • Date: {sub.date || 'Today'}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {agentSubmissions.length === 0 && (
                         <div style={{ textAlign: 'center', padding: '30px', color: '#64748B', backgroundColor: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
@@ -1491,6 +1570,56 @@ const Agents = () => {
                         <span>Last Test: <strong style={{ color: '#334155' }}>{item.lastTest}</strong></span>
                         <span>Next Due: <strong style={{ color: item.isDue ? '#B45309' : '#15803D' }}>{item.nextTest}</strong></span>
                       </div>
+                    </div>
+
+                    {/* Submission Info Strip with Color Differentiation */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                      padding: '6px 10px',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '11px',
+                    }}>
+                      <span style={{ fontWeight: '800', color: '#475569', fontSize: '10px', textTransform: 'uppercase' }}>
+                        Submission:
+                      </span>
+                      <span style={{
+                        fontWeight: '700',
+                        padding: '1px 7px',
+                        borderRadius: '6px',
+                        fontSize: '10.5px',
+                        backgroundColor: '#EFF6FF',
+                        color: '#1D4ED8',
+                        border: '1px solid #BFDBFE',
+                      }}>
+                        👤 Agent: {selectedAgentTanks?.name || 'Field Agent'}
+                      </span>
+                      <span style={{
+                        fontWeight: '700',
+                        padding: '1px 7px',
+                        borderRadius: '6px',
+                        fontSize: '10.5px',
+                        backgroundColor: '#E0F2FE',
+                        color: '#0369A1',
+                        border: '1px solid #BAE6FD',
+                      }}>
+                        Water Quality Test
+                      </span>
+                      <span style={{
+                        fontWeight: '700',
+                        padding: '1px 7px',
+                        borderRadius: '6px',
+                        fontSize: '10.5px',
+                        backgroundColor: item.isHarvested ? '#F1F5F9' : (item.isOverdue ? '#FEE2E2' : (item.isDue ? '#FEF3C7' : '#DCFCE7')),
+                        color: item.isHarvested ? '#475569' : (item.isOverdue ? '#DC2626' : (item.isDue ? '#B45309' : '#15803D')),
+                        border: `1px solid ${item.isHarvested ? '#CBD5E1' : (item.isOverdue ? '#FECACA' : (item.isDue ? '#FDE68A' : '#BBF7D0'))}`,
+                      }}>
+                        {item.isHarvested ? 'Cycle Closed' : (item.isOverdue ? '🚨 Overdue' : (item.isDue ? '⚠️ Due' : '✓ Verified'))}
+                      </span>
                     </div>
 
                     {/* Action buttons */}

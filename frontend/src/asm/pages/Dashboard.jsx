@@ -422,6 +422,12 @@ const Dashboard = () => {
         distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
       }
 
+      const tankSubs = (db?.submissions || []).filter(s => s.tankId === item.tank.id);
+      const latestSub = tankSubs.length > 0
+        ? [...tankSubs].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0]
+        : null;
+      const hasPending = tankSubs.some(s => s.status === 'PENDING_VERIFICATION');
+
       return {
         id: item.tank.id,
         name: item.tank.name,
@@ -437,11 +443,17 @@ const Dashboard = () => {
         distance: distanceStr,
         status: item.isHarvested ? 'Harvested' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Optimal')),
         due: item.isDue || item.isOverdue,
+        isOverdue: item.isOverdue,
         species: item.species || rawTank?.species || 'Vannamei',
         size: rawTank?.size || (rawTank?.acres ? `${rawTank.acres} Acres` : '1.5 Acres'),
         acres: rawTank?.acres || rawTank?.area_acres || 1.5,
         agentName: 'Self (ASM / Field Tech)',
-        isPersonal: true
+        isPersonal: true,
+        hasPending: hasPending,
+        submissionStatus: hasPending ? 'Pending Verification' : (item.isHarvested ? 'Cycle Closed' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Verified'))),
+        submissionType: latestSub?.testType || latestSub?.recordType || 'Water Quality Test',
+        submissionDate: latestSub?.date || item.lastTest || '22 Aug',
+        lastTest: item.lastTest || '22 Aug',
       };
     });
   }, [personalTanksDetails, db, gps]);
@@ -464,6 +476,12 @@ const Dashboard = () => {
         distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
       }
 
+      const tankSubs = (db?.submissions || []).filter(s => s.tankId === t.id);
+      const latestSub = tankSubs.length > 0
+        ? [...tankSubs].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0]
+        : null;
+      const hasPending = tankSubs.some(s => s.status === 'PENDING_VERIFICATION') || t.status === 'Pending Verification';
+
       return {
         id: t.id,
         name: t.name,
@@ -477,13 +495,19 @@ const Dashboard = () => {
         location: rawTank?.location || farmer?.location || t.locality,
         locality: farmer?.village || farmer?.location || rawTank?.location || t.locality || 'Aquaculture Zone',
         distance: distanceStr,
-        status: t.status === 'Harvested' ? 'Harvested' : (t.status === 'Overdue' ? 'Overdue' : (t.status === 'Test Due' || t.status === 'Due' ? 'Test Due' : 'Optimal')),
+        status: t.status === 'Harvested' ? 'Harvested' : (t.status === 'Overdue' ? 'Overdue' : (t.status === 'Test Due' || t.status === 'Due' ? 'Test Due' : (hasPending ? 'Pending Verification' : 'Optimal'))),
         due: t.status === 'Test Due' || t.status === 'Due' || t.status === 'Overdue',
+        isOverdue: t.status === 'Overdue',
         species: t.species || rawTank?.species || 'Vannamei',
         size: rawTank?.size || (rawTank?.acres ? `${rawTank.acres} Acres` : '1.5 Acres'),
         acres: rawTank?.acres || rawTank?.area_acres || 1.5,
         agentName: t.agent || 'Field Tech',
-        isPersonal: false
+        isPersonal: false,
+        hasPending: hasPending,
+        submissionStatus: hasPending ? 'Pending Verification' : (t.status === 'Harvested' ? 'Cycle Closed' : (t.status === 'Overdue' ? 'Overdue' : (t.status === 'Test Due' || t.status === 'Due' ? 'Test Due' : 'Verified'))),
+        submissionType: latestSub?.testType || latestSub?.recordType || 'Water Quality Test',
+        submissionDate: latestSub?.date || t.lastTest || '22 Aug',
+        lastTest: t.lastTest || '22 Aug',
       };
     });
   }, [allDashboardTanks, db, gps]);
@@ -609,6 +633,71 @@ const Dashboard = () => {
                   </div>
                   <div style={styles.drawerSub}>
                     {selectedMapTank.farmer} {selectedMapTank.distance ? `• ${selectedMapTank.distance}` : ''} • {selectedMapTank.species || 'Vannamei'}
+                  </div>
+
+                  {/* Submission Information Strip with Color Differentiation */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                    marginTop: '6px',
+                    paddingTop: '6px',
+                    borderTop: '1px dashed #E2E8F0',
+                  }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      Submission:
+                    </span>
+
+                    {/* Actor Pill: Blue for Agent vs Purple for Incharge */}
+                    <span style={{
+                      fontSize: '10.5px',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: selectedMapTank.isPersonal ? '#F5F3FF' : '#EFF6FF',
+                      color: selectedMapTank.isPersonal ? '#6D28D9' : '#1D4ED8',
+                      border: `1px solid ${selectedMapTank.isPersonal ? '#DDD6FE' : '#BFDBFE'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}>
+                      {selectedMapTank.isPersonal ? '⚡ ASM / Direct Incharge' : `👤 Agent: ${selectedMapTank.agentName || 'Field Tech'}`}
+                    </span>
+
+                    {/* Test Type Pill: Cyan for Water Quality, Indigo for Feed, Rose for Health */}
+                    <span style={{
+                      fontSize: '10.5px',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: selectedMapTank.submissionType?.includes('Feed') ? '#EEF2FF' : selectedMapTank.submissionType?.includes('Health') ? '#FFE4E6' : '#E0F2FE',
+                      color: selectedMapTank.submissionType?.includes('Feed') ? '#4338CA' : selectedMapTank.submissionType?.includes('Health') ? '#BE123C' : '#0369A1',
+                      border: `1px solid ${selectedMapTank.submissionType?.includes('Feed') ? '#C7D2FE' : selectedMapTank.submissionType?.includes('Health') ? '#FECDD3' : '#BAE6FD'}`,
+                    }}>
+                      {selectedMapTank.submissionType || 'Water Quality Test'}
+                    </span>
+
+                    {/* Verification Status Pill: Green for Verified, Amber for Pending, Red for Overdue */}
+                    <span style={{
+                      fontSize: '10.5px',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: selectedMapTank.hasPending ? '#FEF3C7' : (selectedMapTank.isOverdue ? '#FEE2E2' : (selectedMapTank.due ? '#FFEDD5' : '#DCFCE7')),
+                      color: selectedMapTank.hasPending ? '#B45309' : (selectedMapTank.isOverdue ? '#DC2626' : (selectedMapTank.due ? '#C2410C' : '#15803D')),
+                      border: `1px solid ${selectedMapTank.hasPending ? '#FDE68A' : (selectedMapTank.isOverdue ? '#FECACA' : (selectedMapTank.due ? '#FDBA74' : '#BBF7D0'))}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}>
+                      {selectedMapTank.hasPending ? '⏳ Pending Verification' : (selectedMapTank.isOverdue ? '🚨 Test Overdue' : (selectedMapTank.due ? '⚠️ Test Due' : '✓ Verified / Optimal'))}
+                    </span>
+
+                    {/* Logged Date */}
+                    <span style={{ fontSize: '10.5px', color: '#64748B' }}>
+                      • Logged: <strong>{selectedMapTank.submissionDate || selectedMapTank.lastTest || '22 Aug'}</strong>
+                    </span>
                   </div>
                 </div>
 
