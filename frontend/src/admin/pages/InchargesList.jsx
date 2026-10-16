@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getIncharges, getRegions, getAgents, getFarmers } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import {
   Plus, Search, ArrowLeftRight, UserX, Check, X,
   MapPin, Phone, Mail, ShieldAlert, UserCheck, Edit,
@@ -11,55 +10,116 @@ import {
 
 const InchargesList = () => {
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
-
-  // 1. Load Incharges from API
+  const [regions, setRegions] = useState([]);
   const [incharges, setIncharges] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const fetchIncharges = async () => {
-      try {
-        const response = await fetch('/api/analytics/incharges');
-        const data = await response.json();
-        if (data.success && data.data) {
-          const dbIncharges = data.data.map(dbI => ({
-            id: dbI.id,
-            name: dbI.name || 'Unknown',
-            shortName: (dbI.name || '').split(' ')[0],
-            role: `Incharge - ${dbI.region || 'Unknown'}`,
-            regionId: dbI.region_id || dbI.regionId || 'REG-1',
-            region: dbI.region || 'Unknown Region',
-            locality: dbI.region || 'Unknown',
-            phone: dbI.phone,
-            email: dbI.email || `${(dbI.name || '').toLowerCase().replace(/\\s+/g, '')}@royalsmarine.com`,
-            status: 'ACTIVE',
-            // Default stats for mock compat
-            agentsManaged: 0,
-            farmersScope: 0,
-            activeTanks: 0,
-            performanceScore: 0
-          }));
-          setIncharges(dbIncharges);
-        }
-      } catch (error) {
-        console.error('Failed to fetch incharges:', error);
+  // Fetch live incharges, regions, agents, and farmers from MySQL API
+  const fetchAllData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [incRes, regRes, agentRes, farmerRes] = await Promise.allSettled([
+        adminService.getIncharges(),
+        adminService.getRegions(),
+        adminService.getAgents(),
+        adminService.getFarmers()
+      ]);
+
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) {
+        const seen = new Set();
+        const uniqueData = incRes.value.filter(dbI => {
+          if (!dbI || !dbI.id || seen.has(String(dbI.id))) return false;
+          seen.add(String(dbI.id));
+          return true;
+        });
+        const mappedIncharges = uniqueData.map(dbI => ({
+          id: String(dbI.id),
+          name: dbI.name || 'Unknown',
+          shortName: (dbI.name || '').split(' ')[0],
+          role: dbI.role || `Incharge - ${dbI.region || 'Unknown'}`,
+          regionId: dbI.region_id || dbI.regionId || 'REG001',
+          region: dbI.region || 'Unknown Region',
+          locality: dbI.locality || dbI.region || 'Unknown',
+          phone: dbI.phone,
+          email: dbI.email || `${(dbI.name || '').toLowerCase().replace(/\s+/g, '')}@royalsmarine.com`,
+          status: dbI.status || 'ACTIVE',
+          agentsManaged: Number(dbI.agentsCount || 0),
+          farmersScope: Number(dbI.farmersCount || 0),
+          activeTanks: Number(dbI.tanksCount || 0),
+          performanceScore: 92
+        }));
+        setIncharges(mappedIncharges);
+      } else {
+        setIncharges([]);
       }
-    };
-    fetchIncharges();
+
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+
+      if (agentRes.status === 'fulfilled' && Array.isArray(agentRes.value)) {
+        setAgents(agentRes.value);
+      } else {
+        setAgents([]);
+      }
+
+      if (farmerRes.status === 'fulfilled' && Array.isArray(farmerRes.value)) {
+        setFarmers(farmerRes.value);
+      } else {
+        setFarmers([]);
+      }
+    } catch (error) {
+      console.error('[InchargesList] Failed to fetch data from database:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // 2. Load Agents from live context
-  const [agents, setAgents] = useState(() => getAgents(db));
+  const fetchIncharges = fetchAllData;
 
-  // 3. Load Farmers from live context
-  const [farmers, setFarmers] = useState(() => getFarmers(db));
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
 
   // Filter and search state
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState('');
+
+  // Comprehensive list of all available regions from database and assigned incharges
+  const allAvailableRegions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (regions || []).forEach(r => {
+      const regName = (r.name || '').trim();
+      if (regName && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: r.id || r.code || regName, name: regName });
+      }
+    });
+
+    (incharges || []).forEach(inc => {
+      const regName = (inc.region || '').trim();
+      if (regName && regName !== 'Unknown Region' && !seen.has(regName.toLowerCase())) {
+        seen.add(regName.toLowerCase());
+        list.push({ id: inc.regionId || regName, name: regName });
+      }
+    });
+
+    return list;
+  }, [regions, incharges]);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -124,18 +184,26 @@ const InchargesList = () => {
 
   // Filter incharges based on search term, region, and status
   const filteredIncharges = useMemo(() => {
-    return (incharges || []).filter(Boolean).map(inc => {
-      const incFirstName = inc.shortName || (inc.name ? inc.name.split(' ')[0] : '') || '';
-      // Dynamic recalculation of agents assigned to this incharge
-      const assignedAgentsList = (agents || []).filter(a => a && (a.inchargeId === inc.id || (incFirstName && a.incharge?.includes(incFirstName))));
-      const totalFarmersUnderIncharge = assignedAgentsList.reduce((acc, a) => acc + (a.farmers || 0), 0);
-      return {
-        ...inc,
-        agents: assignedAgentsList.length,
-        farmers: totalFarmersUnderIncharge > 0 ? totalFarmersUnderIncharge : (inc.farmers || 0)
-      };
-    }).filter(inc => {
-      const term = (searchTerm || '').toLowerCase();
+    const seen = new Set();
+    return (incharges || [])
+      .filter(Boolean)
+      .filter(inc => {
+        if (!inc.id || seen.has(String(inc.id))) return false;
+        seen.add(String(inc.id));
+        return true;
+      })
+      .map(inc => {
+        const incFirstName = inc.shortName || (inc.name ? inc.name.split(' ')[0] : '') || '';
+        // Dynamic recalculation of agents assigned to this incharge
+        const assignedAgentsList = (agents || []).filter(a => a && (a.inchargeId === inc.id || (incFirstName && a.incharge?.includes(incFirstName))));
+        const totalFarmersUnderIncharge = assignedAgentsList.reduce((acc, a) => acc + (a.farmers || 0), 0);
+        return {
+          ...inc,
+          agents: assignedAgentsList.length,
+          farmers: totalFarmersUnderIncharge > 0 ? totalFarmersUnderIncharge : (inc.farmers || 0)
+        };
+      }).filter(inc => {
+      const term = (searchTerm || '').toLowerCase().trim();
       const matchesSearch =
         !term ||
         inc.name?.toLowerCase().includes(term) ||
@@ -145,7 +213,17 @@ const InchargesList = () => {
         inc.region?.toLowerCase().includes(term) ||
         inc.locality?.toLowerCase().includes(term);
 
-      const matchesRegion = regionFilter === 'ALL' || inc.region === regionFilter || inc.region?.includes(regionFilter);
+      const matchesRegion =
+        regionFilter === 'ALL' ||
+        inc.region === regionFilter ||
+        inc.regionId === regionFilter ||
+        (inc.region && regionFilter && inc.region.toLowerCase().trim() === regionFilter.toLowerCase().trim()) ||
+        (inc.region && regionFilter && (
+          inc.region.toLowerCase().includes(regionFilter.toLowerCase()) ||
+          regionFilter.toLowerCase().includes(inc.region.toLowerCase())
+        )) ||
+        (inc.regionId && regionFilter && inc.regionId.toLowerCase() === regionFilter.toLowerCase());
+
       const matchesStatus = statusFilter === 'ALL' || (inc.status || 'ACTIVE').toUpperCase() === statusFilter.toUpperCase();
 
       return matchesSearch && matchesRegion && matchesStatus;
@@ -198,7 +276,7 @@ const InchargesList = () => {
       )
     );
 
-    return regionalFarmers.length > 0 ? regionalFarmers : (farmers || []).slice(0, 6);
+    return regionalFarmers;
   }, [selectedInchargeForFarmers, farmers, agents]);
 
   const filteredInchargeFarmers = useMemo(() => {
@@ -230,43 +308,56 @@ const InchargesList = () => {
   const totalFarmersScopeCovered = filteredIncharges.reduce((acc, i) => acc + (i.farmers || 0), 0);
 
   // 1. Handle Add Incharge
-  const handleAddInchargeSubmit = (e) => {
+  const handleAddInchargeSubmit = async (e) => {
     e.preventDefault();
-    if (!newIncharge.name.trim()) return;
+    if (!newIncharge.name.trim() || isSubmitting) return;
 
-    const nextNumber = incharges.length + 1;
-    const newId = `EMP-INC-${String(nextNumber).padStart(2, '0')}`;
-    const selectedRegionObj = regions.find(r => r.id === newIncharge.regionId) || regions[0];
-    const fullName = `${newIncharge.name.trim()} (${newIncharge.roleSuffix.trim()})`;
+    try {
+      setIsSubmitting(true);
+      const selectedRegionObj = regions.find(r => r.id === newIncharge.regionId) || regions[0] || {};
+      const targetName = newIncharge.name.trim();
 
-    const createdIncharge = {
-      id: newId,
-      name: fullName,
-      shortName: newIncharge.name.trim(),
-      role: newIncharge.roleSuffix.trim(),
-      regionId: selectedRegionObj.id,
-      region: selectedRegionObj.name,
-      locality: newIncharge.locality,
-      phone: newIncharge.phone.trim(),
-      email: newIncharge.email.trim() || `${newIncharge.name.trim().toLowerCase().replace(/\s+/g, '')}.inc@royalsmarine.com`,
-      agents: 0,
-      farmers: 0,
-      tanks: 0,
-      compliance: 95,
-      status: 'ACTIVE'
-    };
+      const payload = {
+        name: targetName,
+        roleSuffix: newIncharge.roleSuffix?.trim() || `Incharge - ${selectedRegionObj.name || ''}`,
+        phone: newIncharge.phone?.trim() || '',
+        email: newIncharge.email?.trim() || '',
+        regionId: selectedRegionObj.code || selectedRegionObj.id || newIncharge.regionId,
+        region: selectedRegionObj.name || '',
+        locality: newIncharge.locality || selectedRegionObj.name || ''
+      };
 
-    setIncharges(prev => [createdIncharge, ...prev]);
-    showToast(`Incharge ${createdIncharge.name} added successfully!`);
-    setShowAddModal(false);
-    setNewIncharge({
-      name: '',
-      roleSuffix: 'Incharge - Nellore',
-      phone: '+91 ',
-      email: '',
-      regionId: defaultReg.id,
-      locality: defaultLoc
-    });
+      const res = await fetch('/api/analytics/incharges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Incharge ${targetName} added successfully to MySQL database!`);
+        setShowAddModal(false);
+        setNewIncharge({
+          name: '',
+          roleSuffix: `Incharge - ${selectedRegionObj.name || 'Operations'}`,
+          phone: '+91 ',
+          email: '',
+          regionId: selectedRegionObj.id || defaultReg?.id || 'REG001',
+          locality: selectedRegionObj.name || defaultLoc || 'Bhimavaram'
+        });
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') {
+          refreshDb();
+        }
+      } else {
+        showToast(result.message || 'Failed to save incharge to database');
+      }
+    } catch (err) {
+      console.error('Error adding incharge:', err);
+      showToast('Failed to connect to database to save incharge');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 2. Open Edit Incharge Modal
@@ -280,7 +371,7 @@ const InchargesList = () => {
       role: inc.role || 'Incharge',
       phone: inc.phone || '',
       email: inc.email || '',
-      regionId: inc.regionId || 'REG-SOUTH',
+      regionId: inc.regionId || 'REG001',
       locality: inc.locality || '',
       status: inc.status || 'ACTIVE'
     });
@@ -288,37 +379,46 @@ const InchargesList = () => {
   };
 
   // Handle Edit Submit
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editForm.name.trim()) return;
+    if (!editForm.name.trim() || !selectedIncharge || isSubmitting) return;
 
-    const selectedRegionObj = regions.find(r => r.id === editForm.regionId) || regions[0];
+    try {
+      setIsSubmitting(true);
+      const selectedRegionObj = regions.find(r => r.id === editForm.regionId) || regions[0] || {};
 
-    const updatedIncharge = {
-      ...selectedIncharge,
-      name: editForm.name.trim(),
-      shortName: editForm.shortName.trim(),
-      role: editForm.role.trim(),
-      phone: editForm.phone.trim(),
-      email: editForm.email.trim(),
-      regionId: selectedRegionObj.id,
-      region: selectedRegionObj.name,
-      locality: editForm.locality,
-      status: editForm.status
-    };
+      const payload = {
+        name: editForm.name.trim(),
+        role: editForm.role.trim(),
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim(),
+        regionId: selectedRegionObj.code || selectedRegionObj.id || editForm.regionId,
+        region: selectedRegionObj.name,
+        locality: editForm.locality,
+        status: editForm.status
+      };
 
-    setIncharges(prev => prev.map(item => item.id === selectedIncharge.id ? updatedIncharge : item));
+      const res = await fetch(`/api/analytics/incharges/${selectedIncharge.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
 
-    // Update incharge name references in assigned agents
-    setAgents(prev => prev.map(a => {
-      if (a.inchargeId === selectedIncharge.id) {
-        return { ...a, incharge: updatedIncharge.name };
+      if (result.success) {
+        showToast(`Incharge details for ${payload.name} updated in database!`);
+        setShowEditModal(false);
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to update incharge in database');
       }
-      return a;
-    }));
-
-    showToast(`Incharge details for ${updatedIncharge.name} updated successfully!`);
-    setShowEditModal(false);
+    } catch (err) {
+      console.error('Error updating incharge:', err);
+      showToast('Failed to connect to database to update incharge');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 3. Open Team / Assign Agents Modal
@@ -331,46 +431,57 @@ const InchargesList = () => {
   };
 
   // Handle Assign Agent to Incharge
-  const handleAssignAgentToIncharge = (agentId) => {
+  const handleAssignAgentToIncharge = async (agentId) => {
     if (!selectedIncharge || !agentId) return;
 
-    const agentObj = agents.find(a => a.id === agentId);
-    if (!agentObj) return;
+    try {
+      const res = await fetch(`/api/analytics/incharges/${selectedIncharge.id}/assign-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId })
+      });
+      const result = await res.json();
 
-    const updatedAgents = agents.map(a => {
-      if (a.id === agentId) {
-        return {
-          ...a,
-          inchargeId: selectedIncharge.id,
-          incharge: selectedIncharge.name
-        };
+      if (result.success) {
+        const agentObj = agents.find(a => a.id === agentId);
+        showToast(`Agent ${agentObj?.name || agentId} assigned to ${selectedIncharge.name} in database.`);
+        setShowAssignAgentModal(false);
+        setShowTeamModal(false);
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to assign agent in database');
       }
-      return a;
-    });
-
-    setAgents(updatedAgents);
-    showToast(`Agent ${agentObj.name} assigned to ${selectedIncharge.name}!`);
-    setShowAssignAgentModal(false);
+    } catch (err) {
+      console.error('Error assigning agent:', err);
+      showToast('Error assigning agent in database');
+    }
   };
 
   // Handle Unassign / Remove Agent from Incharge
-  const handleUnassignAgent = (agentId) => {
+  const handleUnassignAgent = async (agentId) => {
     const agentObj = agents.find(a => a.id === agentId);
     if (!agentObj || !selectedIncharge) return;
 
-    const updatedAgents = agents.map(a => {
-      if (a.id === agentId) {
-        return {
-          ...a,
-          inchargeId: null,
-          incharge: 'Unassigned / HQ Pool'
-        };
-      }
-      return a;
-    });
+    try {
+      const res = await fetch(`/api/analytics/incharges/${selectedIncharge.id}/unassign-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId })
+      });
+      const result = await res.json();
 
-    setAgents(updatedAgents);
-    showToast(`Agent ${agentObj.name} unassigned from ${selectedIncharge.name}.`);
+      if (result.success) {
+        showToast(`Agent ${agentObj.name} unassigned in database.`);
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to unassign agent in database');
+      }
+    } catch (err) {
+      console.error('Error unassigning agent:', err);
+      showToast('Failed to unassign agent in database');
+    }
   };
 
   // 4. Handle Transfer
@@ -386,22 +497,41 @@ const InchargesList = () => {
     setShowTransferModal(true);
   };
 
-  const handleTransferSubmit = (e) => {
+  const handleTransferSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedIncharge) return;
+    if (!selectedIncharge || isSubmitting) return;
 
-    const targetRegionObj = regions.find(r => r.id === transferData.regionId) || regions[0];
+    try {
+      setIsSubmitting(true);
+      const targetRegionObj = regions.find(r => r.id === transferData.regionId) || regions[0] || {};
 
-    const updatedIncharge = {
-      ...selectedIncharge,
-      regionId: targetRegionObj.id,
-      region: targetRegionObj.name,
-      locality: transferData.locality
-    };
+      const payload = {
+        regionId: targetRegionObj.code || targetRegionObj.id || transferData.regionId,
+        region: targetRegionObj.name,
+        locality: transferData.locality
+      };
 
-    setIncharges(prev => prev.map(item => item.id === selectedIncharge.id ? updatedIncharge : item));
-    showToast(`Incharge ${selectedIncharge.name} transferred to ${targetRegionObj.name} (${transferData.locality}).`);
-    setShowTransferModal(false);
+      const res = await fetch(`/api/analytics/incharges/${selectedIncharge.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Incharge ${selectedIncharge.name} transferred to ${targetRegionObj.name} in database.`);
+        setShowTransferModal(false);
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to transfer incharge in database');
+      }
+    } catch (err) {
+      console.error('Error transferring incharge:', err);
+      showToast('Failed to connect to database to transfer incharge');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 5. Handle Deactivate / Reactivate
@@ -411,20 +541,37 @@ const InchargesList = () => {
     setShowDeactivateModal(true);
   };
 
-  const handleConfirmDeactivate = () => {
-    if (!selectedIncharge) return;
+  const handleConfirmDeactivate = async () => {
+    if (!selectedIncharge || isSubmitting) return;
 
-    const newStatus = selectedIncharge.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    setIncharges(prev => prev.map(item => {
-      if (item.id === selectedIncharge.id) {
-        return { ...item, status: newStatus };
+    try {
+      setIsSubmitting(true);
+      const newStatus = selectedIncharge.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      const payload = { status: newStatus };
+
+      const res = await fetch(`/api/analytics/incharges/${selectedIncharge.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Incharge ${selectedIncharge.name} status changed to ${newStatus} in database.`);
+        setShowDeactivateModal(false);
+        await fetchIncharges();
+        if (typeof refreshDb === 'function') refreshDb();
+      } else {
+        showToast(result.message || 'Failed to update status in database');
       }
-      return item;
-    }));
-
-    showToast(`Incharge ${selectedIncharge.name} status changed to ${newStatus}.`);
-    setShowDeactivateModal(false);
+    } catch (err) {
+      console.error('Error updating status:', err);
+      showToast('Failed to connect to database');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   return (
     <div style={styles.pageContainer}>
@@ -532,6 +679,76 @@ const InchargesList = () => {
       {/* ────────────────────────────────────────────────
           3. UNIFIED STICKY FILTER TOOLBAR (44px Height, 12px Radius)
           ──────────────────────────────────────────────── */}
+      <div style={styles.stickyFilterToolbar}>
+        {/* Search Input */}
+        <div style={styles.searchBox}>
+          <Search size={15} style={styles.searchIcon} />
+          <input
+            type="text"
+            placeholder="Search ASMs by name, phone, email, region..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+            aria-label="Search ASMs"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              style={styles.clearSearchBtn}
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Selects & Actions */}
+        <div style={styles.filterControls}>
+          {/* Region Select */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by region"
+            >
+              <option value="ALL">All Regions</option>
+              {allAvailableRegions.map(r => (
+                <option key={r.id || r.name} value={r.name}>{r.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Status Select */}
+          <div style={styles.selectWrapper}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.filterSelect}
+              aria-label="Filter by status"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            <ChevronDown size={14} style={styles.selectArrow} />
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              style={styles.resetButton}
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </div>
 
 
       {/* ────────────────────────────────────────────────
@@ -874,9 +1091,11 @@ const InchargesList = () => {
                 <button
                   type="submit"
                   style={styles.primaryButton}
+                  disabled={isSubmitting}
                 >
-                  Save Incharge Details
+                  {isSubmitting ? 'Saving Changes...' : 'Save Incharge Details'}
                 </button>
+
               </div>
             </form>
           </div>
@@ -1121,9 +1340,11 @@ const InchargesList = () => {
                 <button
                   type="submit"
                   style={styles.primaryButton}
+                  disabled={isSubmitting}
                 >
-                  Create Incharge Record
+                  {isSubmitting ? 'Saving to Database...' : 'Create Incharge Record'}
                 </button>
+
               </div>
             </form>
           </div>

@@ -1,8 +1,28 @@
 import React from 'react';
 import { X, Scale, User, MapPin, Calendar, TrendingUp, Activity, CheckCircle2 } from 'lucide-react';
 
-const HarvestReportModal = ({ tank, onClose }) => {
+const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
   if (!tank) return null;
+
+  const tankHarvests = (harvests || []).filter(h => String(h.tankId) === String(tank.id));
+
+  const totalBiomassKg = tankHarvests.reduce((acc, h) => acc + (Number(h.quantityKg) || 0), 0)
+    || Number(String(tank.biomass || 0).replace(/[^0-9.]/g, '')) || 0;
+
+  const totalPieces = tankHarvests.reduce((acc, h) => {
+    const qty = Number(h.quantityKg) || 0;
+    const cnt = Number(h.countPerKg) || 0;
+    return acc + (qty && cnt ? Math.round(qty * cnt) : 0);
+  }, 0);
+
+  const totalFeedKg = tankHarvests.reduce((acc, h) => {
+    if (h.feedConsumed) return acc + Number(h.feedConsumed);
+    const qty = Number(h.quantityKg) || 0;
+    const fcr = Number(h.fcr) || 0;
+    return acc + (qty && fcr ? Math.round(qty * fcr) : 0);
+  }, 0);
+
+  const stageCount = tankHarvests.length;
 
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
@@ -24,13 +44,17 @@ const HarvestReportModal = ({ tank, onClose }) => {
                 </span>
               </div>
               <div style={styles.metaInfo}>
-                <span style={styles.metaItem}><User size={13} /> Farmer: <strong>{tank.farmer || 'Unknown Farmer'}</strong></span>
+                <span style={styles.metaItem}><User size={13} /> Farmer: <strong>{tank.farmer || tank.farmerName || 'Unknown Farmer'}</strong></span>
                 <span style={styles.metaDot}>•</span>
                 <span style={styles.metaItem}><MapPin size={13} /> {tank.location || 'Unknown Location'}</span>
                 <span style={styles.metaDot}>•</span>
-                <span style={styles.metaItem}>Extent: {tank.extent || 'Unknown Extent'}</span>
-                <span style={styles.metaDot}>•</span>
-                <span style={styles.metaItem}><Calendar size={13} /> Stocked: {tank.stockedDate || '20 Jun 2026'}</span>
+                <span style={styles.metaItem}>Extent: {tank.extent || tank.size || 'Unknown Extent'}</span>
+                {tank.stockedDate && (
+                  <>
+                    <span style={styles.metaDot}>•</span>
+                    <span style={styles.metaItem}><Calendar size={13} /> Stocked: {tank.stockedDate}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -47,9 +71,9 @@ const HarvestReportModal = ({ tank, onClose }) => {
               <Scale size={16} color="#2563EB" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#2563EB' }}>{tank.biomass?.replace('kg', '') || '0'}</span> kg
+              <span style={{ color: '#2563EB' }}>{Math.round(totalBiomassKg).toLocaleString()}</span> kg
             </div>
-            <div style={styles.kpiSub}>3 Partial Cuts Realized</div>
+            <div style={styles.kpiSub}>{stageCount > 0 ? `${stageCount} Cut${stageCount !== 1 ? 's' : ''} Realized` : 'Total Pond Biomass'}</div>
           </div>
 
           <div style={styles.kpiCard}>
@@ -58,9 +82,9 @@ const HarvestReportModal = ({ tank, onClose }) => {
               <Activity size={16} color="#0284C7" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#0284C7' }}>1,35,000</span> pcs
+              <span style={{ color: '#0284C7' }}>{totalPieces > 0 ? totalPieces.toLocaleString() : '-'}</span> {totalPieces > 0 ? 'pcs' : ''}
             </div>
-            <div style={styles.kpiSub}>Final pond count yield</div>
+            <div style={styles.kpiSub}>Calculated piece count</div>
           </div>
 
           <div style={styles.kpiCard}>
@@ -69,9 +93,9 @@ const HarvestReportModal = ({ tank, onClose }) => {
               <TrendingUp size={16} color="#16A34A" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#16A34A' }}>{tank.fcr || '1.17'}</span>
+              <span style={{ color: '#16A34A' }}>{tank.fcr || (tankHarvests.find(h => h.fcr)?.fcr) || '-'}</span>
             </div>
-            <div style={styles.kpiSub}>Final verified cycle FCR</div>
+            <div style={styles.kpiSub}>Cycle FCR</div>
           </div>
 
           <div style={styles.kpiCard}>
@@ -80,9 +104,9 @@ const HarvestReportModal = ({ tank, onClose }) => {
               <Activity size={16} color="#9333EA" />
             </div>
             <div style={styles.kpiValue}>
-              <span style={{ color: '#9333EA' }}>90.0%</span>
+              <span style={{ color: '#9333EA' }}>{tank.survivalRate || '-'}</span>
             </div>
-            <div style={styles.kpiSub}>Stocked: 1,50,000 PL</div>
+            <div style={styles.kpiSub}>{tank.stockingDensity ? `Density: ${tank.stockingDensity}` : 'Cycle Status'}</div>
           </div>
         </div>
 
@@ -111,109 +135,75 @@ const HarvestReportModal = ({ tank, onClose }) => {
                 </tr>
               </thead>
               <tbody>
-                {/* Row 1 */}
-                <tr style={styles.tableRow}>
-                  <td style={styles.td}>
-                    <span style={styles.badgePartial}>Partial Cut #1</span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.fw600}>10 Jul 2026</div>
-                    <div style={styles.textGray}>Day 58 DOC</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#16A34A' }}>16.5g</div>
-                    <div style={styles.textGray}>~61 Count / kg</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#2563EB' }}>45,000 pcs</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#0F172A' }}>742 kg</div>
-                    <div style={styles.textGray}>(22% of cycle)</div>
-                  </td>
-                  <td style={styles.td}>853 kg</td>
-                  <td style={styles.td}><span style={styles.fcrBadge}>1.15</span></td>
-                  <td style={styles.td}>
-                    <div style={styles.fw700}>Royals Marine Export Unit 1</div>
-                  </td>
-                </tr>
+                {tankHarvests.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '14px' }}>
+                      No individual harvest weighment logs recorded for this tank.
+                    </td>
+                  </tr>
+                ) : (
+                  tankHarvests.map((h, idx) => {
+                    const stageName = h.harvestType || (h.isFinal ? 'Final Harvest' : `Harvest Stage #${idx + 1}`);
+                    const isFinalStage = String(stageName).toLowerCase().includes('final');
+                    const pcs = h.quantityKg && h.countPerKg ? Math.round(h.quantityKg * h.countPerKg) : null;
+                    const feedKg = h.feedConsumed ? h.feedConsumed : (h.quantityKg && h.fcr ? Math.round(h.quantityKg * Number(h.fcr)) : null);
+                    const displayAbw = h.abw ? (String(h.abw).includes('g') ? h.abw : `${h.abw}g`) : (h.countPerKg ? `${(1000 / h.countPerKg).toFixed(1)}g` : '-');
 
-                {/* Row 2 */}
-                <tr style={styles.tableRow}>
-                  <td style={styles.td}>
-                    <span style={styles.badgePartial}>Partial Cut #2</span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.fw600}>05 Aug 2026</div>
-                    <div style={styles.textGray}>Day 84 DOC</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#16A34A' }}>24.0g</div>
-                    <div style={styles.textGray}>~42 Count / kg</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#2563EB' }}>42,000 pcs</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#0F172A' }}>1,008 kg</div>
-                    <div style={styles.textGray}>(30% of cycle)</div>
-                  </td>
-                  <td style={styles.td}>1,189 kg</td>
-                  <td style={styles.td}><span style={styles.fcrBadge}>1.18</span></td>
-                  <td style={styles.td}>
-                    <div style={styles.fw700}>Coastal Sea Foods Ltd</div>
-                  </td>
-                </tr>
-
-                {/* Row 3 */}
-                <tr style={styles.tableRow}>
-                  <td style={styles.td}>
-                    <span style={styles.badgeFinal}>Final Harvest</span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.fw600}>24 Aug 2026</div>
-                    <div style={styles.textGray}>Day 115 DOC</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#16A34A' }}>33.5g</div>
-                    <div style={styles.textGray}>~30 Count / kg</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#2563EB' }}>48,000 pcs</div>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={{ ...styles.fw700, color: '#0F172A' }}>1,608 kg</div>
-                    <div style={styles.textGray}>(48% of cycle)</div>
-                  </td>
-                  <td style={styles.td}>1,913 kg</td>
-                  <td style={styles.td}><span style={styles.fcrBadge}>1.19</span></td>
-                  <td style={styles.td}>
-                    <div style={styles.fw700}>Royals Marine Food Exports</div>
-                  </td>
-                </tr>
+                    return (
+                      <tr key={h.id || idx} style={styles.tableRow}>
+                        <td style={styles.td}>
+                          <span style={isFinalStage ? styles.badgeFinal : styles.badgePartial}>{stageName}</span>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.fw600}>{h.date || '-'}</div>
+                          {h.doc != null && <div style={styles.textGray}>Day {h.doc} DOC</div>}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ ...styles.fw700, color: '#16A34A' }}>{displayAbw}</div>
+                          {h.countPerKg ? <div style={styles.textGray}>~{h.countPerKg} Count / kg</div> : null}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ ...styles.fw700, color: '#2563EB' }}>{pcs ? `${pcs.toLocaleString()} pcs` : '-'}</div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ ...styles.fw700, color: '#0F172A' }}>{h.quantityKg ? `${Number(h.quantityKg).toLocaleString()} kg` : '-'}</div>
+                        </td>
+                        <td style={styles.td}>{feedKg ? `${Number(feedKg).toLocaleString()} kg` : '-'}</td>
+                        <td style={styles.td}><span style={styles.fcrBadge}>{h.fcr ? Number(h.fcr).toFixed(2) : '-'}</span></td>
+                        <td style={styles.td}>
+                          <div style={styles.fw700}>{h.buyerName || 'Exporter'}</div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
-              <tfoot>
-                <tr style={styles.tfootRow}>
-                  <td colSpan="3" style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
-                    TOTAL HARVESTED CROP:
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <div style={{ ...styles.fw700, color: '#2563EB', fontSize: '13px' }}>1,35,000 pcs</div>
-                  </td>
-                  <td style={{ ...styles.fw700, color: '#0F172A', fontSize: '13px', padding: '12px 14px' }}>
-                    {tank.biomass || '3,358 kg'}
-                  </td>
-                  <td style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
-                    3,955 kg
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <span style={styles.fcrTotalBadge}>{tank.fcr || '1.17'} FCR</span>
-                  </td>
-                  <td style={{ color: '#94A3B8', padding: '12px 14px' }}>
-                    —
-                  </td>
-                </tr>
-              </tfoot>
+              {tankHarvests.length > 0 && (
+                <tfoot>
+                  <tr style={styles.tfootRow}>
+                    <td colSpan="3" style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
+                      TOTAL HARVESTED CROP:
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ ...styles.fw700, color: '#2563EB', fontSize: '13px' }}>
+                        {totalPieces > 0 ? `${totalPieces.toLocaleString()} pcs` : '-'}
+                      </div>
+                    </td>
+                    <td style={{ ...styles.fw700, color: '#0F172A', fontSize: '13px', padding: '12px 14px' }}>
+                      {totalBiomassKg > 0 ? `${Math.round(totalBiomassKg).toLocaleString()} kg` : '-'}
+                    </td>
+                    <td style={{ ...styles.fw700, fontSize: '13px', padding: '12px 14px' }}>
+                      {totalFeedKg > 0 ? `${Math.round(totalFeedKg).toLocaleString()} kg` : '-'}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={styles.fcrTotalBadge}>{tank.fcr || '-'} FCR</span>
+                    </td>
+                    <td style={{ color: '#94A3B8', padding: '12px 14px' }}>
+                      —
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>

@@ -27,7 +27,7 @@ const AgentDashboard = () => {
   const agentId = session?.agentId || session?.id || 'agent001';
 
   // Farmers assigned to this technician
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
   const allTanks = db?.tanks || [];
   const assignedTanks = allTanks.filter(t => 
     t.agentId === agentId || 
@@ -35,8 +35,8 @@ const AgentDashboard = () => {
     assignedFarmers.some(f => f.id === t.farmerId || f.id === t.farmer_id)
   );
 
-  // Active tanks for dashboard and map (fallback to first available tanks if unassigned)
-  const activeTanksForMap = assignedTanks.length > 0 ? assignedTanks : allTanks.slice(0, 8);
+  // Active tanks for dashboard and map: strictly assigned tanks
+  const activeTanksForMap = assignedTanks;
 
   // Compute weekly routine due & overdue status for all assigned tanks
   const tanksWithDueInfo = activeTanksForMap.map((tank, idx) => {
@@ -66,7 +66,7 @@ const AgentDashboard = () => {
   const recentRecords = technicianSubmissions.slice(0, 3);
 
   // Nearby Tank Map Coordinates (Strictly mapped from actual assigned tanks with exact GPS coordinates)
-  const mapTanks = activeTanksForMap.map((tank, idx) => {
+  const mapTanks = activeTanksForMap.map((tank) => {
     const farmer = (db?.farmers || []).find(f => f.id === tank.farmerId || f.id === tank.farmer_id);
     const lat = (tank.latitude != null && !isNaN(Number(tank.latitude))) 
       ? Number(tank.latitude) 
@@ -75,24 +75,27 @@ const AgentDashboard = () => {
       ? Number(tank.longitude) 
       : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
 
-    // Dynamic real distance calculation from current GPS beacon
+    // Dynamic real distance calculation from current GPS beacon (only if live GPS and tank coords exist)
     let distanceStr = '';
     if (gps?.latitude && gps?.longitude && lat && lng) {
       const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
       distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
-    } else {
-      distanceStr = `${(idx + 1) * 350}m away`;
     }
 
     return {
       id: tank.id,
       name: tank.name,
       farmer: farmer?.name || tank.farmerName || 'Farmer',
+      farmerId: farmer?.id || tank.farmerId || tank.farmer_id,
       latitude: lat,
       longitude: lng,
+      boundaryCoordinates: tank.boundaryCoordinates || tank.boundary_coordinates,
+      boundaryMethod: tank.boundaryMethod || tank.boundary_method,
+      boundaryAreaAcres: tank.boundaryAreaAcres || tank.boundary_area_acres,
       location: tank.location || farmer?.location || farmer?.village || 'Aquaculture Zone',
+      locality: farmer?.village || farmer?.location || tank.location || 'Aquaculture Zone',
       distance: distanceStr,
-      status: tank.testStatus || 'Optimal',
+      status: tank.testStatus || tank.status || 'Optimal',
       due: tank.testStatus === 'Due' || tank.testStatus === 'Overdue' || tank.isDue,
       species: tank.species || 'Vannamei',
       size: tank.size || (tank.acres ? `${tank.acres} Acres` : '1.5 Acres'),
@@ -241,6 +244,8 @@ const AgentDashboard = () => {
             tanks={mapTanks}
             selectedTank={selectedMapTank}
             onSelectTank={(tank) => setSelectedMapTank(tank)}
+            onRecordTank={(tank) => handleOpenRecordForTank(tank)}
+            onViewDetails={(tank) => navigate(`/tanks/${tank.id}`)}
           />
 
           {/* Selected Tank Quick-Action Drawer */}
@@ -254,7 +259,7 @@ const AgentDashboard = () => {
                   </span>
                 </div>
                 <div style={styles.drawerSub}>
-                  {selectedMapTank.farmer} • {selectedMapTank.distance}
+                  {selectedMapTank.farmer} {selectedMapTank.distance ? `• ${selectedMapTank.distance}` : ''}
                   {selectedMapTank.latitude && selectedMapTank.longitude && (
                     <span style={{ marginLeft: '6px', fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
                       • {Number(selectedMapTank.latitude).toFixed(5)}°N, {Number(selectedMapTank.longitude).toFixed(5)}°E

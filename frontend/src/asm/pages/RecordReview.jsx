@@ -36,15 +36,17 @@ const RecordReview = () => {
         tank: tankName,
         testType: s.testType || s.recordType || 'Water Quality Analysis',
         date: s.date || 'Today',
-        time: s.time || '10:30 AM',
+        time: s.time || s.submissionTime || '10:30 AM',
         agent: agentName,
         agentId: s.agentId || 'A001',
         submitted: s.submittedAgo || '15 mins ago',
         status: s.status || 'PENDING_VERIFICATION',
-        gpsLocality: s.locality || s.gps?.locality || farmerLocationName || 'Bhimavaram Cluster',
+        gpsLocality: s.locality || s.gps?.locality || 'Bhimavaram Cluster',
         gpsAccuracy: s.gpsAccuracy || s.gps?.accuracy || 8,
         latitude: s.latitude != null ? Number(s.latitude) : (s.gps?.latitude != null ? Number(s.gps.latitude) : (s.gps?.lat != null ? Number(s.gps.lat) : 16.5449)),
         longitude: s.longitude != null ? Number(s.longitude) : (s.gps?.longitude != null ? Number(s.gps.longitude) : (s.gps?.lng != null ? Number(s.gps.lng) : 81.5212)),
+        data: s.data || s.formData?.water || s.formData || {},
+        raw: s
       });
     }
   }, [id, db, getFarmerById, getTankById, getAgentById]);
@@ -84,16 +86,116 @@ const RecordReview = () => {
     navigate(`${base}/tests`);
   };
 
-  const parameterItems = [
-    { label: 'Dissolved Oxygen (DO)', value: '6.5 mg/L', ideal: '5.0 - 8.0 mg/L', status: 'optimal' },
-    { label: 'Water pH Level', value: '7.8 pH', ideal: '7.5 - 8.5 pH', status: 'optimal' },
-    { label: 'Salinity', value: '14 ppt', ideal: '10 - 25 ppt', status: 'optimal' },
-    { label: 'Total Alkalinity', value: '130 mg/L', ideal: '100 - 150 mg/L', status: 'optimal' },
-    { label: 'Total Hardness', value: '310 mg/L', ideal: '250 - 400 mg/L', status: 'optimal' },
-    { label: 'Ammonia (NH3-N)', value: '0.08 mg/L', ideal: '< 0.1 mg/L', status: 'optimal' },
-    { label: 'Nitrite (NO2-N)', value: '0.04 mg/L', ideal: '< 0.05 mg/L', status: 'optimal' },
-    { label: 'Water Temperature', value: '29.2 °C', ideal: '28 - 32 °C', status: 'optimal' },
-  ];
+  const d = record.data || {};
+  const isWaterTest = record.testType === 'Water Analysis' || record.testType === 'Water Quality Analysis' || record.testType === 'Water Quality Test' || !!d.ph || !!d.salinity || !!d.alkalinity;
+
+  const buildWaterParameterItems = () => {
+    if (!isWaterTest) {
+      return [
+        { label: 'Dissolved Oxygen (DO)', value: d.do ? `${d.do} mg/L` : '6.5 mg/L', ideal: '> 4.0 mg/L', status: parseFloat(d.do) < 4 ? 'warning' : 'optimal' },
+        { label: 'Water pH Level', value: d.ph ? `${d.ph} pH` : '7.8 pH', ideal: '7.5 - 8.5 pH', status: (parseFloat(d.ph) < 7.5 || parseFloat(d.ph) > 8.5) ? 'warning' : 'optimal' },
+        { label: 'Salinity', value: d.salinity ? `${d.salinity} ppt` : '14 ppt', ideal: '0 - 30 ppt', status: (parseFloat(d.salinity) < 0 || parseFloat(d.salinity) > 30) ? 'warning' : 'optimal' },
+        { label: 'Total Alkalinity', value: d.alkalinity ? `${d.alkalinity} ppm` : '130 ppm', ideal: '100 - 300 ppm', status: (parseFloat(d.alkalinity) < 100 || parseFloat(d.alkalinity) > 300) ? 'warning' : 'optimal' },
+        { label: 'Total Hardness', value: d.hardness ? `${d.hardness} ppm` : '310 ppm', ideal: 'Salinity × 300 ppm', status: 'optimal' },
+        { label: 'Ammonia (NH3)', value: d.ammonia ? `${d.ammonia} ppm` : '0.08 ppm', ideal: '< 0.5 ppm', status: parseFloat(d.ammonia) > 0.5 ? 'warning' : 'optimal' },
+        { label: d.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)', value: d.nitrate ? `${d.nitrate} ppm` : (d.nitrite ? `${d.nitrite} ppm` : '0.04 ppm'), ideal: d.nitrate ? '< 20 ppm' : '< 0.25 ppm', status: (d.nitrate ? parseFloat(d.nitrate) > 20 : parseFloat(d.nitrite) > 0.25) ? 'warning' : 'optimal' },
+        { label: 'Water Temperature', value: d.temperature ? `${d.temperature} °C` : '29.2 °C', ideal: '28 - 32 °C', status: 'optimal' },
+      ];
+    }
+
+    const salVal = d.salinity !== undefined && d.salinity !== '' ? parseFloat(d.salinity) : null;
+    const phVal = d.ph !== undefined && d.ph !== '' ? parseFloat(d.ph) : null;
+    const alkVal = d.alkalinity !== undefined && d.alkalinity !== '' ? parseFloat(d.alkalinity) : null;
+    const doVal = d.do !== undefined && d.do !== '' ? parseFloat(d.do) : null;
+    const nh3Val = d.ammonia !== undefined && d.ammonia !== '' ? parseFloat(d.ammonia) : null;
+    const no2Val = d.nitrite !== undefined && d.nitrite !== '' ? parseFloat(d.nitrite) : null;
+    const h2sVal = d.h2s !== undefined && d.h2s !== '' ? parseFloat(d.h2s) : null;
+    const clVal = (d.cl ?? d.chlorine) !== undefined && (d.cl ?? d.chlorine) !== '' ? parseFloat(d.cl ?? d.chlorine) : null;
+    const feVal = (d.fe ?? d.iron) !== undefined && (d.fe ?? d.iron) !== '' ? parseFloat(d.fe ?? d.iron) : null;
+
+    return [
+      {
+        label: 'DOC (Day of Culture)',
+        value: d.doc ? `Day ${d.doc}` : 'Not Specified',
+        ideal: 'Cycle Tracking',
+        status: 'optimal'
+      },
+      {
+        label: 'Salinity',
+        value: salVal !== null ? `${salVal} ppt` : (d.salinity || '14 ppt'),
+        ideal: '0 - 30 ppt',
+        status: salVal !== null && (salVal < 0 || salVal > 30) ? 'warning' : 'optimal'
+      },
+      {
+        label: 'pH Level',
+        value: phVal !== null ? `${phVal}` : (d.ph || '7.8'),
+        ideal: '7.5 - 8.5',
+        status: phVal !== null && (phVal < 7.5 || phVal > 8.5) ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Alkalinity',
+        value: alkVal !== null ? `${alkVal} ppm` : (d.alkalinity ? `${d.alkalinity} ppm` : '130 ppm'),
+        ideal: '100 - 300 ppm',
+        status: alkVal !== null && (alkVal < 100 || alkVal > 300) ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Hardness',
+        value: d.hardness ? `${d.hardness} ppm` : (salVal !== null ? `${Math.round(salVal * 300)} ppm` : '4200 ppm'),
+        ideal: 'Salinity × 300 ppm',
+        status: 'optimal'
+      },
+      {
+        label: 'Potassium (K)',
+        value: d.k ? `${d.k} ppm` : (salVal !== null ? `${(salVal * 10.7).toFixed(1)} ppm` : '149.8 ppm'),
+        ideal: 'Salinity × 10.7 ppm',
+        status: 'optimal'
+      },
+      {
+        label: 'Dissolved Oxygen (DO)',
+        value: doVal !== null ? `${doVal} mg/L` : (d.do ? `${d.do} mg/L` : '6.5 mg/L'),
+        ideal: '> 4.0 mg/L (<4 Alert)',
+        status: doVal !== null && doVal < 4.0 ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Ammonia (NH3)',
+        value: nh3Val !== null ? `${nh3Val} ppm` : (d.ammonia ? `${d.ammonia} ppm` : '0.05 ppm'),
+        ideal: '0 - 0.5 ppm (<0.5 Alert)',
+        status: nh3Val !== null && nh3Val > 0.5 ? 'warning' : 'optimal'
+      },
+      {
+        label: d.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)',
+        value: (d.nitrate !== undefined && d.nitrate !== '') ? `${d.nitrate} ppm` : (no2Val !== null ? `${no2Val} ppm` : (d.nitrite ? `${d.nitrite} ppm` : '0.02 ppm')),
+        ideal: d.nitrate ? '< 20 ppm' : '0 - 0.25 ppm (<0.25 Alert)',
+        status: d.nitrate ? (parseFloat(d.nitrate) > 20 ? 'warning' : 'optimal') : (no2Val !== null && no2Val > 0.25 ? 'warning' : 'optimal')
+      },
+      {
+        label: 'Hydrogen Sulfide (H2S)',
+        value: h2sVal !== null ? `${h2sVal} ppm` : (d.h2s ? `${d.h2s} ppm` : '0.005 ppm'),
+        ideal: '0 - 0.02 ppm (<0.02 Alert)',
+        status: h2sVal !== null && h2sVal > 0.02 ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Chlorine (Cl)',
+        value: clVal !== null ? `${clVal} ppm` : ((d.cl || d.chlorine) ? `${d.cl || d.chlorine} ppm` : '0.004 ppm'),
+        ideal: '0 - 0.02 ppm (<0.02 Alert)',
+        status: clVal !== null && clVal > 0.02 ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Iron (Fe)',
+        value: feVal !== null ? `${feVal} ppm` : ((d.fe || d.iron) ? `${d.fe || d.iron} ppm` : '0.01 ppm'),
+        ideal: '0 - 0.02 ppm',
+        status: feVal !== null && feVal > 0.02 ? 'warning' : 'optimal'
+      },
+      {
+        label: 'Water Color',
+        value: d.waterColor || d.waterColour || 'Greenish',
+        ideal: 'Algae / Bloom Condition',
+        status: 'optimal'
+      }
+    ];
+  };
+
+  const parameterItems = buildWaterParameterItems();
 
   return (
     <>
@@ -151,7 +253,9 @@ const RecordReview = () => {
                         <td style={styles.paramTdValue}>{item.value}</td>
                         <td style={styles.paramTdIdeal}>{item.ideal}</td>
                         <td style={styles.paramTdStatus}>
-                          <span style={styles.optimalBadge}>Optimal</span>
+                          <span style={item.status === 'warning' ? styles.warningBadge : styles.optimalBadge}>
+                            {item.status === 'warning' ? 'Alert' : 'Optimal'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -315,6 +419,65 @@ const styles = {
     fontWeight: '800',
     padding: '3px 8px',
     borderRadius: '6px',
+  },
+  paramTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '13px',
+  },
+  paramThRow: {
+    backgroundColor: '#F8FAFC',
+    borderBottom: '1px solid #E2E8F0',
+  },
+  paramTh: {
+    padding: '10px 14px',
+    textAlign: 'left',
+    fontSize: '11.5px',
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  },
+  paramTr: {
+    borderBottom: '1px solid #F1F5F9',
+  },
+  paramTdLabel: {
+    padding: '11px 14px',
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  paramTdValue: {
+    padding: '11px 14px',
+    fontWeight: '800',
+    color: '#1A2FB8',
+  },
+  paramTdIdeal: {
+    padding: '11px 14px',
+    color: '#64748B',
+    fontSize: '12px',
+  },
+  paramTdStatus: {
+    padding: '11px 14px',
+  },
+  optimalBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 9px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: '700',
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+  },
+  warningBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 9px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: '700',
+    backgroundColor: '#FEE2E2',
+    color: '#DC2626',
   },
   paramBox: {
     backgroundColor: '#F8FAFC',

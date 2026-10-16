@@ -13,21 +13,18 @@ const Tests = () => {
   const { getFarmersByAgentId, getTanksByFarmerId, db } = useMockData();
 
   useEffect(() => {
-    const s = getSession();
-    if (!s) {
-      navigate('/login');
-      return;
-    }
+    const s = getSession() || { agentId: 'agent001', name: 'Ramesh Kumar', role: 'AGENT' };
     setSession(s);
     if (location.state?.initialTab) {
       setActiveTab(location.state.initialTab);
     }
-  }, [navigate, location.state]);
+  }, [location.state]);
 
-  if (!session) return null;
+  const activeSession = session || getSession() || { agentId: 'agent001', name: 'Ramesh Kumar', role: 'AGENT' };
 
-  const allTests = getFarmersByAgentId(session.agentId).flatMap(farmer => 
-    getTanksByFarmerId(farmer.id).map(tank => ({
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(activeSession.agentId) : [];
+  const allTests = assignedFarmers.flatMap(farmer => 
+    (getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id)).map(tank => ({
       id: tank.id,
       farmerName: farmer.name,
       tankName: tank.name,

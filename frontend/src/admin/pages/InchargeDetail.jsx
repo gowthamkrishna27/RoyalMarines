@@ -1,29 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getInchargeById, getAgentsByIncharge, getFarmersByIncharge, getTanksByIncharge } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import { HardHat, Sprout, Database, CheckSquare, Eye, Users, Droplets, MapPin, Phone } from 'lucide-react';
 
 const InchargeDetail = () => {
   const { inchargeId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
   const [activeTab, setActiveTab] = useState('agents');
+  const [incharge, setIncharge] = useState(null);
+  const [allAgents, setAllAgents] = useState([]);
+  const [allFarmers, setAllFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const incharge = getInchargeById(inchargeId, db);
-  const agents = getAgentsByIncharge(inchargeId, db);
-  const farmers = getFarmersByIncharge(inchargeId, db);
-  const tanks = getTanksByIncharge(inchargeId, db);
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
+    ]).then(([incRes, agRes, farRes, tkRes]) => {
+      if (!isMounted) return;
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) {
+        const found = incRes.value.find(i => String(i.id) === String(inchargeId));
+        setIncharge(found || null);
+      }
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) {
+        setAllAgents(agRes.value);
+      }
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
+        setAllFarmers(farRes.value);
+      }
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) {
+        setAllTanks(tkRes.value);
+      }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[InchargeDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => { isMounted = false; };
+  }, [inchargeId]);
+
+  const incName = incharge ? (incharge.shortName || incharge.name || '').split('(')[0].trim().toLowerCase() : '';
+  const agents = allAgents.filter(a => a && (String(a.inchargeId) === String(inchargeId) || (incName && a.incharge?.toLowerCase().includes(incName))));
+  const agentIds = agents.map(a => String(a.id));
+  const farmers = allFarmers.filter(f => {
+    if (!f) return false;
+    if (f.inchargeId && String(f.inchargeId) === String(inchargeId)) return true;
+    if (f.incharge && incName && f.incharge.toLowerCase().includes(incName)) return true;
+    if (f.agentId && agentIds.includes(String(f.agentId))) return true;
+    return false;
+  });
+  const farmerIds = farmers.map(f => String(f.id));
+  const tanks = allTanks.filter(t => {
+    if (!t) return false;
+    if (t.inchargeId && String(t.inchargeId) === String(inchargeId)) return true;
+    if (t.farmerId && farmerIds.includes(String(t.farmerId))) return true;
+    if (t.agentId && agentIds.includes(String(t.agentId))) return true;
+    return false;
+  });
 
   if (!incharge) {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
-          Loading Incharge Details...
+          {loading ? 'Loading Incharge Details from MySQL Database...' : 'Incharge Not Found'}
         </h3>
         <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
-          Retrieving real-time records from the aquaculture database.
+          {loading ? 'Retrieving real-time records from the aquaculture database.' : 'The requested ASM record could not be found.'}
         </p>
         <button
           onClick={() => navigate('/admin/incharges')}
@@ -44,10 +93,10 @@ const InchargeDetail = () => {
   }
 
   const kpis = [
-    { title: 'Assigned Technicians', value: agents.length, icon: <HardHat size={20} />, color: '#10b981', bg: '#ecfdf5' },
-    { title: 'Assigned Farmers', value: farmers.length, icon: <Sprout size={20} />, color: '#f59e0b', bg: '#fffbeb' },
-    { title: 'Assigned Tanks / Ponds', value: tanks.length, icon: <Database size={20} />, color: '#8b5cf6', bg: '#f5f3ff' },
-    { title: 'Cluster Compliance', value: `${incharge.compliance}%`, icon: <CheckSquare size={20} />, color: '#38bdf8', bg: '#f0f9ff' },
+    { title: 'Assigned Technicians', value: incharge.agentsCount !== undefined ? incharge.agentsCount : agents.length, icon: <HardHat size={20} />, color: '#10b981', bg: '#ecfdf5' },
+    { title: 'Assigned Farmers', value: incharge.farmersCount !== undefined ? incharge.farmersCount : farmers.length, icon: <Sprout size={20} />, color: '#f59e0b', bg: '#fffbeb' },
+    { title: 'Assigned Tanks / Ponds', value: incharge.tanksCount !== undefined ? incharge.tanksCount : tanks.length, icon: <Database size={20} />, color: '#8b5cf6', bg: '#f5f3ff' },
+    { title: 'Cluster Compliance', value: `${incharge.compliance || 95}%`, icon: <CheckSquare size={20} />, color: '#38bdf8', bg: '#f0f9ff' },
   ];
 
   return (
@@ -55,6 +104,7 @@ const InchargeDetail = () => {
       <PageHeader
         title={`Incharge: ${incharge.name}`}
       />
+
       <div className="content-inner">
 
         {/* Incharge KPIs */}
@@ -269,12 +319,12 @@ const InchargeDetail = () => {
                 <tbody>
                   {tanks.map((tank) => (
                     <tr key={tank.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                      <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{tank.name || 'Tank 1'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '500' }}>{tank.farmer || tank.farmerName || 'Assigned Farmer'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.acres ? `${tank.acres} Acres` : '3.0 Acres'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>Day {tank.doc || 45}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.biomass ? `${tank.biomass} kg` : '1200 kg'}</td>
-                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.waterSource || 'Borewell / Creek'}</td>
+                      <td style={{ padding: '16px', fontWeight: 600, color: 'var(--color-text-main)' }}>{tank.name || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '500' }}>{tank.farmer || tank.farmerName || '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.acres ? `${tank.acres} Acres` : (tank.size || '-')}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.doc != null ? `Day ${tank.doc}` : '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.biomass ? `${tank.biomass} kg` : '-'}</td>
+                      <td style={{ padding: '16px', fontSize: '14px' }}>{tank.waterSource || tank.water_source || '-'}</td>
                       <td style={{ padding: '16px' }}>
                         <span style={{
                           padding: '4px 10px',

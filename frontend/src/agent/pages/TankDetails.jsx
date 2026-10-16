@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2, 
-  Scale, Wheat, Fish, Activity, TrendingUp, Droplets, 
-  Skull, Pill, ClipboardList, Camera, Clock, Lock, 
-  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck
+import {
+  ArrowLeft, Plus, Phone, MapPin, User, CheckCircle2,
+  Scale, Wheat, Fish, Activity, TrendingUp, Droplets,
+  Skull, Pill, ClipboardList, Camera, Clock, Lock,
+  X, Info, Sparkles, FileText, ChevronRight, Layers, ShieldCheck, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
 import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
 import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
+import { getSession } from '../utils/agentAuth';
+import { getInchargeSession } from '../../asm/utils/inchargeAuth';
+import MarineLoader from '../../components/MarineLoader';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -20,7 +23,7 @@ const TABS = [
   { id: 'OVERVIEW', label: 'Overview', icon: Layers },
   { id: 'WATER', label: 'Water', icon: Droplets },
   { id: 'FEED', label: 'Feed', icon: Wheat },
-  { id: 'BIOMASS', label: 'Biomass', icon: Fish },
+  { id: 'DISEASE', label: 'Disease', icon: Bug },
   { id: 'MEDICATION', label: 'Medication', icon: Pill },
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
   { id: 'ACTIVITY', label: 'Activity', icon: ClipboardList },
@@ -32,12 +35,27 @@ const TankDetails = () => {
   const { tankId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isIncharge = location.pathname.startsWith('/incharge');
-  const { getTankById, getFarmerById, db } = useMockData();
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (location.pathname.startsWith('/asm')) {
+      navigate('/asm/farmers');
+    } else if (location.pathname.startsWith('/incharge')) {
+      navigate('/incharge/my-tanks');
+    } else {
+      navigate('/farmers');
+    }
+  };
+
+  const { getTankById, getFarmerById, db, editTank } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isHarvestModalOpen, setIsHarvestModalOpen] = useState(false);
   const [isTakeHarvestModalOpen, setIsTakeHarvestModalOpen] = useState(false);
+  const [isHarvestTypeChoiceOpen, setIsHarvestTypeChoiceOpen] = useState(false);
+  const [selectedHarvestType, setSelectedHarvestType] = useState('Partial Harvest');
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
   const [selectedReadRecord, setSelectedReadRecord] = useState(null);
   const [harvestStore, setHarvestStore] = useState(() => {
@@ -52,35 +70,29 @@ const TankDetails = () => {
   const stateTank = location.state?.tank;
   const stateFarmer = location.state?.farmer;
 
-  const resolvedTank = (getTankById ? getTankById(tankId) : null) || 
-    db?.tanks?.find(t => t.id === tankId || String(t.id).toLowerCase() === String(tankId).toLowerCase() || t.name === tankId) || 
-    stateTank || {
-      id: tankId || 'T1',
-      name: tankId && tankId.startsWith('T') ? `Tank ${tankId.replace('T', '')}` : (tankId || 'Tank 1'),
-      species: 'Vannamei (Shrimp)',
-      acres: '11',
-      area: '11',
-      farmerId: stateFarmer?.id || '',
-      status: 'Active',
-      seedStocked: 95000,
-      stockingDate: '2026-06-20',
-      waterSource: 'Canal',
-      salinity: '14 ppt',
-      soilType: 'Clay Loam'
-    };
+  const rawTank = (getTankById ? getTankById(tankId) : null) ||
+    db?.tanks?.find(t => {
+      const tId = String(t.id || '').toLowerCase();
+      const target = String(tankId || '').toLowerCase();
+      return tId === target || tId.replace(/^t0*/, '') === target.replace(/^t0*/, '') || t.name === tankId;
+    }) ||
+    stateTank;
 
-  const tank = resolvedTank;
-  const farmer = stateFarmer || (tank?.farmerId ? ((getFarmerById ? getFarmerById(tank.farmerId) : null) || db?.farmers?.find(f => f.id === tank.farmerId)) : null) || {
-    id: 'F1',
-    name: tank.farmerName || 'Farmer',
-    phone: '+91 9876543231',
-    location: 'Chinnamiram East',
-    assignedAgent: 'Ramesh'
-  };
+  const rawFarmer = stateFarmer || (rawTank?.farmerId ? ((getFarmerById ? getFarmerById(rawTank.farmerId) : null) || db?.farmers?.find(f => f.id === rawTank.farmerId || String(f.id) === String(rawTank.farmerId))) : null);
+
+  // Authorization check: Agent can only view tanks belonging to his assigned farmers; ASM/Incharge can view all tanks
+  const agentSession = getSession ? getSession() : null;
+  const inchargeSession = getInchargeSession ? getInchargeSession() : null;
+  const currentAgentId = String(agentSession?.agentId || agentSession?.id || 'agent001').trim().toLowerCase();
+  const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || rawTank?.agentId || rawTank?.agent_id || '').trim().toLowerCase();
+  const isAuthorized = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId) || !farmerAgentId;
+
+  const tank = isAuthorized ? rawTank : null;
+  const farmer = isAuthorized ? (rawFarmer || (tank ? { id: tank.farmerId, name: tank.farmerName || 'Farmer' } : null)) : null;
 
   // Farmer assigned tanks count
   const farmerTanks = farmer ? (db?.tanks || []).filter(t => t.farmerId === farmer.id) : [];
-  const assignedTanksCount = farmerTanks.length > 0 ? farmerTanks.length : 2;
+  const assignedTanksCount = farmerTanks.length > 0 ? farmerTanks.length : 0;
   const assignedTanksText = assignedTanksCount === 1 ? '1 Tank' : `${assignedTanksCount} Tanks`;
 
   // Listen for harvest updates
@@ -92,21 +104,110 @@ const TankDetails = () => {
     return () => window.removeEventListener('harvestStoreUpdated', handleStoreUpdate);
   }, []);
 
+  const normalizeId = (id) => String(id || '').trim().toLowerCase().replace(/^t0*/, 't');
+  const isTankMatch = (idA, idB) => {
+    if (!idA || !idB) return false;
+    if (idA === idB) return true;
+    return normalizeId(idA) === normalizeId(idB);
+  };
+
+  if (!tank && (!db?.tanks || db.tanks.length === 0)) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <MarineLoader message="Loading tank details..." />
+      </div>
+    );
+  }
+
+  if (!tank || !farmer) {
+    return (
+      <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ backgroundColor: '#FFFFFF', padding: '28px', borderRadius: '12px', border: '1px solid #E2E8F0', maxWidth: '440px', width: '100%', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '700', color: '#0F172A' }}>Tank Not Accessible</h3>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748B' }}>
+            This tank is either not registered or belongs to a farmer not assigned to your account.
+          </p>
+          <button
+            type="button"
+            onClick={handleBack}
+            style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#1A2FB8', color: '#FFFFFF', fontWeight: '600', cursor: 'pointer' }}
+          >
+            ← Back to Farmers
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const storeKey = `${farmer?.id || ''}_${tank.id}`;
   const tankStoreData = harvestStore[storeKey];
 
-  // Retrieve harvests from local storage
+  // Submissions for this tank
+  const tankSubmissions = (db?.submissions || [])
+    .filter(s => isTankMatch(s.tankId, tank.id) || (tank.name && s.tankName === tank.name))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  // Retrieve harvests from local storage and database
   let rawHarvests = [];
   if (tankStoreData && Array.isArray(tankStoreData.harvests)) {
-    rawHarvests = tankStoreData.harvests;
+    rawHarvests = [...tankStoreData.harvests];
   }
+
+  // Also include harvests from db.harvests
+  (db?.harvests || []).forEach(h => {
+    if (isTankMatch(h.tankId, tank.id)) {
+      const exists = rawHarvests.some(r => r.id === h.id || (r.date === h.date && r.harvestedBiomass === h.quantityKg));
+      if (!exists) {
+        rawHarvests.push({
+          id: h.id,
+          date: h.date,
+          doc: h.doc || tank.doc || 77,
+          abw: h.abw || tank.abw || 25,
+          harvestedBiomass: h.quantityKg || h.quantity_kg || 0,
+          harvestedNumber: h.harvestedNumber || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
+          feedConsumed: h.feedConsumed || 0,
+          fcr: h.fcr || tank.fcr || '1.18',
+          buyer: h.buyerName || h.buyer || 'Royals Marine Processing Unit 1',
+          remarks: h.remarks || '',
+          harvestType: h.harvestType || 'Partial Harvest',
+          isFinal: h.isFinal || (h.harvestType === 'Final Harvest')
+        });
+      }
+    }
+  });
+
+  // Also include harvests from tankSubmissions where testType or recordType is harvest
+  tankSubmissions.forEach(sub => {
+    const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') ||
+      (sub.recordType || '').toUpperCase().includes('HARVEST');
+    if (isSubHarvest) {
+      const sData = sub.data || {};
+      const exists = rawHarvests.some(r => r.id === sub.id || (r.date === sub.date && r.harvestedBiomass === (sData.harvestedBiomass || sData.quantityKg)));
+      if (!exists) {
+        rawHarvests.push({
+          id: sub.id,
+          date: sub.date,
+          doc: sData.doc || tank.doc || 77,
+          abw: sData.abw || tank.abw || 25,
+          harvestedBiomass: parseFloat(sData.harvestedBiomass || sData.quantityKg || 0),
+          harvestedNumber: parseFloat(sData.harvestedNumber || 0),
+          feedConsumed: parseFloat(sData.feedConsumed || 0),
+          fcr: sData.fcr || tank.fcr || '1.18',
+          buyer: sData.buyer || 'Royals Marine Processing Unit 1',
+          remarks: sData.remarks || '',
+          harvestType: sData.harvestType || (sub.testType === 'Final Harvest' ? 'Final Harvest' : 'Partial Harvest'),
+          isFinal: sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest' || sData.isFinal
+        });
+      }
+    }
+  });
 
   // Sort harvests chronologically
   const sortedHarvests = [...rawHarvests].sort((a, b) => {
     return new Date(a.date || 0) - new Date(b.date || 0);
   });
 
-  // Dynamically assign sequence titles: Partial Harvest-1, Partial Harvest-2, ... Final Harvest
+  // Dynamically assign sequence titles: Partial Harvest, Partial Harvest 2, Partial Harvest 3, ... Final Harvest
   let partialCount = 0;
   const sequencedHarvests = sortedHarvests.map((h) => {
     const isFinal = h.harvestType === 'Final Harvest' || h.isFinal;
@@ -114,22 +215,36 @@ const TankDetails = () => {
       return { ...h, displayTitle: 'Final Harvest', isFinal: true };
     } else {
       partialCount += 1;
-      return { ...h, displayTitle: `Partial Harvest-${partialCount}`, isFinal: false };
+      const autoTitle = partialCount === 1 ? 'Partial Harvest' : `Partial Harvest ${partialCount}`;
+      let cleanTitle = h.displayTitle;
+      if (!cleanTitle || cleanTitle === 'Partial Harvest-1' || cleanTitle === 'Partial Harvest #1' || cleanTitle === 'Partial Harvest 1') {
+        cleanTitle = autoTitle;
+      } else if (cleanTitle.match(/^Partial Harvest[-\s#]*(\d+)$/i)) {
+        const num = cleanTitle.match(/^Partial Harvest[-\s#]*(\d+)$/i)[1];
+        cleanTitle = num === '1' ? 'Partial Harvest' : `Partial Harvest ${num}`;
+      } else if (!cleanTitle.startsWith('Partial Harvest')) {
+        cleanTitle = autoTitle;
+      }
+      return { ...h, displayTitle: cleanTitle, isFinal: false };
     }
   });
 
-  const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') || 
-    (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted);
+  const nextPartialTitle = partialCount === 0 ? 'Partial Harvest' : `Partial Harvest ${partialCount + 1}`;
 
-  // Submissions for this tank
-  const tankSubmissions = (db?.submissions || [])
-    .filter(s => s.tankId === tank.id || s.tankName === tank.name)
-    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  const hasFinalHarvest = sequencedHarvests.some(h => h.isFinal || h.harvestType === 'Final Harvest') || 
+    (tank.status === 'Harvested' || tank.status === 'Completed' || tank.finalHarvestCompleted || tankStoreData?.finalHarvestCompleted);
 
   const filterSubmissions = (type) => {
+    const target = type.toUpperCase();
     return tankSubmissions.filter(s => {
       const st = (s.testType || s.recordType || '').toUpperCase();
-      return st.includes(type.toUpperCase());
+      if (target === 'FEED') {
+        return st.includes('FEED') || (s.data && (s.data.dayFeed !== undefined || s.data.cumulativeFeed !== undefined));
+      }
+      if (target === 'DISEASE') {
+        return st.includes('DISEASE') || (s.data && (s.data.observations !== undefined || s.data.status !== undefined));
+      }
+      return st.includes(target);
     });
   };
 
@@ -138,18 +253,27 @@ const TankDetails = () => {
   const totalFeedUsed = parseFloat(tankStoreData?.totalFeed || 16000);
 
   // Find latest field records for present metrics
-  const latestFeedTest = tankSubmissions.find(s => 
+  const latestFeedTest = tankSubmissions.find(s =>
     (s.testType || s.recordType || '').toUpperCase().includes('FEED')
   );
-  const latestBiomassTest = tankSubmissions.find(s => 
+  const latestBiomassTest = tankSubmissions.find(s =>
     (s.testType || s.recordType || '').toUpperCase().includes('BIOMASS')
   );
 
   // Present Biomass (Current active standing biomass in pond)
+  let latestFeedBiomass = latestFeedTest?.data?.totalBiomass;
+  if (!latestFeedBiomass && latestFeedTest?.data?.estimatedStock && latestFeedTest?.data?.abw) {
+    const est = parseFloat(latestFeedTest.data.estimatedStock);
+    const abwVal = parseFloat(latestFeedTest.data.abw);
+    if (est > 0 && abwVal > 0) {
+      latestFeedBiomass = ((est * abwVal) / 1000).toFixed(1);
+    }
+  }
+
   const presentBiomass = parseFloat(
-    latestFeedTest?.data?.totalBiomass || 
-    latestBiomassTest?.data?.totalBiomass || 
-    tank.biomass || 
+    latestFeedBiomass ||
+    latestBiomassTest?.data?.totalBiomass ||
+    tank.biomass ||
     '14035'
   );
 
@@ -191,26 +315,8 @@ const TankDetails = () => {
     ? (totalFeedUsed / totalBiomass).toFixed(2)
     : '1.14';
 
-  const cultureDays = 77; // As requested in example
+  const cultureDays = tank?.doc !== undefined && tank?.doc !== null ? tank.doc : 0;
   const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else if (isIncharge) {
-      if (farmer?.id) {
-        navigate(`/incharge/farmers/${farmer.id}`);
-      } else {
-        navigate('/incharge/my-tanks');
-      }
-    } else {
-      if (farmer?.id) {
-        navigate(`/farmers/${farmer.id}`);
-      } else {
-        navigate('/farmers');
-      }
-    }
-  };
 
   return (
     <div style={styles.pageContainer}>
@@ -218,7 +324,7 @@ const TankDetails = () => {
       {/* 1. PAGE HEADER */}
       {/* ========================================================= */}
       <div style={styles.topHeaderBar}>
-        <button 
+        <button
           type="button"
           style={styles.backButton}
           onClick={handleBack}
@@ -250,7 +356,7 @@ const TankDetails = () => {
               type="button" 
               style={styles.harvestActionBtn}
               onClick={() => {
-                setIsTakeHarvestModalOpen(true);
+                setIsHarvestTypeChoiceOpen(true);
               }}
               title="Record Crop Harvest"
             >
@@ -258,8 +364,8 @@ const TankDetails = () => {
               <span>Harvest</span>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               style={styles.primaryNewRecordBtn}
               onClick={() => {
                 setModalInitialType('WATER_QUALITY');
@@ -417,19 +523,19 @@ const TankDetails = () => {
       </div>
 
       {/* ========================================================= */}
-      {/* 6. TAB CONTENT: HARVEST HISTORY */}
+      {/* 6. TAB CONTENT: HARVEST RECORDS & HISTORY */}
       {/* ========================================================= */}
       {activeTab === 'HARVEST' && (
         <div style={styles.sectionCard}>
           <div style={styles.sectionHeaderRow}>
             <div>
-              <h3 style={styles.sectionTitle}>Harvest History</h3>
-              <span style={styles.sectionSub}>Sequential timeline of recorded partial and final harvests</span>
+              <h3 style={styles.sectionTitle}>Harvest Records</h3>
+              <span style={styles.sectionSub}>Sequential timeline of recorded harvests</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 style={{
                   ...styles.addHarvestActionBtn,
                   backgroundColor: '#FFFFFF',
@@ -446,109 +552,108 @@ const TankDetails = () => {
               </button>
 
               {!hasFinalHarvest ? (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   style={styles.addHarvestActionBtn}
                   onClick={() => {
-                    setIsTakeHarvestModalOpen(true);
+                    setIsHarvestTypeChoiceOpen(true);
                   }}
                 >
                   <Plus size={14} strokeWidth={2.5} />
-                  <span>Record Harvest</span>
+                  <span>New Harvest</span>
                 </button>
               ) : (
-                <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#1E3A8A', backgroundColor: '#EFF6FF', padding: '6px 12px', borderRadius: '8px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Lock size={13} color="#1D4ED8" /> Final Harvest Done
+                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                  <Lock size={12} color="#64748B" /> Tank Locked
                 </span>
               )}
             </div>
           </div>
 
-          {/* Timeline / Table of Harvest Events */}
-          {sequencedHarvests.length === 0 ? (
-            <div style={{ ...styles.emptyStateBox, margin: '20px 0' }}>
-              <Scale size={32} color="#94A3B8" />
-              <p style={{ margin: '8px 0 0 0', fontWeight: '600', color: '#475569' }}>
-                No harvest records logged for this tank yet.
-              </p>
-              <span style={{ fontSize: '13px', color: '#94A3B8' }}>
-                Use "Record Harvest" to enter partial or final harvest data.
-              </span>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto', marginTop: '16px' }}>
-              <table style={styles.harvestTable}>
-                <thead>
-                  <tr style={styles.tableHeadRow}>
-                    <th style={styles.tableHeadCell}>Harvest</th>
-                    <th style={styles.tableHeadCell}>Harvest Date</th>
-                    <th style={styles.tableHeadCell}>DOC</th>
-                    <th style={styles.tableHeadCell}>ABW</th>
-                    <th style={styles.tableHeadCell}>Harvested Number</th>
-                    <th style={styles.tableHeadCell}>Harvested Biomass</th>
-                    <th style={styles.tableHeadCell}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sequencedHarvests.map((h, idx) => (
-                    <tr key={h.id || idx} style={styles.tableBodyRow}>
-                      <td style={styles.tableCell}>
-                        <span style={{
-                          ...styles.harvestStagePill,
-                          backgroundColor: h.isFinal ? '#DCFCE7' : '#EFF6FF',
-                          color: h.isFinal ? '#15803D' : '#1A2FB8',
-                          borderColor: h.isFinal ? '#86EFAC' : '#BFDBFE',
-                        }}>
-                          {h.displayTitle}
-                        </span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.dateText}>{h.date}</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <strong style={{ color: '#0F172A' }}>{h.doc}</strong>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <strong style={{ color: '#0F172A' }}>{h.abw} gm</strong>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.numberBold}>{parseFloat(h.harvestedNumber || 0).toLocaleString()}</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.biomassBold}>{parseFloat(h.harvestedBiomass || 0).toLocaleString()} kg</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <span style={styles.completedStatusBadge}>
-                          ✓ Completed
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pending Final Harvest Info Note */}
-          {!hasFinalHarvest && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px 16px',
-              backgroundColor: '#F8FAFC',
-              border: '1.5px dashed #CBD5E1',
-              borderRadius: '10px',
-              fontSize: '12.5px',
-              color: '#475569',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Info size={18} color="#64748B" style={{ flexShrink: 0 }} />
-              <div>
-                <strong style={{ color: '#0F172A' }}>Final Harvest Pending:</strong> This tank is in active culture. Final harvest data is not shown because the final harvest has not been recorded yet.
+          {/* History List styled identically to Water Records */}
+          <div style={{ marginTop: '12px' }}>
+            {sequencedHarvests.length === 0 ? (
+              <div style={styles.emptyStateBoxMinimal}>
+                <Clock size={20} color="#94A3B8" />
+                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
+                  No harvest records logged yet
+                </span>
               </div>
-            </div>
-          )}
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {sequencedHarvests.map((h, idx) => (
+                  <div 
+                    key={h.id || idx}
+                    style={styles.recordListItem}
+                    onClick={() => {
+                      setSelectedReadRecord({
+                        id: h.id || `harvest_${idx}`,
+                        testType: h.displayTitle,
+                        recordType: 'HARVEST_ENTRY',
+                        date: h.date,
+                        time: h.time || 'Harvest Logged',
+                        farmerId: farmer?.id,
+                        tankId: tank.id,
+                        gps: h.gps || { locality: farmer?.location || farmer?.village || 'Chinnamiram', accuracy: 10 },
+                        data: {
+                          'Harvest Type': h.harvestType || (h.isFinal ? 'Final Harvest' : 'Partial Harvest'),
+                          'DOC (Day of Culture)': `Day ${h.doc}`,
+                          'Harvested Biomass': `${parseFloat(h.harvestedBiomass || 0).toLocaleString()} kg`,
+                          'Average Body Weight (ABW)': `${h.abw} g`,
+                          'Shrimp Count / kg': `${h.countPerKg || (h.abw > 0 ? Math.round(1000 / parseFloat(h.abw)) : 40)} count`,
+                          'Est. Shrimp Harvested': `${parseFloat(h.harvestedNumber || 0).toLocaleString()} pcs`,
+                          'Cumulative Feed': `${parseFloat(h.feedConsumed || 0).toLocaleString()} kg`,
+                          'Batch FCR': h.fcr || '1.18',
+                          'Buyer / Processing Unit': h.buyer || 'Royals Marine Processing Unit 1',
+                          'Remarks': h.remarks || (h.isFinal ? 'Complete pond drainage harvest' : 'Partial thinning harvest')
+                        }
+                      });
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        ...styles.recordIconCircle,
+                        backgroundColor: h.isFinal ? '#DCFCE7' : '#EFF6FF',
+                      }}>
+                        <Scale size={15} color={h.isFinal ? '#15803D' : '#1A2FB8'} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={styles.recordItemTitle}>{h.displayTitle}</span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: h.isFinal ? '#DCFCE7' : '#EFF6FF',
+                            color: h.isFinal ? '#15803D' : '#1A2FB8',
+                            border: `1px solid ${h.isFinal ? '#86EFAC' : '#BFDBFE'}`,
+                          }}>
+                            {h.isFinal ? 'Final Harvest' : 'Partial Harvest'}
+                          </span>
+                        </div>
+                        <div style={styles.recordItemTime}>
+                          {h.date} • {parseFloat(h.harvestedBiomass || 0).toLocaleString()} kg • {h.abw}g ABW • DOC {h.doc}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        ...styles.verifiedTag,
+                        backgroundColor: h.isFinal ? '#DCFCE7' : '#EFF6FF',
+                        color: h.isFinal ? '#15803D' : '#1A2FB8',
+                      }}>
+                        {h.isFinal ? '✓ Finalized' : '✓ Verified'}
+                      </span>
+                      <ChevronRight size={15} color="#94A3B8" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
 
           {/* ========================================================= */}
           {/* 7. HARVEST SUMMARY CARD (Displayed only upon Final Harvest) */}
@@ -634,41 +739,41 @@ const TankDetails = () => {
       )}
 
       {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
+      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Disease, etc.) */}
       {/* ========================================================= */}
-      {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
-      {/* ========================================================= */}
-      {['WATER', 'FEED', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
+      {['WATER', 'FEED', 'DISEASE', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
         const tabLabel = TABS.find(t => t.id === activeTab)?.label || 'Test';
         const tabRecords = activeTab === 'REPORTS' ? tankSubmissions : filterSubmissions(activeTab);
 
         return (
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeaderRow}>
-              <h3 style={styles.sectionTitle}>{tabLabel} Records</h3>
+              <h3 style={styles.sectionTitle}>{activeTab === 'REPORTS' ? 'All Telemetry & Field Records' : `${tabLabel} Records`}</h3>
 
-              {!hasFinalHarvest ? (
-                <button 
-                  type="button" 
-                  style={styles.addHarvestActionBtn}
-                  onClick={() => {
-                    setModalInitialType(
-                      activeTab === 'WATER' ? 'WATER_QUALITY' :
-                      activeTab === 'FEED' ? 'FEED_ENTRY' :
-                      activeTab === 'MEDICATION' ? 'MEDICATION' :
-                      activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
-                      activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
-                    );
-                    setIsRecordModalOpen(true);
-                  }}
-                >
-                  <Plus size={14} /> New Entry
-                </button>
-              ) : (
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Lock size={12} /> Closed
-                </span>
+              {activeTab !== 'REPORTS' && (
+                !hasFinalHarvest ? (
+                  <button
+                    type="button"
+                    style={styles.addHarvestActionBtn}
+                    onClick={() => {
+                      setModalInitialType(
+                        activeTab === 'WATER' ? 'WATER_QUALITY' :
+                          activeTab === 'FEED' ? 'FEED_ENTRY' :
+                            activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
+                              activeTab === 'MEDICATION' ? 'MEDICATION' :
+                                activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                                  activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                      );
+                      setIsRecordModalOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> New Entry
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                    <Lock size={12} color="#64748B" /> Tank Locked
+                  </span>
+                )
               )}
             </div>
 
@@ -683,7 +788,7 @@ const TankDetails = () => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {tabRecords.map((rec) => (
-                    <div 
+                    <div
                       key={rec.id}
                       style={styles.recordListItem}
                       onClick={() => setSelectedReadRecord(rec)}
@@ -715,14 +820,14 @@ const TankDetails = () => {
       {/* READ-ONLY RECORD MODAL */}
       {/* ========================================================= */}
       {selectedReadRecord && createPortal(
-        <div 
+        <div
           className="animate-backdrop-in"
-          style={styles.modalOverlay} 
+          style={styles.modalOverlay}
           onClick={() => setSelectedReadRecord(null)}
         >
-          <div 
+          <div
             className="animate-modal-in"
-            style={styles.modalCard} 
+            style={styles.modalCard}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={styles.modalHeader}>
@@ -734,9 +839,9 @@ const TankDetails = () => {
                   {selectedReadRecord.testType || selectedReadRecord.recordType}
                 </h3>
               </div>
-              <button 
-                type="button" 
-                style={styles.closeBtn} 
+              <button
+                type="button"
+                style={styles.closeBtn}
                 onClick={() => setSelectedReadRecord(null)}
                 aria-label="Close"
               >
@@ -764,26 +869,86 @@ const TankDetails = () => {
                 </span>
               </div>
 
-              {selectedReadRecord.data && (
-                <div style={styles.dataContainer}>
-                  <div style={styles.dataHeading}>Logged Field Parameters</div>
-                  {Object.entries(selectedReadRecord.data).map(([k, v]) => (
-                    typeof v === 'object' ? null : (
-                      <div key={k} style={styles.dataRow}>
-                        <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
-                        <span style={styles.dataVal}>{String(v)}</span>
-                      </div>
-                    )
-                  ))}
-                </div>
-              )}
+              {selectedReadRecord.data && (() => {
+                let parsedData = selectedReadRecord.data;
+                if (typeof parsedData === 'string') {
+                  try { parsedData = JSON.parse(parsedData); } catch (e) { parsedData = {}; }
+                }
+                if (!parsedData || typeof parsedData !== 'object' || Array.isArray(parsedData)) {
+                  return null;
+                }
+                return (
+                  <div style={styles.dataContainer}>
+                    <div style={styles.dataHeading}>Logged Field Parameters</div>
+                    {Object.entries(parsedData).map(([k, v]) => {
+                      if (v && typeof v === 'object' && !Array.isArray(v)) {
+                        const detected = Object.entries(v);
+                        return (
+                          <div key={k} style={{ ...styles.dataRow, flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                            <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
+                            {detected.length === 0 ? (
+                              <span style={{ ...styles.dataVal, color: '#16A34A', fontWeight: '700' }}>None Detected (Normal)</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                                {detected.map(([diseaseName, level]) => (
+                                  <span
+                                    key={diseaseName}
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: '700',
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      backgroundColor: level === 'Severe' ? '#FEE2E2' : '#FEF3C7',
+                                      color: level === 'Severe' ? '#DC2626' : '#B45309',
+                                      border: level === 'Severe' ? '1px solid #FECACA' : '1px solid #FDE68A'
+                                    }}
+                                  >
+                                    {diseaseName}: {level}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      const formatParamKey = (rawKey) => {
+                        const map = {
+                          checkTrayTime: 'CH TR Time (Feed Consumption Time)',
+                          chTrTime: 'CH TR Time (Feed Consumption Time)',
+                          count: 'Count (per kg)',
+                          estimatedStock: 'Estimated Stock',
+                          seed: 'Seed Stocked',
+                          seedStocked: 'Seed Stocked',
+                          abw: 'ABW (g)',
+                          dayFeed: 'Day Feed (kg)',
+                          cumulativeFeed: 'Cumulative Feed (kg)',
+                          checkTrayFeed: 'CH TR Feed (g)',
+                          chTrFeed: 'CH TR Feed (g)',
+                          fcr: 'FCR',
+                          totalBiomass: 'Total Biomass (kg)',
+                          others: 'Others (Additional Disease Observations)',
+                          doc: 'DOC',
+                        };
+                        return map[rawKey] || rawKey.replace(/([A-Z])/g, ' $1');
+                      };
+
+                      return (
+                        <div key={k} style={styles.dataRow}>
+                          <span style={styles.dataKey}>{formatParamKey(k)}:</span>
+                          <span style={styles.dataVal}>{String(v)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
+              <button
                 type="button"
                 className="transition-all duration-150 active:scale-98 cursor-pointer"
-                style={styles.modalDoneBtn} 
+                style={styles.modalDoneBtn}
                 onClick={() => setSelectedReadRecord(null)}
               >
                 Done
@@ -797,7 +962,7 @@ const TankDetails = () => {
       {/* ========================================================= */}
       {/* QUICK RECORD MODAL */}
       {/* ========================================================= */}
-      <QuickRecordModal 
+      <QuickRecordModal
         isOpen={isRecordModalOpen}
         onClose={() => {
           setIsRecordModalOpen(false);
@@ -814,11 +979,218 @@ const TankDetails = () => {
       />
 
       {/* ========================================================= */}
+      {/* HARVEST TYPE SELECTION MODAL (1. Partial Harvest, 2. Final Harvest) */}
+      {/* ========================================================= */}
+      {isHarvestTypeChoiceOpen && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setIsHarvestTypeChoiceOpen(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              maxWidth: '480px',
+              width: '92%',
+              boxShadow: '0 20px 40px rgba(15, 23, 42, 0.25)',
+              overflow: 'hidden',
+              border: '1px solid #E2E8F0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#F8FAFC'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0F172A' }}>
+                  Select Harvest Type
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                  Record new harvest for <strong>{tank.name}</strong> ({farmer?.name})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHarvestTypeChoiceOpen(false)}
+                style={styles.closeBtn}
+                aria-label="Close"
+              >
+                <X size={18} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {/* Options List */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Option 1: Partial Harvest */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setIsHarvestTypeChoiceOpen(false);
+                  setSelectedHarvestType('Partial Harvest');
+                  setIsTakeHarvestModalOpen(true);
+                }}
+                className="transition-all duration-150 hover:border-blue-500 hover:shadow-md cursor-pointer"
+                style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #BFDBFE',
+                  backgroundColor: '#F8FAFC',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '14px',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#1A2FB8',
+                  fontWeight: '800',
+                  fontSize: '15px',
+                  flexShrink: 0,
+                }}>
+                  1
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                      Partial Harvest
+                    </span>
+                    <span style={{
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      color: '#1A2FB8',
+                      backgroundColor: '#EFF6FF',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #BFDBFE',
+                    }}>
+                      Next: {nextPartialTitle}
+                    </span>
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#475569', lineHeight: 1.45 }}>
+                    Net a portion of shrimp to reduce biomass and promote accelerated growth. Pond culture continues actively.
+                  </p>
+                </div>
+                <ChevronRight size={18} color="#1A2FB8" style={{ marginTop: '8px', flexShrink: 0 }} />
+              </div>
+
+              {/* Option 2: Final Harvest */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setIsHarvestTypeChoiceOpen(false);
+                  setSelectedHarvestType('Final Harvest');
+                  setIsTakeHarvestModalOpen(true);
+                }}
+                className="transition-all duration-150 hover:border-emerald-500 hover:shadow-md cursor-pointer"
+                style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #BBF7D0',
+                  backgroundColor: '#F8FAFC',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '14px',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#16A34A',
+                  fontWeight: '800',
+                  fontSize: '15px',
+                  flexShrink: 0,
+                }}>
+                  2
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                      Final Harvest
+                    </span>
+                    <span style={{
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      color: '#B91C1C',
+                      backgroundColor: '#FEF2F2',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #FECACA',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <Lock size={11} /> Locks Tank
+                    </span>
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#475569', lineHeight: 1.45 }}>
+                    Complete pond harvest and drainage. Concludes culture cycle and permanently locks this tank from any further entries.
+                  </p>
+                </div>
+                <ChevronRight size={18} color="#16A34A" style={{ marginTop: '8px', flexShrink: 0 }} />
+              </div>
+            </div>
+
+            <div style={{
+              padding: '12px 24px 16px 24px',
+              backgroundColor: '#F8FAFC',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsHarvestTypeChoiceOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================= */}
       {/* TAKE NEW HARVEST REPORT MODAL (PARTIAL / FINAL) */}
       {/* ========================================================= */}
       {isTakeHarvestModalOpen && (
         <TakeHarvestModal
           isOpen={isTakeHarvestModalOpen}
+          initialHarvestType={selectedHarvestType}
           onClose={() => {
             setIsTakeHarvestModalOpen(false);
             const updated = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
@@ -826,9 +1198,19 @@ const TankDetails = () => {
           }}
           tank={tank}
           farmer={farmer}
-          onSuccess={() => {
+          onSuccess={(savedRec) => {
+            setIsTakeHarvestModalOpen(false);
             const updated = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
             setHarvestStore(updated);
+            if (savedRec?.isFinal) {
+              if (typeof editTank === 'function') {
+                editTank(tank.id, {
+                  status: 'Harvested',
+                  testStatus: 'Completed',
+                  nextTest: 'Cycle Closed'
+                });
+              }
+            }
           }}
         />
       )}

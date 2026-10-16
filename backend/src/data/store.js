@@ -1,4 +1,6 @@
 import { query, isDbConnected } from '../config/database.js';
+import bcrypt from 'bcryptjs';
+import { calculateCurrentDoc } from '../utils/docCalculator.js';
 
 const normalizeUser = (u) => {
   if (!u) return null;
@@ -20,45 +22,44 @@ const normalizeUser = (u) => {
   };
 };
 
-class DataStore {
-  constructor() {
-    this.reset();
-  }
+const parseBoundaryCoords = (c) => {
+  if (!c) return null;
+  if (typeof c === 'object') return c;
+  try { return JSON.parse(c); } catch { return null; }
+};
 
-  reset() {
-    this.farmers = [];
-    this.tanks = [];
-    this.submissions = [];
-    this.harvests = [];
-    this.agents = [];
-    this.incharges = [];
-    this.regions = [];
-    this.users = [];
+class DataStore {
+  constructor() { }
+
+  _ensureDb() {
+    if (!isDbConnected()) {
+      const err = new Error('[Database Unavailable] MySQL connection is not active. Single source of truth is unreachable.');
+      err.statusCode = 503;
+      throw err;
+    }
   }
 
   // --- Auth & Users ---
 
   async findUserByIdentifier(identifier) {
-    if (isDbConnected()) {
-      try {
-        const rows = await query(
-          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) OR u.phone = ? OR LOWER(u.email) = LOWER(?) LIMIT 1',
-          [identifier, identifier, identifier, identifier]
-        );
-        if (rows && rows.length > 0) return normalizeUser(rows[0]);
-      } catch (err) {
-        console.error('[DB Error in findUserByIdentifier]', err.message);
+    this._ensureDb();
+    try {
+      const rows = await query(
+        `SELECT u.*, r.name as role 
+         FROM users u 
+         LEFT JOIN roles r ON u.role_id = r.id 
+         WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) OR u.phone = ? OR LOWER(u.email) = LOWER(?) 
+         LIMIT 1`,
+        [identifier, identifier, identifier, identifier]
+      );
+      if (rows && rows.length > 0) {
+        return normalizeUser(rows[0]);
       }
+      return null;
+    } catch (err) {
+      console.error('[DB Error in findUserByIdentifier]', err.message);
+      throw new Error(`[DB Error in findUserByIdentifier]: ${err.message}`);
     }
-
-    const u = this.users.find(
-      (user) =>
-        user.username?.toLowerCase() === identifier.toLowerCase() ||
-        user.phone === identifier ||
-        user.email?.toLowerCase() === identifier.toLowerCase() ||
-        String(user.id).toLowerCase() === identifier.toLowerCase()
-    );
-    return normalizeUser(u);
   }
 
   async findUserByCredentials(identifier, password) {
@@ -68,529 +69,936 @@ class DataStore {
   }
 
   async findUserById(id) {
-    if (isDbConnected()) {
-      try {
-        const rows = await query(
-          'SELECT u.*, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE LOWER(u.id) = LOWER(?) OR LOWER(u.username) = LOWER(?) LIMIT 1',
-          [id, id]
-        );
-        if (rows && rows.length > 0) return normalizeUser(rows[0]);
-      } catch (err) {
-        console.error('[DB Error in findUserById]', err.message);
+    this._ensureDb();
+    try {
+      const rows = await query(
+        `SELECT u.*, r.name as role 
+         FROM users u 
+         LEFT JOIN roles r ON u.role_id = r.id 
+         WHERE u.id = ? 
+         LIMIT 1`,
+        [id]
+      );
+      if (rows && rows.length > 0) {
+        return normalizeUser(rows[0]);
       }
+      return null;
+    } catch (err) {
+      console.error('[DB Error in findUserById]', err.message);
+      throw new Error(`[DB Error in findUserById]: ${err.message}`);
     }
-
-    const u = this.users.find((user) => String(user.id) === String(id) || user.username === id);
-    return normalizeUser(u);
   }
 
   // --- Farmers ---
+
   async getFarmers(filter = {}) {
-    if (isDbConnected()) {
-      try {
-        let sql = 'SELECT f.*, a.name as agent_name FROM farmers f LEFT JOIN agents a ON f.agent_id = a.id WHERE 1=1';
-        const params = [];
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          f.*,
+          COALESCE(f.location, CONCAT_WS(', ', f.village, f.mandal)) as location,
+          COALESCE(a.name, f.assigned_to) as agent_name,
+          COALESCE(i.name, '') as incharge_name,
+          COALESCE(r.name, '') as region_name,
+          COALESCE(r.id, r.code, i.region_id, '') as region_id,
+          COALESCE(tc.tanks_count, 0) as tanks_count,
+          COALESCE(tc.active_ponds, 0) as active_ponds,
+          CASE 
+            WHEN COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.tanks_count, 0) = COALESCE(tc.completed_tanks, 0) 
+            THEN 'INACTIVE'
+            ELSE COALESCE(f.status, 'ACTIVE')
+          END as computed_status
+        FROM farmers f
+        LEFT JOIN agents a ON f.agent_id = a.id
+        LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
+        LEFT JOIN regions r ON i.region_id = r.id
+        LEFT JOIN (
+          SELECT 
+            t.farmer_id, 
+            COUNT(DISTINCT t.id) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(t.status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
+        ) tc ON tc.farmer_id = f.id
+        WHERE 1=1
+      `;
+      const params = [];
 
-        if (filter.agentId) {
-          sql += ' AND (f.agent_id = ? OR f.agent_id IS NULL)';
-          params.push(filter.agentId);
+      if (filter.status && filter.status !== 'ALL') {
+        const targetStatus = filter.status.toUpperCase();
+        if (targetStatus === 'INACTIVE') {
+          sql += " AND (COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.tanks_count, 0) = COALESCE(tc.completed_tanks, 0))";
+        } else if (targetStatus === 'ACTIVE') {
+          sql += " AND (COALESCE(tc.tanks_count, 0) = 0 OR COALESCE(tc.tanks_count, 0) > COALESCE(tc.completed_tanks, 0))";
         }
-        if (filter.inchargeId) {
-          sql += ' AND (f.incharge_id = ? OR f.incharge_id IS NULL)';
-          params.push(filter.inchargeId);
-        }
-        if (filter.search) {
-          sql += ' AND (LOWER(f.name) LIKE ? OR LOWER(f.location) LIKE ? OR LOWER(f.village) LIKE ? OR f.phone LIKE ?)';
-          const term = `%${filter.search.toLowerCase()}%`;
-          params.push(term, term, term, term);
-        }
-        sql += ' ORDER BY f.created_at DESC';
-
-        const rows = await query(sql, params);
-        return rows.map((r) => ({
-          ...r,
-          id: String(r.id),
-          farmerCode: r.farmer_code || r.id,
-          name: r.name,
-          phone: r.phone || '',
-          location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : ''),
-          village: r.village || r.location || '',
-          acres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
-          totalAcres: r.total_acres != null ? Number(r.total_acres) : (r.acres != null ? Number(r.acres) : 0),
-          agentId: r.agent_id,
-          agent_name: r.agent_name,
-          inchargeId: r.incharge_id,
-          assignedTo: r.assigned_to,
-          assignedBy: r.assigned_by,
-          waterSource: r.water_source,
-          region: r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : r.mandal?.includes('Kakinada') ? 'Kakinada' : r.mandal?.includes('Narasapuram') ? 'Narasapuram' : 'Bhimavaram'),
-          location: r.location || (r.village ? `${r.village}, ${r.mandal || ''}`.replace(/,\s*$/, '') : 'Bhimavaram'),
-          waterSource: r.water_source || 'Borewell',
-          status: r.status || 'ACTIVE',
-        }));
-      } catch (err) {
-        console.error('[DB Error in getFarmers]', err.message);
       }
-    }
 
-    let result = [...this.farmers];
-    if (filter.agentId) result = result.filter((f) => f.agentId === filter.agentId);
-    if (filter.inchargeId) result = result.filter((f) => f.inchargeId === filter.inchargeId);
-    if (filter.search) {
-      const q = filter.search.toLowerCase();
-      result = result.filter(
-        (f) =>
-          f.name.toLowerCase().includes(q) ||
-          f.location?.toLowerCase().includes(q) ||
-          f.phone?.includes(q)
-      );
+      if (filter.agentId) {
+        sql += ' AND f.agent_id = ?';
+        params.push(filter.agentId);
+      }
+      if (filter.inchargeId) {
+        sql += ' AND (f.incharge_id = ? OR a.incharge_id = ?)';
+        params.push(filter.inchargeId, filter.inchargeId);
+      }
+      if (filter.regionId) {
+        sql += ' AND (i.region_id = ? OR r.code = ? OR r.id = ? OR LOWER(r.name) = LOWER(?) OR LOWER(r.name) LIKE ?)';
+        const partial = `%${String(filter.regionId).toLowerCase()}%`;
+        params.push(filter.regionId, filter.regionId, filter.regionId, filter.regionId, partial);
+      }
+      if (filter.search) {
+        sql += ' AND (LOWER(f.name) LIKE ? OR LOWER(f.location) LIKE ? OR LOWER(f.village) LIKE ? OR f.phone LIKE ? OR f.farmer_code LIKE ?)';
+        const term = `%${filter.search.toLowerCase()}%`;
+        params.push(term, term, term, term, term);
+      }
+      sql += ' ORDER BY f.created_at DESC, f.id ASC';
+      if (filter.limit && !isNaN(Number(filter.limit))) {
+        sql += ' LIMIT ?';
+        params.push(Number(filter.limit));
+      }
+
+      const rows = await query(sql, params);
+      return rows.map((r) => ({
+        ...r,
+        id: String(r.id),
+        farmerCode: r.farmer_code || r.id,
+        name: r.name,
+        phone: r.phone || '',
+        agentId: r.agent_id,
+        agent: r.agent_name || r.assigned_to || 'Unassigned',
+        agent_name: r.agent_name || r.assigned_to || 'Unassigned',
+        inchargeId: r.incharge_id,
+        incharge: r.incharge_name || '',
+        assignedTo: r.assigned_to,
+        assignedBy: r.assigned_by,
+        waterSource: r.water_source || 'Borewell',
+        region: r.region_name || r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : r.mandal?.includes('Kakinada') ? 'Kakinada' : r.mandal?.includes('Narasapuram') ? 'Narasapuram' : 'Bhimavaram'),
+        region_name: r.region_name || '',
+        regionId: r.region_id || '',
+        location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : 'Bhimavaram'),
+        village: r.village || r.location || '',
+        totalAcres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
+        acres: r.acres ? `${r.acres} Acres` : (r.total_acres ? `${r.total_acres} Acres` : '0 Acres'),
+        tanks: Number(r.tanks_count || 0),
+        tanks_count: Number(r.tanks_count || 0),
+        activePonds: Number(r.active_ponds || 0),
+        active_ponds: Number(r.active_ponds || 0),
+        status: r.computed_status || r.status || 'ACTIVE',
+      }));
+    } catch (err) {
+      console.error('[DB Error in getFarmers]', err.message);
+      throw new Error(`[DB Error in getFarmers]: ${err.message}`);
     }
-    return result;
   }
 
   async getFarmerById(id) {
-    if (isDbConnected()) {
-      try {
-        const rows = await query(
-          'SELECT * FROM farmers WHERE id = ? OR farmer_code = ? OR (id = "1" AND ? = "F001") OR (id = "F001" AND ? = "1") LIMIT 1',
-          [id, id, id, id]
-        );
-        if (rows && rows.length > 0) {
-          const r = rows[0];
-          return {
-            ...r,
-            id: String(r.id),
-            farmerCode: r.farmer_code || r.id,
-            name: r.name,
-            phone: r.phone || '',
-            location: r.location || (r.village ? `${r.village}${r.mandal ? `, ${r.mandal}` : ''}` : 'Bhimavaram'),
-            village: r.village || r.location || '',
-            acres: r.acres != null ? Number(r.acres) : (r.total_acres != null ? Number(r.total_acres) : 0),
-            totalAcres: r.total_acres != null ? Number(r.total_acres) : (r.acres != null ? Number(r.acres) : 0),
-            agentId: r.agent_id,
-            inchargeId: r.incharge_id,
-            assignedTo: r.assigned_to,
-            assignedBy: r.assigned_by,
-            waterSource: r.water_source || 'Canal',
-            region: r.region || (r.incharge_id === 'INC002' ? 'Kakinada' : 'Bhimavaram'),
-            status: r.status || 'ACTIVE',
-          };
-        }
-      } catch (err) {
-        console.error('[DB Error in getFarmerById]', err.message);
+    this._ensureDb();
+    try {
+      const rows = await query(
+        `SELECT 
+          f.*,
+          COALESCE(f.location, CONCAT_WS(', ', f.village, f.mandal)) as location,
+          COALESCE(a.name, f.assigned_to) as agent_name,
+          COALESCE(i.name, '') as incharge_name,
+          COALESCE(r.name, '') as region_name,
+          COALESCE(r.id, r.code, i.region_id, '') as region_id,
+          COALESCE(tc.tanks_count, 0) as tanks_count,
+          COALESCE(tc.active_ponds, 0) as active_ponds,
+          CASE 
+            WHEN COALESCE(tc.tanks_count, 0) > 0 AND COALESCE(tc.completed_tanks, 0) = COALESCE(tc.tanks_count, 0) THEN 'INACTIVE'
+            ELSE COALESCE(f.status, 'ACTIVE')
+          END as computed_status
+        FROM farmers f
+        LEFT JOIN agents a ON f.agent_id = a.id
+        LEFT JOIN incharges i ON i.id = CASE WHEN f.incharge_id IS NOT NULL AND f.incharge_id != '' THEN f.incharge_id ELSE a.incharge_id END
+        LEFT JOIN regions r ON i.region_id = r.id
+        LEFT JOIN (
+          SELECT 
+            t.farmer_id, 
+            COUNT(DISTINCT t.id) as tanks_count, 
+            SUM(CASE WHEN LOWER(COALESCE(t.status, '')) != 'harvested' THEN 1 ELSE 0 END) as active_ponds,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
+        ) tc ON tc.farmer_id = f.id
+        WHERE f.id = ? OR f.farmer_code = ?
+        LIMIT 1`,
+        [id, id]
+      );
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        return {
+          ...r,
+          id: String(r.id),
+          farmerCode: r.farmer_code || r.id,
+          agentId: r.agent_id,
+          agent: r.agent_name || r.assigned_to || '',
+          inchargeId: r.incharge_id,
+          incharge: r.incharge_name || '',
+          assignedTo: r.assigned_to,
+          assignedBy: r.assigned_by,
+          waterSource: r.water_source,
+          region: r.region_name || '',
+          regionId: r.region_id || '',
+          totalAcres: r.acres ? Number(r.acres) : (r.total_acres ? Number(r.total_acres) : 0),
+          acres: r.acres ? `${r.acres} Acres` : (r.total_acres ? `${r.total_acres} Acres` : '0 Acres'),
+          tanks: Number(r.tanks_count || 0),
+          tanks_count: Number(r.tanks_count || 0),
+          activePonds: Number(r.active_ponds || 0),
+          active_ponds: Number(r.active_ponds || 0),
+          status: r.computed_status || r.status || 'ACTIVE',
+        };
       }
+      return null;
+    } catch (err) {
+      console.error('[DB Error in getFarmerById]', err.message);
+      throw new Error(`[DB Error in getFarmerById]: ${err.message}`);
     }
-
-    return this.farmers.find((f) => f.id === id);
   }
 
   async createFarmer(data) {
-    const id = data.id || `F${String(Date.now()).slice(-4)}`;
-    const newFarmer = {
-      id,
-      farmerCode: data.farmerCode || id,
-      name: data.name,
-      status: data.status || 'ACTIVE',
-      agentId: data.agentId || null,
-      inchargeId: data.inchargeId || 'INC001',
-      assignedTo: data.assignedTo || (data.agentId ? 'Agent' : 'Incharge'),
-      assignedBy: data.assignedBy || 'Admin',
-      phone: data.phone || '',
-      location: data.location || data.village || '',
-      village: data.village || data.location || '',
-      waterSource: data.waterSource || 'Borewell',
-      acres: data.acres ? Number(data.acres) : 10,
-      totalAcres: data.acres ? Number(data.acres) : 10,
-      createdAt: new Date().toISOString(),
-    };
+    this._ensureDb();
+    if (!data.name || !String(data.name).trim()) {
+      throw new Error('Farmer name is required');
+    }
 
-    if (isDbConnected()) {
-      try {
-        await query(
-          `INSERT INTO farmers (id, farmer_code, name, status, agent_id, incharge_id, assigned_to, assigned_by, phone, location, village, water_source, acres, total_acres)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             name=VALUES(name), phone=VALUES(phone), location=VALUES(location), village=VALUES(village),
-             acres=VALUES(acres), total_acres=VALUES(total_acres), water_source=VALUES(water_source),
-             agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id), assigned_to=VALUES(assigned_to), assigned_by=VALUES(assigned_by)`,
-          [
-            newFarmer.id,
-            newFarmer.farmerCode,
-            newFarmer.name,
-            newFarmer.status,
-            newFarmer.agentId,
-            newFarmer.inchargeId,
-            newFarmer.assignedTo,
-            newFarmer.assignedBy,
-            newFarmer.phone,
-            newFarmer.location,
-            newFarmer.village,
-            newFarmer.waterSource,
-            newFarmer.acres,
-            newFarmer.acres,
-          ]
-        );
-      } catch (err) {
-        console.error('[DB Error in createFarmer]', err.message);
+    const cleanName = String(data.name).trim();
+    const cleanPhone = data.phone ? String(data.phone).trim() : null;
+    const cleanLocation = data.location ? String(data.location).trim() : null;
+
+    // Duplicate check: phone
+    if (cleanPhone) {
+      const existingPhone = await query('SELECT id, name FROM farmers WHERE phone = ? LIMIT 1', [cleanPhone]);
+      if (existingPhone && existingPhone.length > 0) {
+        const err = new Error(`A farmer with phone number "${cleanPhone}" already exists (${existingPhone[0].name})`);
+        err.statusCode = 409;
+        throw err;
       }
     }
 
-    this.farmers.unshift(newFarmer);
-    return newFarmer;
+    const id = data.id || `FAR_${Date.now().toString(36).toUpperCase()}`;
+    const farmerCode = data.farmerCode || data.farmer_code || `FAR${String(Date.now()).slice(-4)}`;
+
+    const newFarmer = {
+      id,
+      farmer_code: farmerCode,
+      name: cleanName,
+      status: 'ACTIVE',
+      agent_id: data.agentId || null,
+      incharge_id: data.inchargeId || null,
+      assigned_to: data.assignedTo || (data.agentId ? 'Agent' : 'Incharge'),
+      assigned_by: data.assignedBy || 'Admin',
+      phone: cleanPhone || '',
+      location: cleanLocation || '',
+      water_source: data.waterSource || 'Borewell',
+      acres: data.acres != null && data.acres !== '' ? Number(data.acres) : null,
+      total_acres: data.acres != null && data.acres !== '' ? Number(data.acres) : null,
+    };
+
+    try {
+      await query(
+        `INSERT INTO farmers (id, farmer_code, name, status, agent_id, incharge_id, assigned_to, assigned_by, phone, location, water_source, acres, total_acres) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newFarmer.id,
+          newFarmer.farmer_code,
+          newFarmer.name,
+          newFarmer.status,
+          newFarmer.agent_id,
+          newFarmer.incharge_id,
+          newFarmer.assigned_to,
+          newFarmer.assigned_by,
+          newFarmer.phone,
+          newFarmer.location,
+          newFarmer.water_source,
+          newFarmer.acres,
+          newFarmer.total_acres,
+        ]
+      );
+      return this.getFarmerById(newFarmer.id);
+    } catch (err) {
+      console.error('[DB Error in createFarmer]', err.message);
+      throw new Error(`[DB Error in createFarmer]: ${err.message}`);
+    }
   }
 
   async updateFarmer(id, updates) {
-    if (isDbConnected()) {
-      try {
-        const fields = [];
-        const params = [];
+    this._ensureDb();
+    try {
+      const fields = [];
+      const params = [];
 
-        if (updates.name !== undefined) { fields.push('name = ?'); params.push(updates.name); }
-        if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
-        if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
-        if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
-        if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
-        if (updates.phone !== undefined) { fields.push('phone = ?'); params.push(updates.phone); }
-        if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
-        if (updates.village !== undefined) { fields.push('village = ?'); params.push(updates.village); }
-        if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
-        if (updates.acres !== undefined) {
-          fields.push('acres = ?'); params.push(Number(updates.acres));
-          fields.push('total_acres = ?'); params.push(Number(updates.acres));
-        }
-
-        if (fields.length > 0) {
-          params.push(id);
-          await query(`UPDATE farmers SET ${fields.join(', ')} WHERE id = ?`, params);
-        }
-      } catch (err) {
-        console.error('[DB Error in updateFarmer]', err.message);
+      if (updates.name !== undefined) { fields.push('name = ?'); params.push(String(updates.name).trim()); }
+      if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
+      if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId || null); }
+      if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId || null); }
+      if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo || null); }
+      if (updates.phone !== undefined) { fields.push('phone = ?'); params.push(updates.phone); }
+      if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
+      if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
+      if (updates.acres !== undefined) {
+        const val = updates.acres != null && updates.acres !== '' ? Number(updates.acres) : null;
+        fields.push('acres = ?', 'total_acres = ?');
+        params.push(val, val);
       }
-    }
 
-    const index = this.farmers.findIndex((f) => f.id === id);
-    if (index !== -1) {
-      this.farmers[index] = { ...this.farmers[index], ...updates };
-      return this.farmers[index];
+      if (fields.length > 0) {
+        params.push(id, id);
+        await query(`UPDATE farmers SET ${fields.join(', ')} WHERE id = ? OR farmer_code = ?`, params);
+      }
+      return this.getFarmerById(id);
+    } catch (err) {
+      console.error('[DB Error in updateFarmer]', err.message);
+      throw new Error(`[DB Error in updateFarmer]: ${err.message}`);
     }
-    return this.getFarmerById(id);
   }
 
   async deleteFarmer(id) {
-    if (isDbConnected()) {
-      try {
-        await query('DELETE FROM farmers WHERE id = ?', [id]);
-        await query('DELETE FROM tanks WHERE farmer_id = ?', [id]);
-      } catch (err) {
-        console.error('[DB Error in deleteFarmer]', err.message);
-      }
+    this._ensureDb();
+    try {
+      const res = await query('DELETE FROM farmers WHERE id = ? OR farmer_code = ?', [id, id]);
+      return res.affectedRows > 0;
+    } catch (err) {
+      console.error('[DB Error in deleteFarmer]', err.message);
+      throw new Error(`[DB Error in deleteFarmer]: ${err.message}`);
     }
+  }
 
-    const index = this.farmers.findIndex((f) => f.id === id);
-    if (index !== -1) {
-      this.farmers.splice(index, 1);
+  // --- Farmer Lifecycle & Status Recalculation ---
+
+  async recalculateFarmerStatus(farmerId) {
+    if (!farmerId) return null;
+    this._ensureDb();
+    try {
+      const fRows = await query('SELECT id, status FROM farmers WHERE id = ? LIMIT 1', [farmerId]);
+      if (!fRows || fRows.length === 0) return null;
+      const fRow = fRows[0];
+
+      const counts = await query(
+        `SELECT 
+           COUNT(DISTINCT t.id) as total_tanks,
+           COUNT(DISTINCT CASE 
+             WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                  AND fh.tank_id IS NOT NULL 
+             THEN t.id 
+             ELSE NULL 
+           END) as completed_tanks
+         FROM tanks t
+         LEFT JOIN (
+           SELECT DISTINCT tank_id, culture_cycle_id 
+           FROM harvests 
+           WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+         ) fh ON fh.tank_id = t.id 
+              AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+         WHERE t.farmer_id = ?`,
+        [farmerId]
+      );
+
+      const totalTanks = Number(counts[0]?.total_tanks || 0);
+      const completedTanks = Number(counts[0]?.completed_tanks || 0);
+
+      let newStatus = fRow.status || 'ACTIVE';
+      if (totalTanks > 0) {
+        newStatus = (completedTanks === totalTanks) ? 'INACTIVE' : 'ACTIVE';
+      }
+
+      if (newStatus !== fRow.status) {
+        await query('UPDATE farmers SET status = ? WHERE id = ?', [newStatus, farmerId]);
+      }
+
+      return newStatus;
+    } catch (err) {
+      console.error(`[Error in recalculateFarmerStatus for ${farmerId}]`, err.message);
+      throw err;
     }
-    this.tanks = this.tanks.filter((t) => t.farmerId !== id);
-    return true;
+  }
+
+  async recalculateAllFarmerStatuses() {
+    this._ensureDb();
+    try {
+      await query(`
+        UPDATE farmers f
+        LEFT JOIN (
+          SELECT 
+            t.farmer_id,
+            COUNT(DISTINCT t.id) as total_tanks,
+            COUNT(DISTINCT CASE 
+              WHEN LOWER(COALESCE(t.status, '')) = 'harvested' 
+                   AND fh.tank_id IS NOT NULL 
+              THEN t.id 
+              ELSE NULL 
+            END) as completed_tanks
+          FROM tanks t
+          LEFT JOIN (
+            SELECT DISTINCT tank_id, culture_cycle_id 
+            FROM harvests 
+            WHERE LOWER(COALESCE(harvest_type, '')) LIKE '%final%'
+          ) fh ON fh.tank_id = t.id 
+               AND (fh.culture_cycle_id = t.culture_cycle_id OR fh.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+          GROUP BY t.farmer_id
+        ) tc ON tc.farmer_id = f.id
+        SET f.status = CASE 
+          WHEN COALESCE(tc.total_tanks, 0) > 0 AND COALESCE(tc.total_tanks, 0) = COALESCE(tc.completed_tanks, 0) 
+          THEN 'INACTIVE'
+          ELSE 'ACTIVE'
+        END
+        WHERE COALESCE(tc.total_tanks, 0) > 0
+      `);
+    } catch (err) {
+      console.error('[Error in recalculateAllFarmerStatuses]', err.message);
+    }
   }
 
   // --- Tanks / Ponds ---
+
   async getTanks(filter = {}) {
-    if (isDbConnected()) {
-      try {
-        let sql = 'SELECT * FROM tanks WHERE 1=1';
-        const params = [];
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          t.*,
+          COALESCE(f.name, '') as farmer_name,
+          COALESCE(f.location, '') as farmer_location,
+          COALESCE(f.village, '') as farmer_village,
+          COALESCE(f.phone, '') as farmer_phone,
+          f.latitude as farmer_latitude,
+          f.longitude as farmer_longitude,
+          COALESCE(a.name, '') as agent_name,
+          COALESCE(a.locality, '') as agent_locality,
+          COALESCE(i.name, '') as incharge_name,
+          COALESCE(r.name, '') as region_name,
+          COALESCE(r.id, r.code, i.region_id, '') as region_id
+        FROM tanks t
+        LEFT JOIN farmers f ON t.farmer_id = f.id
+        LEFT JOIN agents a ON COALESCE(t.agent_id, f.agent_id) = a.id
+        LEFT JOIN incharges i ON COALESCE(t.incharge_id, f.incharge_id, a.incharge_id) = i.id
+        LEFT JOIN regions r ON i.region_id = r.id
+        WHERE 1=1
+      `;
+      const params = [];
 
-        if (filter.farmerId) {
-          sql += ' AND (farmer_id = ? OR (farmer_id = "F001" AND ? = "1") OR (farmer_id = "1" AND ? = "F001") OR (farmer_id = "F001" AND ? = "FAR001"))';
-          params.push(filter.farmerId, filter.farmerId, filter.farmerId, filter.farmerId);
-        }
-        if (filter.agentId) { sql += ' AND (agent_id = ? OR agent_id IS NULL)'; params.push(filter.agentId); }
-        if (filter.inchargeId) { sql += ' AND (incharge_id = ? OR incharge_id IS NULL)'; params.push(filter.inchargeId); }
-        if (filter.status) { sql += ' AND LOWER(status) = LOWER(?)'; params.push(filter.status); }
-        if (filter.testStatus) { sql += ' AND LOWER(test_status) = LOWER(?)'; params.push(filter.testStatus); }
-        sql += ' ORDER BY created_at DESC';
+      if (filter.farmerId) {
+        sql += ' AND (t.farmer_id = ? OR f.farmer_code = ?)';
+        params.push(filter.farmerId, filter.farmerId);
+      }
+      if (filter.agentId) {
+        sql += ' AND (t.agent_id = ? OR f.agent_id = ?)';
+        params.push(filter.agentId, filter.agentId);
+      }
+      if (filter.inchargeId) {
+        sql += ' AND (t.incharge_id = ? OR f.incharge_id = ? OR a.incharge_id = ?)';
+        params.push(filter.inchargeId, filter.inchargeId, filter.inchargeId);
+      }
+      if (filter.status) {
+        sql += ' AND LOWER(t.status) = LOWER(?)';
+        params.push(filter.status);
+      }
+      if (filter.testStatus) {
+        sql += ' AND LOWER(t.test_status) = LOWER(?)';
+        params.push(filter.testStatus);
+      }
 
-        const rows = await query(sql, params);
-        return rows.map((r) => ({
+      sql += ' ORDER BY t.created_at DESC, t.id ASC';
+
+      const rows = await query(sql, params);
+      return rows.map((r) => {
+        const currentDoc = calculateCurrentDoc(r);
+        return {
           ...r,
           id: String(r.id),
+          doc: currentDoc,
+          enteredDoc: r.doc != null ? Number(r.doc) : 0,
+          baselineDoc: r.doc != null ? Number(r.doc) : 0,
+          stockingDate: r.stocking_date || r.seed_date || null,
+          seedDate: r.seed_date || r.stocking_date || null,
+          seedStocked: r.seed_stocking_lak || r.seed_stocked || r.seedStocked || null,
+          seedStockingLak: r.seed_stocking_lak || null,
+          seed: r.seed_stocking_lak || null,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
           farmerId: r.farmer_id,
+          farmerName: r.farmer_name,
+          farmer: r.farmer_name,
+          location: r.farmer_location || r.location || '',
+          locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || (r.location ? r.location.split(',')[0].trim() : '') || 'Bhimavaram',
+          latitude: r.latitude != null && !isNaN(Number(r.latitude))
+            ? Number(r.latitude)
+            : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+          longitude: r.longitude != null && !isNaN(Number(r.longitude))
+            ? Number(r.longitude)
+            : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
           agentId: r.agent_id,
+          agent: r.agent_name,
           inchargeId: r.incharge_id,
-          assignedTo: r.assigned_to,
-          testStatus: r.test_status,
+          incharge: r.incharge_name,
+          region: r.region_name || '',
+          regionId: r.region_id || '',
+          testStatus: r.test_status || 'Due',
           lastTest: r.last_test,
           nextTest: r.next_test,
-          latitude: r.latitude != null ? parseFloat(r.latitude) : null,
-          longitude: r.longitude != null ? parseFloat(r.longitude) : null,
-          location: r.location || null,
-          size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
-          acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
-          salinity: r.salinity || '15 ppt',
-          species: r.species || 'Vannamei',
-          cultureType: r.culture_type || 'Semi-Intensive',
-        }));
-      } catch (err) {
-        console.error('[DB Error in getTanks]', err.message);
-      }
+          status: r.status || 'ACTIVE',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+          boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
+          boundaryMethod: r.boundary_method || null,
+          boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
+          boundaryQuality: r.boundary_quality || null,
+          boundaryCapturedAt: r.boundary_captured_at || null,
+        };
+      });
+    } catch (err) {
+      console.error('[DB Error in getTanks]', err.message);
+      throw new Error(`[DB Error in getTanks]: ${err.message}`);
     }
-
-    let result = [...this.tanks];
-    if (filter.farmerId) result = result.filter((t) => t.farmerId === filter.farmerId);
-    if (filter.agentId) result = result.filter((t) => t.agentId === filter.agentId);
-    if (filter.inchargeId) result = result.filter((t) => t.inchargeId === filter.inchargeId);
-    if (filter.status) result = result.filter((t) => t.status?.toLowerCase() === filter.status.toLowerCase());
-    if (filter.testStatus) result = result.filter((t) => t.testStatus?.toLowerCase() === filter.testStatus.toLowerCase());
-    return result;
   }
 
   async getTankById(id) {
-    if (isDbConnected()) {
-      try {
-        const rows = await query('SELECT * FROM tanks WHERE id = ? LIMIT 1', [id]);
-        if (rows && rows.length > 0) {
-          const r = rows[0];
-          return {
-            ...r,
-            id: String(r.id),
-            farmerId: r.farmer_id,
-            agentId: r.agent_id,
-            inchargeId: r.incharge_id,
-            assignedTo: r.assigned_to,
-            testStatus: r.test_status,
-            lastTest: r.last_test,
-            nextTest: r.next_test,
-            latitude: r.latitude != null ? parseFloat(r.latitude) : null,
-            longitude: r.longitude != null ? parseFloat(r.longitude) : null,
-            location: r.location || null,
-            size: r.size || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
-            acres: r.acres || (r.area_acres ? `${r.area_acres} Acres` : '5.0 Acres'),
-            salinity: r.salinity || '15 ppt',
-            species: r.species || 'Vannamei',
-            cultureType: r.culture_type || 'Semi-Intensive',
-          };
-        }
-      } catch (err) {
-        console.error('[DB Error in getTankById]', err.message);
+    this._ensureDb();
+    try {
+      const rows = await query(
+        `SELECT 
+          t.*,
+          COALESCE(f.name, '') as farmer_name,
+          COALESCE(f.location, '') as farmer_location,
+          COALESCE(f.village, '') as farmer_village,
+          COALESCE(f.phone, '') as farmer_phone,
+          f.latitude as farmer_latitude,
+          f.longitude as farmer_longitude,
+          COALESCE(a.name, '') as agent_name,
+          COALESCE(a.phone, '') as agent_phone,
+          COALESCE(a.locality, '') as agent_locality,
+          COALESCE(i.name, '') as incharge_name,
+          COALESCE(r.name, '') as region_name,
+          COALESCE(r.id, r.code, i.region_id, '') as region_id
+        FROM tanks t
+        LEFT JOIN farmers f ON t.farmer_id = f.id
+        LEFT JOIN agents a ON COALESCE(t.agent_id, f.agent_id) = a.id
+        LEFT JOIN incharges i ON COALESCE(t.incharge_id, f.incharge_id, a.incharge_id) = i.id
+        LEFT JOIN regions r ON i.region_id = r.id
+        WHERE t.id = ? 
+        LIMIT 1`,
+        [id]
+      );
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        const currentDoc = calculateCurrentDoc(r);
+        return {
+          ...r,
+          id: String(r.id),
+          doc: currentDoc,
+          enteredDoc: r.doc != null ? Number(r.doc) : 0,
+          baselineDoc: r.doc != null ? Number(r.doc) : 0,
+          stockingDate: r.stocking_date || r.seed_date || null,
+          seedDate: r.seed_date || r.stocking_date || null,
+          seedStocked: r.seed_stocking_lak || r.seed_stocked || r.seedStocked || null,
+          seedStockingLak: r.seed_stocking_lak || null,
+          seed: r.seed_stocking_lak || null,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          farmerId: r.farmer_id,
+          farmerName: r.farmer_name,
+          farmer: r.farmer_name,
+          farmerPhone: r.farmer_phone,
+          location: r.farmer_location || r.location || '',
+          locality: r.locality || r.farmer_village || (r.farmer_location ? r.farmer_location.split(',')[0].trim() : '') || r.agent_locality || 'Bhimavaram',
+          latitude: r.latitude != null && !isNaN(Number(r.latitude))
+            ? Number(r.latitude)
+            : (r.farmer_latitude != null && !isNaN(Number(r.farmer_latitude)) ? Number(r.farmer_latitude) : null),
+          longitude: r.longitude != null && !isNaN(Number(r.longitude))
+            ? Number(r.longitude)
+            : (r.farmer_longitude != null && !isNaN(Number(r.farmer_longitude)) ? Number(r.farmer_longitude) : null),
+          agentId: r.agent_id,
+          agent: r.agent_name,
+          agentPhone: r.agent_phone,
+          inchargeId: r.incharge_id,
+          incharge: r.incharge_name,
+          region: r.region_name || '',
+          regionId: r.region_id || '',
+          testStatus: r.test_status || 'Due',
+          lastTest: r.last_test,
+          nextTest: r.next_test,
+          status: r.status || 'ACTIVE',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+          boundaryCoordinates: parseBoundaryCoords(r.boundary_coordinates),
+          boundaryMethod: r.boundary_method || null,
+          boundaryAreaAcres: r.boundary_area_acres != null ? parseFloat(r.boundary_area_acres) : null,
+          boundaryQuality: r.boundary_quality || null,
+          boundaryCapturedAt: r.boundary_captured_at || null,
+        };
       }
+      return null;
+    } catch (err) {
+      console.error('[DB Error in getTankById]', err.message);
+      throw new Error(`[DB Error in getTankById]: ${err.message}`);
     }
-
-    return this.tanks.find((t) => t.id === id);
   }
 
   async createTank(data) {
-    const id = data.id || `T${String(Date.now()).slice(-4)}`;
-    const newTank = {
-      id,
-      name: data.name,
-      farmerId: data.farmerId,
-      agentId: data.agentId || null,
-      inchargeId: data.inchargeId || null,
-      assignedTo: data.assignedTo || (data.agentId ? 'Agent' : data.inchargeId ? 'Incharge' : 'Unassigned'),
-      status: data.status || 'ACTIVE',
-      testStatus: data.testStatus || 'Due',
-      abw: data.abw || '16.5g',
-      biomass: data.biomass || '1500kg',
-      fcr: data.fcr || '1.20',
-      lastTest: data.lastTest || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      nextTest: data.nextTest || 'Due This Week',
-      size: data.size || (data.acres ? `${data.acres} Acres` : '5.0 Acres'),
-      doc: data.doc ? Number(data.doc) : 1,
-      salinity: data.salinity || '15 ppt',
-      species: data.species || 'Vannamei',
-      cultureType: data.cultureType || 'Semi-Intensive',
-      stockingDate: data.stockingDate || new Date().toISOString().split('T')[0],
-      latitude: data.latitude != null ? parseFloat(data.latitude) : null,
-      longitude: data.longitude != null ? parseFloat(data.longitude) : null,
-      location: data.location || null,
-      createdAt: new Date().toISOString(),
-    };
-
-    if (isDbConnected()) {
-      try {
-        await query(
-          `INSERT INTO tanks (id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, abw, biomass, fcr, last_test, next_test, size, doc, salinity, species, culture_type, stocking_date, latitude, longitude, location)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
-             assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
-             biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), size=VALUES(size), doc=VALUES(doc),
-             latitude=VALUES(latitude), longitude=VALUES(longitude), location=VALUES(location)`,
-          [
-            newTank.id,
-            newTank.name,
-            newTank.farmerId,
-            newTank.agentId,
-            newTank.inchargeId,
-            newTank.assignedTo,
-            newTank.status,
-            newTank.testStatus,
-            newTank.abw,
-            newTank.biomass,
-            newTank.fcr,
-            newTank.lastTest,
-            newTank.nextTest,
-            newTank.size,
-            newTank.doc,
-            newTank.salinity,
-            newTank.species,
-            newTank.cultureType,
-            newTank.stockingDate,
-            newTank.latitude,
-            newTank.longitude,
-            newTank.location,
-          ]
-        );
-      } catch (err) {
-        console.error('[DB Error in createTank]', err.message);
-      }
+    this._ensureDb();
+    if (!data.name || !String(data.name).trim()) {
+      throw new Error('Tank name is required');
+    }
+    if (!data.farmerId) {
+      throw new Error('farmerId is required');
     }
 
-    this.tanks.unshift(newTank);
-    return newTank;
+    const cleanName = String(data.name).trim();
+
+    const existing = await query(
+      'SELECT id, name FROM tanks WHERE farmer_id = ? AND LOWER(name) = LOWER(?) LIMIT 1',
+      [data.farmerId, cleanName]
+    );
+    if (existing && existing.length > 0) {
+      const err = new Error(`A tank named "${cleanName}" already exists for this farmer`);
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const id = data.id || `T_${Date.now().toString(36).toUpperCase()}`;
+    const formatBoundaryCoords = (c) => {
+      if (!c) return null;
+      if (typeof c === 'string') return c;
+      return JSON.stringify(c);
+    };
+
+    const newTank = {
+      id,
+      name: cleanName,
+      farmer_id: data.farmerId,
+      agent_id: data.agentId || null,
+      incharge_id: data.inchargeId || null,
+      assigned_to: data.assignedTo || (data.agentId ? 'Agent' : data.inchargeId ? 'Incharge' : 'Unassigned'),
+      status: data.status || 'ACTIVE',
+      test_status: data.testStatus || 'Due',
+      abw: data.abw ? String(data.abw) : '16.5g',
+      biomass: data.biomass ? String(data.biomass) : '1500kg',
+      fcr: data.fcr ? String(data.fcr) : '1.20',
+      last_test: data.lastTest || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      next_test: data.nextTest || 'In 7 Days',
+      size: data.size || (data.acres ? `${data.acres} Acres` : '2.5 Acres'),
+      acres: data.acres ? String(data.acres) : null,
+      area_acres: data.areaAcres ? parseFloat(data.areaAcres) : (data.acres ? parseFloat(data.acres) : null),
+      doc: data.doc != null && data.doc !== '' ? Number(data.doc) : 0,
+      salinity: data.salinity || '15 ppt',
+      species: data.species || 'Vannamei',
+      water_source: data.waterSource || 'Bore Well',
+      culture_type: data.cultureType || 'Semi-Intensive',
+      stocking_date: data.stockingDate || data.seedDate || new Date().toISOString().split('T')[0],
+      seed_date: data.seedDate || data.stockingDate || null,
+      seed_stocking_lak: data.seedStockingLak || data.seed_stocking_lak || data.seedStocked || data.seed || null,
+      boundary_coordinates: formatBoundaryCoords(data.boundaryCoordinates),
+      boundary_method: data.boundaryMethod || null,
+      boundary_area_acres: data.boundaryAreaAcres != null && data.boundaryAreaAcres !== '' ? parseFloat(data.boundaryAreaAcres) : null,
+      boundaryQuality: data.boundaryQuality || null,
+      boundary_captured_at: data.boundaryCapturedAt ? new Date(data.boundaryCapturedAt) : (data.boundaryCoordinates ? new Date() : null),
+    };
+
+    try {
+      await query(
+        `INSERT INTO tanks (
+          id, name, farmer_id, agent_id, incharge_id, assigned_to, status, test_status, 
+          abw, biomass, fcr, last_test, next_test, size, acres, area_acres, doc, 
+          salinity, species, water_source, culture_type, stocking_date, seed_date, seed_stocking_lak,
+          boundary_coordinates, boundary_method, boundary_area_acres, boundary_quality, boundary_captured_at
+        ) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name=VALUES(name), farmer_id=VALUES(farmer_id), agent_id=VALUES(agent_id), incharge_id=VALUES(incharge_id),
+           assigned_to=VALUES(assigned_to), status=VALUES(status), test_status=VALUES(test_status), abw=VALUES(abw),
+           biomass=VALUES(biomass), fcr=VALUES(fcr), last_test=VALUES(last_test), next_test=VALUES(next_test), 
+           size=VALUES(size), acres=VALUES(acres), area_acres=VALUES(area_acres), doc=VALUES(doc),
+           salinity=VALUES(salinity), species=VALUES(species), water_source=VALUES(water_source), 
+           culture_type=VALUES(culture_type), stocking_date=VALUES(stocking_date),
+           seed_date=COALESCE(VALUES(seed_date), seed_date),
+           seed_stocking_lak=COALESCE(VALUES(seed_stocking_lak), seed_stocking_lak),
+           boundary_coordinates=COALESCE(VALUES(boundary_coordinates), boundary_coordinates),
+           boundary_method=COALESCE(VALUES(boundary_method), boundary_method),
+           boundary_area_acres=COALESCE(VALUES(boundary_area_acres), boundary_area_acres),
+           boundary_quality=COALESCE(VALUES(boundary_quality), boundary_quality),
+           boundary_captured_at=COALESCE(VALUES(boundary_captured_at), boundary_captured_at)`,
+        [
+          newTank.id,
+          newTank.name,
+          newTank.farmer_id,
+          newTank.agent_id,
+          newTank.incharge_id,
+          newTank.assigned_to,
+          newTank.status,
+          newTank.test_status,
+          newTank.abw,
+          newTank.biomass,
+          newTank.fcr,
+          newTank.last_test,
+          newTank.next_test,
+          newTank.size,
+          newTank.acres,
+          newTank.area_acres,
+          newTank.doc,
+          newTank.salinity,
+          newTank.species,
+          newTank.water_source,
+          newTank.culture_type,
+          newTank.stocking_date,
+          newTank.seed_date,
+          newTank.seed_stocking_lak,
+          newTank.boundary_coordinates,
+          newTank.boundary_method,
+          newTank.boundary_area_acres,
+          newTank.boundary_quality,
+          newTank.boundary_captured_at,
+        ]
+      );
+      if (newTank.farmer_id) {
+        await this.recalculateFarmerStatus(newTank.farmer_id).catch(() => { });
+      }
+      return this.getTankById(newTank.id);
+    } catch (err) {
+      console.error('[DB Error in createTank]', err.message);
+      throw new Error(`[DB Error in createTank]: ${err.message}`);
+    }
   }
 
   async updateTank(id, updates) {
-    if (isDbConnected()) {
-      try {
-        const fields = [];
-        const params = [];
+    this._ensureDb();
+    try {
+      const fields = [];
+      const params = [];
 
-        if (updates.name !== undefined) { fields.push('name = ?'); params.push(updates.name); }
-        if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
-        if (updates.testStatus !== undefined) { fields.push('test_status = ?'); params.push(updates.testStatus); }
-        if (updates.abw !== undefined) { fields.push('abw = ?'); params.push(updates.abw); }
-        if (updates.biomass !== undefined) { fields.push('biomass = ?'); params.push(updates.biomass); }
-        if (updates.fcr !== undefined) { fields.push('fcr = ?'); params.push(updates.fcr); }
-        if (updates.lastTest !== undefined) { fields.push('last_test = ?'); params.push(updates.lastTest); }
-        if (updates.nextTest !== undefined) { fields.push('next_test = ?'); params.push(updates.nextTest); }
-        if (updates.doc !== undefined) { fields.push('doc = ?'); params.push(Number(updates.doc)); }
-        if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
-        if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
-        if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
-        if (updates.latitude !== undefined) { fields.push('latitude = ?'); params.push(updates.latitude); }
-        if (updates.longitude !== undefined) { fields.push('longitude = ?'); params.push(updates.longitude); }
-        if (updates.location !== undefined) { fields.push('location = ?'); params.push(updates.location); }
-
-        if (fields.length > 0) {
-          params.push(id);
-          await query(`UPDATE tanks SET ${fields.join(', ')} WHERE id = ?`, params);
-        }
-      } catch (err) {
-        console.error('[DB Error in updateTank]', err.message);
+      if (updates.name !== undefined) { fields.push('name = ?'); params.push(String(updates.name).trim()); }
+      if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
+      if (updates.testStatus !== undefined) { fields.push('test_status = ?'); params.push(updates.testStatus); }
+      if (updates.abw !== undefined) { fields.push('abw = ?'); params.push(updates.abw); }
+      if (updates.biomass !== undefined) { fields.push('biomass = ?'); params.push(updates.biomass); }
+      if (updates.fcr !== undefined) { fields.push('fcr = ?'); params.push(updates.fcr); }
+      if (updates.lastTest !== undefined) { fields.push('last_test = ?'); params.push(updates.lastTest); }
+      if (updates.nextTest !== undefined) { fields.push('next_test = ?'); params.push(updates.nextTest); }
+      if (updates.size !== undefined) { fields.push('size = ?'); params.push(updates.size); }
+      if (updates.acres !== undefined) { fields.push('acres = ?'); params.push(String(updates.acres)); }
+      if (updates.areaAcres !== undefined) { fields.push('area_acres = ?'); params.push(parseFloat(updates.areaAcres)); }
+      if (updates.doc !== undefined) { fields.push('doc = ?'); params.push(Number(updates.doc)); }
+      if (updates.agentId !== undefined) { fields.push('agent_id = ?'); params.push(updates.agentId); }
+      if (updates.inchargeId !== undefined) { fields.push('incharge_id = ?'); params.push(updates.inchargeId); }
+      if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo); }
+      if (updates.salinity !== undefined) { fields.push('salinity = ?'); params.push(updates.salinity); }
+      if (updates.species !== undefined) { fields.push('species = ?'); params.push(updates.species); }
+      if (updates.waterSource !== undefined) { fields.push('water_source = ?'); params.push(updates.waterSource); }
+      if (updates.cultureType !== undefined) { fields.push('culture_type = ?'); params.push(updates.cultureType); }
+      if (updates.stockingDate !== undefined) { fields.push('stocking_date = ?'); params.push(updates.stockingDate); }
+      if (updates.seedDate !== undefined) { fields.push('seed_date = ?'); params.push(updates.seedDate); }
+      if (updates.seedStockingLak !== undefined || updates.seed_stocking_lak !== undefined || updates.seedStocked !== undefined || updates.seed !== undefined) {
+        fields.push('seed_stocking_lak = ?');
+        params.push(updates.seedStockingLak || updates.seed_stocking_lak || updates.seedStocked || updates.seed || null);
       }
-    }
+      if (updates.boundaryCoordinates !== undefined) {
+        fields.push('boundary_coordinates = ?');
+        params.push(updates.boundaryCoordinates ? (typeof updates.boundaryCoordinates === 'string' ? updates.boundaryCoordinates : JSON.stringify(updates.boundaryCoordinates)) : null);
+      }
+      if (updates.boundaryMethod !== undefined) {
+        fields.push('boundary_method = ?');
+        params.push(updates.boundaryMethod || null);
+      }
+      if (updates.boundaryAreaAcres !== undefined) {
+        fields.push('boundary_area_acres = ?');
+        params.push(updates.boundaryAreaAcres != null && updates.boundaryAreaAcres !== '' ? parseFloat(updates.boundaryAreaAcres) : null);
+      }
+      if (updates.boundaryQuality !== undefined) {
+        fields.push('boundary_quality = ?');
+        params.push(updates.boundaryQuality || null);
+      }
+      if (updates.boundaryCapturedAt !== undefined) {
+        fields.push('boundary_captured_at = ?');
+        params.push(updates.boundaryCapturedAt ? new Date(updates.boundaryCapturedAt) : null);
+      }
 
-    const index = this.tanks.findIndex((t) => t.id === id);
-    if (index !== -1) {
-      this.tanks[index] = { ...this.tanks[index], ...updates };
-      return this.tanks[index];
+      if (fields.length > 0) {
+        params.push(id);
+        await query(`UPDATE tanks SET ${fields.join(', ')} WHERE id = ?`, params);
+        if (updates.status !== undefined || updates.farmerId !== undefined) {
+          const tank = await this.getTankById(id);
+          if (tank?.farmerId) {
+            await this.recalculateFarmerStatus(tank.farmerId).catch(() => { });
+          }
+        }
+      }
+      return this.getTankById(id);
+    } catch (err) {
+      console.error('[DB Error in updateTank]', err.message);
+      throw new Error(`[DB Error in updateTank]: ${err.message}`);
     }
-    return this.getTankById(id);
   }
 
   async deleteTank(id) {
-    if (isDbConnected()) {
-      try {
-        await query('DELETE FROM tanks WHERE id = ?', [id]);
-      } catch (err) {
-        console.error('[DB Error in deleteTank]', err.message);
+    this._ensureDb();
+    try {
+      const tank = await this.getTankById(id);
+      const res = await query('DELETE FROM tanks WHERE id = ?', [id]);
+      if (tank?.farmerId) {
+        await this.recalculateFarmerStatus(tank.farmerId).catch(() => { });
       }
+      return res.affectedRows > 0;
+    } catch (err) {
+      console.error('[DB Error in deleteTank]', err.message);
+      throw new Error(`[DB Error in deleteTank]: ${err.message}`);
     }
-
-    const index = this.tanks.findIndex((t) => t.id === id);
-    if (index !== -1) {
-      this.tanks.splice(index, 1);
-    }
-    return true;
   }
 
   // --- Submissions ---
-  async getSubmissions(filter = {}) {
-    if (isDbConnected()) {
-      try {
-        let sql = 'SELECT * FROM submissions WHERE 1=1';
-        const params = [];
-        if (filter.status) { sql += ' AND UPPER(status) = UPPER(?)'; params.push(filter.status); }
-        if (filter.agentId) { sql += ' AND (agent_id = ? OR agent_id IS NULL)'; params.push(filter.agentId); }
-        if (filter.tankId) { sql += ' AND tank_id = ?'; params.push(filter.tankId); }
-        sql += ' ORDER BY created_at DESC';
 
-        const rows = await query(sql, params);
-        return rows.map((r) => ({
+  async getSubmissions(filter = {}) {
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          s.*,
+          COALESCE(NULLIF(f.name, ''), NULLIF(f2.name, ''), '') as farmer_name,
+          COALESCE(NULLIF(t.name, ''), s.tank_id, '') as tank_name
+        FROM submissions s
+        LEFT JOIN farmers f ON s.farmer_id = f.id
+        LEFT JOIN tanks t ON s.tank_id = t.id
+        LEFT JOIN farmers f2 ON t.farmer_id = f2.id
+        WHERE 1=1
+      `;
+      const params = [];
+      if (filter.status) {
+        sql += ' AND UPPER(s.status) = UPPER(?)';
+        params.push(filter.status);
+      }
+      if (filter.agentId) {
+        sql += ' AND (s.agent_id = ? OR s.user_id = ?)';
+        params.push(filter.agentId, filter.agentId);
+      }
+      if (filter.tankId) {
+        sql += ' AND s.tank_id = ?';
+        params.push(filter.tankId);
+      }
+      if (filter.farmerId) {
+        sql += ' AND (s.farmer_id = ? OR t.farmer_id = ?)';
+        params.push(filter.farmerId, filter.farmerId);
+      }
+      sql += ' ORDER BY s.created_at DESC, s.id DESC';
+
+      const rows = await query(sql, params);
+      return rows.map((r) => {
+        const parsedData = typeof r.data === 'string' ? JSON.parse(r.data || '{}') : (r.data || {});
+        return {
           ...r,
           id: String(r.id),
-          agentId: r.agent_id,
-          farmerId: r.farmer_id,
-          tankId: r.tank_id,
-          testType: r.test_type,
+          agentId: r.agent_id || r.user_id,
+          userId: r.user_id || r.agent_id,
+          userName: r.user_name || parsedData.userName || parsedData.agentName || 'Field Technician',
+          role: r.role || (r.user_id && String(r.user_id).startsWith('INC') ? 'Incharge' : 'Agent'),
+          farmerId: r.farmer_id || parsedData.farmerId,
+          farmerName: r.farmer_name || parsedData.farmerName || 'Farmer',
+          tankId: r.tank_id || parsedData.tankId,
+          tankName: r.tank_name || parsedData.tankName || r.tank_id || 'Tank',
+          testType: r.test_type || parsedData.testType || 'Water Quality Test',
+          date: r.date || (r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : ''),
+          submissionTime: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          time: r.submission_time || (r.created_at ? new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''),
+          submission_time: r.submission_time,
+          createdAt: r.created_at,
           submittedAgo: r.submitted_ago || 'Recently',
-          data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
-        }));
-      } catch (err) {
-        console.error('[DB Error in getSubmissions]', err.message);
-      }
+          status: r.status || 'PENDING_VERIFICATION',
+          data: parsedData,
+          doc: parsedData.doc ?? parsedData.DOC ?? null,
+          abw: parsedData.abw ?? parsedData.ABW ?? null,
+          fcr: parsedData.fcr ?? parsedData.FCR ?? null,
+          count: parsedData.count ?? parsedData.Count ?? null,
+          estimatedStock: parsedData.estimatedStock ?? parsedData.estimated_stock ?? null,
+          checkTrayTime: parsedData.checkTrayTime ?? parsedData.chTrTime ?? null,
+          chTrTime: parsedData.checkTrayTime ?? parsedData.chTrTime ?? null,
+          others: parsedData.others ?? null,
+          salinity: parsedData.salinity ?? null,
+          ph: parsedData.ph ?? parsedData.pH ?? parsedData.waterQuality?.ph ?? null,
+          do: parsedData.do ?? parsedData.DO ?? parsedData.waterQuality?.do ?? null,
+        };
+      });
+    } catch (err) {
+      console.error('[DB Error in getSubmissions]', err.message);
+      throw new Error(`[DB Error in getSubmissions]: ${err.message}`);
     }
-
-    let result = [...this.submissions];
-    if (filter.status) result = result.filter((s) => s.status?.toUpperCase() === filter.status.toUpperCase());
-    if (filter.agentId) result = result.filter((s) => s.agentId === filter.agentId);
-    if (filter.tankId) result = result.filter((s) => s.tankId === filter.tankId);
-    return result;
   }
 
   async getSubmissionLocations(filter = {}) {
-    if (isDbConnected()) {
-      try {
-        let sql = `
-          SELECT 
-            s.id AS submissionId,
-            COALESCE(s.user_id, s.agent_id) AS userId,
-            COALESCE(s.user_name, a.name, inc.name, u.name, 'Field Staff') AS userName,
-            COALESCE(s.role, CASE WHEN s.agent_id LIKE 'INC%' OR s.user_id LIKE 'INC%' THEN 'Incharge' ELSE 'Agent' END) AS role,
-            s.latitude,
-            s.longitude,
-            COALESCE(s.accuracy, 12.0) AS accuracy,
-            s.date,
-            COALESCE(s.submission_time, DATE_FORMAT(s.created_at, '%h:%i %p')) AS submissionTime,
-            s.created_at AS submittedAt,
-            s.test_type AS testType,
-            s.tank_id AS tankId,
-            s.farmer_id AS farmerId,
-            COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
-            s.status
-          FROM submissions s
-          LEFT JOIN agents a ON (s.user_id = a.id OR s.agent_id = a.id)
-          LEFT JOIN incharges inc ON (s.user_id = inc.id COLLATE utf8mb4_0900_ai_ci OR s.agent_id = inc.id COLLATE utf8mb4_0900_ai_ci)
-          LEFT JOIN users u ON (s.user_id = u.id COLLATE utf8mb4_0900_ai_ci OR s.agent_id = u.id COLLATE utf8mb4_0900_ai_ci)
-          WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
-        `;
-        const params = [];
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          s.id AS submissionId,
+          COALESCE(s.user_id, s.agent_id) AS userId,
+          COALESCE(s.user_name, a.name, inc.name, u.name, '') AS userName,
+          COALESCE(s.role, CASE WHEN s.agent_id LIKE 'INC%' OR s.user_id LIKE 'INC%' THEN 'Incharge' ELSE 'Agent' END) AS role,
+          s.latitude,
+          s.longitude,
+          s.accuracy,
+          s.date,
+          COALESCE(s.submission_time, DATE_FORMAT(s.created_at, '%h:%i %p')) AS submissionTime,
+          s.created_at AS submittedAt,
+          s.test_type AS testType,
+          s.tank_id AS tankId,
+          s.farmer_id AS farmerId,
+          COALESCE(NULLIF(f.name, ''), NULLIF(ft.name, ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmerName')), ''), NULLIF(JSON_UNQUOTE(JSON_EXTRACT(s.data, '$.farmer_name')), ''), '') AS farmerName,
+          COALESCE(s.locality, a.locality, 'Coastal Andhra') AS locality,
+          s.status
+        FROM submissions s
+        LEFT JOIN agents a ON a.id = COALESCE(s.user_id, s.agent_id)
+        LEFT JOIN incharges inc ON inc.id = COALESCE(s.user_id, s.agent_id)
+        LEFT JOIN users u ON u.id = COALESCE(s.user_id, s.agent_id)
+        LEFT JOIN farmers f ON (s.farmer_id = f.id OR s.farmer_id = f.farmer_code)
+        LEFT JOIN tanks t ON (s.tank_id = t.id)
+        LEFT JOIN farmers ft ON (t.farmer_id = ft.id OR t.farmer_id = ft.farmer_code)
+        WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
+      `;
+      const params = [];
 
-        if (filter.userId && filter.userId !== 'ALL') {
-          sql += ` AND (s.user_id = ? OR s.agent_id = ?)`;
-          params.push(filter.userId, filter.userId);
+      if (filter.userId && filter.userId !== 'ALL') {
+        sql += ' AND (s.user_id = ? OR s.agent_id = ?)';
+        params.push(filter.userId, filter.userId);
+      }
+
+      if (filter.role && filter.role !== 'ALL') {
+        sql += ' AND LOWER(COALESCE(s.role, \'Agent\')) = LOWER(?)';
+        params.push(filter.role);
+      }
+
+      if (filter.date && filter.date !== 'ALL') {
+        if (filter.date.toLowerCase() === 'today') {
+          sql += ' AND (s.date = CURDATE() OR (s.created_at >= CURDATE() AND s.created_at < CURDATE() + INTERVAL 1 DAY))';
+        } else {
+          sql += ' AND (s.date = ? OR (s.created_at >= ? AND s.created_at < ? + INTERVAL 1 DAY))';
+          params.push(filter.date, filter.date, filter.date);
         }
+      }
 
-        if (filter.role && filter.role !== 'ALL') {
-          sql += ` AND LOWER(COALESCE(s.role, 'Agent')) = LOWER(?)`;
-          params.push(filter.role);
-        }
+      sql += ' ORDER BY s.created_at DESC';
 
-        if (filter.date && filter.date !== 'ALL') {
-          if (filter.date.toLowerCase() === 'today') {
-            sql += ` AND (s.date = DATE_FORMAT(NOW(), '%Y-%m-%d') OR DATE(s.created_at) = CURDATE() OR s.date = '2026-10-07')`;
-          } else {
-            sql += ` AND (s.date = ? OR DATE(s.created_at) = ?)`;
-            params.push(filter.date, filter.date);
-          }
-        }
-
-        sql += ` ORDER BY s.created_at DESC`;
-
-        const rows = await query(sql, params);
-        return rows.map((r) => ({
+      const rows = await query(sql, params);
+      return rows
+        .filter((r) => r.latitude != null && r.longitude != null && !isNaN(parseFloat(r.latitude)) && !isNaN(parseFloat(r.longitude)))
+        .map((r) => ({
           submissionId: r.submissionId,
           userId: r.userId || '',
           userName: r.userName || '',
@@ -604,66 +1012,39 @@ class DataStore {
           testType: r.testType,
           tankId: r.tankId,
           farmerId: r.farmerId,
-          locality: r.locality,
+          farmerName: r.farmerName || '',
+          locality: r.locality || 'No location available',
           status: r.status,
         }));
-      } catch (err) {
-        console.error('[DB Error in getSubmissionLocations]', err.message);
-      }
+    } catch (err) {
+      console.error('[DB Error in getSubmissionLocations]', err.message);
+      throw new Error(`[DB Error in getSubmissionLocations]: ${err.message}`);
     }
-
-    let result = [...this.submissions].filter((s) => s.latitude != null && s.longitude != null);
-    if (filter.userId && filter.userId !== 'ALL') {
-      result = result.filter((s) => s.userId === filter.userId || s.agentId === filter.userId);
-    }
-    if (filter.role && filter.role !== 'ALL') {
-      result = result.filter((s) => (s.role || 'Agent').toLowerCase() === filter.role.toLowerCase());
-    }
-    if (filter.date && filter.date !== 'ALL') {
-      result = result.filter((s) => s.date === filter.date || filter.date.toLowerCase() === 'today');
-    }
-    return result.map((s) => ({
-      submissionId: s.id,
-      userId: s.userId || s.agentId || '',
-      userName: s.userName || 'Staff',
-      role: s.role || 'Agent',
-      latitude: parseFloat(s.latitude),
-      longitude: parseFloat(s.longitude),
-      accuracy: s.accuracy != null ? parseFloat(s.accuracy) : 12,
-      date: s.date,
-      submissionTime: s.submissionTime || '12:00 PM',
-      submittedAt: s.createdAt || new Date().toISOString(),
-      testType: s.testType,
-      tankId: s.tankId,
-      farmerId: s.farmerId,
-      locality: s.locality,
-      status: s.status,
-    }));
   }
 
   async getFieldStaff() {
-    if (isDbConnected()) {
-      try {
-        const agents = await query("SELECT id, name, 'Agent' as role FROM agents ORDER BY name ASC");
-        const incharges = await query("SELECT id, COALESCE(name, 'Incharge') as name, 'Incharge' as role FROM incharges WHERE name IS NOT NULL ORDER BY name ASC");
-        return [...agents, ...incharges];
-      } catch (err) {
-        console.error('[DB Error in getFieldStaff]', err.message);
-      }
+    this._ensureDb();
+    try {
+      const staff = await query(`
+        SELECT id, name, phone, locality, 'Agent' as role FROM agents WHERE name IS NOT NULL
+        UNION ALL
+        SELECT id, name, phone, '' as locality, 'Incharge' as role FROM incharges WHERE name IS NOT NULL
+        ORDER BY name ASC
+      `);
+      return staff;
+    } catch (err) {
+      console.error('[DB Error in getFieldStaff]', err.message);
+      throw new Error(`[DB Error in getFieldStaff]: ${err.message}`);
     }
-    return [
-      { id: 'agent001', name: 'Ramesh', role: 'Agent' },
-      { id: 'agent002', name: 'Suresh', role: 'Agent' },
-      { id: 'agent003', name: 'Mahesh', role: 'Agent' },
-      { id: 'INC001', name: 'Ravi Kumar', role: 'Incharge' },
-      { id: 'INC002', name: 'Rajesh Varma', role: 'Incharge' },
-    ];
   }
 
   async createSubmission(data) {
+    this._ensureDb();
+    if (!data.tankId) throw new Error('tankId is required');
+    if (!data.data) throw new Error('data payload is required');
+
     const id = data.id || `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
-    // Resolve geographic coordinates and accuracy at the moment of submission
     const latitude = data.latitude ?? data.lat ?? data.gps?.latitude ?? data.coordinates?.latitude ?? data.data?.gps?.latitude ?? data.data?.latitude ?? null;
     const longitude = data.longitude ?? data.lng ?? data.gps?.longitude ?? data.coordinates?.longitude ?? data.data?.gps?.longitude ?? data.data?.longitude ?? null;
     const accuracy = data.accuracy ?? data.gps?.accuracy ?? data.coordinates?.accuracy ?? data.data?.gps?.accuracy ?? null;
@@ -671,231 +1052,1324 @@ class DataStore {
 
     const userId = data.userId || data.agentId || data.inchargeId || null;
     const userName = data.userName || data.agentName || data.name || null;
-    const role = data.role || (data.inchargeId || (userId && userId.startsWith('INC')) ? 'Incharge' : 'Agent');
+    const role = data.role || (data.inchargeId || (userId && String(userId).startsWith('INC')) ? 'Incharge' : 'Agent');
     const now = new Date();
     const submissionTime = data.submissionTime || data.time || now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+    let farmerId = data.farmerId || '';
+    let currentTank = null;
+    if (data.tankId) {
+      try {
+        const tRows = await query('SELECT farmer_id, status, test_status, culture_cycle_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
+        if (tRows && tRows.length > 0) {
+          currentTank = tRows[0];
+          if (!farmerId && currentTank.farmer_id) {
+            farmerId = currentTank.farmer_id;
+          }
+        }
+      } catch (fErr) { }
+    }
+
+    const isHarvestSubmission = (data.testType || '').toUpperCase().includes('HARVEST') ||
+      data.recordType === 'HARVEST_ENTRY' ||
+      data.recordType === 'HARVEST';
+
+    // If tank is in Harvested status or Cycle Closed, prevent routine tests
+    if (currentTank && !isHarvestSubmission) {
+      const isClosed = String(currentTank.status || '').toUpperCase() === 'HARVESTED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'CYCLE CLOSED' ||
+        String(currentTank.test_status || '').toUpperCase() === 'COMPLETED';
+      if (isClosed && String(currentTank.status || '').toUpperCase() === 'HARVESTED') {
+        const err = new Error('Tank cycle is completed and harvested. Testing is closed for this cycle until restocked.');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
     const newSub = {
       id,
-      agentId: userId,
-      userId,
-      userName,
+      agent_id: userId,
+      user_id: userId,
+      user_name: userName,
       role,
-      farmerId: data.farmerId || '',
-      tankId: data.tankId,
-      testType: data.testType || 'Water Quality Test',
+      farmer_id: farmerId,
+      tank_id: data.tankId,
+      test_type: data.testType || 'Water Quality Test',
       date: data.date || now.toISOString().split('T')[0],
-      submissionTime,
+      submission_time: submissionTime,
       status: data.status || 'PENDING_VERIFICATION',
-      submittedAgo: 'Just now',
+      submitted_ago: 'Just now',
       data: data.data || {},
       latitude: latitude != null ? Number(Number(latitude).toFixed(8)) : null,
       longitude: longitude != null ? Number(Number(longitude).toFixed(8)) : null,
       accuracy: accuracy != null ? Number(Number(accuracy).toFixed(2)) : null,
       locality: locality || null,
-      createdAt: now.toISOString(),
     };
 
-    if (isDbConnected()) {
+    try {
+      await query(
+        `INSERT INTO submissions (id, agent_id, user_id, user_name, role, farmer_id, tank_id, test_type, date, submission_time, status, data, latitude, longitude, accuracy, locality, submitted_ago) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newSub.id,
+          newSub.agent_id,
+          newSub.user_id,
+          newSub.user_name,
+          newSub.role,
+          newSub.farmer_id,
+          newSub.tank_id,
+          newSub.test_type,
+          newSub.date,
+          newSub.submission_time,
+          newSub.status,
+          JSON.stringify(newSub.data),
+          newSub.latitude,
+          newSub.longitude,
+          newSub.accuracy,
+          newSub.locality,
+          newSub.submitted_ago,
+        ]
+      );
+
+      // 1. Immediately update Tank's test status, last test date, next test date and telemetry in database
+      try {
+        const formattedDate = data.date
+          ? new Date(data.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const tankUpdates = {
+          lastTest: formattedDate,
+          testStatus: 'Completed',
+          nextTest: 'Due Next Week',
+        };
+
+        const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+        if (payload.abw != null && payload.abw !== '') {
+          tankUpdates.abw = String(payload.abw).includes('g') ? String(payload.abw) : `${payload.abw}g`;
+        }
+        if (payload.biomass != null && payload.biomass !== '') {
+          tankUpdates.biomass = String(payload.biomass).includes('kg') ? String(payload.biomass) : `${payload.biomass} kg`;
+        } else if (payload.totalBiomass != null && payload.totalBiomass !== '') {
+          tankUpdates.biomass = String(payload.totalBiomass).includes('kg') ? String(payload.totalBiomass) : `${payload.totalBiomass} kg`;
+        } else if (payload.estimatedStock && payload.abw) {
+          const estNum = parseFloat(payload.estimatedStock);
+          const abwNum = parseFloat(payload.abw);
+          if (estNum > 0 && abwNum > 0) {
+            tankUpdates.biomass = `${((estNum * abwNum) / 1000).toFixed(1)} kg`;
+          }
+        }
+        if (payload.fcr != null && payload.fcr !== '') {
+          tankUpdates.fcr = String(payload.fcr);
+        }
+        if (payload.doc != null && payload.doc !== '') {
+          tankUpdates.doc = Number(payload.doc);
+        }
+        if (payload.salinity != null && payload.salinity !== '') {
+          tankUpdates.salinity = String(payload.salinity).includes('ppt') ? String(payload.salinity) : `${payload.salinity} ppt`;
+        }
+
+        const isFinalHarvest = (data.testType || '').toUpperCase().includes('HARVEST') &&
+          (payload.harvestType === 'Final Harvest' || payload.isFinal);
+        if (isFinalHarvest) {
+          tankUpdates.status = 'Harvested';
+          tankUpdates.nextTest = 'Cycle Closed';
+        }
+
+        await this.updateTank(data.tankId, tankUpdates);
+      } catch (tankErr) {
+        console.warn('[store.createSubmission] Tank status update warning:', tankErr.message);
+      }
+
+      // 2. Auto-sync Harvest entry if this is a harvest submission and has biomass
+      const isHarvest = (data.testType || '').toUpperCase().includes('HARVEST') || data.recordType === 'HARVEST_ENTRY' || data.recordType === 'HARVEST';
+      if (isHarvest) {
+        try {
+          const payload = typeof data.data === 'string' ? JSON.parse(data.data || '{}') : (data.data || {});
+          const qKg = Number(payload.harvestedBiomass || payload.quantityKg || payload.quantity_kg || 0);
+          if (qKg > 0) {
+            await this.createHarvest({
+              tankId: data.tankId,
+              farmerId: farmerId || '',
+              date: data.date || now.toISOString().split('T')[0],
+              harvestedBiomass: qKg,
+              doc: payload.doc,
+              abw: payload.abw,
+              harvestedNumber: payload.harvestedNumber,
+              totalHarvestedSeed: payload.totalHarvestedSeed,
+              totalBiomassKg: payload.totalBiomass,
+              totalFeedKg: payload.totalFeed,
+              fcr: payload.fcr,
+              buyerName: payload.buyer,
+              remarks: payload.remarks || `${newSub.test_type} auto-recorded`
+            });
+          }
+        } catch (hErr) {
+          console.warn('[store.createSubmission] Harvest record auto-sync warning:', hErr.message);
+        }
+      }
+
+      // 3. Create Audit Log entry
       try {
         await query(
-          `INSERT INTO submissions (id, agent_id, user_id, user_name, role, farmer_id, tank_id, test_type, date, submission_time, status, data, latitude, longitude, accuracy, locality, submitted_ago)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE status=VALUES(status), data=VALUES(data), review_notes=VALUES(review_notes)`,
+          `INSERT INTO audit_logs (action, module, record_id, performed_by, notes) VALUES (?, ?, ?, ?, ?)`,
           [
+            'RECORD_SUBMITTED',
+            'Submissions',
             newSub.id,
-            newSub.agentId,
-            newSub.userId,
-            newSub.userName,
-            newSub.role,
-            newSub.farmerId,
-            newSub.tankId,
-            newSub.testType,
-            newSub.date,
-            newSub.submissionTime,
-            newSub.status,
-            JSON.stringify(newSub.data),
-            newSub.latitude,
-            newSub.longitude,
-            newSub.accuracy,
-            newSub.locality,
-            newSub.submittedAgo,
+            userId || null,
+            `${newSub.test_type} recorded for Tank ${data.tankId}`
           ]
         );
-      } catch (err) {
-        console.error('[DB Error in createSubmission]', err.message);
-      }
-    }
+      } catch (auditErr) { }
 
-    this.submissions.unshift(newSub);
-    return newSub;
+      return newSub;
+    } catch (err) {
+      console.error('[DB Error in createSubmission]', err.message);
+      throw new Error(`[DB Error in createSubmission]: ${err.message}`);
+    }
   }
 
   async updateSubmissionStatus(id, status, notes = '') {
-    if (isDbConnected()) {
-      try {
-        await query('UPDATE submissions SET status = ?, review_notes = ? WHERE id = ?', [status, notes, id]);
-      } catch (err) {
-        console.error('[DB Error in updateSubmissionStatus]', err.message);
+    this._ensureDb();
+    try {
+      await query('UPDATE submissions SET status = ?, review_notes = ? WHERE id = ?', [status, notes, id]);
+      const rows = await query('SELECT * FROM submissions WHERE id = ? LIMIT 1', [id]);
+      if (rows && rows.length > 0) {
+        const r = rows[0];
+        return {
+          ...r,
+          id: String(r.id),
+          agentId: r.agent_id,
+          farmerId: r.farmer_id,
+          tankId: r.tank_id,
+          testType: r.test_type,
+          data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
+        };
       }
+      return null;
+    } catch (err) {
+      console.error('[DB Error in updateSubmissionStatus]', err.message);
+      throw new Error(`[DB Error in updateSubmissionStatus]: ${err.message}`);
     }
-
-    const index = this.submissions.findIndex((s) => s.id === id);
-    if (index !== -1) {
-      this.submissions[index].status = status;
-      if (notes) this.submissions[index].reviewNotes = notes;
-      this.submissions[index].reviewedAt = new Date().toISOString();
-      return this.submissions[index];
-    }
-    return { id, status, reviewNotes: notes };
   }
 
   // --- Harvests ---
-  async getHarvests(filter = {}) {
-    if (isDbConnected()) {
-      try {
-        let sql = 'SELECT * FROM harvests WHERE 1=1';
-        const params = [];
-        if (filter.farmerId) { sql += ' AND farmer_id = ?'; params.push(filter.farmerId); }
-        sql += ' ORDER BY created_at DESC';
 
-        const rows = await query(sql, params);
-        return rows.map((r) => ({
+  async getHarvests(filter = {}) {
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          h.*,
+          COALESCE(t.name, h.tank_id) as tank_name,
+          COALESCE(f.name, h.farmer_id) as farmer_name,
+          t.fcr as tank_fcr,
+          t.abw as tank_abw,
+          t.doc as tank_doc,
+          COALESCE(h.harvested_biomass, h.total_biomass_kg, 0) as computed_quantity_kg
+        FROM harvests h
+        LEFT JOIN tanks t ON h.tank_id = t.id
+        LEFT JOIN farmers f ON (h.farmer_id = f.id OR t.farmer_id = f.id)
+        WHERE 1=1
+      `;
+      const params = [];
+      if (filter.farmerId) {
+        sql += ' AND (h.farmer_id = ? OR t.farmer_id = ?)';
+        params.push(filter.farmerId, filter.farmerId);
+      }
+      if (filter.tankId) {
+        sql += ' AND h.tank_id = ?';
+        params.push(filter.tankId);
+      }
+      sql += ' ORDER BY COALESCE(h.date, h.harvest_date, h.created_at) DESC';
+
+      const rows = await query(sql, params);
+      return rows.map((r) => {
+        const qty = Number(r.harvested_biomass != null ? r.harvested_biomass : (r.total_biomass_kg != null ? r.total_biomass_kg : (r.computed_quantity_kg || 0)));
+        return {
           ...r,
           id: String(r.id),
           tankId: r.tank_id,
+          tankName: r.tank_name,
           farmerId: r.farmer_id,
+          farmerName: r.farmer_name,
           date: r.date || (r.harvest_date ? String(r.harvest_date).split('T')[0] : ''),
-          quantityKg: Number(r.quantity_kg || 0),
-          countPerKg: r.count_per_kg || (r.average_weight_g ? Math.round(1000 / Number(r.average_weight_g)) : 30),
-          quality: r.quality || 'A Grade',
-          pricePerKg: Number(r.price_per_kg || 0),
-          revenue: Number(r.revenue || r.total_value || 0),
+          quantityKg: qty,
+          harvestedBiomass: qty,
+          totalBiomassKg: r.total_biomass_kg != null ? Number(r.total_biomass_kg) : qty,
+          countPerKg: r.abw ? (parseFloat(r.abw) > 0 ? Math.round(1000 / parseFloat(r.abw)) : 30) : 30,
+          quality: 'A Grade',
+          pricePerKg: 0,
+          revenue: 0,
+          fcr: r.fcr != null ? Number(r.fcr) : (r.tank_fcr || '1.25'),
+          abw: r.abw != null ? r.abw : (r.tank_abw || '14.5g'),
+          doc: r.doc != null ? Number(r.doc) : (r.tank_doc || 0),
+          harvestedNumber: r.harvested_number != null ? Number(r.harvested_number) : null,
+          totalHarvestedSeed: r.total_harvested_seed != null ? Number(r.total_harvested_seed) : null,
+          totalFeedKg: r.total_feed_kg != null ? Number(r.total_feed_kg) : null,
           buyerName: r.buyer_name || 'Exporter',
           remarks: r.remarks || '',
-        }));
-      } catch (err) {
-        console.error('[DB Error in getHarvests]', err.message);
-      }
+          harvestType: r.harvest_type || 'Harvest',
+          cultureCycleId: r.culture_cycle_id || 'CYCLE_1',
+        };
+      });
+    } catch (err) {
+      console.error('[DB Error in getHarvests]', err.message);
+      throw new Error(`[DB Error in getHarvests]: ${err.message}`);
     }
-
-    let result = [...this.harvests];
-    if (filter.farmerId) result = result.filter((h) => h.farmerId === filter.farmerId);
-    return result;
   }
 
   async createHarvest(data) {
+    this._ensureDb();
+    if (!data.tankId) throw new Error('tankId is required');
+    const bCheck = data.harvestedBiomass !== undefined ? data.harvestedBiomass : data.quantityKg;
+    if (bCheck === undefined || bCheck === null) throw new Error('harvestedBiomass is required');
+
+    const cleanDate = data.date || new Date().toISOString().split('T')[0];
+
+    // Fetch tank info to check cycle and status
+    const tankRows = await query('SELECT id, farmer_id, status, test_status, culture_cycle_id FROM tanks WHERE id = ? LIMIT 1', [data.tankId]);
+    const tank = tankRows && tankRows.length > 0 ? tankRows[0] : null;
+    const cultureCycleId = data.cultureCycleId || (tank ? tank.culture_cycle_id : null) || 'CYCLE_1';
+    const farmerId = data.farmerId || (tank ? tank.farmer_id : '') || '';
+
+    const isFinalHarvest = Boolean(data.isFinal || String(data.harvestType || data.type || '').toLowerCase().includes('final'));
+
+    // Check if a final harvest has already been recorded for this tank and cycle
+    const [existingFinal] = await query(
+      `SELECT id FROM harvests 
+       WHERE tank_id = ? AND culture_cycle_id = ? AND (harvest_type = 'Final Harvest' OR LOWER(harvest_type) LIKE '%final%') 
+       LIMIT 1`,
+      [data.tankId, cultureCycleId]
+    );
+
+    if (existingFinal) {
+      const err = new Error(`A final harvest has already been recorded for this tank cycle (${cultureCycleId}). Further harvests are closed until restocked.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Determine sequential harvest label for partial harvests
+    let harvestType = data.harvestType || (isFinalHarvest ? 'Final Harvest' : 'Partial Harvest');
+    if (!isFinalHarvest) {
+      const countRows = await query(
+        `SELECT COUNT(*) as cnt FROM harvests 
+         WHERE tank_id = ? AND culture_cycle_id = ? AND (harvest_type LIKE 'Partial Harvest%' OR harvest_type NOT LIKE '%Final%')`,
+        [data.tankId, cultureCycleId]
+      );
+      const nextNum = (countRows[0]?.cnt || 0) + 1;
+      harvestType = `Partial Harvest-${nextNum}`;
+    }
+
     const id = data.id || `HARV${String(Date.now()).slice(-4)}`;
-    const q = Number(data.quantityKg) || 0;
-    const price = Number(data.pricePerKg) || 380;
-    const rev = Number(data.revenue) || (q * price);
+    const b = Number(data.harvestedBiomass !== undefined ? data.harvestedBiomass : (data.quantityKg || 0)) || 0;
+
+    const doc = data.doc != null ? Number(data.doc) : null;
+    const abw = data.abw != null ? (typeof data.abw === 'number' ? `${data.abw}g` : String(data.abw)) : null;
+    const harvestedNumber = data.harvestedNumber != null ? Number(data.harvestedNumber) : (data.harvest_number != null ? Number(data.harvest_number) : null);
+    const totalHarvestedSeed = data.totalHarvestedSeed != null ? Number(data.totalHarvestedSeed) : null;
+    const totalBiomassKg = data.totalBiomassKg != null ? Number(data.totalBiomassKg) : (data.totalBiomass != null ? Number(data.totalBiomass) : null);
+    const totalFeedKg = data.totalFeedKg != null ? Number(data.totalFeedKg) : (data.totalFeed != null ? Number(data.totalFeed) : null);
+    const fcr = data.fcr != null ? Number(data.fcr) : null;
 
     const newHarvest = {
       id,
-      tankId: data.tankId,
-      farmerId: data.farmerId || '',
-      date: data.date || new Date().toISOString().split('T')[0],
-      quantityKg: q,
-      countPerKg: data.countPerKg ? Number(data.countPerKg) : 30,
-      quality: data.quality || 'A Grade',
-      pricePerKg: price,
-      revenue: rev,
-      buyerName: data.buyerName || 'Local Exporter',
+      harvest_code: id,
+      tank_id: data.tankId,
+      farmer_id: farmerId,
+      culture_cycle_id: cultureCycleId,
+      harvest_type: harvestType,
+      date: cleanDate,
+      harvest_date: cleanDate,
+      harvested_biomass: b,
+      doc,
+      abw,
+      harvested_number: harvestedNumber,
+      total_harvested_seed: totalHarvestedSeed,
+      total_biomass_kg: totalBiomassKg,
+      total_feed_kg: totalFeedKg,
+      fcr,
+      buyer_name: data.buyerName || 'Local Exporter',
       remarks: data.remarks || '',
-      createdAt: new Date().toISOString(),
     };
 
-    if (isDbConnected()) {
-      try {
-        await query(
-          `INSERT INTO harvests (id, harvest_code, tank_id, farmer_id, date, harvest_date, quantity_kg, count_per_kg, quality, price_per_kg, revenue, total_value, buyer_name, remarks)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             quantity_kg=VALUES(quantity_kg), count_per_kg=VALUES(count_per_kg),
-             price_per_kg=VALUES(price_per_kg), revenue=VALUES(revenue), total_value=VALUES(total_value)`,
-          [
-            newHarvest.id,
-            newHarvest.id,
-            newHarvest.tankId,
-            newHarvest.farmerId,
-            newHarvest.date,
-            newHarvest.date,
-            newHarvest.quantityKg,
-            newHarvest.countPerKg,
-            newHarvest.quality,
-            newHarvest.pricePerKg,
-            newHarvest.revenue,
-            newHarvest.revenue,
-            newHarvest.buyerName,
-            newHarvest.remarks,
-          ]
-        );
-      } catch (err) {
-        console.error('[DB Error in createHarvest]', err.message);
+    try {
+      await query(
+        `INSERT INTO harvests (
+          id, harvest_code, tank_id, farmer_id, culture_cycle_id, harvest_type,
+          date, harvest_date, doc, abw, harvested_number, harvested_biomass,
+          total_harvested_seed, total_biomass_kg, total_feed_kg, fcr,
+          buyer_name, remarks
+        )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newHarvest.id,
+          newHarvest.harvest_code,
+          newHarvest.tank_id,
+          newHarvest.farmer_id,
+          newHarvest.culture_cycle_id,
+          newHarvest.harvest_type,
+          newHarvest.date,
+          newHarvest.harvest_date,
+          newHarvest.doc,
+          newHarvest.abw,
+          newHarvest.harvested_number,
+          newHarvest.harvested_biomass,
+          newHarvest.total_harvested_seed,
+          newHarvest.total_biomass_kg != null ? newHarvest.total_biomass_kg : newHarvest.harvested_biomass,
+          newHarvest.total_feed_kg,
+          newHarvest.fcr,
+          newHarvest.buyer_name,
+          newHarvest.remarks,
+        ]
+      );
+
+      // If Final Harvest, mark tank as Harvested and tests closed
+      if (isFinalHarvest) {
+        await this.updateTank(data.tankId, {
+          status: 'Harvested',
+          testStatus: 'Completed',
+          nextTest: 'Cycle Closed',
+        });
+      } else {
+        await this.updateTank(data.tankId, {
+          status: 'ACTIVE',
+          testStatus: 'Completed',
+          nextTest: 'Due Next Week',
+        });
       }
+
+      if (farmerId) {
+        await this.recalculateFarmerStatus(farmerId).catch(() => { });
+      }
+
+      return newHarvest;
+    } catch (err) {
+      console.error('[DB Error in createHarvest]', err.message);
+      throw new Error(`[DB Error in createHarvest]: ${err.message}`);
+    }
+  }
+
+  async restockTank(tankId, restockData = {}) {
+    this._ensureDb();
+    if (!tankId) throw new Error('tankId is required');
+
+    const tank = await this.getTankById(tankId);
+    if (!tank) throw new Error(`Tank with ID ${tankId} not found`);
+
+    // Calculate next cycle: e.g. CYCLE_1 -> CYCLE_2
+    const currentCycle = tank.culture_cycle_id || 'CYCLE_1';
+    const cycleNumMatch = String(currentCycle).match(/CYCLE_(\d+)/i);
+    const nextNum = cycleNumMatch ? parseInt(cycleNumMatch[1], 10) + 1 : 2;
+    const nextCycle = `CYCLE_${nextNum}`;
+
+    const todayDate = new Date().toISOString().split('T')[0];
+
+    const updates = {
+      status: 'ACTIVE',
+      testStatus: 'Due',
+      nextTest: 'Due This Week',
+      doc: restockData.doc !== undefined ? Number(restockData.doc) : 1,
+      stockingDate: restockData.stockingDate || todayDate,
+      abw: restockData.abw || '0.5g',
+      biomass: restockData.biomass || '0 kg',
+      fcr: restockData.fcr || '1.1',
+    };
+
+    // Update tank fields including culture_cycle_id
+    await query(
+      `UPDATE tanks SET 
+        status = 'ACTIVE', 
+        test_status = 'Due', 
+        next_test = 'Due This Week', 
+        culture_cycle_id = ?, 
+        doc = ?, 
+        stocking_date = ?, 
+        abw = ?, 
+        biomass = ?, 
+        fcr = ? 
+       WHERE id = ?`,
+      [
+        nextCycle,
+        updates.doc,
+        updates.stockingDate,
+        updates.abw,
+        updates.biomass,
+        updates.fcr,
+        tankId,
+      ]
+    );
+
+    const updatedTank = await this.getTankById(tankId);
+    if (updatedTank?.farmerId) {
+      await this.recalculateFarmerStatus(updatedTank.farmerId).catch(() => { });
     }
 
-    if (data.tankId) {
-      await this.updateTank(data.tankId, {
-        status: 'Harvested',
-        testStatus: 'Completed',
-        nextTest: 'Cycle Closed',
-      });
-    }
-
-    this.harvests.unshift(newHarvest);
-    return newHarvest;
+    return updatedTank;
   }
 
   // --- Summary & Analytics ---
+
   async getAnalyticsSummary() {
-    if (isDbConnected()) {
-      try {
-        const [fc] = await query('SELECT COUNT(*) as total FROM farmers');
-        const [tc] = await query('SELECT COUNT(*) as total FROM tanks');
-        const [at] = await query("SELECT COUNT(*) as total FROM tanks WHERE status = 'ACTIVE'");
-        const [pt] = await query("SELECT COUNT(*) as total FROM tanks WHERE test_status IN ('Due', 'Overdue')");
-        const [hr] = await query('SELECT COALESCE(SUM(COALESCE(revenue, total_value, 0)), 0) as total FROM harvests');
-        const [fcrRes] = await query("SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) as avg_fcr FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0'");
-        const [ac] = await query('SELECT COUNT(*) as total FROM agents');
-        const [rc] = await query('SELECT COUNT(*) as total FROM regions');
+    this._ensureDb();
+    try {
+      const [res] = await query(`
+        SELECT 
+          (SELECT COUNT(DISTINCT id) FROM farmers) as totalFarmers,
+          (SELECT COUNT(DISTINCT f.id) FROM farmers f
+           WHERE (
+             SELECT COUNT(DISTINCT t.id) FROM tanks t
+             WHERE t.farmer_id = f.id
+               AND LOWER(COALESCE(t.status, '')) = 'harvested'
+               AND EXISTS (
+                 SELECT 1 FROM harvests h 
+                 WHERE h.tank_id = t.id 
+                   AND LOWER(COALESCE(h.harvest_type, '')) LIKE '%final%'
+                   AND (h.culture_cycle_id = t.culture_cycle_id OR h.culture_cycle_id IS NULL OR t.culture_cycle_id IS NULL)
+               )
+           ) = (SELECT COUNT(DISTINCT t.id) FROM tanks t WHERE t.farmer_id = f.id)
+           AND (SELECT COUNT(DISTINCT t.id) FROM tanks t WHERE t.farmer_id = f.id) > 0
+          ) as inactiveFarmers,
+          (SELECT COUNT(DISTINCT id) FROM tanks) as totalTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'ACTIVE') as activeTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE UPPER(status) = 'HARVESTED') as harvestedTanks,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) IN ('due', 'overdue')) as pendingTests,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'due') as dueTests,
+          (SELECT COUNT(DISTINCT id) FROM tanks WHERE LOWER(test_status) = 'overdue') as overdueTests,
+          (SELECT 0) as totalHarvestRevenue,
+          (SELECT COALESCE(SUM(COALESCE(harvested_biomass, total_biomass_kg, 0)), 0) FROM harvests) as harvestTotalKg,
+          (SELECT COUNT(DISTINCT id) FROM harvests) as harvestsCount,
+          (SELECT ROUND(AVG(CAST(fcr AS DECIMAL(4,2))), 2) FROM tanks WHERE fcr IS NOT NULL AND fcr != '' AND fcr != '0') as avg_fcr,
+          (SELECT ROUND(AVG(CAST(REGEXP_REPLACE(abw, '[^0-9.]', '') AS DECIMAL(6,2))), 2) FROM tanks WHERE abw IS NOT NULL AND abw != '') as avg_abw,
+          (SELECT ROUND(SUM(CAST(REGEXP_REPLACE(biomass, '[^0-9.]', '') AS DECIMAL(10,2))), 2) FROM tanks WHERE biomass IS NOT NULL AND biomass != '') as total_biomass,
+          (SELECT COUNT(DISTINCT id) FROM agents) as totalAgents,
+          (SELECT COUNT(DISTINCT id) FROM incharges WHERE name IS NOT NULL) as totalIncharges,
+          (SELECT COUNT(DISTINCT id) FROM regions) as totalRegions,
+          (SELECT COUNT(DISTINCT id) FROM submissions) as totalSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('APPROVED', 'VERIFIED', 'COMPLETED')) as approvedSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('REJECTED', 'FLAGGED')) as rejectedSubmissions,
+          (SELECT COUNT(DISTINCT id) FROM submissions WHERE UPPER(status) IN ('PENDING', 'PENDING_VERIFICATION')) as pendingSubmissions
+      `);
+
+      const totalFarmers = Number(res?.totalFarmers || 0);
+      const inactiveFarmers = Number(res?.inactiveFarmers || 0);
+      const activeFarmers = Math.max(0, totalFarmers - inactiveFarmers);
+
+      return {
+        totalFarmers,
+        activeFarmers,
+        inactiveFarmers,
+        totalTanks: Number(res?.totalTanks || 0),
+        activeTanks: Number(res?.activeTanks || 0),
+        harvestedTanks: Number(res?.harvestedTanks || 0),
+        pendingTests: Number(res?.pendingTests || 0),
+        dueTests: Number(res?.dueTests || 0),
+        testsDue: Number(res?.dueTests || 0),
+        overdueTests: Number(res?.overdueTests || 0),
+        testsOverdue: Number(res?.overdueTests || 0),
+        totalHarvestRevenue: Number(res?.totalHarvestRevenue || 0),
+        harvestsCount: Number(res?.harvestsCount || 0),
+        harvestTotalKg: Number(res?.harvestTotalKg || 0),
+        avgFcr: res?.avg_fcr ? String(res.avg_fcr) : '0.00',
+        avgAbw: res?.avg_abw ? `${res.avg_abw}g` : '0.0g',
+        totalBiomassKg: Number(res?.total_biomass || 0),
+        activeAgents: Number(res?.totalAgents || 0),
+        totalAgents: Number(res?.totalAgents || 0),
+        totalIncharges: Number(res?.totalIncharges || 0),
+        regionsCount: Number(res?.totalRegions || 0),
+        totalRegions: Number(res?.totalRegions || 0),
+        totalSubmissions: Number(res?.totalSubmissions || 0),
+        approvedSubmissions: Number(res?.approvedSubmissions || 0),
+        rejectedSubmissions: Number(res?.rejectedSubmissions || 0),
+        pendingSubmissions: Number(res?.pendingSubmissions || 0),
+      };
+    } catch (err) {
+      console.error('[DB Error in getAnalyticsSummary]', err.message);
+      throw new Error(`[DB Error in getAnalyticsSummary]: ${err.message}`);
+    }
+  }
+
+  // --- Audit & Activity Logs ---
+
+  async getActivityLogs() {
+    this._ensureDb();
+    try {
+      const rows = await query(`
+        SELECT 
+          al.id, 
+          al.created_at, 
+          al.action, 
+          al.module, 
+          al.record_id,
+          COALESCE(u.full_name, u.name, 'System Administrator') as user_name,
+          COALESCE(r.name, 'Admin') as role,
+          COALESCE(al.ip_address, '127.0.0.1') as ip_address
+        FROM audit_logs al
+        LEFT JOIN users u ON al.performed_by = u.id
+        LEFT JOIN roles r ON u.role_id = r.id
+        ORDER BY al.created_at DESC
+        LIMIT 100
+      `);
+      return rows.map((r) => ({
+        id: String(r.id),
+        time: r.created_at ? new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
+        user: r.user_name,
+        role: r.role,
+        action: `${r.action} on ${r.module}`,
+        detail: `Record ID #${r.record_id || r.id}`,
+        module: r.module?.toUpperCase() || 'SYSTEM',
+        region: 'Coastal Andhra',
+      }));
+    } catch (err) {
+      console.warn('[store.getActivityLogs Warning]:', err.message);
+      return [];
+    }
+  }
+
+  // --- Agents ---
+
+  async getAgents(filter = {}) {
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          a.id,
+          a.name,
+          a.phone,
+          a.incharge_id,
+          a.locality,
+          a.status,
+          COALESCE(i.name, '') as incharge_name,
+          COALESCE(i.region_id, '') as region_id,
+          COALESCE(r.name, '') as region_name,
+          COUNT(DISTINCT f.id) as farmers_count,
+          COUNT(DISTINCT t.id) as tanks_count,
+          COUNT(DISTINCT CASE WHEN LOWER(t.test_status) = 'completed' THEN t.id END) as completed_tests_count,
+          COUNT(DISTINCT CASE WHEN LOWER(t.test_status) IN ('due', 'overdue') THEN t.id END) as due_tests_count
+        FROM agents a
+        LEFT JOIN incharges i ON a.incharge_id = i.id
+        LEFT JOIN regions r ON (i.region_id = r.id OR i.region_id = r.code)
+        LEFT JOIN farmers f ON f.agent_id = a.id
+        LEFT JOIN tanks t ON (t.agent_id = a.id OR t.farmer_id = f.id)
+        WHERE 1=1
+      `;
+      const params = [];
+      if (filter.id) {
+        sql += ' AND a.id = ?';
+        params.push(filter.id);
+      }
+      if (filter.inchargeId) {
+        sql += ' AND a.incharge_id = ?';
+        params.push(filter.inchargeId);
+      }
+      if (filter.locality) {
+        sql += ' AND a.locality = ?';
+        params.push(filter.locality);
+      }
+      if (filter.status) {
+        sql += ' AND UPPER(a.status) = UPPER(?)';
+        params.push(filter.status);
+      }
+      sql += `
+        GROUP BY a.id, a.name, a.phone, a.incharge_id, a.locality, a.status, i.name, i.region_id, r.name
+        ORDER BY a.name ASC
+      `;
+
+      const rows = await query(sql, params);
+      return rows.map((agent) => {
+        const tanksCount = Number(agent.tanks_count || 0);
+        const completedCount = Number(agent.completed_tests_count || 0);
+        const dueCount = Number(agent.due_tests_count || 0);
+        const complianceRate = tanksCount > 0 ? Math.round((completedCount / tanksCount) * 100) : 0;
 
         return {
-          totalFarmers: fc?.total || 0,
-          totalTanks: tc?.total || 0,
-          activeTanks: at?.total || 0,
-          pendingTests: pt?.total || 0,
-          totalHarvestRevenue: Number(hr?.total || 0),
-          avgFcr: fcrRes?.avg_fcr ? String(fcrRes.avg_fcr) : '0.00',
-          activeAgents: ac?.total || 0,
-          regionsCount: rc?.total || 0,
+          id: agent.id,
+          name: agent.name,
+          shortName: agent.name,
+          role: `Field Agent - ${agent.locality || 'Coastal Andhra'}`,
+          inchargeId: agent.incharge_id,
+          incharge: agent.incharge_name,
+          regionId: agent.region_id,
+          region: agent.region_name || '',
+          locality: agent.locality || '',
+          phone: agent.phone || '',
+          email: `${String(agent.id).toLowerCase()}@royalsmarine.com`,
+          farmers: Number(agent.farmers_count || 0),
+          farmersCount: Number(agent.farmers_count || 0),
+          tanks: tanksCount,
+          tanksCount,
+          activePonds: tanksCount,
+          tests: completedCount,
+          dueTests: dueCount,
+          compliance: complianceRate,
+          complianceRate,
+          status: agent.status || 'ACTIVE',
         };
-      } catch (err) {
-        console.error('[DB Error in getAnalyticsSummary]', err.message);
-      }
+      });
+    } catch (err) {
+      console.error('[DB Error in getAgents]', err.message);
+      throw new Error(`[DB Error in getAgents]: ${err.message}`);
     }
+  }
 
-    const totalFarmers = this.farmers.length;
-    const totalTanks = this.tanks.length;
-    const activeTanks = this.tanks.filter((t) => t.status === 'ACTIVE').length;
-    const pendingTests = this.tanks.filter((t) => t.testStatus === 'Due' || t.testStatus === 'Overdue').length;
-    const totalHarvestRevenue = this.harvests.reduce((acc, h) => acc + (h.revenue || 0), 0);
-    const tanksWithFcr = this.tanks.filter((t) => t.fcr && !isNaN(parseFloat(t.fcr)) && parseFloat(t.fcr) > 0);
-    const avgFcr = tanksWithFcr.length > 0
-      ? (tanksWithFcr.reduce((acc, t) => acc + parseFloat(t.fcr), 0) / tanksWithFcr.length).toFixed(2)
-      : '0.00';
+  async getAgentById(id) {
+    this._ensureDb();
+    const list = await this.getAgents({ id });
+    return list.length > 0 ? list[0] : null;
+  }
 
-    return {
-      totalFarmers,
-      totalTanks,
-      activeTanks,
-      pendingTests,
-      totalHarvestRevenue,
-      avgFcr,
-      activeAgents: this.agents.length,
-      regionsCount: this.regions.length,
-    };
+  async createAgent(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      if (!name) {
+        throw new Error('Agent name is required');
+      }
+
+      // Generate next unique ID (e.g. agent012 or EMP-AGT-15)
+      let newId = data.id && String(data.id).trim() ? String(data.id).trim() : null;
+      if (!newId) {
+        const existing = await query("SELECT id FROM agents");
+        let maxNum = 0;
+        for (const row of existing) {
+          const match = String(row.id).match(/(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        let counter = maxNum + 1;
+        while (true) {
+          const candidateId = `agent${String(counter).padStart(3, '0')}`;
+          const [agentExists] = await query('SELECT id FROM agents WHERE id = ? LIMIT 1', [candidateId]);
+          const [userExists] = await query('SELECT id FROM users WHERE id = ? LIMIT 1', [candidateId]);
+          if (!agentExists && !userExists) {
+            newId = candidateId;
+            break;
+          }
+          counter++;
+        }
+      }
+
+      const inchargeId = data.incharge_id || data.inchargeId || null;
+      const locality = (data.locality || data.assignedArea || 'Coastal Andhra').trim();
+      const cleanPhone = (data.phone || '').trim().replace(/[^0-9+]/g, '').slice(0, 20);
+      const email = (data.email || '').trim() || `${newId.toLowerCase()}@royalsmarine.com`;
+      const status = data.status || 'ACTIVE';
+
+      // Insert into agents table
+      await query(
+        `INSERT INTO agents (id, name, phone, incharge_id, status, locality, active_ponds, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 0, NOW())`,
+        [newId, name, cleanPhone || null, inchargeId || null, status, locality]
+      );
+
+      // Sync into users table for authentication/permissions
+      try {
+        const [existingUser] = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [newId, newId]);
+        if (!existingUser) {
+          const defaultPinHash = await bcrypt.hash('1234', 10);
+          await query(
+            `INSERT INTO users (id, username, password, password_hash, name, full_name, role, phone, email, locality, region, role_id, status)
+             VALUES (?, ?, ?, ?, ?, ?, 'AGENT', ?, ?, ?, ?, 3, 'ACTIVE')`,
+            [
+              newId,
+              newId,
+              defaultPinHash,
+              defaultPinHash,
+              name.slice(0, 255),
+              name.slice(0, 100),
+              cleanPhone || null,
+              email.slice(0, 150),
+              locality.slice(0, 150),
+              (data.region || locality).slice(0, 100),
+            ]
+          );
+        }
+      } catch (userErr) {
+        console.warn('[Sync Agent User Warning]:', userErr.message);
+      }
+
+      const created = await this.getAgentById(newId);
+      return created || {
+        id: newId,
+        name,
+        shortName: name,
+        role: `Field Agent - ${locality}`,
+        inchargeId,
+        incharge: '',
+        locality,
+        phone: cleanPhone,
+        email,
+        status,
+        farmers: 0,
+        tanks: 0,
+        compliance: 0
+      };
+    } catch (err) {
+      console.error('[DB Error in createAgent]', err.message);
+      throw new Error(`[DB Error in createAgent]: ${err.message}`);
+    }
+  }
+
+  async updateAgent(id, data) {
+    this._ensureDb();
+    try {
+      const existing = await this.getAgentById(id);
+      if (!existing) {
+        throw new Error(`Agent ${id} not found in database`);
+      }
+
+      const name = data.name !== undefined ? data.name.trim() : existing.name;
+      const cleanPhone = data.phone !== undefined ? data.phone.trim().replace(/[^0-9+]/g, '').slice(0, 20) : existing.phone;
+      const inchargeId = data.incharge_id !== undefined ? (data.incharge_id || null) : (data.inchargeId !== undefined ? (data.inchargeId || null) : existing.inchargeId);
+      const locality = data.locality !== undefined ? data.locality.trim() : existing.locality;
+      const status = data.status || existing.status || 'ACTIVE';
+
+      await query(
+        `UPDATE agents SET name = ?, phone = ?, incharge_id = ?, locality = ?, status = ? WHERE id = ?`,
+        [name, cleanPhone || null, inchargeId, locality, status, id]
+      );
+
+      // Sync with users table
+      try {
+        await query(
+          `UPDATE users SET name = ?, full_name = ?, phone = ?, locality = ?, status = ? WHERE id = ? OR username = ?`,
+          [name.slice(0, 255), name.slice(0, 100), cleanPhone || null, locality.slice(0, 150), status, id, id]
+        );
+        if (inchargeId) {
+          const [incRow] = await query(
+            `SELECT i.region_id, r.name as region_name 
+             FROM incharges i 
+             LEFT JOIN regions r ON (i.region_id = r.id OR i.region_id = r.code) 
+             WHERE i.id = ? LIMIT 1`,
+            [inchargeId]
+          );
+          if (incRow && incRow.region_name) {
+            await query('UPDATE users SET region = ? WHERE id = ? OR username = ?', [incRow.region_name.slice(0, 100), id, id]);
+          }
+        }
+      } catch (uErr) {
+        console.warn('[Sync Update Agent User Warning]:', uErr.message);
+      }
+
+      return await this.getAgentById(id);
+    } catch (err) {
+      console.error('[DB Error in updateAgent]', err.message);
+      throw new Error(`[DB Error in updateAgent]: ${err.message}`);
+    }
+  }
+
+  async reassignAgent(id, inchargeId) {
+    this._ensureDb();
+    try {
+      await query('UPDATE agents SET incharge_id = ? WHERE id = ?', [inchargeId, id]);
+      return await this.getAgentById(id);
+    } catch (err) {
+      console.error('[DB Error in reassignAgent]', err.message);
+      throw new Error(`[DB Error in reassignAgent]: ${err.message}`);
+    }
+  }
+
+  async deleteAgent(id) {
+    this._ensureDb();
+    try {
+      await query('UPDATE farmers SET agent_id = NULL WHERE agent_id = ?', [id]);
+      await query('DELETE FROM agents WHERE id = ?', [id]);
+      await query('DELETE FROM users WHERE (id = ? OR username = ?) AND role = ?', [id, id, 'AGENT']);
+      return { id, deleted: true };
+    } catch (err) {
+      console.error('[DB Error in deleteAgent]', err.message);
+      throw new Error(`[DB Error in deleteAgent]: ${err.message}`);
+    }
+  }
+
+
+  // --- Regions ---
+
+  async getRegions(filter = {}) {
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          r.*,
+          COUNT(DISTINCT f.id) as farmers_count,
+          COUNT(DISTINCT t.id) as actual_tanks_count
+        FROM regions r
+        LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
+        LEFT JOIN agents a ON a.incharge_id = i.id
+        LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
+        LEFT JOIN tanks t ON (t.farmer_id = f.id OR t.agent_id = a.id OR t.incharge_id = i.id)
+        WHERE 1=1
+      `;
+      const params = [];
+      if (filter.status) {
+        sql += ' AND UPPER(r.status) = UPPER(?)';
+        params.push(filter.status);
+      }
+      sql += ' GROUP BY r.id, r.code, r.name, r.status, r.created_at, r.updated_at, r.active_ponds, r.total_yield, r.avg_fcr ORDER BY r.name ASC';
+
+      // Execute main region aggregation and distinct localities concurrently
+      const locSql = `
+        SELECT DISTINCT 
+          r.name as region_name,
+          COALESCE(a.locality, f.village, f.location) as locality
+        FROM regions r
+        LEFT JOIN incharges i ON (i.region_id = r.id OR i.region_id = r.code)
+        LEFT JOIN agents a ON a.incharge_id = i.id
+        LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
+        WHERE (a.locality IS NOT NULL AND a.locality != '')
+           OR (f.village IS NOT NULL AND f.village != '')
+           OR (f.location IS NOT NULL AND f.location != '')
+      `;
+
+      const [rows, locRows] = await Promise.all([
+        query(sql, params),
+        query(locSql).catch((locErr) => {
+          console.warn('[Warning getting region localities]', locErr.message);
+          return [];
+        }),
+      ]);
+
+      let regionLocMap = {};
+      for (const loc of (locRows || [])) {
+        if (!loc.locality) continue;
+        const clean = loc.locality.split(',')[0].trim();
+        if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+        regionLocMap[loc.region_name].add(clean);
+      }
+
+      // Also fetch from localities table
+      try {
+        const customLocRows = await query(`
+          SELECT l.name as locality, r.name as region_name, r.id as region_id, r.code as region_code
+          FROM localities l
+          JOIN regions r ON (r.id = l.region_id OR r.code = l.region_id)
+          WHERE l.name IS NOT NULL AND l.name != ''
+        `);
+        for (const loc of customLocRows) {
+          if (!regionLocMap[loc.region_name]) regionLocMap[loc.region_name] = new Set();
+          regionLocMap[loc.region_name].add(loc.locality);
+          if (loc.region_id) {
+            if (!regionLocMap[loc.region_id]) regionLocMap[loc.region_id] = new Set();
+            regionLocMap[loc.region_id].add(loc.locality);
+          }
+          if (loc.region_code) {
+            if (!regionLocMap[loc.region_code]) regionLocMap[loc.region_code] = new Set();
+            regionLocMap[loc.region_code].add(loc.locality);
+          }
+        }
+      } catch (custLocErr) {
+        // Table may not have records yet
+      }
+
+      return rows.map((r) => {
+        const locSet = regionLocMap[r.name] || regionLocMap[r.id] || regionLocMap[r.code] || new Set();
+        const localities = Array.from(locSet).map(l => ({ id: `LOC-${r.id}-${l.toLowerCase().replace(/\s+/g, '-')}`, name: l }));
+        return {
+          ...r,
+          id: String(r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: localities.length > 0 ? localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }],
+          farmersCount: Number(r.farmers_count || 0),
+          activePonds: Number(r.actual_tanks_count || r.active_ponds || 0),
+          tanks: Number(r.actual_tanks_count || r.active_ponds || 0),
+          avgFcr: r.avg_fcr ? Number(r.avg_fcr) : 1.25,
+          totalYield: r.total_yield || '0 Tons',
+          status: r.status || 'ACTIVE',
+        };
+      });
+    } catch (err) {
+      console.error('[DB Error in getRegions]', err.message);
+      throw new Error(`[DB Error in getRegions]: ${err.message}`);
+    }
+  }
+
+  async getRegionById(id) {
+    this._ensureDb();
+    const list = await this.getRegions();
+    return list.find((r) => String(r.id) === String(id) || String(r.code) === String(id)) || null;
+  }
+
+  async createRegion(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      if (!name) {
+        const err = new Error('Region name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region already exists (case-insensitive duplicate prevention)
+      const existing = await query('SELECT id, name FROM regions WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Region "${name}" already exists! Duplicate regions are not allowed.`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // Generate next REGxxx ID
+      let newId = data.id && String(data.id).startsWith('REG') ? String(data.id).trim() : null;
+      if (!newId) {
+        const rows = await query("SELECT id FROM regions WHERE id LIKE 'REG%'");
+        let maxNum = 0;
+        for (const row of rows) {
+          const match = String(row.id).match(/^REG(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        let counter = maxNum + 1;
+        while (true) {
+          const candidateId = `REG${String(counter).padStart(3, '0')}`;
+          const [exists] = await query('SELECT id FROM regions WHERE id = ? LIMIT 1', [candidateId]);
+          if (!exists) {
+            newId = candidateId;
+            break;
+          }
+          counter++;
+        }
+      }
+
+      const code = data.code || newId;
+      const status = data.status || 'ACTIVE';
+      const activePonds = Number(data.activePonds || data.active_ponds || 0);
+      const totalYield = data.totalYield || data.total_yield || '0 Tons';
+      const avgFcr = data.avgFcr || data.avg_fcr || 1.25;
+
+      await query(
+        `INSERT INTO regions (id, code, name, active_ponds, total_yield, avg_fcr, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId, code, name, activePonds, totalYield, avgFcr, status]
+      );
+
+      return {
+        id: newId,
+        code,
+        name,
+        activePonds,
+        totalYield,
+        avgFcr,
+        status,
+        localities: []
+      };
+    } catch (err) {
+      console.error('[DB Error in createRegion]', err.message);
+      throw err;
+    }
+  }
+
+  async createLocality(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      const regionId = (data.regionId || data.region_id || '').trim();
+
+      if (!name) {
+        const err = new Error('Locality name is required');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!regionId) {
+        const err = new Error('Region ID is required');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Check if region exists
+      const [reg] = await query('SELECT id, name FROM regions WHERE id = ? OR code = ? OR LOWER(name) = LOWER(?) LIMIT 1', [regionId, regionId, regionId]);
+      if (!reg) {
+        const err = new Error(`Region "${regionId}" not found`);
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const actualRegionId = reg.id;
+
+      // Check duplicate locality for this region
+      const existing = await query('SELECT id FROM localities WHERE region_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1', [actualRegionId, name]);
+      if (existing && existing.length > 0) {
+        const err = new Error(`Locality "${name}" already exists in region "${reg.name}"!`);
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const newId = `LOC-${actualRegionId}-${Date.now().toString(36)}`;
+      await query('INSERT INTO localities (id, region_id, name) VALUES (?, ?, ?)', [newId, actualRegionId, name]);
+
+      return {
+        id: newId,
+        regionId: actualRegionId,
+        regionName: reg.name,
+        name
+      };
+    } catch (err) {
+      console.error('[DB Error in createLocality]', err.message);
+      throw err;
+    }
+  }
+
+  // --- Incharges ---
+
+  async getIncharges(filter = {}) {
+    this._ensureDb();
+    try {
+      let sql = `
+        SELECT 
+          i.id,
+          i.name,
+          COALESCE(i.email, '') as email,
+          COALESCE(i.phone, '') as phone,
+          COALESCE(i.region_id, r.id, '') as region_id,
+          COALESCE(r.name, 'Coastal Andhra') as region_name,
+          COALESCE(r.name, 'Coastal Andhra') as locality,
+          'ACTIVE' as status,
+          COUNT(DISTINCT a.id) as agents_count,
+          COUNT(DISTINCT f.id) as farmers_count,
+          COUNT(DISTINCT t.id) as tanks_count
+        FROM incharges i 
+        LEFT JOIN regions r ON (r.id = i.region_id OR r.code = i.region_id)
+        LEFT JOIN agents a ON a.incharge_id = i.id
+        LEFT JOIN farmers f ON (f.incharge_id = i.id OR f.agent_id = a.id)
+        LEFT JOIN tanks t ON (t.incharge_id = i.id OR t.farmer_id = f.id)
+        WHERE 1=1
+      `;
+      const params = [];
+      if (filter.id) {
+        sql += ' AND i.id = ?';
+        params.push(filter.id);
+      }
+      if (filter.regionId) {
+        sql += ' AND (i.region_id = ? OR r.code = ? OR r.id = ?)';
+        params.push(filter.regionId, filter.regionId, filter.regionId);
+      }
+      sql += ' GROUP BY i.id, i.name, i.email, i.phone, i.region_id, r.id, r.name ORDER BY i.name ASC';
+      const rows = await query(sql, params);
+      const seen = new Set();
+      const uniqueRows = [];
+      for (const r of rows) {
+        const idStr = String(r.id);
+        if (!seen.has(idStr)) {
+          seen.add(idStr);
+          uniqueRows.push(r);
+        }
+      }
+      return uniqueRows.map((r) => ({
+        id: String(r.id),
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        regionId: r.region_id,
+        region: r.region_name || 'Coastal Andhra',
+        locality: r.locality || r.region_name || 'Coastal Andhra',
+        agentsCount: Number(r.agents_count || 0),
+        farmersCount: Number(r.farmers_count || 0),
+        tanksCount: Number(r.tanks_count || 0),
+        activePonds: Number(r.tanks_count || 0),
+        status: r.status || 'ACTIVE',
+      }));
+    } catch (err) {
+      console.error('[DB Error in getIncharges]', err.message);
+      throw new Error(`[DB Error in getIncharges]: ${err.message}`);
+    }
+  }
+
+  async getInchargeById(id) {
+    this._ensureDb();
+    const list = await this.getIncharges({ id });
+    return list.length > 0 ? list[0] : null;
+  }
+
+  async createIncharge(data) {
+    this._ensureDb();
+    try {
+      const name = (data.name || '').trim();
+      if (!name) {
+        throw new Error('Incharge name is required');
+      }
+
+      // Generate next unique ID (e.g. INC007)
+      let newId = data.id && String(data.id).startsWith('INC') ? String(data.id).trim() : null;
+      if (!newId) {
+        const existing = await query("SELECT id FROM incharges WHERE id LIKE 'INC%'");
+        let maxNum = 0;
+        for (const row of existing) {
+          const match = String(row.id).match(/^INC(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        let counter = maxNum + 1;
+        while (true) {
+          const candidateId = `INC${String(counter).padStart(3, '0')}`;
+          const [incExists] = await query('SELECT id FROM incharges WHERE id = ? LIMIT 1', [candidateId]);
+          const [userExists] = await query('SELECT id FROM users WHERE id = ? LIMIT 1', [candidateId]);
+          if (!incExists && !userExists) {
+            newId = candidateId;
+            break;
+          }
+          counter++;
+        }
+      }
+
+      // Resolve region
+      let regionId = data.regionId || data.region_id || null;
+      let regionName = data.region || null;
+      let locality = data.locality || null;
+      if (regionId) {
+        const [regRow] = await query(
+          'SELECT id, code, name FROM regions WHERE id = ? OR code = ? OR name = ? LIMIT 1',
+          [regionId, regionId, regionId]
+        );
+        if (regRow) {
+          regionId = regRow.code || regRow.id;
+          regionName = regRow.name;
+        }
+      }
+
+      const email = (data.email || '').trim() || `${newId.toLowerCase()}@royalsmarine.com`;
+      const cleanPhone = (data.phone || '').trim().replace(/[^0-9+]/g, '').slice(0, 20);
+
+      // Insert into incharges table
+      await query(
+        `INSERT INTO incharges (id, user_id, region_id, name, email, phone, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [newId, newId, regionId, name, email, cleanPhone || null]
+      );
+
+      // Sync into users table for authentication/role management
+      try {
+        const [existingUser] = await query('SELECT id FROM users WHERE id = ? OR username = ? LIMIT 1', [newId, newId]);
+        if (!existingUser) {
+          const defaultPinHash = await bcrypt.hash('1234', 10);
+          await query(
+            `INSERT INTO users (id, username, password, password_hash, name, full_name, role, phone, email, locality, region, role_id, status)
+             VALUES (?, ?, ?, ?, ?, ?, 'ASM', ?, ?, ?, ?, 2, 'ACTIVE')`,
+            [
+              newId,
+              newId,
+              defaultPinHash,
+              defaultPinHash,
+              name.slice(0, 255),
+              name.slice(0, 100),
+              cleanPhone || null,
+              email.slice(0, 150),
+              (locality || regionName || 'Coastal Andhra').slice(0, 150),
+              (regionName || 'Coastal Andhra').slice(0, 100),
+            ]
+          );
+        }
+      } catch (userErr) {
+        console.warn('[Sync Incharge User Warning]:', userErr.message);
+      }
+
+      const created = await this.getInchargeById(newId);
+      return created || {
+        id: newId,
+        name,
+        email,
+        phone: cleanPhone,
+        regionId,
+        region: regionName || 'Coastal Andhra',
+        locality: locality || regionName || 'Coastal Andhra',
+        agentsCount: 0,
+        farmersCount: 0,
+        tanksCount: 0,
+        status: 'ACTIVE'
+      };
+    } catch (err) {
+      console.error('[DB Error in createIncharge]', err.message);
+      throw new Error(`[DB Error in createIncharge]: ${err.message}`);
+    }
+  }
+
+  async updateIncharge(id, data) {
+    this._ensureDb();
+    try {
+      const existing = await this.getInchargeById(id);
+      if (!existing) {
+        throw new Error(`Incharge ${id} not found in database`);
+      }
+
+      const name = data.name !== undefined ? data.name.trim() : existing.name;
+      const email = data.email !== undefined ? data.email.trim() : existing.email;
+      const cleanPhone = data.phone !== undefined ? data.phone.trim().replace(/[^0-9+]/g, '').slice(0, 20) : existing.phone;
+      const status = data.status || existing.status || 'ACTIVE';
+
+      let regionId = data.regionId || data.region_id;
+      if (regionId) {
+        const [regRow] = await query(
+          'SELECT id, code, name FROM regions WHERE id = ? OR code = ? OR name = ? LIMIT 1',
+          [regionId, regionId, regionId]
+        );
+        if (regRow) {
+          regionId = regRow.code || regRow.id;
+        }
+      } else {
+        regionId = existing.regionId;
+      }
+
+      await query(
+        `UPDATE incharges SET name = ?, email = ?, phone = ?, region_id = ? WHERE id = ?`,
+        [name, email, cleanPhone || null, regionId, id]
+      );
+
+      // Sync with users table
+      try {
+        await query(
+          `UPDATE users SET name = ?, full_name = ?, email = ?, phone = ?, status = ?, locality = COALESCE(?, locality), region = COALESCE(?, region) WHERE id = ? OR username = ?`,
+          [name.slice(0, 255), name.slice(0, 100), email.slice(0, 150), cleanPhone || null, status, data.locality ? data.locality.slice(0, 150) : null, data.region ? data.region.slice(0, 100) : null, id, id]
+        );
+      } catch (uErr) {
+        console.warn('[Sync Update Incharge User Warning]:', uErr.message);
+      }
+
+      return await this.getInchargeById(id);
+    } catch (err) {
+      console.error('[DB Error in updateIncharge]', err.message);
+      throw new Error(`[DB Error in updateIncharge]: ${err.message}`);
+    }
+  }
+
+  async deleteIncharge(id) {
+    this._ensureDb();
+    try {
+      await query('UPDATE agents SET incharge_id = NULL WHERE incharge_id = ?', [id]);
+      await query('DELETE FROM incharges WHERE id = ?', [id]);
+      await query('DELETE FROM users WHERE (id = ? OR username = ?) AND role = ?', [id, id, 'ASM']);
+      return { id, deleted: true };
+    } catch (err) {
+      console.error('[DB Error in deleteIncharge]', err.message);
+      throw new Error(`[DB Error in deleteIncharge]: ${err.message}`);
+    }
+  }
+
+  async assignAgentToIncharge(inchargeId, agentId) {
+    this._ensureDb();
+    try {
+      await query('UPDATE agents SET incharge_id = ? WHERE id = ?', [inchargeId, agentId]);
+      return { inchargeId, agentId, success: true };
+    } catch (err) {
+      console.error('[DB Error in assignAgentToIncharge]', err.message);
+      throw new Error(`[DB Error in assignAgentToIncharge]: ${err.message}`);
+    }
+  }
+
+  async unassignAgentFromIncharge(agentId) {
+    this._ensureDb();
+    try {
+      await query('UPDATE agents SET incharge_id = NULL WHERE id = ?', [agentId]);
+      return { agentId, success: true };
+    } catch (err) {
+      console.error('[DB Error in unassignAgentFromIncharge]', err.message);
+      throw new Error(`[DB Error in unassignAgentFromIncharge]: ${err.message}`);
+    }
   }
 }
 
 export const store = new DataStore();
+

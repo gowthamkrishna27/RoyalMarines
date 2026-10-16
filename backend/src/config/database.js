@@ -24,9 +24,13 @@ export const getPool = () => {
       database: process.env.DB_NAME || config.db.database,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : config.db.ssl,
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 25,
+      maxIdle: 10,
+      idleTimeout: 60000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
       queueLimit: 0,
-      connectTimeout: 10000,
+      connectTimeout: 15000,
     });
   }
   return pool;

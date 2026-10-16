@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ArrowLeft, ArrowRight, UserPlus, MapPin, RefreshCw, 
-  CheckCircle, Plus, Trash2, ShieldCheck, Save 
+import {
+  ArrowLeft, ArrowRight, UserPlus, MapPin, RefreshCw,
+  CheckCircle, Plus, Trash2, ShieldCheck, Save
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession, isInchargeAuthenticated } from '../../asm/utils/inchargeAuth';
 import { captureDeviceGPS, getStoredGPS, generateVerifiedFallbackGPS } from '../utils/gpsService';
+import TankBoundaryEditor from '../../components/TankBoundaryEditor';
 
 const AddFarmer = () => {
   const navigate = useNavigate();
@@ -17,12 +18,14 @@ const AddFarmer = () => {
   const { createFarmerWithTanks } = useMockData();
 
   // Detect whether current page is in Incharge / ASM context
-  const isIncharge = location.pathname.startsWith('/incharge') || 
-                     location.pathname.startsWith('/asm') || 
-                     (!session && (isInchargeAuthenticated() || !!inchargeSession));
+  const isIncharge = location.pathname.startsWith('/incharge') ||
+    location.pathname.startsWith('/asm') ||
+    (!session && (isInchargeAuthenticated() || !!inchargeSession));
   const inchargeBasePath = location.pathname.startsWith('/asm') ? '/asm' : '/incharge';
 
   const [step, setStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [boundaryModalTankIndex, setBoundaryModalTankIndex] = useState(null);
 
   const [farmerForm, setFarmerForm] = useState({
     name: '',
@@ -33,6 +36,7 @@ const AddFarmer = () => {
     district: 'West Godavari',
     address: '',
     waterSource: 'Canal',
+    customWaterSource: '',
     numberOfTanks: '2',
     extent: '',
     status: 'ACTIVE',
@@ -92,12 +96,26 @@ const AddFarmer = () => {
       return;
     }
 
+    if (farmerForm.waterSource === 'Others' && !farmerForm.customWaterSource?.trim()) {
+      alert('Please specify the water source details.');
+      return;
+    }
+
     if (!gpsData || !gpsData.latitude) {
       const fallback = generateVerifiedFallbackGPS(farmerForm.village || 'Bhimavaram');
       setGpsData(fallback);
     }
 
-    const numTanks = parseInt(farmerForm.numberOfTanks) || 1;
+    const parsedTanks = parseInt(farmerForm.numberOfTanks, 10);
+    if (isNaN(parsedTanks) || parsedTanks < 1) {
+      alert('Please enter at least 1 tank.');
+      return;
+    }
+    if (parsedTanks > 20) {
+      alert('Initial number of tanks cannot exceed 20.');
+      return;
+    }
+    const numTanks = parsedTanks;
     const defaultTankArea = farmerForm.extent && parseFloat(farmerForm.extent) > 0
       ? (parseFloat(farmerForm.extent) / numTanks).toFixed(1)
       : '2.5';
@@ -111,6 +129,7 @@ const AddFarmer = () => {
       soilType: 'Loam',
       hatchery: 'Golden Marine Hatchery',
       brooder: 'Kona Bay',
+      customBrooder: '',
       seedDate: new Date().toISOString().split('T')[0],
       seedStockingLak: '2.5',
       feedType: 'Premium',
@@ -139,6 +158,10 @@ const AddFarmer = () => {
   };
 
   const handleAddExtraTank = () => {
+    if (tanksData.length >= 20) {
+      alert('Maximum of 20 tanks allowed.');
+      return;
+    }
     setTanksData(prev => [
       ...prev,
       {
@@ -149,6 +172,7 @@ const AddFarmer = () => {
         soilType: 'Loam',
         hatchery: 'Golden Marine Hatchery',
         brooder: 'Kona Bay',
+        customBrooder: '',
         seedDate: new Date().toISOString().split('T')[0],
         seedStockingLak: '2.5',
         feedType: 'Premium',
@@ -174,45 +198,86 @@ const AddFarmer = () => {
     setTanksData(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleFinalSave = () => {
-    const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
-    const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0 
-      ? parseFloat(farmerForm.extent) 
-      : calculatedAcres;
+  const handleFinalSave = async () => {
+    if (isSaving) return;
 
-    const farmerPayload = {
-      name: farmerForm.name.trim(),
-      phone: farmerForm.phone.trim(),
-      alternatePhone: farmerForm.alternatePhone.trim(),
-      village: farmerForm.village.trim(),
-      area: farmerForm.mandal.trim() || farmerForm.village.trim(),
-      district: farmerForm.district,
-      address: farmerForm.address,
-      waterSource: farmerForm.waterSource,
-      acres: finalAcres,
-      extent: finalAcres,
-      numberOfTanks: tanksData.length.toString(),
-      status: farmerForm.status,
-      gps: gpsData,
-    };
+    for (let i = 0; i < tanksData.length; i++) {
+      const t = tanksData[i];
+      if ((t.brooder === 'Others' || t.brooder === 'Other') && !t.customBrooder?.trim()) {
+        alert(`Please specify other brooder details for ${t.name || `Tank ${i + 1}`}.`);
+        return;
+      }
+    }
 
-    if (isIncharge) {
-      const inchargeId = inchargeSession?.inchargeId || inchargeSession?.id || 'INC001';
-      farmerPayload.inchargeId = inchargeId;
-      farmerPayload.agentId = null;
-      farmerPayload.assignedTo = 'Incharge';
-      farmerPayload.assignedBy = 'Incharge';
+    setIsSaving(true);
+    try {
+      const calculatedAcres = tanksData.reduce((acc, p) => acc + (parseFloat(p.area) || 0), 0);
+      const finalAcres = farmerForm.extent && parseFloat(farmerForm.extent) > 0
+        ? parseFloat(farmerForm.extent)
+        : calculatedAcres;
 
-      createFarmerWithTanks(null, farmerPayload, tanksData);
-      navigate(`${inchargeBasePath}/my-farmers`);
-    } else {
-      const agentId = session?.agentId || 'agent001';
-      farmerPayload.agentId = agentId;
-      farmerPayload.assignedTo = 'Agent';
-      farmerPayload.assignedBy = 'Agent';
+      const resolvedWaterSource = farmerForm.waterSource === 'Others'
+        ? (farmerForm.customWaterSource?.trim() || 'Others')
+        : farmerForm.waterSource;
 
-      createFarmerWithTanks(agentId, farmerPayload, tanksData);
-      navigate('/farmers');
+      const resolvedTanks = tanksData.map(tank => ({
+        ...tank,
+        brooder: (tank.brooder === 'Others' || tank.brooder === 'Other')
+          ? (tank.customBrooder?.trim() || 'Others')
+          : tank.brooder,
+        customBrooder: tank.customBrooder?.trim() || '',
+      }));
+
+      const farmerPayload = {
+        name: farmerForm.name.trim(),
+        phone: farmerForm.phone.trim(),
+        alternatePhone: farmerForm.alternatePhone.trim(),
+        village: farmerForm.village.trim(),
+        area: farmerForm.mandal.trim() || farmerForm.village.trim(),
+        district: farmerForm.district,
+        address: farmerForm.address,
+        waterSource: resolvedWaterSource,
+        acres: finalAcres,
+        extent: finalAcres,
+        numberOfTanks: resolvedTanks.length.toString(),
+        status: farmerForm.status,
+        gps: gpsData,
+      };
+
+      if (isIncharge) {
+        const inchargeId = inchargeSession?.inchargeId || inchargeSession?.id || 'INC001';
+        farmerPayload.inchargeId = inchargeId;
+        farmerPayload.agentId = null;
+        farmerPayload.assignedTo = 'Incharge';
+        farmerPayload.assignedBy = 'Incharge';
+
+        await createFarmerWithTanks(null, farmerPayload, resolvedTanks);
+        setIsSaving(false);
+        navigate(`${inchargeBasePath}/my-farmers`);
+      } else {
+        const agentId = session?.agentId || 'agent001';
+        farmerPayload.agentId = agentId;
+        farmerPayload.assignedTo = 'Agent';
+        farmerPayload.assignedBy = 'Agent';
+
+        await createFarmerWithTanks(agentId, farmerPayload, resolvedTanks);
+        setIsSaving(false);
+        navigate('/farmers');
+      }
+    } catch (err) {
+      console.error('[AddFarmer] handleFinalSave failed:', err);
+      setIsSaving(false);
+      if (err.partialFailure) {
+        alert(`Farmer was created (ID: ${err.farmerId}), but some tanks failed to save: ${err.message}. Please check the saved farmer in your list.`);
+        if (isIncharge) {
+          navigate(`${inchargeBasePath}/my-farmers`);
+        } else {
+          navigate('/farmers');
+        }
+      } else {
+        const msg = err.response?.data?.message || err.message || 'Failed to save farmer and tanks to database';
+        alert(`Error saving farmer: ${msg}`);
+      }
     }
   };
 
@@ -230,7 +295,7 @@ const AddFarmer = () => {
     <div style={styles.container}>
       {/* Top Header */}
       <div style={styles.topHeader}>
-        <button 
+        <button
           className="transition-all duration-150 hover:opacity-80 active:scale-95 cursor-pointer"
           style={styles.backLink}
           onClick={handleBack}
@@ -316,20 +381,19 @@ const AddFarmer = () => {
               </div>
 
               <div>
-                <label style={styles.fieldLabel}>Initial Number of Tanks *</label>
-                <select
+                <label style={styles.fieldLabel}>Number of Tanks (1 - 20) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
                   name="numberOfTanks"
                   value={farmerForm.numberOfTanks}
                   onChange={handleFarmerChange}
                   style={styles.textInput}
-                >
-                  <option value="1">1 Tank</option>
-                  <option value="2">2 Tanks</option>
-                  <option value="3">3 Tanks</option>
-                  <option value="4">4 Tanks</option>
-                  <option value="5">5 Tanks</option>
-                  <option value="6">6 Tanks</option>
-                </select>
+                  placeholder="(e.g. 2)"
+                  required
+                />
               </div>
 
               <div>
@@ -358,7 +422,26 @@ const AddFarmer = () => {
                   <option value="Borewell">Borewell (Ground Water)</option>
                   <option value="Creek">Creek / Estuary</option>
                   <option value="Seawater">Seawater</option>
+                  <option value="Others">Others</option>
                 </select>
+
+                {farmerForm.waterSource === 'Others' && (
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ ...styles.fieldLabel, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                      Specify Water Source Details *
+                    </label>
+                    <input
+                      type="text"
+                      name="customWaterSource"
+                      value={farmerForm.customWaterSource}
+                      onChange={handleFarmerChange}
+                      style={styles.textInput}
+                      placeholder="Enter water source details (e.g. Open Well, Stream, Lake)"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -388,8 +471,8 @@ const AddFarmer = () => {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
               style={styles.primaryActionBtn}
             >
@@ -435,18 +518,6 @@ const AddFarmer = () => {
                       required
                     />
                   </div>
-
-                  {tanksData.length > 1 && (
-                    <button
-                      type="button"
-                      className="transition-all duration-150 hover:opacity-80 active:scale-90 cursor-pointer"
-                      style={styles.removePondBtn}
-                      onClick={() => handleRemoveTank(idx)}
-                      title="Remove Tank"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
                 </div>
 
                 <div style={styles.grid2Col}>
@@ -522,8 +593,26 @@ const AddFarmer = () => {
                       <option value="Kona Bay">Kona Bay</option>
                       <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                       <option value="American Penaeid">American Penaeid</option>
-                      <option value="Other">Other</option>
+                      <option value="Others">Others</option>
+
                     </select>
+
+                    {(tank.brooder === 'Others' || tank.brooder === 'Other') && (
+                      <div style={{ marginTop: '8px' }}>
+                        <label style={{ ...styles.fieldLabel, fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                          Specify Other Brooder Details *
+                        </label>
+                        <input
+                          type="text"
+                          value={tank.customBrooder || ''}
+                          onChange={(e) => handleTankChange(idx, 'customBrooder', e.target.value)}
+                          style={styles.textInput}
+                          placeholder="Enter other brooder details (e.g. Local Hatchery Brooder)"
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* 6. Seed Date */}
@@ -585,6 +674,51 @@ const AddFarmer = () => {
                     </select>
                   </div>
                 </div>
+
+                {/* Tank Boundary (Satellite / GPS Walk) Registration */}
+                <div style={{
+                  marginTop: '12px',
+                  padding: '10px 14px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <MapPin size={16} color="#2563EB" />
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                        Tank Boundary (Optional)
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>
+                        {tank.boundaryCoordinates
+                          ? `✓ Captured via ${tank.boundaryMethod === 'gps_walk' ? 'GPS Walk' : 'Satellite'} (${tank.boundaryAreaAcres || '--'} Acres)`
+                          : 'Capture boundary via Satellite Map or Walk-Around GPS'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBoundaryModalTankIndex(idx)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '6px 12px',
+                      backgroundColor: tank.boundaryCoordinates ? '#EFF6FF' : '#2563EB',
+                      color: tank.boundaryCoordinates ? '#2563EB' : '#FFFFFF',
+                      border: tank.boundaryCoordinates ? '1px solid #BFDBFE' : 'none',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tank.boundaryCoordinates ? 'Edit Boundary' : '+ Set Boundary'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -601,15 +735,50 @@ const AddFarmer = () => {
 
             <button
               type="button"
+              disabled={isSaving}
               className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
-              style={styles.saveAllBtn}
+              style={{
+                ...styles.saveAllBtn,
+                opacity: isSaving ? 0.6 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer'
+              }}
               onClick={handleFinalSave}
             >
               <Save size={15} />
-              <span>Save Farmer & {tanksData.length} Tanks</span>
+              <span>{isSaving ? 'Saving...' : `Save Farmer & ${tanksData.length} Tanks`}</span>
             </button>
           </div>
         </div>
+      )}
+
+      {boundaryModalTankIndex !== null && (
+        <TankBoundaryEditor
+          isOpen={boundaryModalTankIndex !== null}
+          onClose={() => setBoundaryModalTankIndex(null)}
+          onSaveBoundary={(boundaryData) => {
+            setTanksData(prev => {
+              const updated = [...prev];
+              updated[boundaryModalTankIndex] = {
+                ...updated[boundaryModalTankIndex],
+                boundaryCoordinates: boundaryData.boundaryCoordinates,
+                boundaryMethod: boundaryData.boundaryMethod,
+                boundaryAreaAcres: boundaryData.boundaryAreaAcres,
+                boundaryQuality: boundaryData.boundaryQuality,
+                boundaryCapturedAt: boundaryData.boundaryCapturedAt,
+              };
+              return updated;
+            });
+            setBoundaryModalTankIndex(null);
+          }}
+          initialBoundary={tanksData[boundaryModalTankIndex]?.boundaryCoordinates ? {
+            coordinates: tanksData[boundaryModalTankIndex].boundaryCoordinates.coordinates,
+            boundaryMethod: tanksData[boundaryModalTankIndex].boundaryMethod,
+            points: tanksData[boundaryModalTankIndex].boundaryCoordinates.points || null,
+          } : null}
+          tankName={tanksData[boundaryModalTankIndex]?.name || `Tank ${boundaryModalTankIndex + 1}`}
+          enteredAcres={tanksData[boundaryModalTankIndex]?.area ? `${tanksData[boundaryModalTankIndex].area} Acres` : ''}
+          initialLocation={gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null}
+        />
       )}
     </div>
   );

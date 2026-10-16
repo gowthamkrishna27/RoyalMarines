@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getFarmers, getRegions, getAgents, getIncharges, calculateBiomass, calculateFCR } from '../utils/adminMockData';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { calculateBiomass, calculateFCR } from '../utils/adminCalculations';
+import { adminService } from '../utils/adminService';
 import { useMockData } from '../../context/MockDataContext';
 import {
   Search, Plus, Trash2, CheckCircle2, X, MapPin, Phone,
@@ -11,46 +12,94 @@ import {
 
 const FarmersList = () => {
   const navigate = useNavigate();
-  const { db, createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
-  const allAgents = useMemo(() => getAgents(db), [db]);
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-
-  // Load farmers from DB
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const { createFarmerWithTanks, updateFarmer, deleteFarmer } = useMockData();
+  const [regions, setRegions] = useState([]);
+  const [allAgents, setAllAgents] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
   const [farmers, setFarmers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      setFetchError(null);
+      const [farRes, regRes, agRes, incRes] = await Promise.allSettled([
+        adminService.getFarmers(),
+        adminService.getRegions(),
+        adminService.getAgents(),
+        adminService.getIncharges()
+      ]);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) {
+        const formattedFarmers = farRes.value.map(f => ({
+          ...f,
+          name: f.name || 'Unknown Farmer',
+          phone: f.phone || '',
+          village: f.village || f.locality || '',
+          locality: f.locality || '',
+          region: f.region || f.region_name || 'Unknown',
+          agent: f.agent_name || f.agent || 'Unassigned',
+          tanks: f.tanks_count || f.tanks || 0,
+          activePonds: f.active_ponds || 0,
+          status: f.status || 'ACTIVE'
+        }));
+        setFarmers(formattedFarmers);
+      } else {
+        setFarmers([]);
+      }
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAllAgents(agRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
+    } catch (error) {
+      console.error('[FarmersList] Failed to fetch data from database:', error);
+      setFetchError('Unable to load farmers from database. Please check connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchFarmers = async () => {
-      try {
-        const response = await fetch('/api/farmers');
-        const data = await response.json();
-        if (data.success && data.data) {
-          const formattedFarmers = data.data.map(f => ({
-            ...f,
-            name: f.name || 'Unknown Farmer',
-            phone: f.phone || '',
-            village: f.village || f.locality || '',
-            locality: f.locality || '',
-            region: f.region || f.region_name || 'Unknown',
-            agent: f.agent_name || 'Unassigned',
-            tanks: f.tanks_count || f.tanks || 0,
-            activePonds: f.active_ponds || 0,
-            status: f.status || 'ACTIVE'
-          }));
-          setFarmers(formattedFarmers);
-        }
-      } catch (error) {
-        console.error('Failed to fetch farmers:', error);
-      }
+    fetchAllData();
+    const handleFarmerChange = () => {
+      adminService.clearCache('/farmers');
+      fetchAllData();
     };
-    fetchFarmers();
+    window.addEventListener('farmerCreated', handleFarmerChange);
+    window.addEventListener('adminDataChanged', handleFarmerChange);
+    return () => {
+      window.removeEventListener('farmerCreated', handleFarmerChange);
+      window.removeEventListener('adminDataChanged', handleFarmerChange);
+    };
   }, []);
 
   // Filters state
+  const queryStatus = searchParams.get('status') || location.state?.status;
+  const initialStatus = queryStatus 
+    ? (queryStatus.toLowerCase() === 'active' ? 'Active' : queryStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'ALL')
+    : 'ALL';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL');
   const [tankFilter, setTankFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+
+  useEffect(() => {
+    const qStatus = searchParams.get('status') || location.state?.status;
+    if (qStatus) {
+      if (qStatus.toLowerCase() === 'active') setStatusFilter('Active');
+      else if (qStatus.toLowerCase() === 'inactive') setStatusFilter('Inactive');
+    }
+  }, [searchParams, location.state]);
 
   // Expanded tanks breakdown per farmer (toggle row)
   const [expandedFarmerIds, setExpandedFarmerIds] = useState({});
@@ -102,8 +151,9 @@ const FarmersList = () => {
 
   // Helper to get localities for a region
   const getLocalitiesForRegion = (regionId) => {
-    const region = regions.find(r => r.id === regionId);
-    return region?.localities || [];
+    const region = (regions || []).find(r => r.id === regionId || r.name === regionId);
+    if (!region) return [];
+    return Array.isArray(region.localities) ? region.localities : [{ id: `LOC-${region.code || region.id}`, name: region.name }];
   };
 
   // Helper to get agents for a region
@@ -159,19 +209,16 @@ const FarmersList = () => {
   };
 
   // 1. Add Farmer Submit
-  const handleAddFarmerSubmit = (e) => {
+  const handleAddFarmerSubmit = async (e) => {
     e.preventDefault();
     if (!newFarmer.name.trim()) return;
 
-    const nextNumber = farmers.length + 1;
-    const newId = `FAR-${String(100 + nextNumber)}`;
     const selectedRegionObj = regions.find(r => r.id === newFarmer.regionId) || regions[0];
     const selectedAgentObj = allAgents.find(a => a.id === newFarmer.agentId) || allAgents[0];
 
     const totalAcresCalculated = newFarmer.tankSizes.reduce((acc, s) => acc + (parseFloat(s) || 0), 0);
 
     const tankBreakdown = newFarmer.tankSizes.map((size, idx) => ({
-      id: `T-${newId}-${idx + 1}`,
       name: `Tank ${idx + 1}`,
       acres: parseFloat(size) || 0,
       waterSource: newFarmer.waterSource,
@@ -184,14 +231,14 @@ const FarmersList = () => {
     const farmerPayload = {
       name: newFarmer.name.trim(),
       phone: newFarmer.phone.trim(),
-      region: selectedRegionObj.name,
-      regionId: selectedRegionObj.id,
+      region: selectedRegionObj?.name,
+      regionId: selectedRegionObj?.id,
       location: `${newFarmer.village.trim() || newFarmer.locality}, ${newFarmer.locality}`,
       locality: newFarmer.locality,
       village: newFarmer.village.trim() || `${newFarmer.locality} Village`,
-      agentId: selectedAgentObj.id,
-      agent: selectedAgentObj.name,
-      incharge: selectedAgentObj.incharge || 'Ravi Kumar',
+      agentId: selectedAgentObj?.id,
+      agent: selectedAgentObj?.name,
+      incharge: selectedAgentObj?.incharge || 'Ravi Kumar',
       waterSource: newFarmer.waterSource,
       acres: `${totalAcresCalculated.toFixed(1)} Acres`,
       totalAcres: totalAcresCalculated,
@@ -201,27 +248,40 @@ const FarmersList = () => {
       status: 'Active'
     };
 
-    if (createFarmerWithTanks) {
-      createFarmerWithTanks(selectedAgentObj.id, farmerPayload, tankBreakdown);
-    } else {
-      setFarmers(prev => [{ ...farmerPayload, id: newId }, ...prev]);
+    try {
+      setLoading(true);
+      if (createFarmerWithTanks) {
+        await createFarmerWithTanks(selectedAgentObj?.id, farmerPayload, tankBreakdown);
+      } else {
+        await adminService.createFarmer(farmerPayload);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${farmerPayload.name} added successfully!`);
+      setShowAddModal(false);
+
+      // Reset Form
+      setNewFarmer({
+        name: '',
+        phone: '+91 ',
+        regionId: defaultRegion.id,
+        locality: defaultLocName,
+        village: '',
+        agentId: allAgents[0]?.id || 'EMP-AGT-01',
+        waterSource: 'Creek / Estuary',
+        tankCount: 1,
+        tankSizes: [4.5]
+      });
+    } catch (err) {
+      console.error('[FarmersList] handleAddFarmerSubmit failed:', err);
+      showToast(`Failed to add farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-
-    showToast(`Farmer ${farmerPayload.name} added successfully!`);
-    setShowAddModal(false);
-
-    // Reset Form
-    setNewFarmer({
-      name: '',
-      phone: '+91 ',
-      regionId: defaultRegion.id,
-      locality: defaultLocName,
-      village: '',
-      agentId: allAgents[0]?.id || 'EMP-AGT-01',
-      waterSource: 'Creek / Estuary',
-      tankCount: 1,
-      tankSizes: [4.5]
-    });
   };
 
   // 2. Open Edit Farmer Modal
@@ -247,7 +307,7 @@ const FarmersList = () => {
   };
 
   // Handle Edit Farmer Submit
-  const handleEditFarmerSubmit = (e) => {
+  const handleEditFarmerSubmit = async (e) => {
     e.preventDefault();
     if (!editFarmer.name.trim() || !selectedFarmer) return;
 
@@ -273,13 +333,27 @@ const FarmersList = () => {
       status: editFarmer.status
     };
 
-    if (updateFarmer) {
-      updateFarmer(selectedFarmer.id, updatedFarmer);
+    try {
+      setLoading(true);
+      if (updateFarmer) {
+        await updateFarmer(selectedFarmer.id, updatedFarmer);
+      } else {
+        await adminService.updateFarmer(selectedFarmer.id, updatedFarmer);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
+      setShowEditModal(false);
+      setSelectedFarmer(null);
+    } catch (err) {
+      console.error('[FarmersList] handleEditFarmerSubmit failed:', err);
+      showToast(`Failed to update farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-    setFarmers(prev => prev.map(f => f.id === selectedFarmer.id ? updatedFarmer : f));
-    showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
-    setShowEditModal(false);
-    setSelectedFarmer(null);
   };
 
   // 3. Delete / Remove Farmer
@@ -289,16 +363,31 @@ const FarmersList = () => {
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!selectedFarmer) return;
 
-    if (deleteFarmer) {
-      deleteFarmer(selectedFarmer.id);
+    try {
+      setLoading(true);
+      if (deleteFarmer) {
+        await deleteFarmer(selectedFarmer.id);
+      } else {
+        await adminService.deleteFarmer(selectedFarmer.id);
+      }
+
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/tanks');
+      adminService.clearCache('/analytics/summary');
+
+      await fetchAllData();
+      showToast(`Farmer ${selectedFarmer.name} (${selectedFarmer.id}) removed from directory.`);
+      setShowDeleteModal(false);
+      setSelectedFarmer(null);
+    } catch (err) {
+      console.error('[FarmersList] handleConfirmDelete failed:', err);
+      showToast(`Failed to delete farmer: ${err.message || 'Error occurred'}`);
+    } finally {
+      setLoading(false);
     }
-    setFarmers(prev => prev.filter(f => f.id !== selectedFarmer.id));
-    showToast(`Farmer ${selectedFarmer.name} (${selectedFarmer.id}) removed from directory.`);
-    setShowDeleteModal(false);
-    setSelectedFarmer(null);
   };
 
   // Helper to calculate FCR for a tank
@@ -544,7 +633,27 @@ const FarmersList = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.length > 0 ? (
+              {loading && farmers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                    Loading farmers from database...
+                  </td>
+                </tr>
+              ) : fetchError && farmers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#DC2626' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span>{fetchError}</span>
+                      <button
+                        onClick={fetchFarmers}
+                        style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #DC2626', background: '#FEE2E2', color: '#DC2626', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length > 0 ? (
                 filtered.map((item, index) => {
                   const totalAcresVal = item.totalAcres || parseFloat(item.acres) || 0;
                   const tankCount = item.tanks || 1;

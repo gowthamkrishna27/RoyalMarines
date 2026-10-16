@@ -5,15 +5,21 @@ import {
   Fish, Wheat, ArrowRight, Sparkles, AlertCircle, 
   Building, FileText, Check, Lock
 } from 'lucide-react';
+import apiClient from '../../utils/apiClient';
+import { adminService } from '../../admin/utils/adminService';
+import { useMockData } from '../../context/MockDataContext';
 
 const TakeHarvestModal = ({ 
   isOpen, 
   onClose, 
   tank, 
   farmer, 
-  onSuccess 
+  onSuccess,
+  initialHarvestType = 'Partial Harvest'
 }) => {
   if (!isOpen || !tank) return null;
+
+  const { editTank } = useMockData() || {};
 
   const farmerName = farmer?.name || tank.farmer || tank.farmerName || 'Farmer';
   const farmerLocality = farmer?.location || farmer?.locality || farmer?.village || tank.locality || 'Bhimavaram';
@@ -24,7 +30,7 @@ const TakeHarvestModal = ({
   const defaultAbw = tank.abw ? parseFloat(tank.abw) : 24.5;
 
   // Form State
-  const [harvestType, setHarvestType] = useState('Partial Harvest'); // 'Partial Harvest' | 'Final Harvest'
+  const [harvestType, setHarvestType] = useState(initialHarvestType || 'Partial Harvest'); // 'Partial Harvest' | 'Final Harvest'
   const [harvestDate, setHarvestDate] = useState(new Date().toISOString().split('T')[0]);
   const [doc, setDoc] = useState(currentDoc);
   const [abw, setAbw] = useState(defaultAbw);
@@ -33,7 +39,28 @@ const TakeHarvestModal = ({
   const [buyer, setBuyer] = useState('Royals Marine Processing Unit 1');
   const [remarks, setRemarks] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedData, setSavedData] = useState(null);
+
+  // Sync initialHarvestType when prop updates
+  useEffect(() => {
+    if (initialHarvestType) {
+      setHarvestType(initialHarvestType);
+    }
+  }, [initialHarvestType]);
+
+  // Read existing store to compute next partial number
+  const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
+  let existingStoreHarvests = [];
+  try {
+    const rawStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+    if (rawStore[storeKey]?.harvests && Array.isArray(rawStore[storeKey].harvests)) {
+      existingStoreHarvests = rawStore[storeKey].harvests;
+    }
+  } catch (e) {}
+
+  const existingPartialsCount = existingStoreHarvests.filter(h => !h.isFinal && h.harvestType !== 'Final Harvest').length;
+  const currentPartialTitle = existingPartialsCount === 0 ? 'Partial Harvest' : `Partial Harvest ${existingPartialsCount + 1}`;
 
   // Dynamic calculations
   const numAbw = parseFloat(abw) || 0;
@@ -52,8 +79,9 @@ const TakeHarvestModal = ({
     }
   }, [numBiomass]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
 
     if (!numBiomass || numBiomass <= 0) {
       alert('Please enter a valid harvest biomass in kg.');
@@ -65,12 +93,13 @@ const TakeHarvestModal = ({
     }
 
     const isFinal = harvestType === 'Final Harvest';
-    const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
+
+    const displayTitle = isFinal ? 'Final Harvest' : currentPartialTitle;
 
     const newHarvestRecord = {
       id: `harvest_${Date.now()}`,
       harvestType: harvestType,
-      displayTitle: isFinal ? 'Final Harvest (Cycle Closed)' : 'Partial Harvest',
+      displayTitle: displayTitle,
       isFinal: isFinal,
       date: harvestDate,
       doc: parseInt(doc, 10) || currentDoc,
@@ -85,30 +114,100 @@ const TakeHarvestModal = ({
       recordedAt: new Date().toISOString()
     };
 
+    setIsSaving(true);
     try {
-      const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
-      const existingTankStore = store[storeKey] || {
-        farmerId: farmer?.id || tank.farmerId,
+      const farmerId = farmer?.id || tank.farmerId || '';
+      const revenueVal = numBiomass * 380;
+      
+      const harvestRes = await apiClient.post('/harvests', {
         tankId: tank.id,
-        seedNumber: initialStock.toString(),
-        totalFeed: '0',
-        harvests: []
-      };
+        farmerId,
+        date: harvestDate,
+        quantityKg: numBiomass,
+        countPerKg: countPerKg,
+        quality: 'Grade A',
+        pricePerKg: 380,
+        revenue: revenueVal,
+        buyerName: buyer || 'Royals Marine Processing Unit 1',
+        remarks: newHarvestRecord.remarks,
+        harvestType: isFinal ? 'Final Harvest' : 'Partial Harvest',
+        isFinal
+      });
 
-      const existingHarvests = Array.isArray(existingTankStore.harvests) ? existingTankStore.harvests : [];
-      const updatedHarvests = [...existingHarvests, newHarvestRecord];
-      const updatedTotalFeed = (parseFloat(existingTankStore.totalFeed || 0) + (numFeed || Math.round(numBiomass * 1.16))).toString();
+      if (harvestRes?.data?.id) {
+        newHarvestRecord.id = harvestRes.data.id;
+      }
 
-      store[storeKey] = {
-        ...existingTankStore,
-        harvests: updatedHarvests,
-        totalFeed: updatedTotalFeed,
-        finalHarvestCompleted: isFinal ? true : (existingTankStore.finalHarvestCompleted || false)
-      };
+      const subId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      await apiClient.post('/submissions', {
+        id: subId,
+        farmerId,
+        tankId: tank.id,
+        testType: isFinal ? 'Final Harvest' : 'Harvest',
+        recordType: 'HARVEST_ENTRY',
+        date: harvestDate,
+        data: newHarvestRecord,
+        status: 'PENDING_VERIFICATION'
+      });
 
-      localStorage.setItem('agent_harvest_store', JSON.stringify(store));
-      window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: store }));
+      if (isFinal) {
+        if (typeof editTank === 'function') {
+          await editTank(tank.id, {
+            status: 'Harvested',
+            testStatus: 'Completed',
+            nextTest: 'Cycle Closed'
+          });
+        } else {
+          await apiClient.put(`/tanks/${tank.id}`, {
+            status: 'Harvested',
+            testStatus: 'Completed',
+            nextTest: 'Cycle Closed'
+          });
+        }
+      }
 
+      try {
+        const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+        const existingTankStore = store[storeKey] || {
+          farmerId: farmer?.id || tank.farmerId,
+          tankId: tank.id,
+          seedNumber: initialStock.toString(),
+          totalFeed: '0',
+          harvests: []
+        };
+
+        const existingHarvests = Array.isArray(existingTankStore.harvests) ? existingTankStore.harvests : [];
+        const updatedHarvests = [...existingHarvests, newHarvestRecord];
+        const updatedTotalFeed = (parseFloat(existingTankStore.totalFeed || 0) + (numFeed || Math.round(numBiomass * 1.16))).toString();
+
+        store[storeKey] = {
+          ...existingTankStore,
+          harvests: updatedHarvests,
+          totalFeed: updatedTotalFeed,
+          finalHarvestCompleted: isFinal ? true : (existingTankStore.finalHarvestCompleted || false)
+        };
+
+        localStorage.setItem('agent_harvest_store', JSON.stringify(store));
+        window.dispatchEvent(new CustomEvent('harvestStoreUpdated', { detail: store }));
+      } catch (e) {
+        console.warn('LocalStorage harvest store update skipped:', e);
+      }
+
+      adminService.clearCache('harvests');
+      adminService.clearCache('submissions');
+      adminService.clearCache('tanks');
+      try {
+        sessionStorage.removeItem('royal_admin_dashboard_cache_v1');
+      } catch (e) {}
+
+      window.dispatchEvent(new CustomEvent('harvestCreated', { detail: newHarvestRecord }));
+      window.dispatchEvent(new CustomEvent('submissionCreated', { detail: { ...newHarvestRecord, id: subId, testType: isFinal ? 'Final Harvest' : 'Harvest', tankId: tank.id, farmerId } }));
+      if (isFinal) {
+        window.dispatchEvent(new CustomEvent('tankCreated', { detail: { id: tank.id, status: 'Harvested' } }));
+      }
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+
+      setIsSaving(false);
       setSavedData(newHarvestRecord);
       setIsSubmitted(true);
 
@@ -117,7 +216,9 @@ const TakeHarvestModal = ({
       }
     } catch (err) {
       console.error('Failed to save harvest report:', err);
-      alert('Failed to save harvest report. Please try again.');
+      setIsSaving(false);
+      const msg = err.response?.data?.message || err.message || 'Failed to save harvest report';
+      alert(`Failed to save harvest report to database: ${msg}. Your entered data is preserved. Please try again.`);
     }
   };
 
@@ -278,10 +379,10 @@ const TakeHarvestModal = ({
                           fontWeight: '800', 
                           color: harvestType === 'Partial Harvest' ? '#1A2FB8' : '#0F172A' 
                         }}>
-                          Partial Harvest
+                          {currentPartialTitle}
                         </span>
                       </div>
-                      <span style={styles.partialTag}>Thinning</span>
+                      <span style={styles.partialTag}>{existingPartialsCount === 0 ? 'Thinning' : `Harvest #${existingPartialsCount + 1}`}</span>
                     </div>
                     <p style={styles.typeDesc}>
                       Selective netting to reduce density. Culture continues in the pond.
@@ -316,7 +417,9 @@ const TakeHarvestModal = ({
                           Final Harvest
                         </span>
                       </div>
-                      <span style={styles.finalTag}>Cycle Complete</span>
+                      <span style={{ ...styles.finalTag, backgroundColor: '#FEF2F2', color: '#DC2626', borderColor: '#FECACA' }}>
+                        Locks Tank
+                      </span>
                     </div>
                     <p style={styles.typeDesc}>
                       Complete pond drainage harvest. Concludes culture cycle.
@@ -355,7 +458,7 @@ const TakeHarvestModal = ({
                       value={doc}
                       onChange={(e) => setDoc(e.target.value)}
                       placeholder="e.g. 77"
-                      min="1"
+                      min="0"
                       style={{ ...styles.textInput, paddingLeft: '12px' }}
                       required
                     />
@@ -504,14 +607,17 @@ const TakeHarvestModal = ({
 
               <button 
                 type="submit"
+                disabled={isSaving}
                 style={{
                   ...styles.submitBtn,
                   backgroundColor: harvestType === 'Final Harvest' ? '#16A34A' : '#1A2FB8',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  opacity: isSaving ? 0.7 : 1,
                 }}
                 className="transition-all hover:brightness-110 active:scale-98 cursor-pointer"
               >
                 <Scale size={16} />
-                <span>Save {harvestType} Report</span>
+                <span>{isSaving ? 'Saving Harvest...' : `Save ${harvestType} Report`}</span>
               </button>
             </div>
           </form>

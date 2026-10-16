@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, Users, Plus, Calendar, FileText, UserCheck, 
-  Settings, LogOut, Shield, ChevronRight, Layers, Eye, Scale
+  Settings, LogOut, Shield, ChevronRight, Layers, Eye, Scale, User
 } from 'lucide-react';
 import { logoutIncharge, getInchargeSession } from '../utils/inchargeAuth';
 import { getAsmBasePath } from '../utils/asmNavigation';
@@ -53,7 +53,13 @@ const InchargeSidebar = () => {
       name: 'My Farmers', 
       path: `${base}/my-farmers`, 
       icon: UserCheck, 
-      match: [`${base}/my-farmers`, `${base}/farmers`, `${base}/add-farmer`] 
+      match: [`${base}/my-farmers`] 
+    },
+    { 
+      name: 'Farmers', 
+      path: `${base}/farmers`, 
+      icon: User, 
+      match: [`${base}/farmers`, `${base}/add-farmer`] 
     },
     { 
       name: 'Harvest', 

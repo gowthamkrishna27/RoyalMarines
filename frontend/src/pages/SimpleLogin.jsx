@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import topnavlogo from '../assets/topnavlogo.png';
 import loginBg from '../assets/Serene Aquaculture Pond at Sunrise.png';
@@ -9,6 +9,7 @@ import { isAdminAuthenticated } from '../admin/utils/adminAuth';
 
 const SimpleLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [identifier, setIdentifier] = useState('');
   const [pinBoxes, setPinBoxes] = useState(['', '', '', '']);
@@ -18,14 +19,47 @@ const SimpleLogin = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isAdminAuthenticated()) {
+    let authUserRole = null;
+    try {
+      const u = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      authUserRole = (u.role || '').toUpperCase();
+    } catch (e) {}
+
+    const path = location.pathname;
+    const isAgentRoute = path === '/agent-login' || path.startsWith('/agent') || path.startsWith('/technician');
+    const isAsmRoute = path === '/asm-login' || path === '/incharge-login' || path.startsWith('/asm') || path.startsWith('/incharge');
+
+    // Never auto-forward to Admin when visiting Agent-specific login
+    if (isAgentRoute) {
+      if ((authUserRole === 'AGENT' || authUserRole === 'TECHNICIAN' || !authUserRole) && isAuthenticated()) {
+        navigate('/dashboard', { replace: true });
+      }
+      return;
+    }
+
+    // Never auto-forward to Admin when visiting ASM-specific login
+    if (isAsmRoute) {
+      if ((authUserRole === 'ASM' || authUserRole === 'INCHARGE' || !authUserRole) && isInchargeAuthenticated()) {
+        navigate('/asm/dashboard', { replace: true });
+      }
+      return;
+    }
+
+    // Generic /login routing
+    if ((authUserRole === 'AGENT' || authUserRole === 'TECHNICIAN') && isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
+    } else if ((authUserRole === 'ASM' || authUserRole === 'INCHARGE') && isInchargeAuthenticated()) {
+      navigate('/asm/dashboard', { replace: true });
+    } else if (authUserRole === 'ADMIN' && isAdminAuthenticated()) {
       navigate('/admin/dashboard', { replace: true });
-    } else if (isInchargeAuthenticated()) {
-      navigate('/incharge/dashboard', { replace: true });
     } else if (isAuthenticated()) {
       navigate('/dashboard', { replace: true });
+    } else if (isInchargeAuthenticated()) {
+      navigate('/asm/dashboard', { replace: true });
+    } else if (isAdminAuthenticated()) {
+      navigate('/admin/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const handlePinChange = (val, index) => {
     const digit = val.replace(/[^0-9]/g, '').slice(-1);
@@ -118,6 +152,8 @@ const SimpleLogin = () => {
 
       // Route based on verified DB role
       if (userRole === 'ADMIN') {
+        localStorage.removeItem('incharge_auth_session');
+        localStorage.removeItem('agent_auth_session');
         // Store admin session
         localStorage.setItem('admin_auth_session', JSON.stringify({
           role: 'admin',
@@ -130,6 +166,8 @@ const SimpleLogin = () => {
         }));
         navigate('/admin/dashboard', { replace: true });
       } else if (userRole === 'ASM' || userRole === 'INCHARGE') {
+        localStorage.removeItem('admin_auth_session');
+        localStorage.removeItem('agent_auth_session');
         // Store incharge/ASM session
         localStorage.setItem('incharge_auth_session', JSON.stringify({
           inchargeId: backendUser.id,
@@ -142,6 +180,8 @@ const SimpleLogin = () => {
         }));
         navigate('/asm/dashboard', { replace: true });
       } else {
+        localStorage.removeItem('admin_auth_session');
+        localStorage.removeItem('incharge_auth_session');
         // Default: Agent
         localStorage.setItem('agent_auth_session', JSON.stringify({
           agentId: backendUser.id,

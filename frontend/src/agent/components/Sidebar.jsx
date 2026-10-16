@@ -17,27 +17,95 @@ const Sidebar = () => {
   const handleLogout = () => {
     if (window.confirm('Log out of Technician Portal?')) {
       clearSession();
-      navigate('/login');
+      navigate('/agent-login');
     }
   };
 
+  const prefix = location.pathname.startsWith('/agent') 
+    ? '/agent' 
+    : (location.pathname.startsWith('/technician') ? '/technician' : '');
+
   const navItems = [
-    { name: 'Home', path: '/dashboard', icon: Home, match: ['/dashboard', '/technician'] },
-    { name: 'My Farmers', path: '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/add-farmer'] },
-    { name: 'Harvest', path: '/harvest', icon: Scale, match: ['/harvest'] },
-    { name: 'History', path: '/tests', icon: Clock, match: ['/tests', '/history'] },
-    { name: 'Reports', path: '/reports', icon: FileText, match: ['/reports'] },
+    { name: 'Home', path: prefix ? `${prefix}/dashboard` : '/dashboard', icon: Home, match: ['/dashboard', '/technician', '/technician/dashboard', '/agent', '/agent/dashboard', `${prefix}/dashboard`, '/'] },
+    { name: 'My Farmers', path: prefix ? `${prefix}/farmers` : '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/agent/farmers', '/add-farmer', `${prefix}/farmers`, `${prefix}/add-farmer`] },
+    { name: 'Harvest', path: prefix ? `${prefix}/harvest` : '/harvest', icon: Scale, match: ['/harvest', '/technician/harvest', '/agent/harvest', `${prefix}/harvest`] },
+    { name: 'History', path: prefix ? `${prefix}/tests` : '/tests', icon: Clock, match: ['/tests', '/history', '/technician/tests', '/technician/history', '/agent/tests', '/agent/history', `${prefix}/tests`, `${prefix}/history`] },
+    { name: 'Reports', path: prefix ? `${prefix}/reports` : '/reports', icon: FileText, match: ['/reports', '/technician/reports', '/agent/reports', `${prefix}/reports`] },
   ];
 
+  const currentPath = (location.pathname || '').replace(/\/$/, '') || '/';
+
   const isItemActive = (item) => {
-    return item.match.some(p => location.pathname === p || location.pathname.startsWith(p + '/'));
+    if (item.name === 'Home') {
+      return (
+        currentPath === '/' ||
+        currentPath === '/dashboard' ||
+        currentPath === '/agent' ||
+        currentPath === '/agent/dashboard' ||
+        currentPath === '/technician' ||
+        currentPath === '/technician/dashboard'
+      );
+    }
+    if (item.name === 'My Farmers') {
+      return (
+        currentPath === '/farmers' ||
+        currentPath.startsWith('/farmers/') ||
+        currentPath === '/agent/farmers' ||
+        currentPath.startsWith('/agent/farmers/') ||
+        currentPath === '/technician/farmers' ||
+        currentPath.startsWith('/technician/farmers/') ||
+        currentPath === '/add-farmer' ||
+        currentPath === '/agent/add-farmer'
+      );
+    }
+    if (item.name === 'Harvest') {
+      return (
+        currentPath === '/harvest' ||
+        currentPath.startsWith('/harvest/') ||
+        currentPath === '/agent/harvest' ||
+        currentPath.startsWith('/agent/harvest/') ||
+        currentPath === '/technician/harvest' ||
+        currentPath.startsWith('/technician/harvest/')
+      );
+    }
+    if (item.name === 'History') {
+      return (
+        currentPath === '/tests' ||
+        currentPath.startsWith('/tests/') ||
+        currentPath === '/history' ||
+        currentPath.startsWith('/history/') ||
+        currentPath === '/agent/tests' ||
+        currentPath.startsWith('/agent/tests/') ||
+        currentPath === '/agent/history' ||
+        currentPath.startsWith('/agent/history/') ||
+        currentPath === '/technician/tests' ||
+        currentPath.startsWith('/technician/tests/') ||
+        currentPath === '/technician/history' ||
+        currentPath.startsWith('/technician/history/') ||
+        currentPath === '/weekly-tests' ||
+        currentPath.startsWith('/weekly-tests/')
+      );
+    }
+    if (item.name === 'Reports') {
+      return (
+        currentPath === '/reports' ||
+        currentPath.startsWith('/reports/') ||
+        currentPath === '/agent/reports' ||
+        currentPath.startsWith('/agent/reports/') ||
+        currentPath === '/technician/reports' ||
+        currentPath.startsWith('/technician/reports/') ||
+        currentPath === '/analytics' ||
+        currentPath === '/my-analytics'
+      );
+    }
+    return false;
   };
 
   return (
     <>
       <aside style={styles.sidebar}>
         {/* 1. Brand Header */}
-        <div style={styles.brandHeader} onClick={() => navigate('/dashboard')} title="Royals Marine">
+        <div style={styles.brandHeader} onClick={() => navigate(prefix ? `${prefix}/dashboard` : '/dashboard')} title="Royals Marine">
           <img src={topnavlogo} alt="Royals Marine" style={styles.brandLogoImg} />
         </div>
 
@@ -45,7 +113,8 @@ const Sidebar = () => {
         <div style={styles.actionSection}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <button 
-              className="transition-all duration-200 hover:brightness-110 active:scale-98 cursor-pointer"
+              type="button"
+              className="cursor-pointer transition-all duration-150 hover:brightness-110 active:scale-98"
               style={styles.quickRecordBtn}
               onClick={() => {
                 setModalInitialType('WATER_QUALITY');
@@ -57,13 +126,13 @@ const Sidebar = () => {
             </button>
 
             <button 
-              className="transition-all duration-200 hover:brightness-105 active:scale-98 cursor-pointer"
+              type="button"
+              className="cursor-pointer transition-all duration-150 hover:brightness-105 active:scale-98"
               style={styles.harvestSideBtn}
               onClick={() => {
-                setModalInitialType('HARVEST_ENTRY');
-                setIsQuickRecordOpen(true);
+                navigate(prefix ? `${prefix}/harvest` : '/harvest');
               }}
-              aria-label="Record Crop Harvest"
+              aria-label="Harvest Management"
             >
               <Scale size={14} strokeWidth={2.4} /> Harvest
             </button>
@@ -80,7 +149,7 @@ const Sidebar = () => {
               <NavLink
                 key={item.name}
                 to={item.path}
-                className="transition-all duration-150 hover:bg-slate-50 active:scale-98"
+                className="transition-colors duration-150 hover:bg-slate-50 cursor-pointer"
                 style={{
                   ...styles.navLink,
                   backgroundColor: active ? '#EFF6FF' : 'transparent',
@@ -99,7 +168,7 @@ const Sidebar = () => {
         <div style={styles.footerSection}>
           <div 
             style={styles.userCard}
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate(prefix ? `${prefix}/profile` : '/profile')}
             title="View Profile & Settings"
           >
             <div style={styles.avatarMini}>
@@ -117,11 +186,13 @@ const Sidebar = () => {
         </div>
       </aside>
 
-      <QuickRecordModal 
-        isOpen={isQuickRecordOpen}
-        onClose={() => setIsQuickRecordOpen(false)}
-        initialType={modalInitialType}
-      />
+      {isQuickRecordOpen && (
+        <QuickRecordModal 
+          isOpen={isQuickRecordOpen}
+          onClose={() => setIsQuickRecordOpen(false)}
+          initialType={modalInitialType}
+        />
+      )}
     </>
   );
 };

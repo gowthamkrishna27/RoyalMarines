@@ -1,26 +1,70 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getRegionById, getInchargesByRegion } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import { Users, HardHat, Sprout, Database, Eye } from 'lucide-react';
 
 const RegionDetail = () => {
   const { regionId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
 
-  const region = getRegionById(regionId, db);
-  const incharges = getInchargesByRegion(regionId, db);
+  const [region, setRegion] = useState(null);
+  const [incharges, setIncharges] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!regionId) return;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks()
+    ]).then(([regRes, incRes, agRes, farRes, tkRes]) => {
+      if (!isMounted) return;
+      const allRegs = regRes.status === 'fulfilled' && Array.isArray(regRes.value) ? regRes.value : [];
+      const allIncs = incRes.status === 'fulfilled' && Array.isArray(incRes.value) ? incRes.value : [];
+      const allAgs = agRes.status === 'fulfilled' && Array.isArray(agRes.value) ? agRes.value : [];
+      const allFars = farRes.status === 'fulfilled' && Array.isArray(farRes.value) ? farRes.value : [];
+      const allTks = tkRes.status === 'fulfilled' && Array.isArray(tkRes.value) ? tkRes.value : [];
+
+      const currentReg = allRegs.find(r => String(r.id) === String(regionId) || String(r.code) === String(regionId));
+      if (currentReg) {
+        const regIncs = allIncs.filter(i => String(i.region_id || i.regionId) === String(currentReg.id) || i.region === currentReg.name);
+        const regAgs = allAgs.filter(a => String(a.regionId) === String(currentReg.id) || a.region === currentReg.name);
+        const regFars = allFars.filter(f => String(f.regionId) === String(currentReg.id) || f.region === currentReg.name);
+        const regTks = allTks.filter(t => String(t.regionId) === String(currentReg.id) || t.region === currentReg.name);
+
+        setRegion({
+          ...currentReg,
+          incharges: regIncs.length,
+          agents: regAgs.length,
+          farmers: regFars.length,
+          tanks: regTks.length
+        });
+        setIncharges(regIncs);
+      } else {
+        setRegion(null);
+      }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[RegionDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => { isMounted = false; };
+  }, [regionId]);
 
   if (!region) {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
-          Loading Region Details...
+          {loading ? 'Loading Region Details...' : 'Region Not Found'}
         </h3>
         <p style={{ color: '#64748B', fontSize: '14px', marginBottom: '20px' }}>
-          Retrieving real-time records from the aquaculture database.
+          {loading ? 'Retrieving real-time records from the aquaculture database.' : 'The requested region record could not be found.'}
         </p>
         <button
           onClick={() => navigate('/admin/regions')}

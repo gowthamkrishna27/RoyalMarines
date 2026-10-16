@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAgentById, getAgents, getFarmers, getRegions, getIncharges } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import PageHeader from '../components/PageHeader';
 import {
   ArrowLeft, Edit, Phone, Mail, MapPin, Building,
@@ -12,23 +11,40 @@ import {
 const AgentDetail = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const regions = useMemo(() => getRegions(db), [db]);
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-
-  // 1. Load Agent from live context
-  const [agent, setAgent] = useState(() => getAgentById(agentId, db) || null);
-
-  // 2. Load Farmers from live context
-  const [farmersList, setFarmersList] = useState(() => getFarmers(db));
+  const [regions, setRegions] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
+  const [agent, setAgent] = useState(null);
+  const [farmersList, setFarmersList] = useState([]);
+  const [submissionsList, setSubmissionsList] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (db) {
-      const a = getAgentById(agentId, db);
-      if (a) setAgent(a);
-      setFarmersList(getFarmers(db));
-    }
-  }, [db, agentId]);
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getSubmissions()
+    ]).then(([agRes, farRes, regRes, incRes, subRes]) => {
+      if (!isMounted) return;
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) {
+        const found = agRes.value.find(a => String(a.id) === String(agentId));
+        setAgent(found || null);
+      }
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setFarmersList(farRes.value);
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) setRegions(regRes.value);
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setSubmissionsList(subRes.value);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[AgentDetail] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => { isMounted = false; };
+  }, [agentId]);
 
   const [toastMessage, setToastMessage] = useState('');
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
@@ -77,8 +93,9 @@ const AgentDetail = () => {
 
   // Helper: Get localities for region
   const getLocalitiesForRegion = (regionId) => {
-    const region = regions.find(r => r.id === regionId);
-    return region?.localities || [];
+    const region = (regions || []).find(r => r.id === regionId || r.name === regionId);
+    if (!region) return [];
+    return Array.isArray(region.localities) ? region.localities : [{ id: `LOC-${region.code || region.id}`, name: region.name }];
   };
 
   // Filter and sort farmers reporting to this agent
@@ -163,7 +180,7 @@ const AgentDetail = () => {
   };
 
   // Handle Save Farmer Details
-  const handleSaveFarmerDetails = (e) => {
+  const handleSaveFarmerDetails = async (e) => {
     e.preventDefault();
     if (!editFarmerForm.name.trim() || !selectedFarmerToEdit) return;
 
@@ -179,12 +196,19 @@ const AgentDetail = () => {
       status: editFarmerForm.status
     };
 
-    const updatedFarmersList = farmersList.map(f => f.id === selectedFarmerToEdit.id ? updatedFarmer : f);
-    setFarmersList(updatedFarmersList);
-    localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedFarmersList));
-
-    showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
-    setShowEditFarmerModal(false);
+    try {
+      await adminService.updateFarmer(selectedFarmerToEdit.id, updatedFarmer);
+      const updatedFarmersList = farmersList.map(f => f.id === selectedFarmerToEdit.id ? updatedFarmer : f);
+      setFarmersList(updatedFarmersList);
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
+      setShowEditFarmerModal(false);
+    } catch (err) {
+      console.error('[AgentDetail] Failed to update farmer in database:', err);
+      showToast(`Failed to update farmer: ${err.message || 'API error'}`);
+    }
   };
 
   const editModalIncharge = getInchargeForLocality(editAgentForm.locality, editAgentForm.regionId);
@@ -314,7 +338,13 @@ const AgentDetail = () => {
             <CheckSquare size={20} />
           </div>
           <div>
-            <div style={styles.kpiValue}>{agent.tests || 45}</div>
+            <div style={styles.kpiValue}>
+              {(submissionsList || []).filter(s =>
+                s.agentId === agent?.id ||
+                s.agentId === agentId ||
+                (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))
+              ).length}
+            </div>
             <div style={styles.kpiLabel}>Telemetry Tests Submitted</div>
           </div>
         </div>
@@ -324,7 +354,18 @@ const AgentDetail = () => {
             <UserCheck size={20} />
           </div>
           <div>
-            <div style={styles.kpiValue}>{agent.compliance || 95}%</div>
+            <div style={styles.kpiValue}>
+              {(() => {
+                const totalTanksCount = allocatedFarmers.reduce((acc, f) => acc + (f.tanks || f.tankBreakdown?.length || 1), 0);
+                const subsCount = (submissionsList || []).filter(s =>
+                  s.agentId === agent?.id ||
+                  s.agentId === agentId ||
+                  (agentFirstName && (s.agentName || '').toLowerCase().includes(agentFirstName))
+                ).length;
+                if (totalTanksCount === 0) return '-';
+                return `${Math.min(100, Math.round((subsCount / totalTanksCount) * 100))}%`;
+              })()}
+            </div>
             <div style={styles.kpiLabel}>Field Sampling Compliance</div>
           </div>
         </div>
@@ -438,8 +479,16 @@ const AgentDetail = () => {
 
       {/* Modal 1: Edit Agent Details */}
       {showEditAgentModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '560px' }}>
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowEditAgentModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '560px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -611,8 +660,16 @@ const AgentDetail = () => {
 
       {/* Modal 2: Edit Farmer Details */}
       {showEditFarmerModal && selectedFarmerToEdit && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '520px' }}>
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowEditFarmerModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '520px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={styles.iconCircleGreen}>
@@ -1027,20 +1084,25 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
+    paddingTop: '32px',
+    paddingBottom: '32px',
+    overflowY: 'auto',
     zIndex: 1000
   },
   modalBox: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     maxWidth: '92vw',
-    maxHeight: '90vh',
+    maxHeight: 'calc(100vh - 64px)',
     overflowY: 'auto',
     padding: '24px',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
   },
   modalHeader: {
     display: 'flex',

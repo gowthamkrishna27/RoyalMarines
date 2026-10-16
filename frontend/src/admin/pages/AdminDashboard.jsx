@@ -1,61 +1,162 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Tractor, Box, TrendingUp, Activity,
   AlertCircle, ArrowUpRight, MapPin, Database, Archive,
-  Search, X, TestTube, Bell, Check, Clock, Filter, Plus
+  Search, X, TestTube, Bell, Check, Clock, Filter, ChevronDown, ChevronUp,
+  ClipboardList, UserCheck, UserX
 } from 'lucide-react';
 
-import { useMockData } from '../../context/MockDataContext';
-import { getRegions } from '../utils/adminMockData';
+import adminService from '../utils/adminService';
 import HarvestedTanksModal from '../components/HarvestedTanksModal';
-import GPSRouteTracking from './GPSRouteTracking';
+
+const DASHBOARD_CACHE_KEY = 'royal_admin_dashboard_cache_v1';
+const CACHE_MAX_AGE_MS = 60 * 1000; // 60s max session cache freshness
+
+const getInitialDashboardCache = () => {
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.summary && parsed.updatedAt) {
+        if (Date.now() - parsed.updatedAt < CACHE_MAX_AGE_MS) {
+          return parsed;
+        }
+      }
+    }
+  } catch { }
+  return null;
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const mockData = useMockData();
-  const db = mockData?.db;
-  const regions = getRegions(db);
+
+  const initialCache = useMemo(() => getInitialDashboardCache(), []);
+
+  const [summary, setSummary] = useState(initialCache?.summary || null);
+  const [allTanks, setAllTanks] = useState(initialCache?.tanks || []);
+  const [farmers, setFarmers] = useState(initialCache?.farmers || []);
+  const [agents, setAgents] = useState(initialCache?.agents || []);
+  const [incharges, setIncharges] = useState(initialCache?.incharges || []);
+  const [liveHarvests, setLiveHarvests] = useState(initialCache?.harvests || []);
+  const [submissions, setSubmissions] = useState(initialCache?.submissions || []);
+  const [isLoading, setIsLoading] = useState(!initialCache);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [error, setError] = useState(null);
 
   const [showDueTestsModal, setShowDueTestsModal] = useState(false);
   const [dueTab, setDueTab] = useState('ALL'); // 'ALL' | 'OVERDUE' | 'DUE'
   const [dueSearch, setDueSearch] = useState('');
   const [remindedTanks, setRemindedTanks] = useState({});
 
-  // Retrieve all tanks first
-  const allTanks = db?.tanks || [];
+  const [todayLocationCount, setTodayLocationCount] = useState(initialCache?.todayLocationCount ?? null);
 
-  // Real or fallback statistics aligned with the dashboard design
-  const totalFarmers = db?.farmers?.length || 0;
-  const totalTanks = allTanks.length || 0;
-  const activeTanks = allTanks.filter(t => t.status !== 'Harvested').length || 0;
-  const harvestedTanks = allTanks.filter(t => t.status === 'Harvested').length || 0;
-  const totalIncharges = db?.incharges?.length || 3;
-  const totalRegionsCount = regions.length || 3;
-  const totalLocalitiesCount = regions.reduce((acc, r) => acc + (r.localities?.length || 0), 0) || 72;
+  const loadDashboardData = async (force = false) => {
+    try {
+      if (force || !summary) {
+        setIsLoading(true);
+      } else {
+        setIsSyncing(true);
+      }
+      setError(null);
+      const [sum, tks, fms, ags, incs, hrvs, subs, todayLocs] = await Promise.all([
+        adminService.getSummary(force),
+        adminService.getTanks(force),
+        adminService.getFarmers(force),
+        adminService.getAgents(force),
+        adminService.getIncharges(force),
+        adminService.getHarvests(force),
+        adminService.getSubmissions(force),
+        adminService.getTodaySubmissions(force).catch(() => [])
+      ]);
+      setSummary(sum);
+      setAllTanks(Array.isArray(tks) ? tks : []);
+      setFarmers(Array.isArray(fms) ? fms : []);
+      setAgents(Array.isArray(ags) ? ags : []);
+      setIncharges(Array.isArray(incs) ? incs : []);
+      setLiveHarvests(Array.isArray(hrvs) ? hrvs : []);
+      setSubmissions(Array.isArray(subs) ? subs : []);
+      if (Array.isArray(todayLocs)) {
+        setTodayLocationCount(todayLocs.length);
+      }
 
-  // Calculate Due and Overdue Tests across all tanks
-  const dueAndOverdueTanks = allTanks
-    .filter(t => t.status !== 'Harvested' && (t.testStatus === 'Due' || t.testStatus === 'Overdue' || !t.lastTest || t.testStatus === 'Pending'))
+      try {
+        const payload = JSON.stringify({
+          summary: sum,
+          tanks: tks,
+          farmers: fms,
+          agents: ags,
+          incharges: incs,
+          harvests: hrvs,
+          submissions: subs,
+          todayLocationCount: Array.isArray(todayLocs) ? todayLocs.length : null,
+          updatedAt: Date.now()
+        });
+        sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
+      } catch { }
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Could not connect to live database API. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData(false);
+    const handleRefresh = () => {
+      try {
+        sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+      } catch { }
+      loadDashboardData(true);
+    };
+    window.addEventListener('submissionCreated', handleRefresh);
+    window.addEventListener('harvestCreated', handleRefresh);
+    window.addEventListener('farmerCreated', handleRefresh);
+    window.addEventListener('tankCreated', handleRefresh);
+    window.addEventListener('adminDataChanged', handleRefresh);
+    return () => {
+      window.removeEventListener('submissionCreated', handleRefresh);
+      window.removeEventListener('harvestCreated', handleRefresh);
+      window.removeEventListener('farmerCreated', handleRefresh);
+      window.removeEventListener('tankCreated', handleRefresh);
+      window.removeEventListener('adminDataChanged', handleRefresh);
+    };
+  }, []);
+
+  // Real database statistics derived directly from MySQL API
+  const totalFarmers = summary?.totalFarmers ?? farmers.length;
+  const activeFarmers = summary?.activeFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'ACTIVE').length;
+  const inactiveFarmers = summary?.inactiveFarmers ?? farmers.filter(f => (f.status || '').toUpperCase() === 'INACTIVE').length;
+  const totalTanks = summary?.totalTanks ?? allTanks.length;
+  const activeTanks = summary?.activeTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'ACTIVE').length;
+  const harvestedTanks = summary?.harvestedTanks ?? allTanks.filter(t => (t.status || '').toUpperCase() === 'HARVESTED').length;
+  const totalIncharges = summary?.totalIncharges ?? incharges.length;
+  const avgAbwVal = summary?.avgAbw || '0.0g';
+
+  // Real Due and Overdue Tests across all tanks
+  const dueAndOverdueTanks = (allTanks || [])
+    .filter(t => (t.status || '').toUpperCase() !== 'HARVESTED' && ['due', 'overdue', 'pending'].includes((t.testStatus || t.test_status || '').toLowerCase()))
     .map((t, idx) => {
-      const farmer = mockData?.getFarmerById ? mockData.getFarmerById(t.farmerId) : (db?.farmers || []).find(f => f.id === t.farmerId);
-      const agent = mockData?.getAgentById ? mockData.getAgentById(t.agentId) : (db?.agents || []).find(a => a.id === t.agentId);
-      const isOverdue = t.testStatus === 'Overdue' || idx % 3 === 0;
-      const testType = idx % 3 === 0 ? 'Water Analysis (DO, pH, Salinity)' : idx % 3 === 1 ? 'Feed Conversion & Consumption Audit' : 'Biomass & Disease Check';
+      const farmer = (farmers || []).find(f => String(f.id) === String(t.farmerId || t.farmer_id));
+      const agent = (agents || []).find(a => String(a.id) === String(t.agentId || t.agent_id));
+      const isOverdue = (t.testStatus || t.test_status || '').toLowerCase() === 'overdue';
+      const testType = 'Routine Water & Telemetry Audit';
 
       return {
         id: t.id,
-        tankName: t.name || `Tank ${t.id.replace(/\D/g, '') || idx + 1}`,
+        tankName: t.name || `Tank ${idx + 1}`,
         farmerName: farmer ? farmer.name : (t.farmerName || 'Farmer'),
-        phone: farmer ? (farmer.phone || '+91 98480 12345') : '+91 98480 12345',
-        locality: farmer ? (farmer.location || farmer.village || farmer.locality || 'Bhimavaram') : 'Bhimavaram',
-        agentName: agent ? agent.name : (t.agentId ? 'Ramesh' : 'Direct Supervisor'),
-        agentPhone: agent ? (agent.phone || '+91 98765 43210') : '+91 98765 43210',
-        doc: t.doc || (35 + (idx * 6)),
-        abw: t.abw || '18.5g',
+        phone: farmer ? (farmer.phone || '') : '',
+        locality: farmer ? (farmer.location || farmer.village || farmer.locality || '') : (t.location || ''),
+        agentName: agent ? agent.name : (t.agent_name || 'Assigned Staff'),
+        agentPhone: agent ? (agent.phone || '') : '',
+        doc: t.doc || 0,
+        abw: t.abw ? (String(t.abw).includes('g') ? t.abw : `${t.abw}g`) : '0.0g',
         size: t.size || '2.5 Acres',
-        lastTest: t.lastTest || '18 Aug 2026',
-        nextDue: t.nextTest || '25 Aug 2026',
+        lastTest: t.lastTest || t.last_test || 'Pending',
+        nextDue: t.nextTest || t.next_test || 'Due This Week',
         isOverdue: isOverdue,
         testType: testType,
         urgency: isOverdue ? 'CRITICAL_OVERDUE' : 'DUE_THIS_WEEK'
@@ -76,50 +177,142 @@ const AdminDashboard = () => {
     return matchesTab && matchesSearch;
   });
 
-  // Harvest Records History State
-  const [harvestRecords, setHarvestRecords] = useState([
-    { id: 'REC-3', doc: 60, date: 'Mar 1, 2026', type: 'Partial Harvest', fcr: '1.90', abw: '24.5g', farmerName: 'Ashok', name: 'Tank 1' },
-    { id: 'REC-2', doc: 45, date: 'Feb 15, 2026', type: 'Partial Harvest', fcr: '1.45', abw: '18.2g', farmerName: 'Ashok', name: 'Tank 1' },
-    { id: 'REC-1', doc: 30, date: 'Jan 31, 2026', type: 'Normal', fcr: '1.16', abw: '11.4g', farmerName: 'Ashok', name: 'Tank 1' }
-  ]);
   const [docInput, setDocInput] = useState('');
   const [showHarvestedModal, setShowHarvestedModal] = useState(false);
 
-  const handleAddRecord = () => {
-    if (!docInput) return;
-    const docValue = parseInt(docInput);
-    if (isNaN(docValue)) return;
+  // Unified live records combining Harvests and Test Submissions
+  const allRecords = useMemo(() => {
+    // 1. Live harvest records
+    const harvestList = (liveHarvests || []).map((h, idx) => ({
+      id: h.id ? `hrv_${h.id}` : `hrv_${idx}`,
+      farmerName: h.farmerName || h.farmer_name || '-',
+      tankName: h.tankName || h.tank_name || h.tankId || '-',
+      abw: h.abw ? (String(h.abw).includes('g') ? h.abw : `${h.abw}g`) : (h.countPerKg ? `${(1000 / h.countPerKg).toFixed(1)}g` : '-'),
+      fcr: h.fcr != null && h.fcr !== '' ? Number(h.fcr).toFixed(2) : '-',
+      doc: h.doc != null && h.doc !== '' ? Number(h.doc) : null,
+      date: h.date || h.harvest_date || '-',
+      quality: h.quality || h.harvest_type || 'Harvest',
+      timestamp: new Date(h.date || h.harvest_date || 0).getTime()
+    }));
 
-    const newRecord = {
-      id: `REC-${Date.now()}`,
-      doc: docValue,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      type: 'Record',
-      fcr: (1.1 + (docValue * 0.012)).toFixed(2),
-      abw: `${(docValue * 0.4).toFixed(1)}g`,
-      farmerName: 'Ashok',
-      name: 'Tank 1',
-      isNew: true
-    };
+    // 2. Submissions / test records
+    const submissionList = (submissions || []).map((s, idx) => {
+      const raw = s.data || {};
+      const abwVal = s.abw || raw.abw;
+      const fcrVal = s.fcr || raw.fcr;
+      const docVal = s.doc != null ? s.doc : raw.doc;
+      const testType = s.testType || s.test_type || (raw.testType) || 'Field Test';
+      const dateVal = s.date || (s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : '-');
 
-    setHarvestRecords(prev => [newRecord, ...prev]);
-    setDocInput('');
-  };
+      return {
+        id: s.id ? `sub_${s.id}` : `sub_${idx}`,
+        farmerName: s.farmerName || s.farmer_name || 'Farmer',
+        tankName: s.tankName || s.tank_name || s.tankId || '-',
+        abw: abwVal ? (String(abwVal).includes('g') ? abwVal : `${abwVal}g`) : '-',
+        fcr: fcrVal != null && fcrVal !== '' ? Number(fcrVal).toFixed(2) : '-',
+        doc: docVal != null && docVal !== '' ? Number(docVal) : null,
+        date: dateVal,
+        quality: testType,
+        timestamp: new Date(s.createdAt || s.date || 0).getTime()
+      };
+    });
 
-  const displayedHarvestRecords = docInput
-    ? [...harvestRecords].filter(r => r.doc <= parseInt(docInput || '0')).sort((a, b) => b.doc - a.doc)
-    : harvestRecords;
+    const combined = [...harvestList, ...submissionList];
+    return combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }, [liveHarvests, submissions]);
+
+  // When DOC is entered: specific DOC details 1st, then descending order DOC farmers; otherwise all farmers
+  const filteredHarvests = useMemo(() => {
+    const trimmed = String(docInput || '').trim();
+    if (!trimmed) {
+      return allRecords;
+    }
+
+    const targetDoc = parseInt(trimmed, 10);
+    if (isNaN(targetDoc)) {
+      return allRecords;
+    }
+
+    // 1. That specific DOC details 1st
+    const exactMatches = allRecords
+      .filter(r => r.doc !== null && Number(r.doc) === targetDoc)
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    // 2. Later on: descending order DOC farmers
+    const lowerDescending = allRecords
+      .filter(r => r.doc !== null && Number(r.doc) < targetDoc)
+      .sort((a, b) => {
+        const diff = (Number(b.doc) || 0) - (Number(a.doc) || 0);
+        if (diff !== 0) return diff;
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+
+    return [...exactMatches, ...lowerDescending];
+  }, [allRecords, docInput]);
+
+  // Show the first 5 records in the combined Harvest and FCR section (Requirement 4)
+  const displayedHarvestRecords = filteredHarvests.slice(0, 5);
+
+  // Today's Date and Today Submissions Count
+  const todayDateStr = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const todaySubmissionsCount = useMemo(() => {
+    if (todayLocationCount !== null) return todayLocationCount;
+    if (!Array.isArray(submissions)) return 0;
+    return submissions.filter(s => {
+      const sDate = s.date || (s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : '');
+      return sDate === todayDateStr;
+    }).length;
+  }, [todayLocationCount, submissions, todayDateStr]);
 
   return (
     <div style={styles.dashboardContainer}>
 
-
-      {/* 1. Header Section */}
-      <div style={styles.headerSection}>
-        <div style={styles.headerBadge}>ORGANIZATION-WIDE CONTROL CENTER</div>
+      {/* 1. Header Section with Today Submissions option */}
+      <div style={styles.headerRow}>
         <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
-        <p style={styles.headerSubtitle}>Real-time feed performance, FCR analytics, crop health, and multi-region operations.</p>
+
+        <button
+          type="button"
+          onClick={() => navigate('/admin/submission-locations')}
+          style={styles.todaySubmissionsBtn}
+          title="Click to view Today's Submissions List"
+        >
+          <div style={styles.todaySubmissionsIconWrap}>
+            <ClipboardList size={18} color="#0284C7" />
+          </div>
+          <span style={styles.todaySubmissionsTitle}>Today Submissions</span>
+          <span style={styles.todayCountPill}>
+            {todaySubmissionsCount} Today
+          </span>
+          <ArrowUpRight size={15} color="#0284C7" />
+        </button>
       </div>
+
+      {/* Error State Alert Banner with Retry */}
+      {error && (
+        <div style={styles.errorBanner}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle size={20} color="#DC2626" />
+            <span style={{ color: '#B91C1C', fontWeight: 600, fontSize: '14px' }}>
+              {error}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadDashboardData(true)}
+            style={styles.retryBtn}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* 2. KPI Stat Cards Row */}
       <div style={styles.kpiGrid}>
@@ -135,8 +328,46 @@ const AdminDashboard = () => {
               <Tractor size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{totalFarmers}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
+          </div>
           <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1b: Active Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Active')}
+          title="Click to view active farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>ACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+              <UserCheck size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : activeFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#16A34A' }}>View Active <ArrowUpRight size={14} /></div>
+        </div>
+
+        {/* Card 1c: Inactive Farmers */}
+        <div
+          style={styles.kpiCard}
+          onClick={() => navigate('/admin/farmers?status=Inactive')}
+          title="Click to view inactive farmers"
+        >
+          <div style={styles.kpiHeader}>
+            <span style={styles.kpiLabel}>INACTIVE FARMERS</span>
+            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+              <UserX size={18} />
+            </div>
+          </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : inactiveFarmers}
+          </div>
+          <div style={{ ...styles.kpiLink, color: '#DC2626' }}>View Inactive <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 2: Total Tanks */}
@@ -151,7 +382,9 @@ const AdminDashboard = () => {
               <Database size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{totalTanks}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : totalTanks}
+          </div>
           <div style={styles.kpiLink}>View All Tanks <ArrowUpRight size={14} /></div>
         </div>
 
@@ -167,7 +400,9 @@ const AdminDashboard = () => {
               <Box size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{activeTanks}</div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : activeTanks}
+          </div>
           <div style={styles.kpiLink}>View Active <ArrowUpRight size={14} /></div>
         </div>
 
@@ -183,23 +418,10 @@ const AdminDashboard = () => {
               <Archive size={18} />
             </div>
           </div>
-          <div style={styles.kpiValue}>{harvestedTanks}</div>
-          <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
-        </div>
-
-        {/* Card 5: Average ABW */}
-        <div
-          style={styles.kpiCard}
-          title="Average body weight across active ponds"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>AVERAGE ABW</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F8FAFC', color: '#64748B' }}>
-              <Activity size={18} />
-            </div>
+          <div style={styles.kpiValue}>
+            {isLoading ? <div style={styles.skeletonValue} /> : harvestedTanks}
           </div>
-          <div style={styles.kpiValue}>16.4g</div>
-          <div style={styles.kpiSubtext}>Mean Body Weight</div>
+          <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
         </div>
 
         {/* Card 6: Total Incharges */}
@@ -215,8 +437,14 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div style={{ ...styles.kpiValue, marginBottom: '2px', display: 'flex', flexDirection: 'column' }}>
-            <span>{totalIncharges}</span>
-            <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+            {isLoading ? (
+              <div style={{ ...styles.skeletonValue, width: '48px', height: '30px' }} />
+            ) : (
+              <>
+                <span>{totalIncharges}</span>
+                <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+              </>
+            )}
           </div>
           <div style={{ ...styles.kpiLink, marginTop: '8px' }}>View Incharges <ArrowUpRight size={14} /></div>
         </div>
@@ -233,23 +461,27 @@ const AdminDashboard = () => {
               <AlertCircle size={18} />
             </div>
           </div>
-          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>{dueAndOverdueTanks.length} Tanks</div>
+          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>
+            {isLoading ? (
+              <div style={{ ...styles.skeletonValue, width: '90px', backgroundColor: '#FEE2E2' }} />
+            ) : (
+              `${dueAndOverdueTanks.length} Tanks`
+            )}
+          </div>
           <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>View All Due Tests <ArrowUpRight size={12} /></div>
-            <span>({overdueCount} Overdue)</span>
+            <span>({isLoading ? '...' : overdueCount} Overdue)</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Harvest & FCR Records Section */}
+      {/* 3. Operational Harvest & Records Section */}
       <div style={styles.sectionCard}>
+        {/* Section Header */}
         <div style={styles.sectionHeader}>
-          <div>
-            <div style={styles.sectionTitleRow}>
-              <TrendingUp size={20} color="#2563EB" />
-              <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
-              <span style={styles.countBadge}>{harvestRecords.length} Records</span>
-            </div>
+          <div style={styles.sectionTitleRow}>
+            <TrendingUp size={20} color="#2563EB" />
+            <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
           </div>
 
           <div style={styles.harvestControls}>
@@ -258,22 +490,29 @@ const AdminDashboard = () => {
               <input
                 type="number"
                 style={styles.docInput}
-                placeholder="e.g. 75"
+                placeholder="e.g. 65"
                 value={docInput}
                 onChange={e => setDocInput(e.target.value)}
               />
+              {docInput && (
+                <button
+                  type="button"
+                  onClick={() => setDocInput('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94A3B8',
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Clear DOC filter to show all farmers"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
-
-            {docInput && (
-              <button
-                type="button"
-                style={styles.addRecordBtn}
-                onClick={handleAddRecord}
-              >
-                <Plus size={14} />
-                <span>Add Record</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -286,7 +525,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Harvest Records Table */}
         <div style={styles.tableContainer}>
           <table style={styles.table}>
             <thead>
@@ -297,43 +535,96 @@ const AdminDashboard = () => {
                 <th style={styles.th}>FCR</th>
                 <th style={styles.th}>DOC</th>
                 <th style={styles.th}>Date</th>
-                <th style={styles.th}>Type</th>
+                <th style={styles.th}>Quality / Type</th>
               </tr>
             </thead>
             <tbody>
-              {displayedHarvestRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={styles.emptyTableTd}>
-                    No harvest records found matching DOC {docInput}.
-                  </td>
-                </tr>
-              ) : (
-                displayedHarvestRecords.map((record) => (
-                  <tr key={record.id} style={styles.tableRow}>
+              {isLoading ? (
+                [1, 2, 3].map((n) => (
+                  <tr key={`skel-${n}`} style={styles.tableRow}>
                     <td style={styles.tdPrimary}>
-                      <span style={{ fontWeight: 600 }}>{record.farmerName}</span>
-                      {record.isNew && (
-                        <span style={styles.newBadge}>NEW</span>
-                      )}
+                      <div style={{ height: '16px', width: '130px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
                     </td>
-                    <td style={styles.td}>{record.name}</td>
-                    <td style={styles.tdWeight}>{record.abw}</td>
-                    <td style={styles.tdFcr}>{record.fcr}</td>
-                    <td style={styles.tdDoc}>{record.doc}</td>
-                    <td style={styles.tdDate}>{record.date}</td>
                     <td style={styles.td}>
-                      <span style={styles.typeChip}>{record.type}</span>
+                      <div style={{ height: '16px', width: '60px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdWeight}>
+                      <div style={{ height: '16px', width: '50px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdFcr}>
+                      <div style={{ height: '16px', width: '40px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdDoc}>
+                      <div style={{ height: '16px', width: '35px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.tdDate}>
+                      <div style={{ height: '16px', width: '85px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{ height: '22px', width: '70px', borderRadius: '6px', backgroundColor: '#E2E8F0' }} />
                     </td>
                   </tr>
                 ))
+              ) : displayedHarvestRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={styles.emptyTableTd}>
+                    No harvest or FCR records found.
+                  </td>
+                </tr>
+              ) : (
+                displayedHarvestRecords.map((record) => {
+                  const displayAbw = record.abw ? (String(record.abw).includes('g') ? record.abw : `${record.abw}g`) : (record.countPerKg ? `${(1000 / record.countPerKg).toFixed(1)}g` : '-');
+                  return (
+                    <tr key={record.id} style={styles.tableRow}>
+                      <td style={styles.tdPrimary}>
+                        <span style={{ fontWeight: 600 }}>{record.farmerName || record.farmer_name || '-'}</span>
+                      </td>
+                      <td style={styles.td}>{record.tankName || record.tank_name || record.tankId || '-'}</td>
+                      <td style={styles.tdWeight}>{displayAbw}</td>
+                      <td style={styles.tdFcr}>{record.fcr && record.fcr !== '-' ? (!isNaN(Number(record.fcr)) ? Number(record.fcr).toFixed(2) : record.fcr) : '-'}</td>
+                      <td style={styles.tdDoc}>{record.doc != null && record.doc !== '' ? record.doc : '-'}</td>
+                      <td style={styles.tdDate}>{record.date || record.harvest_date || '-'}</td>
+                      <td style={styles.td}>
+                        <span style={styles.typeChip}>{record.quality || record.harvest_type || 'Harvest'}</span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* 4. Live Map & Tracking Section */}
-      <GPSRouteTracking />
+        {/* ONE Show More button that navigates to the existing full combined records page (Requirement 5) */}
+        {filteredHarvests.length > 5 && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{
+                padding: '10px 28px',
+                backgroundColor: '#03358F',
+                color: '#FFFFFF',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(3, 53, 143, 0.2)',
+                transition: 'all 0.2s ease'
+              }}
+              onClick={() => navigate('/admin/field-data')}
+              title="Click to view full Harvest & FCR records page"
+            >
+              <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
+              <ArrowUpRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Due & Overdue Tests Comprehensive Organization Modal */}
       {showDueTestsModal && (
@@ -579,8 +870,15 @@ const AdminDashboard = () => {
 
       {/* Modals */}
       {showHarvestedModal && (
-        <HarvestedTanksModal onClose={() => setShowHarvestedModal(false)} />
+        <HarvestedTanksModal
+          onClose={() => setShowHarvestedModal(false)}
+          tanks={allTanks}
+          farmers={farmers}
+          harvests={liveHarvests}
+        />
       )}
+
+
     </div>
   );
 };
@@ -618,12 +916,65 @@ const styles = {
     letterSpacing: '0.5px'
   },
 
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+    marginBottom: '8px'
+  },
+
   headerTitle: {
     fontSize: '28px',
     fontWeight: 700,
     color: '#0F172A',
-    margin: '0 0 8px 0',
+    margin: 0,
     letterSpacing: '-0.02em'
+  },
+
+  todaySubmissionsBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #BAE6FD',
+    borderRadius: '14px',
+    padding: '8px 16px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 10px rgba(2, 132, 199, 0.08)',
+    transition: 'all 0.15s ease',
+    fontFamily: 'inherit'
+  },
+
+  todaySubmissionsIconWrap: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '10px',
+    backgroundColor: '#E0F2FE',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid #BAE6FD',
+    flexShrink: 0
+  },
+
+  todaySubmissionsTitle: {
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#0F172A',
+    letterSpacing: '-0.01em'
+  },
+
+  todayCountPill: {
+    fontSize: '11.5px',
+    fontWeight: 700,
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+    border: '1px solid #BBF7D0',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    letterSpacing: '0.02em'
   },
 
   headerSubtitle: {
@@ -635,7 +986,7 @@ const styles = {
 
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
     gap: '16px'
   },
 
@@ -682,7 +1033,18 @@ const styles = {
     color: '#0F172A',
     marginBottom: '6px',
     lineHeight: '1',
-    letterSpacing: '-0.02em'
+    letterSpacing: '-0.02em',
+    minHeight: '32px',
+    display: 'flex',
+    alignItems: 'center'
+  },
+
+  skeletonValue: {
+    height: '28px',
+    width: '52px',
+    borderRadius: '6px',
+    backgroundColor: '#E2E8F0',
+    display: 'inline-block'
   },
 
   kpiSubtext: {
@@ -1214,6 +1576,29 @@ const styles = {
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer'
+  },
+
+  errorBanner: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 18px',
+    backgroundColor: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: '10px',
+    marginBottom: '8px'
+  },
+
+  retryBtn: {
+    padding: '6px 14px',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 600,
+    fontSize: '12.5px',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease'
   }
 };
 

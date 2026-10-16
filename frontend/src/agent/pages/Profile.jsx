@@ -17,7 +17,7 @@ const Profile = () => {
   const handleLogout = () => {
     if (window.confirm('Log out of Technician Account?')) {
       clearSession();
-      navigate('/login');
+      navigate('/agent-login');
     }
   };
 

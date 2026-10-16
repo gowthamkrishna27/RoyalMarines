@@ -30,7 +30,7 @@ const Farmers = () => {
   }, [location.state, location.search]);
 
   const agentId = session?.agentId || 'agent001';
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : (db?.farmers || []);
+  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(agentId) : [];
 
   const farmerItems = assignedFarmers.map((farmer) => {
     const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmer.id) : (db?.tanks || []).filter(t => t.farmerId === farmer.id);
@@ -177,6 +177,14 @@ const Farmers = () => {
                   <span>{farmer.tankCount} Tanks</span>
                   <span>•</span>
                   <span>{farmer.villageName}</span>
+                  <span>•</span>
+                  <span style={{
+                    color: (farmer.status || '').toUpperCase() === 'INACTIVE' ? '#DC2626' : '#16A34A',
+                    fontWeight: 600,
+                    fontSize: '11px'
+                  }}>
+                    {(farmer.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'}
+                  </span>
                 </div>
               </div>
 

@@ -1,17 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
-  Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale
+  Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale, Wheat, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { calculateCurrentDoc } from '../../utils/docCalculator';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../incharge/utils/inchargeAuth';
+import { isAdminAuthenticated, getAdminSession } from '../../admin/utils/adminAuth';
 import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
 
-const QuickRecordModal = ({
+// Helper to reliably extract and format stocked seed count and lakhs representation for any tank
+export const resolveTankSeedStocked = (t) => {
+  if (!t) return { count: 250000, lakhs: '2.5 Lakhs', displayFull: '2,50,000 (2.5 Lakhs)', countFormatted: '2,50,000', raw: 2.5 };
+  
+  let raw = t.seedStocked ?? t.seed_stocking_lak ?? t.seedStockingLak ?? t.seed ?? t.seed_stocked ?? t.seedNumber ?? t.seedCountLac ?? null;
+
+  if (raw == null && t.id) {
+    try {
+      const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+      const tankStore = store[t.id];
+      if (tankStore?.seedNumber) raw = tankStore.seedNumber;
+    } catch (e) {}
+  }
+
+  let num = parseFloat(raw);
+  if (isNaN(num) || num <= 0) {
+    const acres = parseFloat(t.acres || t.area || 2.5);
+    num = acres > 0 ? parseFloat((acres * 1.0).toFixed(1)) : 2.5;
+  }
+
+  let seedCount = 0;
+  let lakhsStr = '';
+
+  if (num <= 50) {
+    seedCount = Math.round(num * 100000);
+    lakhsStr = `${num} Lakhs`;
+  } else {
+    seedCount = Math.round(num);
+    const inLakhs = (seedCount / 100000).toFixed(seedCount % 100000 === 0 ? 1 : 2);
+    lakhsStr = `${inLakhs} Lakhs`;
+  }
+
+  return {
+    raw: num,
+    count: seedCount,
+    countFormatted: seedCount.toLocaleString(),
+    lakhs: lakhsStr,
+    displayFull: lakhsStr ? `${seedCount.toLocaleString()} (${lakhsStr})` : seedCount.toLocaleString()
+  };
+};
+
+const QuickRecordModalInner = ({
   isOpen,
   onClose,
   initialType = 'WATER_QUALITY',
@@ -20,14 +63,27 @@ const QuickRecordModal = ({
   onSuccess,
   userRole = null
 }) => {
-  const { db, getFarmersByAgentId, getTanksByFarmerId, recordFieldEntry } = useMockData();
+  const { db, getFarmersByAgentId, getFarmersByInchargeId, getTanksByFarmerId, recordFieldEntry } = useMockData();
   const session = getSession();
   const inchargeSession = getInchargeSession();
+  const adminSession = getAdminSession();
+
+  const isAdmin = Boolean(
+    userRole === 'ADMIN' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) ||
+    (adminSession && !session?.agentId && !inchargeSession?.inchargeId && isAdminAuthenticated())
+  );
 
   const isIncharge = Boolean(
-    userRole === 'INCHARGE' ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/incharge')) ||
-    (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    !isAdmin && (
+      userRole === 'INCHARGE' ||
+      userRole === 'ASM' ||
+      (typeof window !== 'undefined' && (
+        window.location.pathname.startsWith('/incharge') ||
+        window.location.pathname.startsWith('/asm')
+      )) ||
+      (inchargeSession && inchargeSession.inchargeId && !session?.agentId)
+    )
   );
 
   const currentInchargeId = inchargeSession?.inchargeId || 'INC001';
@@ -38,12 +94,20 @@ const QuickRecordModal = ({
   const [showAdvancedParams, setShowAdvancedParams] = useState(false);
 
   // Farmers and Tanks
-  const assignedFarmers = getFarmersByAgentId ? getFarmersByAgentId(currentAgentId) : (db?.farmers || []);
+  const assignedFarmers = isAdmin
+    ? (db?.farmers || [])
+    : isIncharge
+      ? ((getFarmersByInchargeId && getFarmersByInchargeId(currentInchargeId)) || db?.farmers || [])
+      : ((getFarmersByAgentId && getFarmersByAgentId(currentAgentId)) || (db?.farmers || []));
   const [selectedFarmerId, setSelectedFarmerId] = useState(preselectedFarmerId || assignedFarmers[0]?.id || '');
 
   const farmerTanks = getTanksByFarmerId ? getTanksByFarmerId(selectedFarmerId) : (db?.tanks || []).filter(t => t.farmerId === selectedFarmerId);
   const tanks = farmerTanks;
   const [selectedTankId, setSelectedTankId] = useState(preselectedTankId || tanks[0]?.id || '');
+
+  // Authoritative selected tank reference and resolved seed stocking metrics
+  const currentTank = tanks.find(x => x.id === selectedTankId) || tanks[0] || null;
+  const tankSeedInfo = useMemo(() => resolveTankSeedStocked(currentTank), [currentTank]);
 
   // GPS & Submission States
   const [gpsData, setGpsData] = useState(null);
@@ -51,18 +115,22 @@ const QuickRecordModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRecord, setSubmittedRecord] = useState(null);
 
-  // Minimal Necessary Water Quality Parameters
+  // Water Analysis Parameters
   const [waterForm, setWaterForm] = useState({
     date: new Date().toISOString().split('T')[0],
     doc: '',
-    salinity: '',
     ph: '',
-    do: '',
-    temperature: '',
-    // Optional deeper params kept available in state
+    ammonia: '',
+    nitrate: '',
+    salinity: '',
     alkalinity: '',
     hardness: '',
-    ammonia: '',
+    do: '',
+    h2s: '',
+    cl: '',
+    fe: '',
+    waterColor: '',
+    temperature: '',
     nitrite: '',
     notes: '',
   });
@@ -77,6 +145,97 @@ const QuickRecordModal = ({
     harvestedBiomass: '',
     remarks: '',
   });
+
+  // Dedicated Feed form (Matching exact Feed slide specification)
+  const [feedForm, setFeedForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    doc: '',
+    seed: '', // Seed Stocked (read-only from original tank details)
+    estimatedStock: '', // Estimated Stock (manual entry)
+    count: '', // Count (manual entry)
+    abw: '', // ABW (read-only, auto-calculated from Count: 1000 / Count)
+    dayFeed: '',
+    cumulativeFeed: '',
+    fcr: '',
+    checkTrayFeed: '',
+    checkTrayTime: '', // CH TR Time (Feed Consumption Time) (manual entry)
+    remarks: '',
+  });
+
+  // Dedicated Disease form (Matching exact Disease slide specification)
+  const DISEASE_LIST = [
+    'White muscle',
+    'White gut',
+    'Moulting',
+    'Cramping',
+    'Black gill',
+    'Vibriosis',
+    'EHP',
+    'Hard shell',
+    'Soft shell',
+    'Black spots',
+    'ASDS',
+    'WSSV',
+    'Loose shell'
+  ];
+
+  const [diseaseForm, setDiseaseForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    doc: '',
+    // Map of disease name -> status ('Normal', 'Mild', 'Severe')
+    status: {},
+    affectedShrimpPct: '',
+    others: '',
+    remarks: '',
+  });
+
+  const toggleDiseaseStatus = (disease, level) => {
+    setDiseaseForm(prev => {
+      const current = prev.status[disease];
+      const newStatus = { ...prev.status };
+      if (current === level) {
+        // Uncheck / return to unaffected
+        delete newStatus[disease];
+      } else {
+        newStatus[disease] = level;
+      }
+      return { ...prev, status: newStatus };
+    });
+  };
+
+  // Auto-calculate ABW (1000 / Count) and FCR
+  const handleFeedChange = (field, val) => {
+    setFeedForm(prev => {
+      const updated = { ...prev, [field]: val };
+
+      // Requirement 2: Auto-calculate ABW = 1000 / Count immediately
+      if (field === 'count') {
+        const countNum = parseFloat(val);
+        if (!isNaN(countNum) && countNum > 0) {
+          const calcAbw = 1000 / countNum;
+          updated.abw = calcAbw % 1 === 0 ? String(calcAbw) : String(parseFloat(calcAbw.toFixed(2)));
+        } else {
+          updated.abw = '';
+        }
+      }
+
+      // Auto-calculate FCR: Cumulative Feed / Biomass (where Biomass = (Estimated Stock * ABW) / 1000)
+      const cumFeed = parseFloat(field === 'cumulativeFeed' ? val : updated.cumulativeFeed);
+      const estStock = parseFloat(field === 'estimatedStock' ? val : updated.estimatedStock);
+      const currentAbw = parseFloat(updated.abw);
+
+      if (!isNaN(cumFeed) && cumFeed > 0 && !isNaN(estStock) && estStock > 0 && !isNaN(currentAbw) && currentAbw > 0) {
+        const estBiomassKg = (estStock * currentAbw) / 1000;
+        if (estBiomassKg > 0) {
+          updated.fcr = (cumFeed / estBiomassKg).toFixed(2);
+        }
+      } else if (field === 'cumulativeFeed' || field === 'estimatedStock' || field === 'count') {
+        updated.fcr = '';
+      }
+
+      return updated;
+    });
+  };
 
   // Keep farmer & tank synced
   useEffect(() => {
@@ -97,6 +256,56 @@ const QuickRecordModal = ({
       setSelectedTankId(fTanks[0].id);
     }
   }, [selectedFarmerId]);
+
+  // Pre-fill initial DOC and Seed only when tank is first loaded or explicitly switched
+  const prevTankKeyRef = useRef(null);
+  useEffect(() => {
+    if (!selectedTankId || tanks.length === 0) return;
+    const tankKey = `${selectedFarmerId}_${selectedTankId}`;
+    if (prevTankKeyRef.current === tankKey) return;
+
+    const t = tanks.find(x => x.id === selectedTankId);
+    if (t) {
+      prevTankKeyRef.current = tankKey;
+
+      let initialDoc = '';
+      try {
+        const currentDoc = typeof calculateCurrentDoc === 'function' ? calculateCurrentDoc(t) : t.doc;
+        if (currentDoc !== undefined && currentDoc !== null && !isNaN(Number(currentDoc))) {
+          initialDoc = String(currentDoc);
+        } else if (t.doc !== undefined && t.doc !== null && t.doc !== '') {
+          initialDoc = String(t.doc);
+        }
+      } catch (docErr) {
+        initialDoc = t.doc != null && t.doc !== '' ? String(t.doc) : '';
+      }
+
+      // Retrieve original Seed Stocked value saved when tank details were entered
+      const seedInfo = resolveTankSeedStocked(t);
+
+      setWaterForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+      setFeedForm(prev => ({
+        ...prev,
+        doc: initialDoc,
+        seed: seedInfo.displayFull,
+        estimatedStock: '',
+        count: '',
+        abw: '',
+        checkTrayTime: '',
+      }));
+      setDiseaseForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+      setHarvestForm(prev => ({
+        ...prev,
+        doc: initialDoc
+      }));
+    }
+  }, [selectedFarmerId, selectedTankId, tanks]);
 
   // Load GPS
   useEffect(() => {
@@ -134,8 +343,6 @@ const QuickRecordModal = ({
     }));
   };
 
-  if (!isOpen) return null;
-
   // Selected Tank Status Check
   const selectedTank = tanks.find(t => t.id === selectedTankId);
   const isSelectedTankClosed = selectedTank?.status === 'Harvested' || selectedTank?.status === 'Completed';
@@ -146,6 +353,13 @@ const QuickRecordModal = ({
     if (isSelectedTankClosed) {
       alert('This tank has already completed its final harvest. No further records can be entered.');
       return;
+    }
+
+    if (activeTab === 'WATER_QUALITY' || !activeTab) {
+      if (!waterForm.ph || !waterForm.ammonia || !waterForm.nitrate || !waterForm.salinity) {
+        alert('Please fill all mandatory water analysis parameters:\n• pH Level\n• Ammonia (NH3)\n• Nitrate (NO3)\n• Salinity');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -167,21 +381,65 @@ const QuickRecordModal = ({
     const tankName = tank?.name || 'Tank 1';
 
     const isHarvest = activeTab === 'HARVEST_ENTRY';
-    const testTypeName = isHarvest ? 'Harvest' : 'Water Analysis';
-    const formData = isHarvest ? harvestForm : waterForm;
+    const isFeed = activeTab === 'FEED_ENTRY';
+    const isDisease = activeTab === 'DISEASE_ENTRY';
+    const testTypeName = isHarvest
+      ? 'Harvest'
+      : (isFeed ? 'Feed Check Analysis' : (isDisease ? 'Disease Inspection' : 'Water Analysis'));
+    const recordTypeKey = isHarvest
+      ? 'HARVEST_ENTRY'
+      : (isFeed ? 'FEED_ENTRY' : (isDisease ? 'DISEASE_ENTRY' : 'WATER_QUALITY'));
+    const formData = isHarvest ? harvestForm : (isFeed ? feedForm : (isDisease ? diseaseForm : waterForm));
 
     const recordId = `SUB_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const now = new Date(locationFix.timestamp || Date.now());
-    const formattedDate = now.toISOString().split('T')[0];
+    const formattedDate = (isFeed ? feedForm.date : (isHarvest ? harvestForm.date : (isDisease ? diseaseForm.date : waterForm.date))) || now.toISOString().split('T')[0];
     const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    const resolvedRole = isIncharge ? 'Incharge' : 'Agent';
-    const resolvedUserId = isIncharge
-      ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
-      : (session?.agentId || session?.id || 'agent001');
-    const resolvedUserName = isIncharge
-      ? (inchargeSession?.name || 'Incharge')
-      : (session?.name || 'Ramesh');
+
+    const resolvedRole = isAdmin ? 'Admin' : (isIncharge ? 'Incharge' : 'Agent');
+    const resolvedUserId = isAdmin
+      ? 'ADMIN'
+      : isIncharge
+        ? (inchargeSession?.inchargeId || inchargeSession?.id || 'INC001')
+        : (session?.agentId || session?.id || 'agent001');
+    const resolvedUserName = isAdmin
+      ? 'Administrator'
+      : isIncharge
+        ? (inchargeSession?.name || 'Incharge')
+        : (session?.name || 'Technician');
+
+    const enrichedData = isHarvest || isDisease ? formData : (isFeed ? {
+      ...formData,
+      chTrTime: formData.checkTrayTime,
+      checkTrayTime: formData.checkTrayTime,
+      chTrFeed: formData.checkTrayFeed,
+      count: formData.count,
+      abw: formData.abw,
+      estimatedStock: formData.estimatedStock,
+      seed: tankSeedInfo.count,
+      seedStocked: tankSeedInfo.count,
+      seedStockedFormatted: tankSeedInfo.displayFull,
+      seedCountLac: tankSeedInfo.lakhs,
+    } : {
+      ...formData,
+      ph: formData.ph ?? '',
+      ammonia: formData.ammonia ?? '',
+      nitrate: formData.nitrate ?? '',
+      salinity: formData.salinity ?? '',
+      doc: formData.doc ?? '',
+      alkalinity: formData.alkalinity ?? '',
+      hardness: formData.hardness ?? '',
+      do: formData.do ?? '',
+      h2s: formData.h2s ?? '',
+      cl: formData.cl ?? '',
+      chlorine: formData.cl ?? '',
+      fe: formData.fe ?? '',
+      iron: formData.fe ?? '',
+      waterColor: formData.waterColor ?? '',
+      waterColour: formData.waterColor ?? '',
+      nitrite: formData.nitrate ?? '',
+    });
 
     const submissionPayload = {
       id: recordId,
@@ -198,7 +456,7 @@ const QuickRecordModal = ({
       tankId: selectedTankId,
       tankName,
       testType: testTypeName,
-      recordType: isHarvest ? 'HARVEST_ENTRY' : 'WATER_QUALITY',
+      recordType: recordTypeKey,
       date: formattedDate,
       time: formattedTime,
       submissionTime: formattedTime,
@@ -208,7 +466,7 @@ const QuickRecordModal = ({
       longitude: locationFix.longitude,
       accuracy: locationFix.accuracy,
       locality: locationFix.locality || (farmer?.location || 'Coastal Aquaculture Zone'),
-      data: formData,
+      data: enrichedData,
       gps: {
         latitude: locationFix.latitude,
         longitude: locationFix.longitude,
@@ -265,22 +523,89 @@ const QuickRecordModal = ({
 
             {/* Summary Pills */}
             <div style={styles.successPillGrid}>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>Salinity</span>
-                <strong style={styles.successPillVal}>{waterForm.salinity} ppt</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>pH</span>
-                <strong style={styles.successPillVal}>{waterForm.ph}</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>DO</span>
-                <strong style={styles.successPillVal}>{waterForm.do} mg/L</strong>
-              </div>
-              <div style={styles.successPill}>
-                <span style={styles.successPillLabel}>Temp</span>
-                <strong style={styles.successPillVal}>{waterForm.temperature} °C</strong>
-              </div>
+              {activeTab === 'DISEASE_ENTRY' ? (
+                <>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Reported Issues</span>
+                    <strong style={{ ...styles.successPillVal, color: Object.keys(diseaseForm.status).length > 0 ? '#DC2626' : '#16A34A' }}>
+                      {Object.keys(diseaseForm.status).length > 0 ? `${Object.keys(diseaseForm.status).length} detected` : 'All Normal'}
+                    </strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>DOC</span>
+                    <strong style={styles.successPillVal}>{diseaseForm.doc || '77'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Affected %</span>
+                    <strong style={styles.successPillVal}>{diseaseForm.affectedShrimpPct ? `${diseaseForm.affectedShrimpPct}%` : 'Negligible'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Status</span>
+                    <strong style={{ ...styles.successPillVal, color: '#16A34A' }}>Health Checked</strong>
+                  </div>
+                </>
+              ) : activeTab === 'FEED_ENTRY' ? (
+                <>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Seed Stocked</span>
+                    <strong style={{ ...styles.successPillVal, color: '#16A34A' }}>{tankSeedInfo.displayFull}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Day / Cum Feed</span>
+                    <strong style={styles.successPillVal}>{feedForm.dayFeed || '0'} / {feedForm.cumulativeFeed || '0'} kg</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Count / ABW</span>
+                    <strong style={styles.successPillVal}>{feedForm.count ? `${feedForm.count} /kg` : '—'} • {feedForm.abw ? `${feedForm.abw}g` : '—'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Estimated Stock</span>
+                    <strong style={styles.successPillVal}>{feedForm.estimatedStock || '—'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>FCR</span>
+                    <strong style={{ ...styles.successPillVal, color: '#16A34A' }}>{feedForm.fcr || '1.14'}</strong>
+                  </div>
+                </>
+              ) : activeTab === 'HARVEST_ENTRY' ? (
+                <>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Harvest Type</span>
+                    <strong style={styles.successPillVal}>{harvestForm.harvestType}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>ABW</span>
+                    <strong style={styles.successPillVal}>{harvestForm.abw} g</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Biomass</span>
+                    <strong style={styles.successPillVal}>{harvestForm.harvestedBiomass} kg</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>DOC</span>
+                    <strong style={styles.successPillVal}>{harvestForm.doc || '77'}</strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>pH Level</span>
+                    <strong style={styles.successPillVal}>{waterForm.ph || '-'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Ammonia</span>
+                    <strong style={styles.successPillVal}>{waterForm.ammonia ? `${waterForm.ammonia} ppm` : '-'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Nitrate</span>
+                    <strong style={styles.successPillVal}>{waterForm.nitrate ? `${waterForm.nitrate} ppm` : '-'}</strong>
+                  </div>
+                  <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Salinity</span>
+                    <strong style={styles.successPillVal}>{waterForm.salinity ? `${waterForm.salinity} ppt` : '-'}</strong>
+                  </div>
+                </>
+              )}
             </div>
 
             <button
@@ -308,16 +633,32 @@ const QuickRecordModal = ({
             <div style={styles.headerIconCircle}>
               {activeTab === 'HARVEST_ENTRY' ? (
                 <Scale size={18} color="#1A2FB8" strokeWidth={2.4} />
+              ) : activeTab === 'FEED_ENTRY' ? (
+                <Wheat size={18} color="#1A2FB8" strokeWidth={2.4} />
+              ) : activeTab === 'DISEASE_ENTRY' ? (
+                <Bug size={18} color="#DC2626" strokeWidth={2.4} />
               ) : (
                 <Droplets size={18} color="#1A2FB8" strokeWidth={2.4} />
               )}
             </div>
             <div>
               <h2 style={styles.title}>
-                {activeTab === 'HARVEST_ENTRY' ? 'New Harvest Entry' : 'New Test Record'}
+                {activeTab === 'HARVEST_ENTRY'
+                  ? 'New Harvest Entry'
+                  : activeTab === 'FEED_ENTRY'
+                    ? 'New Feed Record'
+                    : activeTab === 'DISEASE_ENTRY'
+                      ? 'Disease Inspection Log'
+                      : 'New Water Analysis Record'}
               </h2>
               <p style={styles.subtitle}>
-                {activeTab === 'HARVEST_ENTRY' ? 'Log pond harvest data' : 'Enter necessary water parameters'}
+                {activeTab === 'HARVEST_ENTRY'
+                  ? 'Log pond harvest data'
+                  : activeTab === 'FEED_ENTRY'
+                    ? 'Log feed check, count, ABW & FCR data'
+                    : activeTab === 'DISEASE_ENTRY'
+                      ? 'Assess shrimp symptoms & clinical conditions'
+                      : 'Enter water parameters (pH, Ammonia, Nitrate, Salinity)'}
               </p>
             </div>
           </div>
@@ -383,120 +724,549 @@ const QuickRecordModal = ({
             </div>
           </div>
 
-          {/* Date & DOC */}
-          <div style={styles.twoColRow}>
-            <div style={styles.fieldCol}>
-              <label style={styles.label}>Date</label>
-              <input
-                type="date"
-                value={waterForm.date}
-                onChange={(e) => setWaterForm({ ...waterForm, date: e.target.value })}
-                style={styles.input}
-                required
-              />
-            </div>
-            <div style={styles.fieldCol}>
-              <label style={styles.label}>DOC (Days)</label>
-              <input
-                type="number"
-                value={waterForm.doc}
-                onChange={(e) => setWaterForm({ ...waterForm, doc: e.target.value })}
-                placeholder="35"
-                style={styles.input}
-                min="1"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Core Necessary Parameters (2x2 Grid) */}
-          <div style={styles.sectionHeader}>
-            <span style={styles.sectionLabel}>NECESSARY PARAMETERS</span>
-          </div>
-
-          <div style={styles.paramGrid}>
-            {/* 1. Salinity */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>Salinity</span>
-                <span style={styles.paramUnit}>ppt</span>
+          {/* ==================================================================== */}
+          {/* A. FEED ENTRY FORM: Matches Exact Feed Slide Requirements */}
+          {/* ==================================================================== */}
+          {activeTab === 'FEED_ENTRY' ? (
+            <>
+              {/* 1. DOC - Data entry date */}
+              <div style={styles.twoColRow}>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>Data Entry Date</label>
+                  <input
+                    type="date"
+                    value={feedForm.date}
+                    onChange={(e) => handleFeedChange('date', e.target.value)}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>DOC (Day of Culture)</label>
+                  <input
+                    type="number"
+                    value={feedForm.doc}
+                    onChange={(e) => handleFeedChange('doc', e.target.value)}
+                    placeholder="e.g. 45"
+                    style={styles.input}
+                    min="0"
+                    required
+                  />
+                </div>
               </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.salinity}
-                onChange={(e) => handleSalinityChange(e.target.value)}
-                placeholder="16.0"
-                style={styles.paramInput}
-                required
-              />
-            </div>
 
-            {/* 2. pH */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>pH Level</span>
-                <span style={styles.paramUnit}>7.5 - 8.3</span>
+              {/* Feed Grid Parameters */}
+              <div style={styles.sectionHeader}>
+                <span style={styles.sectionLabel}>FEEDING & GROWTH PARAMETERS</span>
               </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.ph}
-                onChange={(e) => setWaterForm({ ...waterForm, ph: e.target.value })}
-                placeholder="7.8"
-                style={styles.paramInput}
-                required
-              />
-            </div>
 
-            {/* 3. Dissolved Oxygen (DO) */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>D.O.</span>
-                <span style={styles.paramUnit}>mg/L</span>
+              <div style={styles.paramGrid}>
+                {/* 1. Seed Stocked (Read-only, from original tank details) */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#F1F5F9', border: '1.5px solid #CBD5E1' }}>
+                  <div style={styles.paramHeader}>
+                    <span style={{ ...styles.paramTitle, color: '#334155' }}>Seed Stocked</span>
+                    <span style={{ ...styles.paramUnit, color: '#166534', fontWeight: 600 }}>{tankSeedInfo.lakhs}</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={tankSeedInfo.displayFull}
+                    readOnly
+                    placeholder="From tank details"
+                    style={{ ...styles.paramInput, color: '#1E293B', fontWeight: 600, cursor: 'not-allowed' }}
+                  />
+                  <span style={{ ...styles.paramStatus, color: '#64748B' }}>Original Tank Stock (Read-only)</span>
+                </div>
+
+                {/* 2. Estimated Stock (Manual Entry) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>Estimated Stock</span>
+                    <span style={styles.paramUnit}>Nos</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={feedForm.estimatedStock}
+                    onChange={(e) => handleFeedChange('estimatedStock', e.target.value)}
+                    placeholder={`e.g. ${Math.round(tankSeedInfo.count * 0.95).toLocaleString()}`}
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>Current Estimated Population</span>
+                </div>
+
+                {/* 3. Count (Manual Entry) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>Count</span>
+                    <span style={styles.paramUnit}>per Kg</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={feedForm.count}
+                    onChange={(e) => handleFeedChange('count', e.target.value)}
+                    placeholder="e.g. 200"
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>Count per Kg (Count &gt; 0)</span>
+                </div>
+
+                {/* 4. ABW (Average Body Weight - Auto Calculated: 1000 / Count) */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+                  <div style={styles.paramHeader}>
+                    <span style={{ ...styles.paramTitle, color: '#1E40AF', fontWeight: '800' }}>ABW</span>
+                    <span style={{ ...styles.paramUnit, color: '#2563EB', fontWeight: '700' }}>grams</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={feedForm.abw}
+                    readOnly
+                    placeholder="1000 / Count"
+                    style={{ ...styles.paramInput, color: '#1E40AF', fontWeight: '800', cursor: 'default' }}
+                  />
+                  <span style={{ ...styles.paramStatus, color: '#2563EB', fontWeight: '600' }}>
+                    Auto: 1000 ÷ Count
+                  </span>
+                </div>
+
+                {/* 5. Day Feed (Kg) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>Day Feed</span>
+                    <span style={styles.paramUnit}>Kg</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={feedForm.dayFeed}
+                    onChange={(e) => handleFeedChange('dayFeed', e.target.value)}
+                    placeholder="e.g. 120"
+                    style={styles.paramInput}
+                    required
+                  />
+                  <span style={styles.paramStatus}>Daily Feed Given</span>
+                </div>
+
+                {/* 6. Cumulative Feed (Kg) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>Cumulative Feed</span>
+                    <span style={styles.paramUnit}>Kg</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={feedForm.cumulativeFeed}
+                    onChange={(e) => handleFeedChange('cumulativeFeed', e.target.value)}
+                    placeholder="e.g. 16000"
+                    style={styles.paramInput}
+                    required
+                  />
+                  <span style={styles.paramStatus}>Total Feed to Date</span>
+                </div>
+
+                {/* 7. FCR - Formula: Cumulative Feed / Biomass */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0' }}>
+                  <div style={styles.paramHeader}>
+                    <span style={{ ...styles.paramTitle, color: '#0F172A', fontWeight: '700' }}>FCR</span>
+                    <span style={{ ...styles.paramUnit, color: '#64748B', fontWeight: '600' }}>Ratio</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={feedForm.fcr}
+                    readOnly
+                    placeholder="Auto-calculated"
+                    style={{ ...styles.paramInput, color: '#0F172A', fontWeight: '700', fontSize: '16px' }}
+                  />
+                  <span style={{ ...styles.paramStatus, color: '#64748B', fontWeight: '500' }}>
+                    Cum Feed ÷ Biomass
+                  </span>
+                </div>
+
+                {/* 8. CH TR Feed (gr) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>CH TR Feed</span>
+                    <span style={styles.paramUnit}>grams</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={feedForm.checkTrayFeed}
+                    onChange={(e) => handleFeedChange('checkTrayFeed', e.target.value)}
+                    placeholder="e.g. 250"
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>Check-tray Feed</span>
+                </div>
+
+                {/* 9. CH TR Time (Feed Consumption Time - Manual Entry) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>CH TR Time</span>
+                    <span style={styles.paramUnit}>Duration</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={feedForm.checkTrayTime}
+                    onChange={(e) => handleFeedChange('checkTrayTime', e.target.value)}
+                    placeholder="e.g. 01:30 or 90 mins"
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>CH TR Time (Feed Consumption Time)</span>
+                </div>
               </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.do}
-                onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
-                placeholder="5.6"
-                style={styles.paramInput}
-                required
-              />
-            </div>
 
-            {/* 4. Temperature */}
-            <div style={styles.paramCard}>
-              <div style={styles.paramHeader}>
-                <span style={styles.paramTitle}>Temperature</span>
-                <span style={styles.paramUnit}>°C</span>
+              {/* 10. Remarks */}
+              <div style={{ marginTop: '12px' }}>
+                <label style={styles.label}>Remarks</label>
+                <textarea
+                  value={feedForm.remarks}
+                  onChange={(e) => handleFeedChange('remarks', e.target.value)}
+                  placeholder="Feed adjustment notes, shrimp appetite, tray observations..."
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '13px',
+                    fontFamily: 'inherit',
+                    color: '#0F172A',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                    resize: 'vertical'
+                  }}
+                />
               </div>
-              <input
-                type="number"
-                step="0.1"
-                value={waterForm.temperature}
-                onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
-                placeholder="28.5"
-                style={styles.paramInput}
-                required
-              />
-            </div>
-          </div>
+            </>
+          ) : activeTab === 'DISEASE_ENTRY' ? (
+            <>
+              {/* Date & DOC */}
+              <div style={styles.twoColRow}>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>Inspection Date</label>
+                  <input
+                    type="date"
+                    value={diseaseForm.date}
+                    onChange={(e) => setDiseaseForm({ ...diseaseForm, date: e.target.value })}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>DOC (Day of Culture)</label>
+                  <input
+                    type="number"
+                    value={diseaseForm.doc}
+                    onChange={(e) => setDiseaseForm(prev => ({ ...prev, doc: e.target.value }))}
+                    placeholder="e.g. 77"
+                    style={styles.input}
+                    min="0"
+                    required
+                  />
+                </div>
+              </div>
 
-          {/* Optional Collapsible More Parameters */}
-          <div style={{ marginTop: '10px' }}>
-            <button
-              type="button"
-              style={styles.moreToggleBtn}
-              onClick={() => setShowAdvancedParams(!showAdvancedParams)}
-            >
-              <span>{showAdvancedParams ? 'Hide' : '+ More'} Parameters (Ammonia, Alkalinity)</span>
-              {showAdvancedParams ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+              {/* Disease Checklist Header */}
+              <div style={styles.sectionHeader}>
+                <span style={styles.sectionLabel}>DISEASE & PATHOLOGY SCREENING ({DISEASE_LIST.length} PARAMETERS)</span>
+              </div>
 
-            {showAdvancedParams && (
+              {/* Responsive Disease Card List */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gap: '8px',
+                marginTop: '8px'
+              }}>
+                {DISEASE_LIST.map((disease) => {
+                  const currentLevel = diseaseForm.status[disease]; // undefined, 'Mild', or 'Severe'
+                  const isPresent = Boolean(currentLevel);
+
+                  return (
+                    <div
+                      key={disease}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: isPresent
+                          ? (currentLevel === 'Severe' ? '1.5px solid #EF4444' : '1.5px solid #F59E0B')
+                          : '1px solid #E2E8F0',
+                        backgroundColor: isPresent
+                          ? (currentLevel === 'Severe' ? '#FEF2F2' : '#FFFBEB')
+                          : '#FFFFFF',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{
+                          fontSize: '13px',
+                          fontWeight: isPresent ? '700' : '600',
+                          color: isPresent ? (currentLevel === 'Severe' ? '#B91C1C' : '#B45309') : '#1E293B'
+                        }}>
+                          {disease}
+                        </span>
+                        {isPresent ? (
+                          <span style={{
+                            fontSize: '10.5px',
+                            fontWeight: '700',
+                            padding: '2px 6px',
+                            borderRadius: '6px',
+                            backgroundColor: currentLevel === 'Severe' ? '#FEE2E2' : '#FEF3C7',
+                            color: currentLevel === 'Severe' ? '#DC2626' : '#D97706',
+                          }}>
+                            {currentLevel}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '500' }}>
+                            Normal
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Tri-state buttons: Normal / Mild / Severe */}
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentLevel) {
+                              setDiseaseForm(prev => {
+                                const next = { ...prev.status };
+                                delete next[disease];
+                                return { ...prev, status: next };
+                              });
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '4px 6px',
+                            fontSize: '11px',
+                            fontWeight: !isPresent ? '700' : '500',
+                            borderRadius: '6px',
+                            border: !isPresent ? '1px solid #CBD5E1' : '1px solid #F1F5F9',
+                            backgroundColor: !isPresent ? '#F1F5F9' : '#FFFFFF',
+                            color: !isPresent ? '#334155' : '#94A3B8',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleDiseaseStatus(disease, 'Mild')}
+                          style={{
+                            flex: 1,
+                            padding: '4px 6px',
+                            fontSize: '11px',
+                            fontWeight: currentLevel === 'Mild' ? '700' : '500',
+                            borderRadius: '6px',
+                            border: currentLevel === 'Mild' ? '1px solid #F59E0B' : '1px solid #F1F5F9',
+                            backgroundColor: currentLevel === 'Mild' ? '#FEF3C7' : '#FFFFFF',
+                            color: currentLevel === 'Mild' ? '#B45309' : '#64748B',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Mild
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleDiseaseStatus(disease, 'Severe')}
+                          style={{
+                            flex: 1,
+                            padding: '4px 6px',
+                            fontSize: '11px',
+                            fontWeight: currentLevel === 'Severe' ? '700' : '500',
+                            borderRadius: '6px',
+                            border: currentLevel === 'Severe' ? '1px solid #EF4444' : '1px solid #F1F5F9',
+                            backgroundColor: currentLevel === 'Severe' ? '#FEE2E2' : '#FFFFFF',
+                            color: currentLevel === 'Severe' ? '#DC2626' : '#64748B',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Severe
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Others - Additional disease-related information */}
+              <div style={{ marginTop: '12px' }}>
+                <label style={styles.label}>Others</label>
+                <textarea
+                  value={diseaseForm.others}
+                  onChange={(e) => setDiseaseForm({ ...diseaseForm, others: e.target.value })}
+                  placeholder="Enter any other observations, symptoms, or disease details not covered above..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '13px',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#F8FAFC',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', display: 'block' }}>
+                  Write descriptions, observations, symptoms, or other relevant details not covered by existing parameters.
+                </span>
+              </div>
+
+              {/* Affected % and Remarks */}
+              <div style={{ ...styles.twoColRow, marginTop: '12px' }}>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>Estimated Population Affected (%)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="100"
+                    value={diseaseForm.affectedShrimpPct}
+                    onChange={(e) => setDiseaseForm({ ...diseaseForm, affectedShrimpPct: e.target.value })}
+                    placeholder="e.g. 5%"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>Clinical Symptoms / Action Taken</label>
+                  <input
+                    type="text"
+                    value={diseaseForm.remarks}
+                    onChange={(e) => setDiseaseForm({ ...diseaseForm, remarks: e.target.value })}
+                    placeholder="Treatment applied, isolation, sample sent..."
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Test Date & DOC */}
+              <div style={styles.twoColRow}>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>
+                    Test Date <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={waterForm.date}
+                    onChange={(e) => setWaterForm({ ...waterForm, date: e.target.value })}
+                    style={styles.input}
+                    required
+                  />
+                </div>
+                <div style={styles.fieldCol}>
+                  <label style={styles.label}>DOC (Day of Culture)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={waterForm.doc || ''}
+                    onChange={(e) => setWaterForm({ ...waterForm, doc: e.target.value })}
+                    placeholder="e.g. 45"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.paramGrid}>
+                {/* 1. pH: 7.5 to 8.5 */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      pH Level <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>pH</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="14"
+                    value={waterForm.ph}
+                    onChange={(e) => setWaterForm({ ...waterForm, ph: e.target.value })}
+                    placeholder="7.8"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
+
+                {/* 2. Ammonia: NH3 */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      Ammonia (NH3) <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={waterForm.ammonia}
+                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
+                    placeholder="0.05"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
+
+                {/* 3. Nitrate: NO3 */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      Nitrate (NO3) <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={waterForm.nitrate}
+                    onChange={(e) => setWaterForm({ ...waterForm, nitrate: e.target.value })}
+                    placeholder="2.0"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
+
+                {/* 4. Salinity */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>
+                      Salinity <span style={{ color: '#DC2626', fontWeight: 'bold' }}>*</span>
+                    </span>
+                    <span style={styles.paramUnit}>ppt</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="45"
+                    value={waterForm.salinity}
+                    onChange={(e) => handleSalinityChange(e.target.value)}
+                    placeholder="16.0"
+                    style={styles.paramInput}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Optional Parameters Displayed Directly */}
               <div style={styles.advancedGrid}>
+                {/* Alkalinity */}
                 <div style={styles.paramCardSmall}>
                   <div style={styles.paramHeader}>
                     <span style={styles.paramTitleSmall}>Alkalinity</span>
@@ -511,23 +1281,117 @@ const QuickRecordModal = ({
                   />
                 </div>
 
+                {/* Hardness */}
                 <div style={styles.paramCardSmall}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitleSmall}>Ammonia (NH3)</span>
+                    <span style={styles.paramTitleSmall}>Hardness</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={waterForm.hardness}
+                    onChange={(e) => setWaterForm({ ...waterForm, hardness: e.target.value })}
+                    placeholder="1500"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* DO */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Dissolved Oxygen (DO)</span>
+                    <span style={styles.paramUnit}>mg/L</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={waterForm.do}
+                    onChange={(e) => setWaterForm({ ...waterForm, do: e.target.value })}
+                    placeholder="5.6"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* H2S */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>H2S</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={waterForm.h2s}
+                    onChange={(e) => setWaterForm({ ...waterForm, h2s: e.target.value })}
+                    placeholder="0.01"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Chlorine (CL) */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Chlorine (CL)</span>
                     <span style={styles.paramUnit}>ppm</span>
                   </div>
                   <input
                     type="number"
                     step="0.01"
-                    value={waterForm.ammonia}
-                    onChange={(e) => setWaterForm({ ...waterForm, ammonia: e.target.value })}
-                    placeholder="0.05"
+                    value={waterForm.cl}
+                    onChange={(e) => setWaterForm({ ...waterForm, cl: e.target.value })}
+                    placeholder="0.00"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Iron (Fe) */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Iron (Fe)</span>
+                    <span style={styles.paramUnit}>ppm</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={waterForm.fe}
+                    onChange={(e) => setWaterForm({ ...waterForm, fe: e.target.value })}
+                    placeholder="0.01"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Water Color */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Water Color</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={waterForm.waterColor}
+                    onChange={(e) => setWaterForm({ ...waterForm, waterColor: e.target.value })}
+                    placeholder="e.g. Light Green"
+                    style={styles.paramInputSmall}
+                  />
+                </div>
+
+                {/* Temperature */}
+                <div style={styles.paramCardSmall}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitleSmall}>Temperature</span>
+                    <span style={styles.paramUnit}>°C</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={waterForm.temperature}
+                    onChange={(e) => setWaterForm({ ...waterForm, temperature: e.target.value })}
+                    placeholder="28.5"
                     style={styles.paramInputSmall}
                   />
                 </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
           {/* GPS Verified Status Pill */}
           <div style={styles.gpsRow}>
@@ -593,7 +1457,7 @@ const styles = {
   },
   modalCard: {
     width: '100%',
-    maxWidth: '430px',
+    maxWidth: '560px',
     backgroundColor: '#FFFFFF',
     borderRadius: '20px',
     boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.22), 0 0 1px 1px rgba(0, 0, 0, 0.05)',
@@ -769,6 +1633,31 @@ const styles = {
     padding: 0,
     width: '100%',
   },
+  paramStatus: {
+    fontSize: '9.5px',
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: '2px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  paramSelect: {
+    border: 'none',
+    background: 'transparent',
+    fontSize: '13px',
+    fontWeight: '700',
+    color: '#0F172A',
+    outline: 'none',
+    padding: '2px 0',
+    width: '100%',
+    cursor: 'pointer',
+  },
+  rangeHint: {
+    fontSize: '10px',
+    fontWeight: '600',
+    color: '#2563EB',
+  },
   moreToggleBtn: {
     background: 'none',
     border: 'none',
@@ -939,4 +1828,9 @@ const styles = {
   },
 };
 
-export default QuickRecordModal;
+const QuickRecordModal = (props) => {
+  if (!props.isOpen) return null;
+  return <QuickRecordModalInner {...props} />;
+};
+
+export default React.memo(QuickRecordModal);

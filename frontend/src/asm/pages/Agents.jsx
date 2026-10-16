@@ -418,45 +418,8 @@ const Agents = () => {
       });
     }
 
-    // Default fallback ponds if farmer has none registered
-    return [
-      {
-        id: `${selectedFarmer.id}-P1`,
-        name: 'Pond 1',
-        size: '2.5 Acres',
-        status: 'ACTIVE',
-        doc: 65,
-        abw: '21.4g',
-        biomass: '2,850 kg',
-        fcr: '1.15',
-        weeklyGain: '+2.8g / wk',
-        count: '~46 count',
-        survival: '88%',
-        waterQuality: { ph: '7.8', do: '5.6 ppm', salinity: '15 ppt', ammonia: '0.06 ppm', alkalinity: '135 ppm' },
-        feedRate: '48 kg / day',
-        feedBrand: 'Royals Premium Feed',
-        stocking: '100,000 PL',
-        isHarvested: false
-      },
-      {
-        id: `${selectedFarmer.id}-P2`,
-        name: 'Pond 2',
-        size: '3.0 Acres',
-        status: 'ACTIVE',
-        doc: 52,
-        abw: '17.2g',
-        biomass: '2,250 kg',
-        fcr: '1.13',
-        weeklyGain: '+2.5g / wk',
-        count: '~58 count',
-        survival: '91%',
-        waterQuality: { ph: '7.9', do: '5.2 ppm', salinity: '14 ppt', ammonia: '0.08 ppm', alkalinity: '128 ppm' },
-        feedRate: '38 kg / day',
-        feedBrand: 'Royals Starter Feed',
-        stocking: '120,000 PL',
-        isHarvested: false
-      }
-    ];
+    // If farmer has no registered tanks, return empty array (do not fabricate fake fallback ponds)
+    return [];
   })() : [];
 
   const activeFarmerTank = farmerTanks[selectedFarmerTankIndex] || farmerTanks[0];
@@ -1807,6 +1770,14 @@ const Agents = () => {
                     </div>
                   </button>
                 ))}
+
+                {farmerTanks.length === 0 && (
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', gridColumn: '1 / -1', backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
+                    <Droplets size={24} color="#94A3B8" style={{ margin: '0 auto 8px' }} />
+                    <p style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#0F172A' }}>No registered ponds</p>
+                    <span style={{ fontSize: '12px' }}>This farmer currently has no active tanks assigned.</span>
+                  </div>
+                )}
               </div>
             </div>
 

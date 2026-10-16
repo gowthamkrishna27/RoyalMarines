@@ -667,9 +667,9 @@ const WeeklyTests = () => {
                       <span style={styles.paramCardStatus}>Safe (&lt; 0.5 ppm)</span>
                     </div>
                     <div style={styles.paramCard}>
-                      <span style={styles.paramCardLabel}>Nitrite (NO2)</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.nitrite} ppm</span>
-                      <span style={styles.paramCardStatus}>Safe (&lt; 0.25 ppm)</span>
+                      <span style={styles.paramCardLabel}>{selectedTestDetail.data.nitrate ? 'Nitrate (NO3)' : 'Nitrite (NO2)'}</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.nitrate || selectedTestDetail.data.nitrite} ppm</span>
+                      <span style={styles.paramCardStatus}>{selectedTestDetail.data.nitrate ? 'Safe (< 20 ppm)' : 'Safe (< 0.25 ppm)'}</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Potassium (K)</span>
@@ -712,43 +712,48 @@ const WeeklyTests = () => {
                   <div style={styles.paramGrid}>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Seed Stocked</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.seedCountLac} Lac</span>
-                      <span style={styles.paramCardStatus}>Stocking Density</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.seedStocked || selectedTestDetail.data.seed || selectedTestDetail.data.seedCountLac || '—'}</span>
+                      <span style={styles.paramCardStatus}>Original Stock (Fixed)</span>
+                    </div>
+                    <div style={styles.paramCard}>
+                      <span style={styles.paramCardLabel}>Estimated Stock</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.estimatedStock || '—'}</span>
+                      <span style={styles.paramCardStatus}>Estimated Population</span>
+                    </div>
+                    <div style={styles.paramCard}>
+                      <span style={styles.paramCardLabel}>Count</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.count ? `${selectedTestDetail.data.count} /kg` : '—'}</span>
+                      <span style={styles.paramCardStatus}>Sampling Count</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Average Body Weight</span>
-                      <span style={{ ...styles.paramCardValue, color: '#1A2FB8' }}>{selectedTestDetail.data.abw} g</span>
-                      <span style={styles.paramCardStatus}>Sampling Count Verified</span>
+                      <span style={{ ...styles.paramCardValue, color: '#1A2FB8' }}>{selectedTestDetail.data.abw ? `${selectedTestDetail.data.abw} g` : '—'}</span>
+                      <span style={styles.paramCardStatus}>Auto: 1000 ÷ Count</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Day Feed</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.dayFeed} kg</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.dayFeed ? `${selectedTestDetail.data.dayFeed} kg` : '—'}</span>
                       <span style={styles.paramCardStatus}>Daily Allocation</span>
                     </div>
                     <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>Cumulative Feed</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.cumulativeFeed} kg</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.cumulativeFeed ? `${selectedTestDetail.data.cumulativeFeed} kg` : '—'}</span>
                       <span style={styles.paramCardStatus}>Total Feed to Date</span>
                     </div>
                     <div style={styles.paramCard}>
-                      <span style={styles.paramCardLabel}>Total Biomass</span>
-                      <span style={{ ...styles.paramCardValue, color: '#16A34A' }}>{selectedTestDetail.data.totalBiomass} kg</span>
-                      <span style={styles.paramCardStatus}>Estimated Crop Mass</span>
-                    </div>
-                    <div style={styles.paramCard}>
                       <span style={styles.paramCardLabel}>FCR (Formula)</span>
-                      <span style={{ ...styles.paramCardValue, color: '#D97706' }}>{selectedTestDetail.data.fcr}</span>
+                      <span style={{ ...styles.paramCardValue, color: '#D97706' }}>{selectedTestDetail.data.fcr || '—'}</span>
                       <span style={styles.paramCardStatus}>Cum. Feed / Biomass</span>
                     </div>
                     <div style={styles.paramCard}>
-                      <span style={styles.paramCardLabel}>Check Tray Feed</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.chTrFeed} g</span>
+                      <span style={styles.paramCardLabel}>CH TR Feed</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.chTrFeed || selectedTestDetail.data.checkTrayFeed ? `${selectedTestDetail.data.chTrFeed || selectedTestDetail.data.checkTrayFeed} g` : '—'}</span>
                       <span style={styles.paramCardStatus}>Check Tray Portion</span>
                     </div>
                     <div style={styles.paramCard}>
-                      <span style={styles.paramCardLabel}>Check Tray Time</span>
-                      <span style={styles.paramCardValue}>{selectedTestDetail.data.chTrTime}</span>
-                      <span style={styles.paramCardStatus}>Clearance Time</span>
+                      <span style={styles.paramCardLabel}>CH TR Time</span>
+                      <span style={styles.paramCardValue}>{selectedTestDetail.data.chTrTime || selectedTestDetail.data.checkTrayTime || '—'}</span>
+                      <span style={styles.paramCardStatus}>Feed Consumption Time</span>
                     </div>
                   </div>
                 </>
@@ -791,6 +796,16 @@ const WeeklyTests = () => {
                       </div>
                     ))}
                   </div>
+                  {selectedTestDetail.data.others && (
+                    <div style={{ marginTop: '12px', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: '4px' }}>
+                        Others (Additional Disease Observations & Details)
+                      </span>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#0F172A', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                        {selectedTestDetail.data.others}
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 

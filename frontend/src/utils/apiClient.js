@@ -14,6 +14,7 @@ const TOKEN_KEY = 'auth_token';
 class ApiClient {
   constructor(baseUrl = BASE_URL) {
     this.baseUrl = baseUrl;
+    this.inFlightRequests = new Map();
   }
 
   getHeaders() {
@@ -67,22 +68,35 @@ class ApiClient {
       const query = new URLSearchParams(params).toString();
       url += (url.includes('?') ? '&' : '?') + query;
     }
-    return this.request(url, { method: 'GET' });
+    const fullUrl = `${this.baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    if (this.inFlightRequests.has(fullUrl)) {
+      return this.inFlightRequests.get(fullUrl);
+    }
+
+    const reqPromise = this.request(url, { method: 'GET' }).finally(() => {
+      this.inFlightRequests.delete(fullUrl);
+    });
+    this.inFlightRequests.set(fullUrl, reqPromise);
+    return reqPromise;
   }
 
   post(endpoint, body) {
+    this.inFlightRequests.clear();
     return this.request(endpoint, { method: 'POST', body });
   }
 
   put(endpoint, body) {
+    this.inFlightRequests.clear();
     return this.request(endpoint, { method: 'PUT', body });
   }
 
   patch(endpoint, body) {
+    this.inFlightRequests.clear();
     return this.request(endpoint, { method: 'PATCH', body });
   }
 
   delete(endpoint) {
+    this.inFlightRequests.clear();
     return this.request(endpoint, { method: 'DELETE' });
   }
 

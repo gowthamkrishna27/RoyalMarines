@@ -173,9 +173,6 @@ const Reports = ({ defaultView = null }) => {
                 <div style={styles.iconCircleBlue}>
                   <Users size={28} color="#1A2FB8" />
                 </div>
-                <span style={styles.badgeBlue}>
-                  {allocatedFarmers.length} Allocated Farmers
-                </span>
               </div>
 
               <div>
@@ -202,9 +199,6 @@ const Reports = ({ defaultView = null }) => {
                 <div style={styles.iconCircleGreen}>
                   <ShieldCheck size={28} color="#059669" />
                 </div>
-                <span style={styles.badgeGreen}>
-                  {supervisedAgents.length} Field Agents
-                </span>
               </div>
 
               <div>

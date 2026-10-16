@@ -3,7 +3,7 @@ import InchargeHeader from '../components/InchargeHeader';
 import { Download, FileSpreadsheet, CheckCircle2, User, Droplets } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { downloadAquaEnterpriseWorkbook } from '../../utils/excelReportGenerator';
-import { calculateBiomass, calculateFCR } from '../../admin/utils/adminMockData';
+import { calculateBiomass, calculateFCR } from '../../admin/utils/adminCalculations';
 
 const ExportData = () => {
   const { db, getFarmersByAgentId, getTanksByFarmerId, getFarmerById } = useMockData();

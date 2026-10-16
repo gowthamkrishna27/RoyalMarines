@@ -5,9 +5,12 @@ import {
   TrendingUp, Activity, Award, FileText, ChevronRight,
   Fish, Layers, MapPin, User, ArrowDownCircle, Printer, Clock, AlertCircle, Sparkles, Plus
 } from 'lucide-react';
+import { useMockData } from '../../context/MockDataContext';
 
 const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
   if (!isOpen || !tank) return null;
+
+  const { db } = useMockData();
 
   const farmerName = farmer?.name || tank.farmer || 'Farmer';
   const farmerLocality = farmer?.location || farmer?.village || tank.locality || 'Bhimavaram';
@@ -47,13 +50,77 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
     console.error('Error reading harvest store:', e);
   }
 
+  const normalizeId = (id) => String(id || '').trim().toLowerCase().replace(/^t0*/, 't');
+  const isTankMatch = (idA, idB) => {
+    if (!idA || !idB) return false;
+    if (idA === idB) return true;
+    return normalizeId(idA) === normalizeId(idB);
+  };
+
   // Build appropriate harvest records based on whether Final Harvest is completed or ongoing
-  let rawHarvests = localRecords || [];
+  let rawHarvests = localRecords ? [...localRecords] : [];
 
   if (rawHarvests.length === 0) {
     if (storedHarvests.length > 0) {
-      rawHarvests = storedHarvests;
-    } else if (isFinalHarvested) {
+      rawHarvests = [...storedHarvests];
+    }
+
+    // Merge from db.harvests
+    (db?.harvests || []).forEach(h => {
+      if (isTankMatch(h.tankId, tank.id)) {
+        const exists = rawHarvests.some(r => r.id === h.id || (r.date === h.date && r.harvestedBiomass === h.quantityKg));
+        if (!exists) {
+          rawHarvests.push({
+            id: h.id,
+            harvestType: h.harvestType || 'Partial Harvest',
+            displayTitle: h.isFinal ? 'Final Harvest (Cycle Closed)' : 'Partial Harvest',
+            date: h.date,
+            doc: h.doc || tank.doc || 77,
+            abw: h.abw || tank.abw || 25,
+            countPerKg: h.countPerKg || 40,
+            harvestedNumber: h.harvestedNumber || (h.countPerKg && h.quantityKg ? h.countPerKg * h.quantityKg : 0),
+            harvestedBiomass: h.quantityKg || h.quantity_kg || 0,
+            feedConsumed: h.feedConsumed || 0,
+            fcr: h.fcr || tank.fcr || '1.18',
+            remarks: h.remarks || '',
+            buyer: h.buyerName || h.buyer || 'Royals Marine Export Unit 1',
+            isFinal: h.isFinal || (h.harvestType === 'Final Harvest')
+          });
+        }
+      }
+    });
+
+    // Merge from db.submissions
+    (db?.submissions || []).forEach(sub => {
+      if (isTankMatch(sub.tankId, tank.id)) {
+        const isSubHarvest = (sub.testType || '').toUpperCase().includes('HARVEST') || 
+                             (sub.recordType || '').toUpperCase().includes('HARVEST');
+        if (isSubHarvest) {
+          const sData = sub.data || {};
+          const exists = rawHarvests.some(r => r.id === sub.id || (r.date === sub.date && r.harvestedBiomass === (sData.harvestedBiomass || sData.quantityKg)));
+          if (!exists) {
+            rawHarvests.push({
+              id: sub.id,
+              harvestType: sData.harvestType || (sub.testType === 'Final Harvest' ? 'Final Harvest' : 'Partial Harvest'),
+              displayTitle: (sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest') ? 'Final Harvest (Cycle Closed)' : 'Partial Harvest',
+              date: sub.date,
+              doc: sData.doc || tank.doc || 77,
+              abw: sData.abw || tank.abw || 25,
+              countPerKg: sData.countPerKg || 40,
+              harvestedNumber: parseFloat(sData.harvestedNumber || 0),
+              harvestedBiomass: parseFloat(sData.harvestedBiomass || sData.quantityKg || 0),
+              feedConsumed: parseFloat(sData.feedConsumed || 0),
+              fcr: sData.fcr || tank.fcr || '1.18',
+              remarks: sData.remarks || '',
+              buyer: sData.buyer || 'Royals Marine Export Unit 1',
+              isFinal: sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest' || sData.isFinal
+            });
+          }
+        }
+      }
+    });
+
+    if (rawHarvests.length === 0 && isFinalHarvested) {
     // 1. Completed Cycle Seed (All Partial Harvests + Final Harvest)
     rawHarvests = [
       {

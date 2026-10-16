@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { getRegions, getFarmers, getAgents, getIncharges } from '../utils/adminMockData';
-import { useMockData } from '../../context/MockDataContext';
+import { adminService } from '../utils/adminService';
 import {
   MapPin, Plus, FileSpreadsheet, Search, Check, X,
   Layers, Compass, Building, User, Phone, Droplets,
-  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3
+  Eye, Edit, ArrowRight, ShieldCheck, Tractor, Filter, SortAsc, BarChart3,
+  AlertCircle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -14,19 +15,50 @@ import {
 
 const Regions = () => {
   const navigate = useNavigate();
-  const { db } = useMockData();
-  const [regions, setRegions] = useState(() => getRegions(db));
-  const allIncharges = useMemo(() => getIncharges(db), [db]);
-  const [agents, setAgents] = useState(() => getAgents(db));
-  const [farmers, setFarmers] = useState(() => getFarmers(db));
+  const [regions, setRegions] = useState([]);
+  const [allIncharges, setAllIncharges] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [allTanks, setAllTanks] = useState([]);
+  const [allHarvests, setAllHarvests] = useState([]);
+  const [allSubmissions, setAllSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (db) {
-      setRegions(getRegions(db));
-      setAgents(getAgents(db));
-      setFarmers(getFarmers(db));
-    }
-  }, [db]);
+    let isMounted = true;
+    setLoading(true);
+    Promise.allSettled([
+      adminService.getRegions(),
+      adminService.getIncharges(),
+      adminService.getAgents(),
+      adminService.getFarmers(),
+      adminService.getTanks(),
+      adminService.getHarvests(),
+      adminService.getSubmissions()
+    ]).then(([regRes, incRes, agRes, farRes, tkRes, harRes, subRes]) => {
+      if (!isMounted) return;
+      if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
+        const mappedRegs = regRes.value.map(r => ({
+          id: String(r.code || r.id),
+          code: r.code || r.id,
+          name: r.name,
+          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
+        }));
+        setRegions(mappedRegs);
+      }
+      if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
+      if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAgents(agRes.value);
+      if (farRes.status === 'fulfilled' && Array.isArray(farRes.value)) setFarmers(farRes.value);
+      if (tkRes.status === 'fulfilled' && Array.isArray(tkRes.value)) setAllTanks(tkRes.value);
+      if (harRes.status === 'fulfilled' && Array.isArray(harRes.value)) setAllHarvests(harRes.value);
+      if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) setAllSubmissions(subRes.value);
+      setLoading(false);
+    }).catch(err => {
+      console.error('[Regions] Failed to load data:', err);
+      if (isMounted) setLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Geographic Filter States
   const [selectedRegion, setSelectedRegion] = useState('ALL');
@@ -39,10 +71,18 @@ const Regions = () => {
   const [selectedInchargeDetails, setSelectedInchargeDetails] = useState(null);
   const [selectedAgentDetails, setSelectedAgentDetails] = useState(null);
 
-  // Add Locality Modal
+  // Add Region Modal & Form States
+  const [showAddRegionModal, setShowAddRegionModal] = useState(false);
+  const [newRegionName, setNewRegionName] = useState('');
+  const [regionError, setRegionError] = useState('');
+  const [isSubmittingRegion, setIsSubmittingRegion] = useState(false);
+
+  // Add Locality Modal & Form States
   const [showAddModal, setShowAddModal] = useState(false);
   const [newLocalityName, setNewLocalityName] = useState('');
-  const [targetRegionId, setTargetRegionId] = useState(regions[1]?.id || regions[0]?.id);
+  const [targetRegionId, setTargetRegionId] = useState('');
+  const [localityError, setLocalityError] = useState('');
+  const [isSubmittingLocality, setIsSubmittingLocality] = useState(false);
   const [successToast, setSuccessToast] = useState('');
 
   const showToast = (msg) => {
@@ -50,31 +90,40 @@ const Regions = () => {
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
+  useEffect(() => {
+    if (regions.length > 0 && (!targetRegionId || !regions.some(r => r.id === targetRegionId))) {
+      setTargetRegionId(regions[0]?.id || '');
+    }
+  }, [regions, targetRegionId]);
+
+  // Selected region for Bar Graph drill-down (null = all regions view)
+  const [selectedGraphRegion, setSelectedGraphRegion] = useState(null);
+
   // Helper to find Incharge object
   const getInchargeDetails = (inchargeName, localityName, regionName) => {
-    if (!inchargeName) return allIncharges[0];
+    if (!inchargeName) return null;
     let found = allIncharges.find(inc =>
       inc.name === inchargeName ||
       inc.shortName === inchargeName ||
-      inchargeName.toLowerCase().includes(inc.shortName?.toLowerCase() || '___')
+      (inc.shortName && inchargeName.toLowerCase().includes(inc.shortName.toLowerCase()))
     );
     if (!found && localityName) {
       found = allIncharges.find(inc => inc.locality?.toLowerCase() === localityName.toLowerCase());
     }
-    return found || allIncharges[0];
+    return found || null;
   };
 
   // Helper to find Field Agent object
   const getAgentDetails = (agentName, agentId, localityName) => {
     if (agentId) {
-      const byId = agents.find(ag => ag.id === agentId);
+      const byId = agents.find(ag => String(ag.id) === String(agentId));
       if (byId) return byId;
     }
     if (agentName) {
       const byName = agents.find(ag =>
         ag.name === agentName ||
         ag.shortName === agentName ||
-        agentName.toLowerCase().includes(ag.shortName?.toLowerCase() || '___')
+        (ag.shortName && agentName.toLowerCase().includes(ag.shortName.toLowerCase()))
       );
       if (byName) return byName;
     }
@@ -82,7 +131,7 @@ const Regions = () => {
       const byLoc = agents.find(ag => ag.locality?.toLowerCase() === localityName.toLowerCase());
       if (byLoc) return byLoc;
     }
-    return agents[0];
+    return null;
   };
 
   // Helper to match Farmer Region
@@ -239,25 +288,79 @@ const Regions = () => {
   // Metric for Bar Graph below the farmers table
   const [barMetric, setBarMetric] = useState('ACRES'); // 'ACRES' | 'TANKS' | 'FCR'
 
-  // Prepare Bar Graph data for the current active list of farmers (sorted A to Z)
+  // Prepare Bar Graph data:
+  // If selectedGraphRegion is null -> Group by actual regions from MySQL
+  // If selectedGraphRegion is set -> Drill down to display only farmers belonging to that region
   const barChartData = React.useMemo(() => {
-    return filteredAndSortedFarmers.map(f => {
-      const acresVal = f.totalAcres || parseFloat(f.acres) || 0;
-      const tanksCount = f.tanks || f.tankBreakdown?.length || 1;
-      const fcrVal = f.tankBreakdown?.[0]?.fcr || 1.35;
+    if (selectedGraphRegion) {
+      // Drill-down: Farmers belonging to selectedGraphRegion
+      const regionFarmers = farmers.filter(f =>
+        matchesFarmerRegion(f, selectedGraphRegion.name) ||
+        String(f.regionId) === String(selectedGraphRegion.id)
+      );
+
+      return regionFarmers.map(f => {
+        const acresVal = f.totalAcres || parseFloat(f.acres) || 0;
+        const farmerTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+        const tanksCount = f.tanks || (farmerTanks.length > 0 ? farmerTanks.length : 0);
+
+        // Real FCR from farmer harvests or tanks, zero mock fallback
+        const farmerHarvests = allHarvests.filter(h => String(h.farmerId) === String(f.id) || h.farmerName === f.name);
+        const validHarvestFcrs = farmerHarvests.map(h => parseFloat(h.fcr)).filter(v => v > 0);
+        const validTankFcrs = farmerTanks.map(t => parseFloat(t.fcr)).filter(v => v > 0);
+        const allFcrs = [...validHarvestFcrs, ...validTankFcrs];
+        const avgFcr = allFcrs.length > 0 ? allFcrs.reduce((a, b) => a + b, 0) / allFcrs.length : 0;
+
+        return {
+          id: f.id,
+          name: f.name,
+          shortName: f.name.length > 18 ? f.name.substring(0, 16) + '…' : f.name,
+          acres: Number(acresVal.toFixed(1)),
+          tanks: tanksCount,
+          fcr: avgFcr > 0 ? Number(avgFcr.toFixed(2)) : 0,
+          locality: f.locality || '-',
+          village: f.assignedArea || f.village || '-',
+          isDrillDown: true
+        };
+      });
+    }
+
+    // Default: Grouped by actual regions from MySQL
+    return regions.map(reg => {
+      const regFarmers = farmers.filter(f =>
+        matchesFarmerRegion(f, reg.name) ||
+        String(f.regionId) === String(reg.id)
+      );
+
+      const totalAcres = regFarmers.reduce((sum, f) => {
+        return sum + (f.totalAcres || parseFloat(f.acres) || 0);
+      }, 0);
+
+      const totalTanks = regFarmers.reduce((sum, f) => {
+        const farmerTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+        return sum + (f.tanks || (farmerTanks.length > 0 ? farmerTanks.length : 0));
+      }, 0);
+
+      // Real FCR across this region's farmers
+      const regHarvests = allHarvests.filter(h =>
+        regFarmers.some(f => String(f.id) === String(h.farmerId) || f.name === h.farmerName)
+      );
+      const validFcrs = regHarvests.map(h => parseFloat(h.fcr)).filter(v => v > 0);
+      const avgFcr = validFcrs.length > 0 ? validFcrs.reduce((a, b) => a + b, 0) / validFcrs.length : 0;
 
       return {
-        id: f.id,
-        name: f.name,
-        shortName: f.name.length > 18 ? f.name.substring(0, 16) + '…' : f.name,
-        acres: Number(acresVal.toFixed(1)),
-        tanks: tanksCount,
-        fcr: Number(fcrVal.toFixed(2)),
-        locality: f.locality,
-        village: f.assignedArea || f.village
+        id: reg.id,
+        name: reg.name,
+        shortName: reg.name.length > 16 ? reg.name.substring(0, 14) + '…' : reg.name,
+        acres: Number(totalAcres.toFixed(1)),
+        tanks: totalTanks,
+        fcr: avgFcr > 0 ? Number(avgFcr.toFixed(2)) : 0,
+        farmersCount: regFarmers.length,
+        rawRegion: reg,
+        isDrillDown: false
       };
     });
-  }, [filteredAndSortedFarmers]);
+  }, [selectedGraphRegion, regions, farmers, allTanks, allHarvests]);
 
   // Handle Excel Export for Current Filtered List
   const handleExportFilteredExcel = () => {
@@ -282,14 +385,118 @@ const Regions = () => {
     showToast(`Exported ${filteredAndSortedFarmers.length} farmers report!`);
   };
 
-  // Add new locality handler
-  const handleAddLocality = (e) => {
-    e.preventDefault();
-    if (!newLocalityName.trim()) return;
+  // Real-time duplicate checking when user types region name
+  const handleRegionNameChange = (val) => {
+    setNewRegionName(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setRegionError('');
+      return;
+    }
+    // Check if region already exists (case-insensitive duplicate check)
+    const exists = regions.some(r => (r.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setRegionError(`Region "${trimmed}" already exists! Duplicate regions are not allowed.`);
+    } else {
+      setRegionError('');
+    }
+  };
 
-    showToast(`Locality "${newLocalityName.trim()}" added successfully to system registry!`);
-    setNewLocalityName('');
-    setShowAddModal(false);
+  // Add new region handler with automatic database synchronization
+  const handleAddRegion = async (e) => {
+    e.preventDefault();
+    const trimmed = newRegionName.trim();
+    if (!trimmed) {
+      setRegionError('Please enter a valid region name.');
+      return;
+    }
+
+    // Duplicate check
+    const exists = regions.some(r => (r.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setRegionError(`Region "${trimmed}" already exists! Duplicate regions are not allowed.`);
+      return;
+    }
+
+    setIsSubmittingRegion(true);
+    setRegionError('');
+
+    try {
+      const created = await adminService.createRegion({ name: trimmed });
+      const newRegItem = {
+        id: String(created?.id || created?.code || `REG${Date.now()}`),
+        code: created?.code || created?.id || `REG${Date.now()}`,
+        name: created?.name || trimmed,
+        localities: Array.isArray(created?.localities) ? created.localities : []
+      };
+
+      // Automatically update regions state so it is immediately selectable everywhere
+      setRegions(prev => [...prev, newRegItem]);
+      setTargetRegionId(newRegItem.id);
+
+      showToast(`Region "${trimmed}" added and updated in database successfully!`);
+      setNewRegionName('');
+      setShowAddRegionModal(false);
+
+      // Re-fetch in background to sync any server-computed fields
+      adminService.getRegions(true).then(updated => {
+        if (Array.isArray(updated)) {
+          setRegions(updated.map(r => ({
+            id: String(r.code || r.id),
+            code: r.code || r.id,
+            name: r.name,
+            localities: Array.isArray(r.localities) ? r.localities : []
+          })));
+        }
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[Add Region Error]', err);
+      setRegionError(err.message || 'Failed to create region. Please try again.');
+    } finally {
+      setIsSubmittingRegion(false);
+    }
+  };
+
+  // Add new locality handler with automatic database synchronization
+  const handleAddLocality = async (e) => {
+    e.preventDefault();
+    const trimmedLoc = newLocalityName.trim();
+    if (!trimmedLoc) return;
+
+    if (!targetRegionId) {
+      setLocalityError('Please select a target region.');
+      return;
+    }
+
+    const targetReg = regions.find(r => r.id === targetRegionId || r.code === targetRegionId);
+    if (targetReg && targetReg.localities?.some(l => (l.name || '').trim().toLowerCase() === trimmedLoc.toLowerCase())) {
+      setLocalityError(`Locality "${trimmedLoc}" already exists in region "${targetReg.name}"!`);
+      return;
+    }
+
+    setIsSubmittingLocality(true);
+    setLocalityError('');
+
+    try {
+      await adminService.createLocality({ regionId: targetRegionId, name: trimmedLoc });
+
+      setRegions(prev => prev.map(r => {
+        if (r.id === targetRegionId || r.code === targetRegionId) {
+          const updatedLocs = [...(r.localities || []), { id: `LOC-${r.id}-${trimmedLoc.toLowerCase().replace(/\s+/g, '-')}`, name: trimmedLoc }];
+          return { ...r, localities: updatedLocs };
+        }
+        return r;
+      }));
+
+      showToast(`Locality "${trimmedLoc}" added to region "${targetReg?.name || ''}" successfully!`);
+      setNewLocalityName('');
+      setShowAddModal(false);
+    } catch (err) {
+      console.error('[Add Locality Error]', err);
+      setLocalityError(err.message || 'Failed to save locality. Please try again.');
+    } finally {
+      setIsSubmittingLocality(false);
+    }
   };
 
   return (
@@ -301,15 +508,27 @@ const Regions = () => {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
-            style={styles.exportBtn}
-            onClick={handleExportFilteredExcel}
+            id="btn-add-region"
+            style={styles.addRegionBtn}
+            onClick={() => {
+              setShowAddRegionModal(true);
+              setNewRegionName('');
+              setRegionError('');
+            }}
           >
-            <FileSpreadsheet size={15} />
-            <span>Export Directory ({filteredAndSortedFarmers.length})</span>
+            <Plus size={16} />
+            <span>Add New Region</span>
           </button>
           <button
+            id="btn-add-locality"
             style={styles.addLocalityBtn}
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setShowAddModal(true);
+              setLocalityError('');
+              if (regions.length > 0 && (!targetRegionId || !regions.some(r => r.id === targetRegionId))) {
+                setTargetRegionId(regions[0].id);
+              }
+            }}
           >
             <Plus size={16} />
             <span>Add New Locality</span>
@@ -454,7 +673,7 @@ const Regions = () => {
                           style={styles.inchargeTextRowClickable}
                           onClick={() => {
                             const incObj = getInchargeDetails(farmer.incharge, farmer.locality, farmer.region);
-                            setSelectedInchargeDetails(incObj);
+                            if (incObj) setSelectedInchargeDetails(incObj);
                           }}
                           title={`Click to view full details for Incharge: ${farmer.incharge}`}
                         >
@@ -465,7 +684,7 @@ const Regions = () => {
                           style={styles.agentTextRowClickable}
                           onClick={() => {
                             const agObj = getAgentDetails(farmer.agent, farmer.agentId, farmer.locality);
-                            setSelectedAgentDetails(agObj);
+                            if (agObj) setSelectedAgentDetails(agObj);
                           }}
                           title={`Click to view full details for Field Agent: ${farmer.agent}`}
                         >
@@ -474,8 +693,6 @@ const Regions = () => {
                         </div>
                       </div>
                     </td>
-
-
 
                     {/* Total Land & Tanks */}
                     <td style={styles.td}>
@@ -540,9 +757,41 @@ const Regions = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BarChart3 size={18} color="#2563eb" />
               <h2 style={styles.chartTitle}>
-                Farmers Cultivation &amp; Acreage Distribution (Bar Graph)
+                {selectedGraphRegion
+                  ? `Cultivation & Acreage: ${selectedGraphRegion.name} Farmers`
+                  : 'Farmers Cultivation & Acreage Distribution by Region'}
               </h2>
             </div>
+            {selectedGraphRegion ? (
+              <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Showing {barChartData.length} farmer(s) in {selectedGraphRegion.name}
+                </span>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 10px',
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setSelectedGraphRegion(null)}
+                >
+                  ← Back to Regions
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                Grouped across all {regions.length} operational regions. Click any region bar to view its farmers.
+              </div>
+            )}
           </div>
 
           {/* Metric Selector Tabs */}
@@ -598,19 +847,23 @@ const Regions = () => {
                   textAnchor="end"
                 />
                 <YAxis
-                  domain={barMetric === 'FCR' ? [1.0, 1.8] : [0, 'auto']}
+                  domain={[0, 'auto']}
                   axisLine={{ stroke: '#cbd5e1' }}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#334155', fontWeight: 500 }}
                 />
                 <RechartsTooltip
                   formatter={(value) => [
-                    barMetric === 'ACRES' ? `${value} Acres` : barMetric === 'TANKS' ? `${value} Tanks` : `${value} FCR`,
+                    barMetric === 'ACRES' ? `${value} Acres` : barMetric === 'TANKS' ? `${value} Tanks` : `${value || 0} FCR`,
                     barMetric === 'ACRES' ? 'Cultivated Land' : barMetric === 'TANKS' ? 'Active Tanks' : 'Feed Conversion Ratio'
                   ]}
                   labelFormatter={(label, payload) => {
                     const item = payload?.[0]?.payload;
-                    return item ? `${item.name} (${item.locality} • ${item.village})` : label;
+                    if (!item) return label;
+                    if (item.isDrillDown) {
+                      return `${item.name} (${item.locality || ''} • ${item.village || ''})`;
+                    }
+                    return `${item.name} (${item.farmersCount} Farmers - Click to View)`;
                   }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                 />
@@ -619,6 +872,12 @@ const Regions = () => {
                   fill={barMetric === 'ACRES' ? '#2563eb' : barMetric === 'TANKS' ? '#16a34a' : '#0284c7'}
                   radius={[6, 6, 0, 0]}
                   maxBarSize={48}
+                  style={{ cursor: !selectedGraphRegion ? 'pointer' : 'default' }}
+                  onClick={(entry) => {
+                    if (!selectedGraphRegion && entry && entry.rawRegion) {
+                      setSelectedGraphRegion(entry.rawRegion);
+                    }
+                  }}
                 >
                   {barChartData.map((entry, index) => (
                     <Cell
@@ -638,15 +897,23 @@ const Regions = () => {
           </div>
         ) : (
           <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '13.5px' }}>
-            No farmer data available for the bar graph in current selection.
+            No records available for the bar graph in current selection.
           </div>
         )}
       </div>
 
       {/* Modal 1: Comprehensive Farmer Details Modal */}
-      {selectedFarmerDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '680px' }}>
+      {selectedFarmerDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedFarmerDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '680px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleGreen}>
@@ -731,9 +998,9 @@ const Regions = () => {
                           <span style={styles.tankAcresBadge}>{tank.acres} Ac</span>
                         </div>
                         <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
-                          <div>DOC: <strong>{tank.doc || 50} Days</strong></div>
-                          <div>ABW: <strong>{tank.abw || 16}g</strong> • FCR: <strong>{tank.fcr || 1.32}</strong></div>
-                          <div>Hatchery: <strong>{tank.hatcheryName || 'Apex Marine'}</strong></div>
+                          <div>DOC: <strong>{tank.doc != null ? `${tank.doc} Days` : '-'}</strong></div>
+                          <div>ABW: <strong>{tank.abw ? (String(tank.abw).includes('g') ? tank.abw : `${tank.abw}g`) : '-'}</strong> • FCR: <strong>{tank.fcr ?? '-'}</strong></div>
+                          {tank.hatcheryName && <div>Hatchery: <strong>{tank.hatcheryName}</strong></div>}
                         </div>
                       </div>
                     ))
@@ -774,13 +1041,22 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 2: Comprehensive Incharge Details Modal */}
-      {selectedInchargeDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '620px' }}>
+      {selectedInchargeDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedInchargeDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '620px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -801,56 +1077,65 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 6 Block Info Grid */}
-              <div style={styles.modalInfoGrid}>
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.phone || '+91 9876543211'}</span>
-                </div>
+              {(() => {
+                const incRegion = selectedInchargeDetails.region || '';
+                const incShort = selectedInchargeDetails.shortName?.toLowerCase() || selectedInchargeDetails.name?.toLowerCase() || '';
+                const incAgents = agents.filter(a => matchesFarmerRegion(a, incRegion) || (a.incharge && a.incharge.toLowerCase().includes(incShort)));
+                const incFarmers = farmers.filter(f => matchesFarmerRegion(f, incRegion) || (f.incharge && f.incharge.toLowerCase().includes(incShort)));
+                const incTanksCount = incFarmers.reduce((sum, f) => {
+                  const fTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+                  return sum + (f.tanks || (fTanks.length > 0 ? fTanks.length : 0));
+                }, 0);
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.email || `${selectedInchargeDetails.shortName?.toLowerCase().replace(/\s+/g, '') || 'incharge'}.inc@royalsmarine.com`}</span>
-                </div>
+                return (
+                  <>
+                    <div style={styles.modalInfoGrid}>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.phone || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ASSIGNED REGION</span>
-                  <span style={styles.modalInfoValue}>{selectedInchargeDetails.region || 'Coastal Andhra'}</span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.email || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>HEADQUARTERS LOCALITY</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 800 }}>
-                    {selectedInchargeDetails.locality || 'Nellore'}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ASSIGNED REGION</span>
+                        <span style={styles.modalInfoValue}>{selectedInchargeDetails.region || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>FIELD AGENTS UNDER INCHARGE</span>
-                  <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#0f172a' }}>
-                    {selectedInchargeDetails.agents || 2} Agents Assigned
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>HEADQUARTERS LOCALITY</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 800 }}>
+                          {selectedInchargeDetails.locality || '-'}
+                        </span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>JURISDICTION OVERVIEW</span>
-                  <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#16a34a' }}>
-                    {selectedInchargeDetails.farmers || 3} Farmers • {selectedInchargeDetails.tanks || 6} Tanks
-                  </span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>FIELD AGENTS UNDER INCHARGE</span>
+                        <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#0f172a' }}>
+                          {incAgents.length} Agents Assigned
+                        </span>
+                      </div>
 
-              {/* Status & Compliance Highlight */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
-                <div style={styles.kpiMiniBadge}>
-                  <ShieldCheck size={16} color="#16a34a" />
-                  <span>Sampling Compliance: <strong>{selectedInchargeDetails.compliance || 95}%</strong></span>
-                </div>
-                <div style={styles.kpiMiniBadge}>
-                  <Check size={16} color="#2563eb" />
-                  <span>Locality Status: <strong>{selectedInchargeDetails.status || 'ACTIVE'}</strong></span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>JURISDICTION OVERVIEW</span>
+                        <span style={{ ...styles.modalInfoValue, fontWeight: 800, color: '#16a34a' }}>
+                          {incFarmers.length} Farmers • {incTanksCount} Tanks
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                      <div style={styles.kpiMiniBadge}>
+                        <Check size={16} color="#2563eb" />
+                        <span>Locality Status: <strong>{selectedInchargeDetails.status || 'ACTIVE'}</strong></span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
@@ -874,13 +1159,22 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 3: Comprehensive Field Agent Details Modal */}
-      {selectedAgentDetails && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '620px' }}>
+      {selectedAgentDetails && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setSelectedAgentDetails(null)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '620px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.iconCircleBlue}>
@@ -901,68 +1195,74 @@ const Regions = () => {
             </div>
 
             <div style={styles.modalBody}>
-              {/* 6 Block Info Grid */}
-              <div style={styles.modalInfoGrid}>
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.phone || '+91 9876543213'}</span>
-                </div>
+              {(() => {
+                const agId = String(selectedAgentDetails.id);
+                const agShort = selectedAgentDetails.shortName?.toLowerCase() || selectedAgentDetails.name?.toLowerCase() || '';
+                const agFarmers = farmers.filter(f => String(f.agentId) === agId || (f.agent && f.agent.toLowerCase().includes(agShort)));
+                const agTanksCount = agFarmers.reduce((sum, f) => {
+                  const fTanks = allTanks.filter(t => String(t.farmerId) === String(f.id));
+                  return sum + (f.tanks || (fTanks.length > 0 ? fTanks.length : 0));
+                }, 0);
+                const agSubmissions = allSubmissions.filter(s => String(s.agentId) === agId);
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.email || `${selectedAgentDetails.shortName?.toLowerCase().replace(/\s+/g, '') || 'agent'}.agt@royalsmarine.com`}</span>
-                </div>
+                return (
+                  <>
+                    <div style={styles.modalInfoGrid}>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>PHONE NUMBER</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.phone || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>REGION &amp; LOCALITY</span>
-                  <span style={styles.modalInfoValue}>{selectedAgentDetails.locality}, {selectedAgentDetails.region || 'Coastal Andhra'}</span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>CORPORATE EMAIL</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.email || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>REPORTING INCHARGE</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 700 }}>
-                    {selectedAgentDetails.incharge}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>REGION &amp; LOCALITY</span>
+                        <span style={styles.modalInfoValue}>{selectedAgentDetails.locality || '-'}, {selectedAgentDetails.region || '-'}</span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ASSIGNED PARTICULAR AREA / ZONE</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#0284c7', fontWeight: 800 }}>
-                    {selectedAgentDetails.assignedArea || `${selectedAgentDetails.locality} Area`}
-                  </span>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>REPORTING INCHARGE</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#2563eb', fontWeight: 700 }}>
+                          {selectedAgentDetails.incharge || '-'}
+                        </span>
+                      </div>
 
-                <div style={styles.modalInfoBlock}>
-                  <span style={styles.modalInfoLabel}>ALLOCATED FARMERS &amp; TANKS</span>
-                  <span style={{ ...styles.modalInfoValue, color: '#16a34a', fontWeight: 800 }}>
-                    {selectedAgentDetails.farmers || 2} Farmers • {selectedAgentDetails.tanks || 4} Tanks
-                  </span>
-                </div>
-              </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ASSIGNED PARTICULAR AREA / ZONE</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#0284c7', fontWeight: 800 }}>
+                          {selectedAgentDetails.assignedArea || selectedAgentDetails.locality || '-'}
+                        </span>
+                      </div>
 
-              {/* 3 Metric Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginTop: '14px' }}>
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                    {selectedAgentDetails.siteVisits || 6}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Site Visits</div>
-                </div>
+                      <div style={styles.modalInfoBlock}>
+                        <span style={styles.modalInfoLabel}>ALLOCATED FARMERS &amp; TANKS</span>
+                        <span style={{ ...styles.modalInfoValue, color: '#16a34a', fontWeight: 800 }}>
+                          {agFarmers.length} Farmers • {agTanksCount} Tanks
+                        </span>
+                      </div>
+                    </div>
 
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>
-                    {selectedAgentDetails.tests || 45}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Tests Submitted</div>
-                </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginTop: '14px' }}>
+                      <div style={styles.agentMetricCard}>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                          {agFarmers.length}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Assigned Farmers</div>
+                      </div>
 
-                <div style={styles.agentMetricCard}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#16a34a' }}>
-                    {selectedAgentDetails.compliance || 95}%
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Field Compliance</div>
-                </div>
-              </div>
+                      <div style={styles.agentMetricCard}>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>
+                          {agSubmissions.length}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Field Submissions</div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
@@ -987,13 +1287,131 @@ const Regions = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal 3b: Add New Region */}
+      {showAddRegionModal && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => {
+            if (!isSubmittingRegion) {
+              setShowAddRegionModal(false);
+              setRegionError('');
+            }
+          }}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '480px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={styles.iconCircleBlue}>
+                  <MapPin size={20} color="#2563eb" />
+                </div>
+                Add New Region
+              </h3>
+              <button 
+                onClick={() => {
+                  if (!isSubmittingRegion) {
+                    setShowAddRegionModal(false);
+                    setRegionError('');
+                  }
+                }} 
+                style={styles.modalCloseBtn}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddRegion}>
+              <div style={styles.modalBody}>
+                {/* Red Alert Banner if Region Already Exists */}
+                {regionError && (
+                  <div id="region-duplicate-alert" style={styles.errorAlertBox} role="alert">
+                    <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b', letterSpacing: '0.2px' }}>
+                        Region Already Exists
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#b91c1c', marginTop: '2px', lineHeight: '1.4' }}>
+                        {regionError}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={styles.modalLabel}>Region Name *</label>
+                  <input
+                    id="new-region-text-input"
+                    type="text"
+                    placeholder="Enter region name (e.g. Visakhapatnam, Nellore, Guntur)"
+                    value={newRegionName}
+                    onChange={(e) => handleRegionNameChange(e.target.value)}
+                    style={{
+                      ...styles.modalInput,
+                      borderColor: regionError ? '#ef4444' : '#cbd5e1',
+                      backgroundColor: regionError ? '#fff5f5' : '#f8fafc',
+                      transition: 'border-color 0.15s, background-color 0.15s'
+                    }}
+                    autoFocus
+                    required
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>
+                    Duplicates are strictly prohibited. Once added, the database will automatically update and the region will appear in all locality and command center dropdowns.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddRegionModal(false);
+                    setRegionError('');
+                  }}
+                  disabled={isSubmittingRegion}
+                  style={styles.cancelBtn}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-region"
+                  disabled={isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()}
+                  style={{
+                    ...styles.submitBtn,
+                    opacity: (isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()) ? 0.55 : 1,
+                    cursor: (isSubmittingRegion || Boolean(regionError) || !newRegionName.trim()) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>{isSubmittingRegion ? 'Saving...' : 'Add Region'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal 4: Add Locality */}
-      {showAddModal && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalBox, width: '480px' }}>
+      {showAddModal && createPortal(
+        <div 
+          className="animate-backdrop-in"
+          style={styles.modalOverlay}
+          onClick={() => setShowAddModal(false)}
+        >
+          <div 
+            className="animate-modal-in"
+            style={{ ...styles.modalBox, width: '480px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Plus size={18} color="#2563eb" />
@@ -1006,12 +1424,30 @@ const Regions = () => {
 
             <form onSubmit={handleAddLocality}>
               <div style={styles.modalBody}>
+                {localityError && (
+                  <div style={styles.errorAlertBox} role="alert">
+                    <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#991b1b' }}>
+                        Locality Error
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#b91c1c', marginTop: '2px' }}>
+                        {localityError}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Region *</label>
                   <select
+                    id="add-locality-region-select"
                     style={styles.modalSelect}
                     value={targetRegionId}
-                    onChange={(e) => setTargetRegionId(e.target.value)}
+                    onChange={(e) => {
+                      setTargetRegionId(e.target.value);
+                      setLocalityError('');
+                    }}
                   >
                     {regions.map(r => (
                       <option key={r.id} value={r.id}>{r.name}</option>
@@ -1022,11 +1458,19 @@ const Regions = () => {
                 <div style={{ marginBottom: '12px' }}>
                   <label style={styles.modalLabel}>Locality / Town Name *</label>
                   <input
+                    id="add-locality-name-input"
                     type="text"
                     placeholder="e.g. Sullurpeta, Avanigadda"
                     value={newLocalityName}
-                    onChange={(e) => setNewLocalityName(e.target.value)}
-                    style={styles.modalInput}
+                    onChange={(e) => {
+                      setNewLocalityName(e.target.value);
+                      setLocalityError('');
+                    }}
+                    style={{
+                      ...styles.modalInput,
+                      borderColor: localityError ? '#ef4444' : '#cbd5e1',
+                      backgroundColor: localityError ? '#fff5f5' : '#f8fafc'
+                    }}
                     required
                   />
                 </div>
@@ -1036,20 +1480,28 @@ const Regions = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSubmittingLocality}
                   style={styles.cancelBtn}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={styles.submitBtn}
+                  disabled={isSubmittingLocality || !newLocalityName.trim()}
+                  style={{
+                    ...styles.submitBtn,
+                    opacity: (isSubmittingLocality || !newLocalityName.trim()) ? 0.55 : 1,
+                    cursor: (isSubmittingLocality || !newLocalityName.trim()) ? 'not-allowed' : 'pointer'
+                  }}
                 >
-                  Create Locality
+                  <Plus size={16} />
+                  <span>{isSubmittingLocality ? 'Saving...' : 'Create Locality'}</span>
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Notification */}
@@ -1105,10 +1557,10 @@ const styles = {
     boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
     transition: 'background-color 0.15s'
   },
-  exportBtn: {
+  addRegionBtn: {
     backgroundColor: '#ffffff',
-    color: '#0284c7',
-    border: '1px solid #bae6fd',
+    color: '#2563eb',
+    border: '1.5px solid #2563eb',
     borderRadius: '8px',
     padding: '9px 16px',
     fontSize: '13px',
@@ -1117,7 +1569,19 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    transition: 'all 0.15s'
+  },
+  errorAlertBox: {
+    backgroundColor: '#fef2f2',
+    border: '1.5px solid #f87171',
+    borderRadius: '10px',
+    padding: '12px 14px',
+    marginBottom: '16px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.12)'
   },
   filterCard: {
     backgroundColor: '#ffffff',
@@ -1511,20 +1975,25 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    zIndex: 1000
+    paddingTop: '32px',
+    paddingBottom: '32px',
+    overflowY: 'auto',
+    zIndex: 99999
   },
   modalBox: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
     maxWidth: '92vw',
-    maxHeight: '90vh',
+    maxHeight: 'calc(100vh - 64px)',
     overflowY: 'auto',
     padding: '24px',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
   },
   modalHeader: {
     display: 'flex',

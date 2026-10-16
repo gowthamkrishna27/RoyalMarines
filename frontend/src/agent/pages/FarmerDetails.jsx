@@ -19,12 +19,22 @@ const FarmerDetails = () => {
   const [selectedTankId, setSelectedTankId] = useState(null);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
 
-  const farmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
-  const tanks = getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (db?.tanks || []).filter(t => t.farmerId === farmerId);
+  const rawFarmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
+  const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
+
+  // Verify farmer belongs to this agent unless in supervisor/incharge mode
+  const currentAgentId = String(session?.agentId || session?.id || 'agent001').trim().toLowerCase();
+  const farmerAgentId = String(rawFarmer?.agentId || rawFarmer?.agent_id || '').trim().toLowerCase();
+  const isAssignedToAgent = isIncharge || (farmerAgentId && farmerAgentId === currentAgentId);
+
+  const farmer = isAssignedToAgent ? rawFarmer : null;
+  const tanks = farmer && getTanksByFarmerId ? getTanksByFarmerId(farmerId) : (farmer ? (db?.tanks || []).filter(t => t.farmerId === farmerId) : []);
 
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
+    } else if (location.pathname.startsWith('/asm')) {
+      navigate('/asm/farmers');
     } else if (location.pathname.startsWith('/incharge')) {
       navigate('/incharge/my-farmers');
     } else {
@@ -38,7 +48,7 @@ const FarmerDetails = () => {
         <div style={styles.errorCard}>
           <p>Farmer not found or not assigned to your account.</p>
           <button style={styles.backBtn} onClick={handleBack}>
-            ← Back to My Farmers
+            ← Back to Farmers
           </button>
         </div>
       </div>
@@ -52,9 +62,11 @@ const FarmerDetails = () => {
   };
 
   const handleOpenHarvest = (tankId = null) => {
-    setSelectedTankId(tankId || (tanks[0]?.id || ''));
-    setModalInitialType('HARVEST_ENTRY');
-    setIsRecordModalOpen(true);
+    const targetTank = tankId || (tanks[0]?.id || '');
+    const isAsm = location.pathname.startsWith('/asm');
+    const isInc = location.pathname.startsWith('/incharge');
+    const harvestPath = isAsm ? '/asm/harvest' : (isInc ? '/incharge/harvest' : '/harvest');
+    navigate(`${harvestPath}?farmerId=${farmer.id}&tankId=${targetTank}`);
   };
 
   return (
@@ -115,6 +127,16 @@ const FarmerDetails = () => {
                 : session?.name || 'Ramesh'}
             </span>
           </div>
+          <div style={styles.infoCol}>
+            <span style={styles.infoLabel}>Status</span>
+            <span style={{
+              ...styles.infoValue,
+              color: (farmer.status || '').toUpperCase() === 'INACTIVE' ? '#DC2626' : '#16A34A',
+              fontWeight: 700
+            }}>
+              {(farmer.status || 'ACTIVE').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -131,8 +153,7 @@ const FarmerDetails = () => {
             </div>
           ) : (
             tanks.map((tank, idx) => {
-              const stockingDate = tank.stockingDate || '2026-06-12';
-              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 82;
+              const days = tank.doc !== undefined && tank.doc !== null ? tank.doc : 0;
               const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
               const tKey = `${farmer.id}_${tank.id}`;
               const tStore = harvestStore[tKey];
@@ -144,7 +165,9 @@ const FarmerDetails = () => {
                   key={tank.id}
                   style={styles.pondCard}
                   onClick={() => {
-                    if (location.pathname.startsWith('/incharge')) {
+                    if (location.pathname.startsWith('/asm')) {
+                      navigate(`/asm/tanks/${tank.id}`);
+                    } else if (location.pathname.startsWith('/incharge')) {
                       navigate(`/incharge/tanks/${tank.id}`);
                     } else {
                       navigate(`/tanks/${tank.id}`);

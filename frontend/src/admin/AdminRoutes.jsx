@@ -37,6 +37,7 @@ const AdminRoutes = () => {
       <Route path="tanks" element={<TanksList />} />
       <Route path="tanks/:tankId" element={<TankHistory />} />
       <Route path="field-data" element={<FieldData />} />
+      <Route path="fielddata" element={<FieldData />} />
       <Route path="analytics" element={<Analytics />} />
       <Route path="reports" element={<Reports />} />
       <Route path="export-center" element={<ExportCenter />} />
