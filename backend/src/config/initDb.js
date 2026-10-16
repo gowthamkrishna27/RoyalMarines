@@ -302,6 +302,33 @@ export const initializeDatabaseSchema = async () => {
       } catch (e) { }
     }
 
+    // Ensure final 13 operational regions
+    const finalRegions = [
+      ['REG_ELU', 'ELU', 'Eluru'],
+      ['REG_KKL', 'KKL', 'Kaikaluru'],
+      ['REG_KLD', 'KLD', 'Kaldhindi'],
+      ['REG_AKV', 'AKV', 'Akividu'],
+      ['REG001', 'BVRM', 'Bhimavaram'],
+      ['REG_GNP', 'GNP', 'Ganapavaram'],
+      ['REG_MLKP', 'MLKP', 'Malkipuram'],
+      ['REG_AMP', 'AMP', 'Amalapuram'],
+      ['REG_MUM', 'MUM', 'Mummidivaram'],
+      ['REG002', 'KKD', 'Kakinada'],
+      ['REG_SKLM', 'SKLM', 'Srikakulam'],
+      ['REG005', 'MPM', 'Machilipatnam'],
+      ['REG_BPT', 'BPT', 'Bapatla']
+    ];
+    for (const [id, code, name] of finalRegions) {
+      try {
+        await query(
+          `INSERT INTO regions (id, code, name, active_ponds, total_yield, avg_fcr, status)
+           VALUES (?, ?, ?, 0, '0 Tons', 1.25, 'ACTIVE')
+           ON DUPLICATE KEY UPDATE code = VALUES(code), name = VALUES(name), status = 'ACTIVE'`,
+          [id, code, name]
+        );
+      } catch (e) { }
+    }
+
       console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
       return true;
     } catch (error) {

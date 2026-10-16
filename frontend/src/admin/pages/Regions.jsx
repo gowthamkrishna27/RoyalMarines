@@ -13,9 +13,59 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell
 } from 'recharts';
 
+// Final 13 operational regions in exact order specified by user
+const REQUESTED_REGION_ORDER = [
+  'Eluru',
+  'Kaikaluru',
+  'Kaldhindi',
+  'Akividu',
+  'Bhimavaram',
+  'Ganapavaram',
+  'Malkipuram',
+  'Amalapuram',
+  'Mummidivaram',
+  'Kakinada',
+  'Srikakulam',
+  'Machilipatnam',
+  'Bapatla'
+];
+
+const DEFAULT_OPERATIONAL_REGIONS = [
+  { id: 'REG_ELU', code: 'ELU', name: 'Eluru', localities: [{ id: 'LOC-ELU-1', name: 'Eluru' }, { id: 'LOC-ELU-2', name: 'Denduluru' }] },
+  { id: 'REG_KKL', code: 'KKL', name: 'Kaikaluru', localities: [{ id: 'LOC-KKL-1', name: 'Kaikaluru' }, { id: 'LOC-KKL-2', name: 'Mudinepalli' }] },
+  { id: 'REG_KLD', code: 'KLD', name: 'Kaldhindi', localities: [{ id: 'LOC-KLD-1', name: 'Kaldhindi' }, { id: 'LOC-KLD-2', name: 'Kalidindi' }] },
+  { id: 'REG_AKV', code: 'AKV', name: 'Akividu', localities: [{ id: 'LOC-AKV-1', name: 'Akividu' }, { id: 'LOC-AKV-2', name: 'Dummulapeta' }] },
+  { id: 'REG001', code: 'BVRM', name: 'Bhimavaram', localities: [{ id: 'LOC-BVRM-1', name: 'Bhimavaram' }, { id: 'LOC-BVRM-2', name: 'Undi' }, { id: 'LOC-BVRM-3', name: 'Pedamiram' }] },
+  { id: 'REG_GNP', code: 'GNP', name: 'Ganapavaram', localities: [{ id: 'LOC-GNP-1', name: 'Ganapavaram' }, { id: 'LOC-GNP-2', name: 'Saripalli' }] },
+  { id: 'REG_MLKP', code: 'MLKP', name: 'Malkipuram', localities: [{ id: 'LOC-MLKP-1', name: 'Malkipuram' }, { id: 'LOC-MLKP-2', name: 'Dindi' }] },
+  { id: 'REG_AMP', code: 'AMP', name: 'Amalapuram', localities: [{ id: 'LOC-AMP-1', name: 'Amalapuram' }, { id: 'LOC-AMP-2', name: 'Allavaram' }] },
+  { id: 'REG_MUM', code: 'MUM', name: 'Mummidivaram', localities: [{ id: 'LOC-MUM-1', name: 'Mummidivaram' }] },
+  { id: 'REG002', code: 'KKD', name: 'Kakinada', localities: [{ id: 'LOC-KKD-1', name: 'Kakinada' }, { id: 'LOC-KKD-2', name: 'Sarpavaram' }] },
+  { id: 'REG_SKLM', code: 'SKLM', name: 'Srikakulam', localities: [{ id: 'LOC-SKLM-1', name: 'Srikakulam' }, { id: 'LOC-SKLM-2', name: 'Gara' }] },
+  { id: 'REG005', code: 'MPM', name: 'Machilipatnam', localities: [{ id: 'LOC-MPM-1', name: 'Machilipatnam' }, { id: 'LOC-MPM-2', name: 'Gilakaladindi' }] },
+  { id: 'REG_BPT', code: 'BPT', name: 'Bapatla', localities: [{ id: 'LOC-BPT-1', name: 'Bapatla' }, { id: 'LOC-BPT-2', name: 'Chirala' }] }
+];
+
+const sortRegions = (regs) => {
+  return [...regs].sort((a, b) => {
+    const idxA = REQUESTED_REGION_ORDER.findIndex(o =>
+      o.toLowerCase() === (a.name || '').toLowerCase() ||
+      o.toLowerCase() === (a.code || '').toLowerCase()
+    );
+    const idxB = REQUESTED_REGION_ORDER.findIndex(o =>
+      o.toLowerCase() === (b.name || '').toLowerCase() ||
+      o.toLowerCase() === (b.code || '').toLowerCase()
+    );
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+};
+
 const Regions = () => {
   const navigate = useNavigate();
-  const [regions, setRegions] = useState([]);
+  const [regions, setRegions] = useState(() => sortRegions(DEFAULT_OPERATIONAL_REGIONS));
   const [allIncharges, setAllIncharges] = useState([]);
   const [agents, setAgents] = useState([]);
   const [farmers, setFarmers] = useState([]);
@@ -38,13 +88,51 @@ const Regions = () => {
     ]).then(([regRes, incRes, agRes, farRes, tkRes, harRes, subRes]) => {
       if (!isMounted) return;
       if (regRes.status === 'fulfilled' && Array.isArray(regRes.value)) {
-        const mappedRegs = regRes.value.map(r => ({
-          id: String(r.code || r.id),
-          code: r.code || r.id,
-          name: r.name,
-          localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: r.name }]
-        }));
-        setRegions(mappedRegs);
+        const CODE_TO_NAME = {
+          'ELU': 'Eluru',
+          'KKL': 'Kaikaluru',
+          'KLD': 'Kaldhindi',
+          'AKV': 'Akividu',
+          'BVRM': 'Bhimavaram',
+          'GNP': 'Ganapavaram',
+          'MLKP': 'Malkipuram',
+          'AMP': 'Amalapuram',
+          'MUM': 'Mummidivaram',
+          'KKD': 'Kakinada',
+          'SKLM': 'Srikakulam',
+          'MPM': 'Machilipatnam',
+          'BPT': 'Bapatla'
+        };
+
+        const fetchedRegs = regRes.value.map(r => {
+          const codeUpper = String(r.code || r.id || '').toUpperCase();
+          const fullName = CODE_TO_NAME[codeUpper] || r.name;
+          return {
+            id: String(r.code || r.id),
+            code: r.code || r.id,
+            name: fullName,
+            localities: Array.isArray(r.localities) ? r.localities : [{ id: `LOC-${r.code || r.id}`, name: fullName }]
+          };
+        });
+
+        // Ensure final 13 regions with entire names are shown
+        const merged = [...DEFAULT_OPERATIONAL_REGIONS];
+        fetchedRegs.forEach(fReg => {
+          const matchIdx = merged.findIndex(m =>
+            m.name.toLowerCase() === fReg.name.toLowerCase() ||
+            String(m.code).toUpperCase() === String(fReg.code).toUpperCase()
+          );
+          if (matchIdx !== -1) {
+            if (fReg.localities?.length > 0) {
+              const locMap = new Map();
+              [...merged[matchIdx].localities, ...fReg.localities].forEach(l => {
+                locMap.set(l.name.toLowerCase(), l);
+              });
+              merged[matchIdx].localities = Array.from(locMap.values());
+            }
+          }
+        });
+        setRegions(sortRegions(merged));
       }
       if (incRes.status === 'fulfilled' && Array.isArray(incRes.value)) setAllIncharges(incRes.value);
       if (agRes.status === 'fulfilled' && Array.isArray(agRes.value)) setAgents(agRes.value);
@@ -134,11 +222,58 @@ const Regions = () => {
     return null;
   };
 
+  const REGION_SYNONYMS = {
+    'eluru': ['elu', 'eluru', 'denduluru', 'pedavegi', 'chintalapudi'],
+    'elu': ['elu', 'eluru', 'denduluru', 'pedavegi', 'chintalapudi'],
+    'kaikaluru': ['kkl', 'kaikalur', 'kaikaluru', 'atapaka', 'kolleru', 'mudinepalli'],
+    'kkl': ['kkl', 'kaikalur', 'kaikaluru', 'atapaka', 'kolleru', 'mudinepalli'],
+    'kaldhindi': ['kld', 'kaldhindi', 'kalidindi', 'sanrudrapadu', 'korumilli', 'guraza'],
+    'kalidindi': ['kld', 'kaldhindi', 'kalidindi', 'sanrudrapadu', 'korumilli', 'guraza'],
+    'kld': ['kld', 'kaldhindi', 'kalidindi', 'sanrudrapadu', 'korumilli', 'guraza'],
+    'akividu': ['akv', 'akividu', 'akiveedu', 'kollaparru', 'tarapatla'],
+    'akv': ['akv', 'akividu', 'akiveedu', 'kollaparru', 'tarapatla'],
+    'bhimavaram': ['bvrm', 'bhimavaram', 'pedamiram', 'chinnamiram', 'undi', 'kalla', 'akuruvu'],
+    'bvrm': ['bvrm', 'bhimavaram', 'pedamiram', 'chinnamiram', 'undi', 'kalla', 'akuruvu'],
+    'ganapavaram': ['gnp', 'ganapavaram', 'saripalli', 'kassipadu', 'vissakoderu'],
+    'gnp': ['gnp', 'ganapavaram', 'saripalli', 'kassipadu', 'vissakoderu'],
+    'malkipuram': ['mlkp', 'malkipuram', 'malikipuram', 'dindi', 'razole', 'sakhinetipalli'],
+    'malikipuram': ['mlkp', 'malkipuram', 'malikipuram', 'dindi', 'razole', 'sakhinetipalli'],
+    'mlkp': ['mlkp', 'malkipuram', 'malikipuram', 'dindi', 'razole', 'sakhinetipalli'],
+    'amalapuram': ['amp', 'amalapuram', 'allavaram', 'uppalaguptam', 'peruru'],
+    'amp': ['amp', 'amalapuram', 'allavaram', 'uppalaguptam', 'peruru'],
+    'mummidivaram': ['mum', 'mummidivaram', 'polavaram'],
+    'mum': ['mum', 'mummidivaram', 'polavaram'],
+    'kakinada': ['kkd', 'kakinada', 'sarpavaram', 'coringa', 'thallarevu'],
+    'kkd': ['kkd', 'kakinada', 'sarpavaram', 'coringa', 'thallarevu'],
+    'srikakulam': ['sklm', 'srikakulam', 'gara', 'kalingapatnam', 'polaki', 'etcherla'],
+    'sklm': ['sklm', 'srikakulam', 'gara', 'kalingapatnam', 'polaki', 'etcherla'],
+    'machilipatnam': ['mpm', 'machilipatnam', 'gilakaladindi', 'bantumilli', 'kruthivennu', 'avanigadda'],
+    'mpm': ['mpm', 'machilipatnam', 'gilakaladindi', 'bantumilli', 'kruthivennu', 'avanigadda'],
+    'bapatla': ['bpt', 'bapatla', 'chirala', 'nizampatnam', 'ongole', 'kothapatnam'],
+    'bpt': ['bpt', 'bapatla', 'chirala', 'nizampatnam', 'ongole', 'kothapatnam']
+  };
+
   // Helper to match Farmer Region
   const matchesFarmerRegion = (farmer, targetRegion) => {
-    if (targetRegion === 'ALL') return true;
+    if (!targetRegion || targetRegion === 'ALL') return true;
     const fReg = (farmer.region || '').toLowerCase();
-    const tReg = targetRegion.toLowerCase();
+    const tReg = targetRegion.toLowerCase().trim();
+
+    // Check synonymous terms for operational region short codes
+    if (REGION_SYNONYMS[tReg]) {
+      const syns = REGION_SYNONYMS[tReg];
+      const fFields = [
+        fReg,
+        (farmer.village || '').toLowerCase(),
+        (farmer.location || '').toLowerCase(),
+        (farmer.locality || '').toLowerCase(),
+        (farmer.mandal || '').toLowerCase(),
+        (farmer.assignedArea || '').toLowerCase()
+      ];
+      if (syns.some(s => fFields.some(field => field.includes(s)))) {
+        return true;
+      }
+    }
 
     if (tReg.includes('north') || tReg.includes('uttar')) {
       if (fReg.includes('north') || fReg.includes('uttar')) return true;
@@ -155,7 +290,7 @@ const Regions = () => {
     if (targetRegObj?.localities) {
       const fLoc = (farmer.locality || '').toLowerCase();
       const inRegion = targetRegObj.localities.some(loc => {
-        const lName = loc.name.toLowerCase();
+        const lName = (loc.name || '').toLowerCase();
         return fLoc.includes(lName) || lName.includes(fLoc);
       });
       if (inRegion) return true;
