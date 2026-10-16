@@ -335,6 +335,14 @@ const Analytics = () => {
 
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ padding: '8px', backgroundColor: '#f0f9ff', color: '#0ea5e9', borderRadius: '8px' }}><FileSpreadsheet size={20} /></div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Harvest</div>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{(Number(kpis.totalHarvest) || 0).toLocaleString()} kg</div>
+          </div>
+
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{ padding: '8px', backgroundColor: '#fffbeb', color: '#f59e0b', borderRadius: '8px' }}><Wheat size={20} /></div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Feed Consumed</div>
             </div>
@@ -355,14 +363,6 @@ const Analytics = () => {
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Average ABW</div>
             </div>
             <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{kpis.abw && !isNaN(parseFloat(kpis.abw)) ? `${kpis.abw} g` : '0.0 g'}</div>
-          </div>
-
-          <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <div style={{ padding: '8px', backgroundColor: '#f0f9ff', color: '#0ea5e9', borderRadius: '8px' }}><FileSpreadsheet size={20} /></div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Total Harvest</div>
-            </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b' }}>{(Number(kpis.totalHarvest) || 0).toLocaleString()} kg</div>
           </div>
 
           <div className="card" style={{ padding: '20px' }}>

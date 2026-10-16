@@ -280,7 +280,7 @@ export const initializeDatabaseSchema = async () => {
         await query(`
           UPDATE harvests 
           SET harvested_biomass = quantity_kg 
-          WHERE harvested_biomass IS NULL AND quantity_kg IS NOT NULL
+          WHERE (harvested_biomass IS NULL OR harvested_biomass = 0) AND quantity_kg IS NOT NULL AND quantity_kg > 0
         `);
         await query(`
           UPDATE harvests 
@@ -302,30 +302,30 @@ export const initializeDatabaseSchema = async () => {
       } catch (e) { }
     }
 
-    console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
-    return true;
-  } catch (error) {
-    console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
-    return false;
-  }
-};
-
-export const seedDatabase = async () => {
-  try {
-    console.log('\x1b[33m[Database Seed]\x1b[0m Explicit seeding requested...');
-    const defaultPinHash = await bcrypt.hash('1234', 10);
-    const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" OR username = "admin" LIMIT 1');
-    if (!existing) {
-      await query(
-        `INSERT INTO users (id, name, full_name, role, role_id, username, phone, email, password, password_hash, locality, region, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
-        ['ADM001', 'System Administrator', 'System Administrator', 'ADMIN', 1, 'admin', '9999999999', 'admin@royalsmarine.com', defaultPinHash, defaultPinHash, 'HQ', 'Headquarters']
-      );
+      console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
+      return true;
+    } catch (error) {
+      console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
+      return false;
     }
-    console.log('\x1b[32m[Database Seed]\x1b[0m Seeding completed successfully.');
-    return true;
-  } catch (error) {
-    console.error('\x1b[31m[Database Seed Error]\x1b[0m', error.message);
-    return false;
-  }
-};
+  };
+
+  export const seedDatabase = async () => {
+    try {
+      console.log('\x1b[33m[Database Seed]\x1b[0m Explicit seeding requested...');
+      const defaultPinHash = await bcrypt.hash('1234', 10);
+      const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" OR username = "admin" LIMIT 1');
+      if (!existing) {
+        await query(
+          `INSERT INTO users (id, name, full_name, role, role_id, username, phone, email, password, password_hash, locality, region, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+          ['ADM001', 'System Administrator', 'System Administrator', 'ADMIN', 1, 'admin', '9999999999', 'admin@royalsmarine.com', defaultPinHash, defaultPinHash, 'HQ', 'Headquarters']
+        );
+      }
+      console.log('\x1b[32m[Database Seed]\x1b[0m Seeding completed successfully.');
+      return true;
+    } catch (error) {
+      console.error('\x1b[31m[Database Seed Error]\x1b[0m', error.message);
+      return false;
+    }
+  };
