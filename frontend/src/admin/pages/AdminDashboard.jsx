@@ -320,330 +320,337 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* 2. KPI Stat Cards Row */}
-      <div style={styles.kpiGrid}>
-        {/* Card 1: Total Farmers */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/farmers')}
-          title="Click to view all registered farmers"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL FARMERS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
-              <Tractor size={18} />
+      {/* Two-Column Dashboard Layout: Main Column + Dedicated Follow-ups Side Column */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Main Dashboard Column */}
+        <div className="lg:col-span-8 flex flex-col gap-5 min-w-0">
+          {/* 2. KPI Stat Cards Row */}
+          <div style={styles.kpiGrid}>
+            {/* Card 1: Total Farmers */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/farmers')}
+              title="Click to view all registered farmers"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>TOTAL FARMERS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
+                  <Tractor size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
+              </div>
+              <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 1b: Active Farmers */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/farmers?status=Active')}
+              title="Click to view active farmers"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>ACTIVE FARMERS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
+                  <UserCheck size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : activeFarmers}
+              </div>
+              <div style={{ ...styles.kpiLink, color: '#16A34A' }}>View Active <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 1c: Inactive Farmers */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/farmers?status=Inactive')}
+              title="Click to view inactive farmers"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>INACTIVE FARMERS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                  <UserX size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : inactiveFarmers}
+              </div>
+              <div style={{ ...styles.kpiLink, color: '#DC2626' }}>View Inactive <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 2: Total Tanks */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/tanks')}
+              title="Click to view all tanks"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>TOTAL TANKS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
+                  <Database size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : totalTanks}
+              </div>
+              <div style={styles.kpiLink}>View All Tanks <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 3: Active Tanks */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/tanks')}
+              title="Click to view active tanks"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>ACTIVE TANKS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
+                  <Box size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : activeTanks}
+              </div>
+              <div style={styles.kpiLink}>View Active <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 4: Harvested Tanks */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => setShowHarvestedModal(true)}
+              title="Click to view harvested tanks archive"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>HARVESTED TANKS</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F3E8FF', color: '#9333EA' }}>
+                  <Archive size={18} />
+                </div>
+              </div>
+              <div style={styles.kpiValue}>
+                {isLoading ? <div style={styles.skeletonValue} /> : harvestedTanks}
+              </div>
+              <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 6: Total Incharges */}
+            <div
+              style={styles.kpiCard}
+              onClick={() => navigate('/admin/incharges')}
+              title="Click to view incharges"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={styles.kpiLabel}>TOTAL INCHARGES</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
+                  <MapPin size={18} />
+                </div>
+              </div>
+              <div style={{ ...styles.kpiValue, marginBottom: '2px', display: 'flex', flexDirection: 'column' }}>
+                {isLoading ? (
+                  <div style={{ ...styles.skeletonValue, width: '48px', height: '30px' }} />
+                ) : (
+                  <>
+                    <span>{totalIncharges}</span>
+                    <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
+                  </>
+                )}
+              </div>
+              <div style={{ ...styles.kpiLink, marginTop: '8px' }}>View Incharges <ArrowUpRight size={14} /></div>
+            </div>
+
+            {/* Card 7: Tests Due */}
+            <div
+              style={{ ...styles.kpiCard, border: '1px solid #FECACA' }}
+              onClick={() => {
+                const el = document.getElementById('weekly-compliance-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else setShowDueTestsModal(true);
+              }}
+              title="Click to view weekly tank-test follow-up and due tracking"
+            >
+              <div style={styles.kpiHeader}>
+                <span style={{ ...styles.kpiLabel, color: '#64748B' }}>TESTS DUE</span>
+                <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                  <AlertCircle size={18} />
+                </div>
+              </div>
+              <div style={{ ...styles.kpiValue, color: '#DC2626' }}>
+                {isLoading ? (
+                  <div style={{ ...styles.skeletonValue, width: '90px', backgroundColor: '#FEE2E2' }} />
+                ) : (
+                  `${complianceCounts?.totalDueTests ?? dueAndOverdueTanks.length} Tanks`
+                )}
+              </div>
+              <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Weekly Due Tracking <ArrowUpRight size={12} /></div>
+                <span>({isLoading ? '...' : (complianceCounts?.dueCount ?? overdueCount)} Due, {isLoading ? '...' : (complianceCounts?.addressedCount ?? 0)} Addressed)</span>
+              </div>
             </div>
           </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : totalFarmers}
-          </div>
-          <div style={styles.kpiLink}>View All Farmers <ArrowUpRight size={14} /></div>
-        </div>
 
-        {/* Card 1b: Active Farmers */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/farmers?status=Active')}
-          title="Click to view active farmers"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>ACTIVE FARMERS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
-              <UserCheck size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : activeFarmers}
-          </div>
-          <div style={{ ...styles.kpiLink, color: '#16A34A' }}>View Active <ArrowUpRight size={14} /></div>
-        </div>
+          {/* 3. Operational Harvest & Records Section */}
+          <div style={styles.sectionCard}>
+            {/* Section Header */}
+            <div style={styles.sectionHeader}>
+              <div style={styles.sectionTitleRow}>
+                <TrendingUp size={20} color="#2563EB" />
+                <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
+              </div>
 
-        {/* Card 1c: Inactive Farmers */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/farmers?status=Inactive')}
-          title="Click to view inactive farmers"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>INACTIVE FARMERS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
-              <UserX size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : inactiveFarmers}
-          </div>
-          <div style={{ ...styles.kpiLink, color: '#DC2626' }}>View Inactive <ArrowUpRight size={14} /></div>
-        </div>
+              <div style={styles.harvestControls}>
+                <div style={styles.docInputWrapper}>
+                  <span style={styles.docInputLabel}>DOC Filter:</span>
+                  <input
+                    type="number"
+                    style={styles.docInput}
+                    placeholder="e.g. 65"
+                    value={docInput}
+                    onChange={e => setDocInput(e.target.value)}
+                  />
+                  {docInput && (
+                    <button
+                      type="button"
+                      onClick={() => setDocInput('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#94A3B8',
+                        cursor: 'pointer',
+                        padding: '0 4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="Clear DOC filter to show all farmers"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
-        {/* Card 2: Total Tanks */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/tanks')}
-          title="Click to view all tanks"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL TANKS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
-              <Database size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : totalTanks}
-          </div>
-          <div style={styles.kpiLink}>View All Tanks <ArrowUpRight size={14} /></div>
-        </div>
-
-        {/* Card 3: Active Tanks */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/tanks')}
-          title="Click to view active tanks"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>ACTIVE TANKS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
-              <Box size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : activeTanks}
-          </div>
-          <div style={styles.kpiLink}>View Active <ArrowUpRight size={14} /></div>
-        </div>
-
-        {/* Card 4: Harvested Tanks */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => setShowHarvestedModal(true)}
-          title="Click to view harvested tanks archive"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>HARVESTED TANKS</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F3E8FF', color: '#9333EA' }}>
-              <Archive size={18} />
-            </div>
-          </div>
-          <div style={styles.kpiValue}>
-            {isLoading ? <div style={styles.skeletonValue} /> : harvestedTanks}
-          </div>
-          <div style={{ ...styles.kpiLink, color: '#9333EA' }}>View Harvested <ArrowUpRight size={14} /></div>
-        </div>
-
-        {/* Card 6: Total Incharges */}
-        <div
-          style={styles.kpiCard}
-          onClick={() => navigate('/admin/incharges')}
-          title="Click to view incharges"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL INCHARGES</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#F0F4F8', color: '#03358F' }}>
-              <MapPin size={18} />
-            </div>
-          </div>
-          <div style={{ ...styles.kpiValue, marginBottom: '2px', display: 'flex', flexDirection: 'column' }}>
-            {isLoading ? (
-              <div style={{ ...styles.skeletonValue, width: '48px', height: '30px' }} />
-            ) : (
-              <>
-                <span>{totalIncharges}</span>
-                <span style={{ fontSize: '18px', fontWeight: '700' }}>Incharges</span>
-              </>
-            )}
-          </div>
-          <div style={{ ...styles.kpiLink, marginTop: '8px' }}>View Incharges <ArrowUpRight size={14} /></div>
-        </div>
-
-        {/* Card 7: Tests Due */}
-        <div
-          style={{ ...styles.kpiCard, border: '1px solid #FECACA' }}
-          onClick={() => {
-            const el = document.getElementById('weekly-compliance-section');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-            else setShowDueTestsModal(true);
-          }}
-          title="Click to view weekly tank-test follow-up and due tracking"
-        >
-          <div style={styles.kpiHeader}>
-            <span style={{ ...styles.kpiLabel, color: '#64748B' }}>TESTS DUE</span>
-            <div style={{ ...styles.kpiIconWrapper, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
-              <AlertCircle size={18} />
-            </div>
-          </div>
-          <div style={{ ...styles.kpiValue, color: '#DC2626' }}>
-            {isLoading ? (
-              <div style={{ ...styles.skeletonValue, width: '90px', backgroundColor: '#FEE2E2' }} />
-            ) : (
-              `${complianceCounts?.totalDueTests ?? dueAndOverdueTanks.length} Tanks`
-            )}
-          </div>
-          <div style={{ ...styles.kpiLink, color: '#DC2626', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Weekly Due Tracking <ArrowUpRight size={12} /></div>
-            <span>({isLoading ? '...' : (complianceCounts?.dueCount ?? overdueCount)} Due, {isLoading ? '...' : (complianceCounts?.addressedCount ?? 0)} Addressed)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2b. Weekly Tank-Test Follow-up & Due Tracking Section (Requirement 3) */}
-      <div id="weekly-compliance-section">
-        <WeeklyComplianceFollowup
-          portalType="ADMIN"
-          onComplianceUpdated={(data) => {
-            if (data?.counts) setComplianceCounts(data.counts);
-          }}
-        />
-      </div>
-
-      {/* 3. Operational Harvest & Records Section */}
-      <div style={styles.sectionCard}>
-        {/* Section Header */}
-        <div style={styles.sectionHeader}>
-          <div style={styles.sectionTitleRow}>
-            <TrendingUp size={20} color="#2563EB" />
-            <h2 style={styles.sectionTitle}>Harvest &amp; FCR Records</h2>
-          </div>
-
-          <div style={styles.harvestControls}>
-            <div style={styles.docInputWrapper}>
-              <span style={styles.docInputLabel}>DOC Filter:</span>
-              <input
-                type="number"
-                style={styles.docInput}
-                placeholder="e.g. 65"
-                value={docInput}
-                onChange={e => setDocInput(e.target.value)}
-              />
-              {docInput && (
                 <button
                   type="button"
-                  onClick={() => setDocInput('')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#94A3B8',
-                    cursor: 'pointer',
-                    padding: '0 4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Clear DOC filter to show all farmers"
+                  style={styles.viewHarvestedBtn}
+                  onClick={() => setShowHarvestedModal(true)}
                 >
-                  <X size={14} />
+                  <span>View All Harvested Tanks</span>
+                  <ArrowUpRight size={14} />
                 </button>
-              )}
+              </div>
             </div>
 
-            <button
-              type="button"
-              style={styles.viewHarvestedBtn}
-              onClick={() => setShowHarvestedModal(true)}
-            >
-              <span>View All Harvested Tanks</span>
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.tableHeaderRow}>
-                <th style={styles.th}>Farmer Name</th>
-                <th style={styles.th}>Tank</th>
-                <th style={styles.th}>ABW</th>
-                <th style={styles.th}>FCR</th>
-                <th style={styles.th}>DOC</th>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>Quality / Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                [1, 2, 3].map((n) => (
-                  <tr key={`skel-${n}`} style={styles.tableRow}>
-                    <td style={styles.tdPrimary}>
-                      <div style={{ height: '16px', width: '130px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ height: '16px', width: '60px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.tdWeight}>
-                      <div style={{ height: '16px', width: '50px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.tdFcr}>
-                      <div style={{ height: '16px', width: '40px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.tdDoc}>
-                      <div style={{ height: '16px', width: '35px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.tdDate}>
-                      <div style={{ height: '16px', width: '85px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ height: '22px', width: '70px', borderRadius: '6px', backgroundColor: '#E2E8F0' }} />
-                    </td>
+            <div style={styles.tableContainer}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.tableHeaderRow}>
+                    <th style={styles.th}>Farmer Name</th>
+                    <th style={styles.th}>Tank</th>
+                    <th style={styles.th}>ABW</th>
+                    <th style={styles.th}>FCR</th>
+                    <th style={styles.th}>DOC</th>
+                    <th style={styles.th}>Date</th>
+                    <th style={styles.th}>Quality / Type</th>
                   </tr>
-                ))
-              ) : displayedHarvestRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={styles.emptyTableTd}>
-                    No harvest or FCR records found.
-                  </td>
-                </tr>
-              ) : (
-                displayedHarvestRecords.map((record) => {
-                  const displayAbw = record.abw ? (String(record.abw).includes('g') ? record.abw : `${record.abw}g`) : (record.countPerKg ? `${(1000 / record.countPerKg).toFixed(1)}g` : '-');
-                  return (
-                    <tr key={record.id} style={styles.tableRow}>
-                      <td style={styles.tdPrimary}>
-                        <span style={{ fontWeight: 600 }}>{record.farmerName || record.farmer_name || '-'}</span>
-                      </td>
-                      <td style={styles.td}>{record.tankName || record.tank_name || record.tankId || '-'}</td>
-                      <td style={styles.tdWeight}>{displayAbw}</td>
-                      <td style={styles.tdFcr}>{record.fcr && record.fcr !== '-' ? (!isNaN(Number(record.fcr)) ? Number(record.fcr).toFixed(2) : record.fcr) : '-'}</td>
-                      <td style={styles.tdDoc}>{record.doc != null && record.doc !== '' ? record.doc : '-'}</td>
-                      <td style={styles.tdDate}>{record.date || record.harvest_date || '-'}</td>
-                      <td style={styles.td}>
-                        <span style={styles.typeChip}>{record.quality || record.harvest_type || 'Harvest'}</span>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    [1, 2, 3].map((n) => (
+                      <tr key={`skel-${n}`} style={styles.tableRow}>
+                        <td style={styles.tdPrimary}>
+                          <div style={{ height: '16px', width: '130px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ height: '16px', width: '60px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.tdWeight}>
+                          <div style={{ height: '16px', width: '50px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.tdFcr}>
+                          <div style={{ height: '16px', width: '40px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.tdDoc}>
+                          <div style={{ height: '16px', width: '35px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.tdDate}>
+                          <div style={{ height: '16px', width: '85px', borderRadius: '4px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ height: '22px', width: '70px', borderRadius: '6px', backgroundColor: '#E2E8F0' }} />
+                        </td>
+                      </tr>
+                    ))
+                  ) : displayedHarvestRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={styles.emptyTableTd}>
+                        No harvest or FCR records found.
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ) : (
+                    displayedHarvestRecords.map((record) => {
+                      const displayAbw = record.abw ? (String(record.abw).includes('g') ? record.abw : `${record.abw}g`) : (record.countPerKg ? `${(1000 / record.countPerKg).toFixed(1)}g` : '-');
+                      return (
+                        <tr key={record.id} style={styles.tableRow}>
+                          <td style={styles.tdPrimary}>
+                            <span style={{ fontWeight: 600 }}>{record.farmerName || record.farmer_name || '-'}</span>
+                          </td>
+                          <td style={styles.td}>{record.tankName || record.tank_name || record.tankId || '-'}</td>
+                          <td style={styles.tdWeight}>{displayAbw}</td>
+                          <td style={styles.tdFcr}>{record.fcr && record.fcr !== '-' ? (!isNaN(Number(record.fcr)) ? Number(record.fcr).toFixed(2) : record.fcr) : '-'}</td>
+                          <td style={styles.tdDoc}>{record.doc != null && record.doc !== '' ? record.doc : '-'}</td>
+                          <td style={styles.tdDate}>{record.date || record.harvest_date || '-'}</td>
+                          <td style={styles.td}>
+                            <span style={styles.typeChip}>{record.quality || record.harvest_type || 'Harvest'}</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ONE Show More button that navigates to the existing full combined records page (Requirement 5) */}
+            {filteredHarvests.length > 5 && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{
+                    padding: '10px 28px',
+                    backgroundColor: '#03358F',
+                    color: '#FFFFFF',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(3, 53, 143, 0.2)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => navigate('/admin/field-data')}
+                  title="Click to view full Harvest & FCR records page"
+                >
+                  <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
+                  <ArrowUpRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ONE Show More button that navigates to the existing full combined records page (Requirement 5) */}
-        {filteredHarvests.length > 5 && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{
-                padding: '10px 28px',
-                backgroundColor: '#03358F',
-                color: '#FFFFFF',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: 600,
-                fontSize: '14px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(3, 53, 143, 0.2)',
-                transition: 'all 0.2s ease'
-              }}
-              onClick={() => navigate('/admin/field-data')}
-              title="Click to view full Harvest & FCR records page"
-            >
-              <span>Show More ({filteredHarvests.length - 5} Remaining)</span>
-              <ArrowUpRight size={16} />
-            </button>
-          </div>
-        )}
+        {/* Dedicated Follow-ups Side Column */}
+        <aside className="lg:col-span-4 flex flex-col gap-4 min-w-0" id="weekly-compliance-section">
+          <WeeklyComplianceFollowup
+            portalType="ADMIN"
+            variant="side-column"
+            onComplianceUpdated={(data) => {
+              if (data?.counts) setComplianceCounts(data.counts);
+            }}
+          />
+        </aside>
       </div>
 
       {/* Due & Overdue Tests Comprehensive Organization Modal */}

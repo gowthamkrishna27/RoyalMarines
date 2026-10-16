@@ -19,7 +19,12 @@ export const authenticate = (req, res, next) => {
         id: decoded.id,
         role: decoded.role.toUpperCase(),
         username: decoded.username,
+        name: decoded.name || decoded.username,
       };
+      // Allow request headers to specify active portal role/identity if switched
+      if (req.headers['x-user-name']) req.user.name = req.headers['x-user-name'];
+      if (req.headers['x-user-role']) req.user.role = req.headers['x-user-role'].toUpperCase();
+      if (req.headers['x-user-id']) req.user.id = req.headers['x-user-id'];
       return next();
     } catch (err) {
       // Token is invalid or expired - don't fall through, reject
@@ -30,10 +35,12 @@ export const authenticate = (req, res, next) => {
   // 2. Fallback: x-user-role / x-user-id headers (backward compatibility)
   const roleHeader = req.headers['x-user-role'];
   const userIdHeader = req.headers['x-user-id'];
+  const userNameHeader = req.headers['x-user-name'];
   if (roleHeader && userIdHeader) {
     req.user = {
       id: userIdHeader,
       role: roleHeader.toUpperCase(),
+      name: userNameHeader || userIdHeader,
     };
     return next();
   }

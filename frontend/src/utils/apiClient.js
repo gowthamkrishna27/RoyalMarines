@@ -29,6 +29,36 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Attach user role and ID headers for active session alignment
+    try {
+      const inchargeSession = localStorage.getItem('incharge_auth_session');
+      const agentSession = localStorage.getItem('agent_auth_session');
+      const adminSession = localStorage.getItem('admin_auth_session');
+      const authUser = localStorage.getItem('auth_user');
+
+      if (inchargeSession) {
+        const parsed = JSON.parse(inchargeSession);
+        headers['x-user-id'] = parsed.inchargeId || parsed.id || 'INC001';
+        headers['x-user-role'] = 'ASM';
+        headers['x-user-name'] = parsed.name || 'Ravi Kumar';
+      } else if (agentSession) {
+        const parsed = JSON.parse(agentSession);
+        headers['x-user-id'] = parsed.agentId || parsed.id || 'agent001';
+        headers['x-user-role'] = 'AGENT';
+        headers['x-user-name'] = parsed.name || 'Ramesh';
+      } else if (adminSession) {
+        const parsed = JSON.parse(adminSession);
+        headers['x-user-id'] = parsed.adminId || parsed.id || 'ADM001';
+        headers['x-user-role'] = 'ADMIN';
+        headers['x-user-name'] = parsed.name || 'System Administrator';
+      } else if (authUser) {
+        const parsed = JSON.parse(authUser);
+        headers['x-user-id'] = parsed.id;
+        headers['x-user-role'] = (parsed.role || 'ADMIN').toUpperCase();
+        headers['x-user-name'] = parsed.name || parsed.username || 'System Administrator';
+      }
+    } catch (e) { }
+
     return headers;
   }
 

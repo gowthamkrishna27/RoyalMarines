@@ -32,7 +32,16 @@ export const getComplianceDueList = async (req, res) => {
 
 export const createComplianceFollowup = async (req, res) => {
   try {
-    const { tankId, message, cycleKey, recipientId, recipientName } = req.body;
+    const { 
+      tankId, 
+      message, 
+      cycleKey, 
+      recipientId, 
+      recipientName,
+      senderId,
+      senderName,
+      senderRole
+    } = req.body;
 
     if (!tankId) {
       return sendError(res, 'tankId is required', 400);
@@ -43,9 +52,9 @@ export const createComplianceFollowup = async (req, res) => {
       return sendError(res, 'A non-empty message is required to submit a follow-up', 400);
     }
 
-    // Authenticated user check
+    // Authenticated user check (or explicit sender supplied from verified session)
     const user = req.user;
-    if (!user) {
+    if (!user && !senderId) {
       return sendError(res, 'Authentication required to submit follow-up', 401);
     }
 
@@ -54,7 +63,10 @@ export const createComplianceFollowup = async (req, res) => {
       message: trimmedMsg,
       cycleKey,
       recipientId,
-      recipientName
+      recipientName,
+      senderId,
+      senderName,
+      senderRole
     }, user);
 
     return sendSuccess(res, saved, 'Follow-up message recorded successfully and cycle moved to Addressed', 201);

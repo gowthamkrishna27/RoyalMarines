@@ -99,9 +99,15 @@ const TankDetails = () => {
     setReplyError('');
     setReplySuccess('');
     try {
+      const currentSenderId = inchargeSession?.inchargeId || inchargeSession?.id || agentSession?.agentId || agentSession?.id || 'agent001';
+      const currentSenderName = inchargeSession?.name || agentSession?.name || 'Ramesh';
+      const currentSenderRole = inchargeSession ? 'ASM' : 'AGENT';
       await adminService.submitFollowup({
         tankId: tankId,
         cycleKey: tankCompliance?.cycleKey,
+        senderId: currentSenderId,
+        senderName: currentSenderName,
+        senderRole: currentSenderRole,
         message: trimmed
       });
       setReplyText('');
@@ -475,6 +481,15 @@ const TankDetails = () => {
             <span style={styles.statusPillHarvested}>
               <CheckCircle2 size={12} strokeWidth={2.4} /> Harvested
             </span>
+          ) : tankCompliance?.followupStatus === 'ADDRESSED' ? (
+            <span style={{
+              ...styles.statusPillDone,
+              backgroundColor: '#DCFCE7',
+              color: '#15803D',
+              border: '1px solid #BBF7D0'
+            }}>
+              <CheckCircle2 size={12} strokeWidth={2.4} /> Addressed (Settled)
+            </span>
           ) : !weeklySchedule.isAllDone ? (
             <span style={styles.statusPillDue}>
               <Clock size={12} strokeWidth={2.4} /> Test Due
@@ -597,45 +612,63 @@ const TankDetails = () => {
                       fontWeight: 700,
                       padding: '2px 8px',
                       borderRadius: '6px',
-                      backgroundColor: tankCompliance.followupStatus === 'ADDRESSED' ? '#DBEAFE' : '#FEF3C7',
-                      color: tankCompliance.followupStatus === 'ADDRESSED' ? '#1D4ED8' : '#B45309',
-                      border: tankCompliance.followupStatus === 'ADDRESSED' ? '1px solid #BFDBFE' : '1px solid #FDE68A'
+                      backgroundColor: tankCompliance.followupStatus === 'ADDRESSED' ? '#DCFCE7' : '#FEF3C7',
+                      color: tankCompliance.followupStatus === 'ADDRESSED' ? '#15803D' : '#B45309',
+                      border: tankCompliance.followupStatus === 'ADDRESSED' ? '1px solid #BBF7D0' : '1px solid #FDE68A'
                     }}>
-                      {tankCompliance.followupStatus === 'ADDRESSED' ? '🔵 Addressed' : '🟡 Awaiting Follow-up'}
+                      {tankCompliance.followupStatus === 'ADDRESSED' ? '✓ Addressed (No Test Needed This Week)' : '🟡 Awaiting Follow-up'}
                     </span>
                   )}
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
-                  Last test: <strong>{tankCompliance?.lastTestDisplay || tank.lastTest || 'None'}</strong> • Next test due by: <strong>{tankCompliance?.dueDateDisplay || tank.nextTest || 'This Week'}</strong>
+                  Last test: <strong>{tankCompliance?.lastTestDisplay || tank.lastTest || 'None'}</strong> • {tankCompliance.followupStatus === 'ADDRESSED' ? <span>Follow-up: <strong>Settled by Supervisor</strong></span> : <span>Next test due by: <strong>{tankCompliance?.dueDateDisplay || tank.nextTest || 'This Week'}</strong></span>}
                 </div>
               </div>
             </div>
 
             {/* Quick Record Test CTA */}
-            <button
-              type="button"
-              onClick={() => {
-                setModalInitialType('WATER_QUALITY');
-                setIsRecordModalOpen(true);
-              }}
-              style={{
-                backgroundColor: '#16A34A',
-                color: '#FFFFFF',
-                border: 'none',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '12.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
+            {tankCompliance?.followupStatus === 'ADDRESSED' ? (
+              <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)'
-              }}
-            >
-              <Plus size={14} strokeWidth={2.5} />
-              <span>Record Qualifying Test Now</span>
-            </button>
+                backgroundColor: '#DCFCE7',
+                color: '#15803D',
+                border: '1px solid #BBF7D0',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600
+              }}>
+                <CheckCircle2 size={14} color="#15803D" />
+                <span>Test Not Required (Addressed)</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setModalInitialType('WATER_QUALITY');
+                  setIsRecordModalOpen(true);
+                }}
+                style={{
+                  backgroundColor: '#16A34A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)'
+                }}
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span>Record Qualifying Test Now</span>
+              </button>
+            )}
           </div>
 
           {/* Conversation Thread */}

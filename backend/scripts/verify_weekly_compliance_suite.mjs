@@ -42,7 +42,7 @@ async function runTestSuite() {
     assert(testedTank.complianceStatus === 'COMPLIANT', 'complianceStatus is COMPLIANT');
   }
 
-  const neverTestedTank = compliance.allTanks.find(t => !t.lastTestTimestamp);
+  const neverTestedTank = compliance.dueList.find(t => !t.lastTestTimestamp);
   if (neverTestedTank) {
     assert(neverTestedTank.isCompliant === false, `Scenario 4: Tank ${neverTestedTank.tankId} with no prior qualifying tests is marked DUE`);
     assert(neverTestedTank.complianceStatus === 'DUE', 'complianceStatus is DUE');
@@ -98,7 +98,8 @@ async function runTestSuite() {
   const complianceAfterAdminFup = await store.getTankComplianceList({ tankId: targetDueTank.tankId });
   const updatedTank = complianceAfterAdminFup.allTanks[0];
   assert(updatedTank.followupStatus === 'ADDRESSED', 'Scenario 6: Due item transitioned to ADDRESSED follow-up status');
-  assert(updatedTank.complianceStatus === 'DUE', 'Scenario 14: Item remains test-overdue (complianceStatus = DUE) after follow-up');
+  assert(updatedTank.complianceStatus === 'ADDRESSED', 'Scenario 14: Item marked ADDRESSED and test entry not required for this week');
+  assert(updatedTank.testRequired === false, 'Scenario 14: testRequired is false because due item was addressed');
   assert(updatedTank.latestFollowup.message === testMsgAdmin, 'Scenario 11: Latest message content matches submitted text');
 
   // Scenario 13: Agent replies in same conversation

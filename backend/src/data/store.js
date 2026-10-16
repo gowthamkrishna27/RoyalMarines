@@ -1190,6 +1190,23 @@ class DataStore {
             `UPDATE tank_due_followups SET resolved_at = NOW() WHERE tank_id = ? AND resolved_at IS NULL`,
             [data.tankId]
           );
+          await query(
+            `UPDATE tanks 
+             SET compliance_status = 'COMPLIANT', 
+                 weekly_test_waived = 0, 
+                 test_status = 'Completed' 
+             WHERE id = ?`,
+            [data.tankId]
+          );
+          await query(
+            `UPDATE tank_compliance_cycles 
+             SET status = 'COMPLIANT', 
+                 test_required = 0, 
+                 qualifying_test_id = ?, 
+                 qualifying_test_date = NOW() 
+             WHERE tank_id = ? AND status IN ('DUE', 'ADDRESSED')`,
+            [newSub.id, data.tankId]
+          );
         } catch (fupResolveErr) { }
       }
 
@@ -2581,12 +2598,19 @@ class DataStore {
       const hasFollowup = fList.length > 0;
       const latestFollowup = hasFollowup ? fList[0] : null;
 
+      // Policy: If the due is addressed then no need to enter that week test
+      const isAddressed = hasFollowup;
+      const testRequired = !t.isCompliant && !isAddressed;
+
       return {
         ...t,
-        followupStatus: hasFollowup ? 'ADDRESSED' : 'DUE',
+        followupStatus: isAddressed ? 'ADDRESSED' : 'DUE',
         followupCount: fList.length,
         latestFollowup,
-        followups: fList
+        followups: fList,
+        testRequired,
+        cycleSettled: isAddressed,
+        complianceStatus: t.isCompliant ? 'COMPLIANT' : isAddressed ? 'ADDRESSED' : 'DUE'
       };
     });
 
@@ -2594,13 +2618,55 @@ class DataStore {
     const addressedList = decoratedTanks.filter(t => !t.isCompliant && t.followupStatus === 'ADDRESSED');
     const compliantList = decoratedTanks.filter(t => t.isCompliant);
 
+    // Persist/Synchronize current compliance cycles to MySQL tank_compliance_cycles table
+    try {
+      for (const t of decoratedTanks) {
+        const cycleId = `CC_${t.cycleKey}`;
+        const dueDateSql = t.dueDateTimestamp ? t.dueDateTimestamp.split('T')[0] : null;
+        const addressedAtSql = t.latestFollowup?.createdAt ? t.latestFollowup.createdAt.replace('T', ' ').replace('Z', '').split('.')[0] : null;
+        await query(
+          `INSERT INTO tank_compliance_cycles (
+             id, cycle_key, tank_id, farmer_id, agent_id, incharge_id, cycle_number,
+             due_date, days_overdue, status, test_required,
+             addressed_by_id, addressed_by_name, addressed_by_role, addressed_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             days_overdue = VALUES(days_overdue),
+             status = VALUES(status),
+             test_required = VALUES(test_required),
+             addressed_by_id = VALUES(addressed_by_id),
+             addressed_by_name = VALUES(addressed_by_name),
+             addressed_by_role = VALUES(addressed_by_role),
+             addressed_at = VALUES(addressed_at)`,
+          [
+            cycleId,
+            t.cycleKey,
+            t.tankId,
+            t.farmerId,
+            t.agentId || null,
+            t.inchargeId || null,
+            t.cycleNumber || 1,
+            dueDateSql,
+            t.daysOverdue || 0,
+            t.complianceStatus,
+            t.testRequired ? 1 : 0,
+            t.latestFollowup?.senderId || null,
+            t.latestFollowup?.senderName || null,
+            t.latestFollowup?.senderRole || null,
+            addressedAtSql
+          ]
+        );
+      }
+    } catch (syncErr) { }
+
     return {
       counts: {
         totalActiveTanks: decoratedTanks.length,
         compliantCount: compliantList.length,
         dueCount: dueList.length,
         addressedCount: addressedList.length,
-        totalDueTests: dueList.length + addressedList.length
+        // Only unaddressed tanks that still require a test entry count toward totalDueTests
+        totalDueTests: dueList.length
       },
       dueList,
       addressedList,
@@ -2620,25 +2686,7 @@ class DataStore {
     const message = (data.message || '').trim();
     if (!message) throw new Error('Follow-up message cannot be empty');
 
-    const senderId = user?.id || 'ADM001';
-    let senderRole = String(user?.role || 'ADMIN').toUpperCase();
-    let senderName = user?.name || user?.username || '';
-
-    // If senderName is not supplied in session, resolve from database users table
-    if (!senderName) {
-      try {
-        const u = await query('SELECT name, full_name, role FROM users WHERE id = ? LIMIT 1', [senderId]);
-        if (u && u.length > 0) {
-          senderName = u[0].name || u[0].full_name || senderId;
-          if (!user?.role) senderRole = String(u[0].role || 'ADMIN').toUpperCase();
-        }
-      } catch (e) { }
-    }
-    if (!senderName) {
-      senderName = senderRole === 'ADMIN' ? 'System Administrator' : senderId;
-    }
-
-    // Verify tank existence and associations
+    // 1. Verify tank existence and associations
     const tRows = await query(
       `SELECT t.id, t.name, t.farmer_id, t.agent_id, t.incharge_id, f.name as farmer_name, a.name as agent_name, inc.name as incharge_name
        FROM tanks t
@@ -2655,14 +2703,92 @@ class DataStore {
 
     const tank = tRows[0];
 
+    // 2. Resolve sender identity accurately:
+    // Prioritize explicit data from request body (sent by portal), then authenticated session
+    let senderId = String(data.senderId || user?.id || '').trim();
+    let senderRole = String(data.senderRole || user?.role || '').trim().toUpperCase();
+    let senderName = String(data.senderName || user?.name || '').trim();
+
+    // Default sender role based on ID prefix or user role
+    if (!senderRole) {
+      if (senderId.startsWith('INC') || senderId.includes('asm')) {
+        senderRole = 'ASM';
+      } else if (senderId.startsWith('agent') || senderId.startsWith('tech')) {
+        senderRole = 'AGENT';
+      } else {
+        senderRole = 'ADMIN';
+      }
+    }
+    // Normalize aliases
+    if (senderRole === 'INCHARGE') senderRole = 'ASM';
+    if (senderRole === 'TECHNICIAN') senderRole = 'AGENT';
+
+    // If senderId is empty, derive based on role and tank
+    if (!senderId) {
+      if (senderRole === 'ASM') senderId = tank.incharge_id || 'INC001';
+      else if (senderRole === 'AGENT') senderId = tank.agent_id || 'agent001';
+      else senderId = 'ADM001';
+    }
+
+    // 3. Resolve full real name from database if senderName is missing, an ID, or generic username
+    const isGenericOrId = !senderName || 
+      senderName === senderId || 
+      senderName.toLowerCase() === 'admin' || 
+      senderName.startsWith('INC') || 
+      senderName.startsWith('agent') || 
+      senderName.toLowerCase() === 'you';
+
+    if (isGenericOrId) {
+      try {
+        // Query users table first
+        const u = await query(
+          'SELECT name, full_name, role FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?) LIMIT 1',
+          [senderId, senderId]
+        );
+        if (u && u.length > 0 && (u[0].name || u[0].full_name)) {
+          senderName = u[0].name || u[0].full_name;
+          if (!data.senderRole && u[0].role) {
+            senderRole = String(u[0].role).toUpperCase();
+            if (senderRole === 'INCHARGE') senderRole = 'ASM';
+            if (senderRole === 'TECHNICIAN') senderRole = 'AGENT';
+          }
+        } else if (senderRole === 'ASM' || senderId.startsWith('INC')) {
+          // Check incharges table
+          const inc = await query('SELECT name FROM incharges WHERE id = ? LIMIT 1', [senderId]);
+          if (inc && inc.length > 0 && inc[0].name) {
+            senderName = inc[0].name;
+          }
+        } else if (senderRole === 'AGENT' || senderId.startsWith('agent')) {
+          // Check agents table
+          const ag = await query('SELECT name FROM agents WHERE id = ? LIMIT 1', [senderId]);
+          if (ag && ag.length > 0 && ag[0].name) {
+            senderName = ag[0].name;
+          }
+        }
+      } catch (lookupErr) { }
+    }
+
+    // Final friendly fallbacks if still generic or unresolved
+    if (!senderName || senderName.toLowerCase() === 'admin' || senderName.toLowerCase() === 'you') {
+      if (senderRole === 'ADMIN') {
+        senderName = 'System Administrator';
+      } else if (senderRole === 'ASM') {
+        senderName = tank.incharge_name || 'Ravi Kumar';
+      } else if (senderRole === 'AGENT') {
+        senderName = tank.agent_name || 'Ramesh';
+      } else {
+        senderName = senderId;
+      }
+    }
+
     // Role-based authorization enforcement
     if (senderRole === 'INCHARGE' || senderRole === 'ASM') {
-      const isAuthorizedIncharge = tank.incharge_id === senderId;
+      const isAuthorizedIncharge = !tank.incharge_id || tank.incharge_id === senderId || (user?.role === 'ADMIN');
       if (!isAuthorizedIncharge) {
         throw new Error('Forbidden: You are not authorized to follow up on this tank');
       }
     } else if (senderRole === 'AGENT' || senderRole === 'TECHNICIAN') {
-      const isAuthorizedAgent = tank.agent_id === senderId;
+      const isAuthorizedAgent = !tank.agent_id || tank.agent_id === senderId || (user?.role === 'ADMIN' || user?.role === 'ASM' || user?.role === 'INCHARGE');
       if (!isAuthorizedAgent) {
         throw new Error('Forbidden: You are not authorized to reply to this tank');
       }
@@ -2702,10 +2828,64 @@ class DataStore {
     const recipientName = data.recipientName || tank.agent_name || 'Assigned Staff';
 
     await query(
-      `INSERT INTO tank_due_followups (id, tank_id, farmer_id, agent_id, incharge_id, cycle_key, sender_id, sender_name, sender_role, recipient_id, recipient_name, message, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADDRESSED')`,
+      `INSERT INTO tank_due_followups (
+        id, tank_id, farmer_id, agent_id, incharge_id, cycle_key, sender_id, sender_name, sender_role,
+        recipient_id, recipient_name, message, status, test_waived, resolved_reason, settled_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADDRESSED', 1, 'ADDRESSED_BY_SUPERVISOR', NOW())`,
       [id, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id, cycleKey, senderId, senderName, senderRole, recipientId, recipientName, message]
     );
+
+    // Update tanks table compliance status and weekly test waiver
+    try {
+      await query(
+        `UPDATE tanks 
+         SET compliance_status = 'ADDRESSED',
+             last_followup_at = NOW(),
+             last_followup_by = ?,
+             last_followup_role = ?,
+             weekly_test_waived = 1
+         WHERE id = ?`,
+        [senderName, senderRole, data.tankId]
+      );
+    } catch (tankUpdateErr) { }
+
+    // Upsert into tank_compliance_cycles table
+    try {
+      await query(
+        `INSERT INTO tank_compliance_cycles (
+           id, cycle_key, tank_id, farmer_id, agent_id, incharge_id,
+           status, test_required, addressed_by_id, addressed_by_name, addressed_by_role, addressed_at
+         ) VALUES (?, ?, ?, ?, ?, ?, 'ADDRESSED', 0, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+           status = 'ADDRESSED',
+           test_required = 0,
+           addressed_by_id = VALUES(addressed_by_id),
+           addressed_by_name = VALUES(addressed_by_name),
+           addressed_by_role = VALUES(addressed_by_role),
+           addressed_at = NOW()`,
+        [
+          `CC_${cycleKey}`, cycleKey, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id,
+          senderId, senderName, senderRole
+        ]
+      );
+    } catch (cycleErr) { }
+
+    // Create notification for assigned agent/technician
+    if (recipientId) {
+      try {
+        await query(
+          `INSERT INTO notifications (id, user_id, agent_id, title, message, type)
+           VALUES (?, ?, ?, ?, ?, 'warning')`,
+          [
+            `NOTIF_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            recipientId,
+            tank.agent_id || null,
+            `Pond Follow-up (${tank.name})`,
+            `${senderName} (${senderRole}) followed up on ${tank.name} (${tank.farmer_name || 'Farmer'}). Weekly test waived: "${message.slice(0, 120)}"`
+          ]
+        );
+      } catch (notifErr) { }
+    }
 
     // Audit log
     try {

@@ -24,11 +24,16 @@ const ALLOWED_TABLES = [
   'recommendations',
   'notifications',
   'audit_logs',
-  // Backward compatibility legacy tables
+  // Backward compatibility legacy & specialized operational tables
   'agents',
+  'localities',
+  'farmer_allocations',
   'tanks',
   'submissions',
   'pond_crops',
+  'tank_due_followups',
+  'tank_compliance_cycles',
+  'staff_locations'
 ];
 
 const validateTableName = (table) => {

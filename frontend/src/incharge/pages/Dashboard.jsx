@@ -476,13 +476,17 @@ const Dashboard = () => {
   return (
     <>
       <div className="p-3.5 sm:p-5 lg:p-6 max-w-[1440px] mx-auto">
-        
-        {/* ========================================================= */}
-        {/* 0. FARM TANK MAP & SIDE PANEL (LOCATION & THIS WEEK'S WORK) */}
-        {/* ========================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-start">
-          {/* Left: FARM TANK MAP */}
-          <div className="lg:col-span-7 flex flex-col gap-2">
+        {/* Two-Column Dashboard Layout: Main Dashboard Column + Dedicated Follow-ups Side Column */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+          {/* Main Dashboard Column */}
+          <div className="lg:col-span-8 flex flex-col gap-5 min-w-0">
+            {/* ========================================================= */}
+            {/* 0. FARM TANK MAP & SIDE PANEL (LOCATION & THIS WEEK'S WORK) */}
+            {/* ========================================================= */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+              {/* Left: FARM TANK MAP */}
+              <div className="md:col-span-7 flex flex-col gap-2">
             <div style={styles.cardHeaderRow}>
               <span style={styles.sectionHeaderSmall}>FARM TANK MAP</span>
             </div>
@@ -560,8 +564,8 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Right: THIS WEEK'S WORK */}
-          <div className="lg:col-span-5 flex flex-col">
+              {/* Right: THIS WEEK'S WORK */}
+              <div className="md:col-span-5 flex flex-col">
             <div style={{ ...styles.weekWorkCard, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '18px 20px' }}>
               <div style={styles.cardHeaderRow}>
                 <span style={styles.sectionHeaderSmall}>THIS WEEK'S WORK</span>
@@ -616,8 +620,8 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        {/* Top 6 KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            {/* Top 6 KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <KPICard
             title="Active Tanks" 
             value={activeTanksList.length}
@@ -678,14 +682,18 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Weekly Tank-Test Follow-up & Due Tracking Section (Requirement 4) */}
-        <div id="incharge-weekly-compliance-section">
-          <WeeklyComplianceFollowup
-            portalType="ASM"
-            inchargeId="INC001"
-          />
-        </div>
+          </div>
 
+          {/* Dedicated Follow-ups Side Column */}
+          <aside className="lg:col-span-4 flex flex-col gap-4 min-w-0" id="incharge-weekly-compliance-section">
+            <WeeklyComplianceFollowup
+              portalType="ASM"
+              inchargeId="INC001"
+              variant="side-column"
+            />
+          </aside>
+
+        </div>
       </div>
 
       {/* Harvest Completed Comprehensive Modal */}
