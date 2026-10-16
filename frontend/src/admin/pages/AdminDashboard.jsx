@@ -276,7 +276,7 @@ const AdminDashboard = () => {
 
       {/* 1. Header Section with Today Submissions option */}
       <div style={styles.headerRow}>
-        <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
+        <h1 style={styles.headerTitle}>Dashboard</h1>
 
         <button
           type="button"

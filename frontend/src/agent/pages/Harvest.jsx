@@ -1016,39 +1016,59 @@ const Harvest = () => {
         <h3 style={styles.sectionTitle}>Tank Baseline Stocking Specs</h3>
         <div style={styles.specsGrid}>
           <div>
-            <label style={styles.miniLabel}>Tank Size (Acres)</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Tank Size (Acres)</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
             <input 
               type="text" 
-              value={currentStore.tankSize || activeTank.acres || '2.5'} 
-              onChange={(e) => updateMetaField('tankSize', e.target.value)}
-              style={styles.specInput}
+              value={activeTank?.acres ? `${activeTank.acres} Acres` : (currentStore.tankSize ? `${currentStore.tankSize} Acres` : '2.5 Acres')} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Tank size is fixed from the pond profile"
             />
           </div>
           <div>
-            <label style={styles.miniLabel}>Seed Stocked (Nos)</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Seed Stocked (Nos)</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
+            <input 
+              type="text" 
+              value={(Number(activeTank?.seedStocked || activeTank?.seedNumber || currentStore.seedNumber || 200000)).toLocaleString()} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Seed stocked is fixed from stocking records"
+            />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Stocking Date</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
+            <input 
+              type="text" 
+              value={activeTank?.stockingDate || activeTank?.seedDate || currentStore.stockingDate || '2026-06-01'} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Stocking date is fixed from cycle initialization"
+            />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Total Feed Consumed (kg)</label>
+              <span style={{ fontSize: '10px', color: '#1A2FB8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editable</span>
+            </div>
             <input 
               type="number" 
-              value={currentStore.seedNumber || '200000'} 
-              onChange={(e) => updateMetaField('seedNumber', e.target.value)}
-              style={styles.specInput}
-            />
-          </div>
-          <div>
-            <label style={styles.miniLabel}>Stocking Date</label>
-            <input 
-              type="date" 
-              value={currentStore.stockingDate || '2026-06-01'} 
-              onChange={(e) => updateMetaField('stockingDate', e.target.value)}
-              style={styles.specInput}
-            />
-          </div>
-          <div>
-            <label style={styles.miniLabel}>Total Feed Consumed (kg)</label>
-            <input 
-              type="number" 
-              value={currentStore.totalFeed || '3600'} 
+              value={currentStore.totalFeed !== undefined && currentStore.totalFeed !== null ? currentStore.totalFeed : '3600'} 
               onChange={(e) => updateMetaField('totalFeed', e.target.value)}
-              style={styles.specInput}
+              style={{ ...styles.specInput, borderColor: '#1A2FB8', backgroundColor: '#FFFFFF' }}
+              placeholder="Enter feed consumed (kg)"
+              title="Total feed consumed across the crop cycle"
             />
           </div>
         </div>
@@ -2089,6 +2109,20 @@ const styles = {
     fontWeight: '600',
     outline: 'none',
     boxSizing: 'border-box'
+  },
+  specInputReadOnly: {
+    width: '100%',
+    height: '40px',
+    padding: '0 12px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#F1F5F9',
+    fontSize: '13.5px',
+    color: '#475569',
+    fontWeight: '600',
+    outline: 'none',
+    boxSizing: 'border-box',
+    cursor: 'not-allowed'
   },
   reportHeader: {
     display: 'flex',
