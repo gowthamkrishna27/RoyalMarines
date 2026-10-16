@@ -7,11 +7,10 @@ let isConnected = null;
 export const resetPool = () => {
   if (pool) {
     try {
-      pool.end();
+      pool.end().catch(() => {});
     } catch {}
     pool = null;
   }
-  isConnected = null;
 };
 
 export const getPool = () => {
@@ -24,33 +23,43 @@ export const getPool = () => {
       database: process.env.DB_NAME || config.db.database,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : config.db.ssl,
       waitForConnections: true,
-      connectionLimit: 25,
-      maxIdle: 10,
-      idleTimeout: 60000,
+      connectionLimit: 10,
+      maxIdle: 5,
+      idleTimeout: 30000,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
+      keepAliveInitialDelay: 5000,
       queueLimit: 0,
-      connectTimeout: 15000,
+      connectTimeout: 10000,
     });
   }
   return pool;
 };
 
 export const query = async (sql, params = []) => {
-  const p = getPool();
   const cleanParams = params.map((val) => (val === undefined ? null : val));
   try {
+    const p = getPool();
     const [results] = await p.query(sql, cleanParams);
+    isConnected = true;
     return results;
   } catch (err) {
     if (
       err.code === 'ECONNRESET' ||
       err.code === 'PROTOCOL_CONNECTION_LOST' ||
-      err.code === 'ETIMEDOUT'
+      err.code === 'ETIMEDOUT' ||
+      err.code === 'EPIPE' ||
+      err.code === 'ER_CON_COUNT_ERROR'
     ) {
-      console.warn('[Database Reconnecting on dropped socket]:', err.message);
-      const [retryResults] = await p.query(sql, cleanParams);
-      return retryResults;
+      console.warn('[Database Reconnecting on dropped/exhausted socket]:', err.message);
+      resetPool();
+      try {
+        const freshPool = getPool();
+        const [retryResults] = await freshPool.query(sql, cleanParams);
+        isConnected = true;
+        return retryResults;
+      } catch (retryErr) {
+        throw retryErr;
+      }
     }
     if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
       resetPool();
@@ -70,15 +79,16 @@ export const checkDatabaseConnection = async () => {
     console.log(`\x1b[32m[Database]\x1b[0m Connected to Aiven MySQL (v${rows[0].version}) in ${latency}ms`);
     return { success: true, version: rows[0].version, latency: `${latency}ms` };
   } catch (error) {
-    isConnected = false;
+    resetPool();
     console.error(`\x1b[31m[Database Connection Error]\x1b[0m ${error.message}`);
     return { success: false, error: error.message };
   }
 };
 
 export const isDbConnected = () => {
-  if (isConnected !== null) return isConnected;
+  if (isConnected === true) return true;
   return Boolean(process.env.DB_HOST || config.db.host);
 };
 
 export default { getPool, query, checkDatabaseConnection, isDbConnected };
+
