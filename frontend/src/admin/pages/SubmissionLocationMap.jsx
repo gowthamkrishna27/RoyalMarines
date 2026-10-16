@@ -98,6 +98,7 @@ const SubmissionLocationMap = () => {
   const [selectedMarkerId, setSelectedMarkerId] = useState(null);
 
   const markerRefs = useRef({});
+  const mapContainerRef = useRef(null);
 
   // 1. Fetch Field Staff (Agents & Incharges) from MySQL database
   useEffect(() => {
@@ -198,6 +199,9 @@ const SubmissionLocationMap = () => {
   // Focus marker on clicking table row or "View" button
   const handleFocusSubmission = (sub) => {
     setSelectedMarkerId(sub.submissionId);
+    if (mapContainerRef.current) {
+      mapContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   };
 
   // Helper date formatter
@@ -320,8 +324,124 @@ const SubmissionLocationMap = () => {
         </div>
       </div>
 
+      {/* Submissions Table List */}
+      <div style={styles.tableCard}>
+        <div style={styles.tableHeaderRow}>
+          <div>
+            <h3 style={styles.tableTitle}>
+              {selectedDate === 'today' ? "Today's Submissions" : 'Submissions List'}
+            </h3>
+            <p style={styles.tableSubtitle}></p>
+          </div>
+          <span style={styles.tableCountBadge}>
+            {submissions.length} Total Record{submissions.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.thRow}>
+                <th style={styles.th}>User</th>
+                <th style={styles.th}>Role</th>
+                <th style={styles.th}>Time</th>
+                <th style={styles.th}>Submission ID</th>
+                <th style={styles.th}>GPS Coordinates</th>
+                <th style={styles.th}>Accuracy</th>
+                <th style={{ ...styles.th, textAlign: 'right' }}>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={styles.noDataCell}>
+                    No submission records available for the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                submissions.map((sub) => {
+                  const isAgent = sub.role?.toLowerCase() === 'agent';
+                  const isSelected = selectedMarkerId === sub.submissionId;
+                  const isHighDrift = sub.accuracy != null && Number(sub.accuracy) > 200;
+
+                  return (
+                    <tr
+                      key={sub.submissionId}
+                      style={{
+                        ...styles.tr,
+                        backgroundColor: isSelected ? '#F0F9FF' : 'transparent',
+                        fontWeight: isSelected ? 600 : 400
+                      }}
+                      onClick={() => handleFocusSubmission(sub)}
+                    >
+                      <td style={styles.td}>
+                        <div style={styles.userCell}>
+                          <div style={{
+                            ...styles.avatarSmall,
+                            background: isAgent ? '#DBEAFE' : '#FFEDD5',
+                            color: isAgent ? '#1E40AF' : '#C2410C'
+                          }}>
+                            {sub.userName?.charAt(0) || 'U'}
+                          </div>
+                          <div>
+                            <div style={styles.userNameText}>{sub.userName}</div>
+                            <div style={styles.userIdSubText}>{sub.userId}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
+                          {isAgent ? '🔵 Agent' : '🟠 Incharge'}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.timeCell}>
+                          <Clock size={13} style={{ marginRight: 5, color: '#64748B' }} />
+                          <span>{sub.submissionTime || '09:00 AM'}</span>
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={styles.subIdCell}>{sub.submissionId}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.coordsCell}>
+                          <code>{sub.latitude?.toFixed(4)}°N, {sub.longitude?.toFixed(4)}°E</code>
+                          {sub.locality && (
+                            <span style={styles.localitySubtext}>📍 {sub.locality}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={isHighDrift ? styles.accuracyTagDanger : styles.accuracyTag}>
+                          {isHighDrift ? '🔴 ' : ''}± {Math.round(sub.accuracy || 12)}m
+                        </span>
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFocusSubmission(sub);
+                          }}
+                          style={{
+                            ...styles.viewBtn,
+                            ...(isSelected ? styles.viewBtnActive : {})
+                          }}
+                        >
+                          <Eye size={13} style={{ marginRight: 4 }} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Main Map Canvas */}
-      <div style={styles.mapContainerCard}>
+      <div ref={mapContainerRef} style={styles.mapContainerCard}>
         <div style={styles.mapLegend}>
           <div style={styles.legendItem}>
             <span style={{ ...styles.legendDot, background: '#2563EB' }} />
@@ -337,7 +457,7 @@ const SubmissionLocationMap = () => {
           </div>
           <div style={styles.legendDivider} />
           <div style={styles.legendHelp}>
-            Click marker or "View" below to inspect GPS details
+            Click marker or "View" above to inspect GPS details
           </div>
         </div>
 
@@ -477,122 +597,6 @@ const SubmissionLocationMap = () => {
             </p>
           </div>
         )}
-      </div>
-
-      {/* Today's Submissions Table List */}
-      <div style={styles.tableCard}>
-        <div style={styles.tableHeaderRow}>
-          <div>
-            <h3 style={styles.tableTitle}>
-              {selectedDate === 'today' ? "Today's Submissions" : 'Submissions List'}
-            </h3>
-            <p style={styles.tableSubtitle}></p>
-          </div>
-          <span style={styles.tableCountBadge}>
-            {submissions.length} Total Record{submissions.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>User</th>
-                <th style={styles.th}>Role</th>
-                <th style={styles.th}>Time</th>
-                <th style={styles.th}>Submission ID</th>
-                <th style={styles.th}>GPS Coordinates</th>
-                <th style={styles.th}>Accuracy</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submissions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={styles.noDataCell}>
-                    No submission records available for the selected filters.
-                  </td>
-                </tr>
-              ) : (
-                submissions.map((sub) => {
-                  const isAgent = sub.role?.toLowerCase() === 'agent';
-                  const isSelected = selectedMarkerId === sub.submissionId;
-                  const isHighDrift = sub.accuracy != null && Number(sub.accuracy) > 200;
-
-                  return (
-                    <tr
-                      key={sub.submissionId}
-                      style={{
-                        ...styles.tr,
-                        backgroundColor: isSelected ? '#F0F9FF' : 'transparent',
-                        fontWeight: isSelected ? 600 : 400
-                      }}
-                      onClick={() => handleFocusSubmission(sub)}
-                    >
-                      <td style={styles.td}>
-                        <div style={styles.userCell}>
-                          <div style={{
-                            ...styles.avatarSmall,
-                            background: isAgent ? '#DBEAFE' : '#FFEDD5',
-                            color: isAgent ? '#1E40AF' : '#C2410C'
-                          }}>
-                            {sub.userName?.charAt(0) || 'U'}
-                          </div>
-                          <div>
-                            <div style={styles.userNameText}>{sub.userName}</div>
-                            <div style={styles.userIdSubText}>{sub.userId}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={isAgent ? styles.badgeAgent : styles.badgeIncharge}>
-                          {isAgent ? '🔵 Agent' : '🟠 Incharge'}
-                        </span>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.timeCell}>
-                          <Clock size={13} style={{ marginRight: 5, color: '#64748B' }} />
-                          <span>{sub.submissionTime || '09:00 AM'}</span>
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={styles.subIdCell}>{sub.submissionId}</span>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.coordsCell}>
-                          <code>{sub.latitude?.toFixed(4)}°N, {sub.longitude?.toFixed(4)}°E</code>
-                          {sub.locality && (
-                            <span style={styles.localitySubtext}>📍 {sub.locality}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={isHighDrift ? styles.accuracyTagDanger : styles.accuracyTag}>
-                          {isHighDrift ? '🔴 ' : ''}± {Math.round(sub.accuracy || 12)}m
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFocusSubmission(sub);
-                          }}
-                          style={{
-                            ...styles.viewBtn,
-                            ...(isSelected ? styles.viewBtnActive : {})
-                          }}
-                        >
-                          <Eye size={13} style={{ marginRight: 4 }} />
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
@@ -939,6 +943,7 @@ const styles = {
     borderRadius: '14px',
     border: '1px solid #E2E8F0',
     padding: '20px 24px',
+    marginBottom: '24px',
     boxShadow: '0 2px 6px rgba(15,23,42,0.04)'
   },
   tableHeaderRow: {
