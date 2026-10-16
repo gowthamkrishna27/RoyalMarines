@@ -153,8 +153,7 @@ const FarmerDetails = () => {
             </div>
           ) : (
             tanks.map((tank, idx) => {
-              const stockingDate = tank.stockingDate || '2026-06-12';
-              const days = Math.floor((new Date() - new Date(stockingDate)) / (1000 * 60 * 60 * 24)) || 82;
+              const days = tank.doc !== undefined && tank.doc !== null ? tank.doc : 0;
               const harvestStore = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
               const tKey = `${farmer.id}_${tank.id}`;
               const tStore = harvestStore[tKey];

@@ -8,6 +8,7 @@
     "start": "node server.js",
     "build": "echo \"Backend build complete\"",
     "dev": "node --watch server.js",
+    "test": "node tests/docCalculator.test.js && node tests/feedWorkflow.test.js",
     "db:view": "node scripts/viewTables.js",
     "db:seed": "node scripts/seedData.js",
     "db:pins": "node scripts/updatePins.js",

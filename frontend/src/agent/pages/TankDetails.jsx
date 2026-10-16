@@ -14,6 +14,7 @@ import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../asm/utils/inchargeAuth';
+import MarineLoader from '../../components/MarineLoader';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
@@ -23,7 +24,6 @@ const TABS = [
   { id: 'WATER', label: 'Water', icon: Droplets },
   { id: 'FEED', label: 'Feed', icon: Wheat },
   { id: 'DISEASE', label: 'Disease', icon: Bug },
-  { id: 'BIOMASS', label: 'Biomass', icon: Fish },
   { id: 'MEDICATION', label: 'Medication', icon: Pill },
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
   { id: 'ACTIVITY', label: 'Activity', icon: ClipboardList },
@@ -36,6 +36,19 @@ const TankDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (location.pathname.startsWith('/asm')) {
+      navigate('/asm/farmers');
+    } else if (location.pathname.startsWith('/incharge')) {
+      navigate('/incharge/my-tanks');
+    } else {
+      navigate('/farmers');
+    }
+  };
+
   const { getTankById, getFarmerById, db, editTank } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -97,6 +110,14 @@ const TankDetails = () => {
     if (idA === idB) return true;
     return normalizeId(idA) === normalizeId(idB);
   };
+
+  if (!tank && (!db?.tanks || db.tanks.length === 0)) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <MarineLoader message="Loading tank details..." />
+      </div>
+    );
+  }
 
   if (!tank || !farmer) {
     return (
@@ -240,8 +261,17 @@ const TankDetails = () => {
   );
 
   // Present Biomass (Current active standing biomass in pond)
+  let latestFeedBiomass = latestFeedTest?.data?.totalBiomass;
+  if (!latestFeedBiomass && latestFeedTest?.data?.estimatedStock && latestFeedTest?.data?.abw) {
+    const est = parseFloat(latestFeedTest.data.estimatedStock);
+    const abwVal = parseFloat(latestFeedTest.data.abw);
+    if (est > 0 && abwVal > 0) {
+      latestFeedBiomass = ((est * abwVal) / 1000).toFixed(1);
+    }
+  }
+
   const presentBiomass = parseFloat(
-    latestFeedTest?.data?.totalBiomass ||
+    latestFeedBiomass ||
     latestBiomassTest?.data?.totalBiomass ||
     tank.biomass ||
     '14035'
@@ -285,32 +315,8 @@ const TankDetails = () => {
     ? (totalFeedUsed / totalBiomass).toFixed(2)
     : '1.14';
 
-  const cultureDays = 77; // As requested in example
+  const cultureDays = tank?.doc !== undefined && tank?.doc !== null ? tank.doc : 0;
   const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else if (location.pathname.startsWith('/asm')) {
-      if (farmer?.id) {
-        navigate(`/asm/farmers/${farmer.id}`);
-      } else {
-        navigate('/asm/farmers');
-      }
-    } else if (location.pathname.startsWith('/incharge')) {
-      if (farmer?.id) {
-        navigate(`/incharge/farmers/${farmer.id}`);
-      } else {
-        navigate('/incharge/my-tanks');
-      }
-    } else {
-      if (farmer?.id) {
-        navigate(`/farmers/${farmer.id}`);
-      } else {
-        navigate('/farmers');
-      }
-    }
-  };
 
   return (
     <div style={styles.pageContainer}>
@@ -733,42 +739,41 @@ const TankDetails = () => {
       )}
 
       {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
+      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Disease, etc.) */}
       {/* ========================================================= */}
-      {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
-      {/* ========================================================= */}
-      {['WATER', 'FEED', 'DISEASE', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
+      {['WATER', 'FEED', 'DISEASE', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
         const tabLabel = TABS.find(t => t.id === activeTab)?.label || 'Test';
         const tabRecords = activeTab === 'REPORTS' ? tankSubmissions : filterSubmissions(activeTab);
 
         return (
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeaderRow}>
-              <h3 style={styles.sectionTitle}>{tabLabel} Records</h3>
+              <h3 style={styles.sectionTitle}>{activeTab === 'REPORTS' ? 'All Telemetry & Field Records' : `${tabLabel} Records`}</h3>
 
-              {!hasFinalHarvest ? (
-                <button
-                  type="button"
-                  style={styles.addHarvestActionBtn}
-                  onClick={() => {
-                    setModalInitialType(
-                      activeTab === 'WATER' ? 'WATER_QUALITY' :
-                        activeTab === 'FEED' ? 'FEED_ENTRY' :
-                          activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
-                            activeTab === 'MEDICATION' ? 'MEDICATION' :
-                              activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
-                                activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
-                    );
-                    setIsRecordModalOpen(true);
-                  }}
-                >
-                  <Plus size={14} /> New Entry
-                </button>
-              ) : (
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
-                  <Lock size={12} color="#64748B" /> Tank Locked
-                </span>
+              {activeTab !== 'REPORTS' && (
+                !hasFinalHarvest ? (
+                  <button
+                    type="button"
+                    style={styles.addHarvestActionBtn}
+                    onClick={() => {
+                      setModalInitialType(
+                        activeTab === 'WATER' ? 'WATER_QUALITY' :
+                          activeTab === 'FEED' ? 'FEED_ENTRY' :
+                            activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
+                              activeTab === 'MEDICATION' ? 'MEDICATION' :
+                                activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                                  activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                      );
+                      setIsRecordModalOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> New Entry
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                    <Lock size={12} color="#64748B" /> Tank Locked
+                  </span>
+                )
               )}
             </div>
 
@@ -906,9 +911,30 @@ const TankDetails = () => {
                           </div>
                         );
                       }
+                      const formatParamKey = (rawKey) => {
+                        const map = {
+                          checkTrayTime: 'CH TR Time (Feed Consumption Time)',
+                          chTrTime: 'CH TR Time (Feed Consumption Time)',
+                          count: 'Count (per kg)',
+                          estimatedStock: 'Estimated Stock',
+                          seed: 'Seed Stocked',
+                          seedStocked: 'Seed Stocked',
+                          abw: 'ABW (g)',
+                          dayFeed: 'Day Feed (kg)',
+                          cumulativeFeed: 'Cumulative Feed (kg)',
+                          checkTrayFeed: 'CH TR Feed (g)',
+                          chTrFeed: 'CH TR Feed (g)',
+                          fcr: 'FCR',
+                          totalBiomass: 'Total Biomass (kg)',
+                          others: 'Others (Additional Disease Observations)',
+                          doc: 'DOC',
+                        };
+                        return map[rawKey] || rawKey.replace(/([A-Z])/g, ' $1');
+                      };
+
                       return (
                         <div key={k} style={styles.dataRow}>
-                          <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
+                          <span style={styles.dataKey}>{formatParamKey(k)}:</span>
                           <span style={styles.dataVal}>{String(v)}</span>
                         </div>
                       );

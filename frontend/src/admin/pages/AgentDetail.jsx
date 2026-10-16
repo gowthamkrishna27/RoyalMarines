@@ -180,7 +180,7 @@ const AgentDetail = () => {
   };
 
   // Handle Save Farmer Details
-  const handleSaveFarmerDetails = (e) => {
+  const handleSaveFarmerDetails = async (e) => {
     e.preventDefault();
     if (!editFarmerForm.name.trim() || !selectedFarmerToEdit) return;
 
@@ -196,12 +196,19 @@ const AgentDetail = () => {
       status: editFarmerForm.status
     };
 
-    const updatedFarmersList = farmersList.map(f => f.id === selectedFarmerToEdit.id ? updatedFarmer : f);
-    setFarmersList(updatedFarmersList);
-    localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedFarmersList));
-
-    showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
-    setShowEditFarmerModal(false);
+    try {
+      await adminService.updateFarmer(selectedFarmerToEdit.id, updatedFarmer);
+      const updatedFarmersList = farmersList.map(f => f.id === selectedFarmerToEdit.id ? updatedFarmer : f);
+      setFarmersList(updatedFarmersList);
+      adminService.clearCache('/farmers');
+      adminService.clearCache('/analytics/summary');
+      window.dispatchEvent(new CustomEvent('adminDataChanged'));
+      showToast(`Farmer ${updatedFarmer.name} (${updatedFarmer.id}) details updated!`);
+      setShowEditFarmerModal(false);
+    } catch (err) {
+      console.error('[AgentDetail] Failed to update farmer in database:', err);
+      showToast(`Failed to update farmer: ${err.message || 'API error'}`);
+    }
   };
 
   const editModalIncharge = getInchargeForLocality(editAgentForm.locality, editAgentForm.regionId);

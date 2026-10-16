@@ -145,7 +145,7 @@ const FarmerDetail = () => {
       updatedTanksList = [updatedTank];
       setActiveTankIndex(0);
       try {
-        await adminService.createTank({
+        const createdRes = await adminService.createTank({
           name: updatedTank.name,
           farmerId: farmer?.id || farmerId,
           size: `${updatedAcres} Acres`,
@@ -154,8 +154,13 @@ const FarmerDetail = () => {
           fcr: String(updatedFCR),
           doc: 1,
         });
+        if (createdRes?.id) {
+          updatedTank.id = createdRes.id;
+        }
       } catch (err) {
-        console.warn('API create tank fallback:', err);
+        console.error('[FarmerDetail] createTank failed:', err);
+        showToast(`Failed to register tank in database: ${err.message || 'API error'}`);
+        return;
       }
     } else {
       updatedTanksList = tanksList.map((t, idx) => idx === activeTankIndex ? updatedTank : t);
@@ -170,7 +175,9 @@ const FarmerDetail = () => {
           fcr: String(updatedFCR)
         });
       } catch (err) {
-        console.warn('API update tank fallback:', err);
+        console.error('[FarmerDetail] updateTank failed:', err);
+        showToast(`Failed to update tank in database: ${err.message || 'API error'}`);
+        return;
       }
     }
 
@@ -188,15 +195,14 @@ const FarmerDetail = () => {
 
     setFarmer(updatedFarmer);
 
-    // Update in localStorage
-    const savedFarmers = localStorage.getItem('royal_admin_farmers_data');
-    if (savedFarmers) {
-      try {
-        const parsed = JSON.parse(savedFarmers);
-        const updatedAll = parsed.map(f => f.id === farmer.id ? updatedFarmer : f);
-        localStorage.setItem('royal_admin_farmers_data', JSON.stringify(updatedAll));
-      } catch (err) { }
-    }
+    // Invalidate caches & notify all subscribers
+    adminService.clearCache('/tanks');
+    adminService.clearCache('/farmers');
+    adminService.clearCache('/analytics/summary');
+    try { sessionStorage.removeItem('royal_admin_dashboard_cache_v1'); } catch {}
+
+    window.dispatchEvent(new CustomEvent('tankCreated', { detail: updatedTank }));
+    window.dispatchEvent(new CustomEvent('adminDataChanged'));
 
     showToast(`Details for ${updatedTank.name} ${isCreating ? 'registered' : 'updated'} successfully!`);
     setShowEditTankModal(false);

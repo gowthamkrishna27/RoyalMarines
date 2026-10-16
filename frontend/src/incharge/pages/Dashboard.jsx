@@ -12,7 +12,7 @@ import FarmLeafletMap from '../../agent/components/FarmLeafletMap';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
-import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../../agent/utils/gpsService';
+import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS, getDistanceMeters } from '../../agent/utils/gpsService';
 import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 
 const COMPLIANCE_COLORS = ['#16A34A', '#D97706', '#DC2626', '#64748B'];
@@ -394,8 +394,8 @@ const Dashboard = () => {
     setRemindedOverdueMap(newMap);
   };
 
-  // Map Coordinates for Incharge cluster ponds with exact database coordinates
-  const mapTanks = (activeTanksList.slice(0, 8)).map((t, idx) => {
+  // Map Coordinates for Incharge cluster ponds with exact database coordinates and boundaries
+  const mapTanks = activeTanksList.map((t) => {
     const rawTank = (db?.tanks || []).find(rt => rt.id === t.id);
     const farmer = (db?.farmers || []).find(f => f.id === t.farmerId);
     const lat = (rawTank?.latitude != null && !isNaN(Number(rawTank.latitude)))
@@ -405,17 +405,30 @@ const Dashboard = () => {
       ? Number(rawTank.longitude)
       : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
 
+    let distanceStr = '';
+    if (gps?.latitude && gps?.longitude && lat && lng) {
+      const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
+      distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+    }
+
     return {
       id: t.id,
       name: t.name,
       farmer: t.farmer,
+      farmerId: t.farmerId,
       latitude: lat,
       longitude: lng,
+      boundaryCoordinates: rawTank?.boundaryCoordinates || rawTank?.boundary_coordinates,
+      boundaryMethod: rawTank?.boundaryMethod || rawTank?.boundary_method,
+      boundaryAreaAcres: rawTank?.boundaryAreaAcres || rawTank?.boundary_area_acres,
       location: rawTank?.location || farmer?.location || t.locality,
-      distance: `${(idx + 1) * 350}m away`,
+      locality: farmer?.village || farmer?.location || rawTank?.location || t.locality || 'Aquaculture Zone',
+      distance: distanceStr,
       status: t.status,
-      due: t.status === 'Test Due' || t.status === 'Due',
-      species: rawTank?.species || 'Vannamei'
+      due: t.status === 'Test Due' || t.status === 'Due' || t.status === 'Overdue',
+      species: rawTank?.species || 'Vannamei',
+      size: rawTank?.size || (rawTank?.acres ? `${rawTank.acres} Acres` : '1.5 Acres'),
+      acres: rawTank?.acres || rawTank?.area_acres || 1.5,
     };
   });
 
@@ -463,6 +476,13 @@ const Dashboard = () => {
               tanks={mapTanks}
               selectedTank={selectedMapTank}
               onSelectTank={(tank) => setSelectedMapTank(tank)}
+              onRecordTank={(tank) => {
+                const tMatch = (db?.tanks || []).find(t => t.id === tank.id) || tank;
+                setModalInitialTank(tMatch.id);
+                setModalInitialType('WATER_QUALITY');
+                setIsQuickRecordOpen(true);
+              }}
+              onViewDetails={(tank) => navigate(`/incharge/tanks/${tank.id}`)}
             />
 
             {selectedMapTank && (
@@ -475,7 +495,7 @@ const Dashboard = () => {
                     </span>
                   </div>
                   <div style={styles.drawerSub}>
-                    {selectedMapTank.farmer} • {selectedMapTank.distance} away
+                    {selectedMapTank.farmer} {selectedMapTank.distance ? `• ${selectedMapTank.distance}` : ''}
                   </div>
                 </div>
 
@@ -485,8 +505,8 @@ const Dashboard = () => {
                     className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
                     style={styles.viewPondBtn}
                     onClick={() => {
-                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
-                      const fMatch = inchargeFarmers.find(f => f.name === selectedMapTank.farmer) || { name: selectedMapTank.farmer };
+                      const tMatch = (db?.tanks || []).find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      const fMatch = (db?.farmers || []).find(f => f.name === selectedMapTank.farmer || f.id === tMatch.farmerId) || { name: selectedMapTank.farmer };
                       setSelectedRoutineTank({ tank: tMatch, farmer: fMatch });
                     }}
                   >
@@ -511,7 +531,7 @@ const Dashboard = () => {
                       cursor: 'pointer',
                     }}
                     onClick={() => {
-                      const tMatch = inchargeTanks.find(t => t.id === selectedMapTank.id) || selectedMapTank;
+                      const tMatch = (db?.tanks || []).find(t => t.id === selectedMapTank.id) || selectedMapTank;
                       setModalInitialTank(tMatch.id);
                       setModalInitialType('WATER_QUALITY');
                       setIsQuickRecordOpen(true);

@@ -63,6 +63,18 @@ app.get([bigConsolePath, bigConsoleBase, `${bigConsoleBase}/mysqleditor`], (req,
   res.sendFile(path.join(publicDir, 'console.html'));
 });
 
+// API Cache-Control middleware:
+// For GET requests: require revalidation before serving cached representations (preserves 304 performance without serving stale data)
+// For mutations: disallow caching completely
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-cache, must-revalidate');
+  } else {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  }
+  next();
+});
+
 // API Routes
 app.use('/api', apiRouter);
 

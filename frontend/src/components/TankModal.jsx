@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Trash2, Droplets, Database, Calendar } from 'lucide-react';
+import { X, Save, Trash2, Droplets, Database, Calendar, MapPin } from 'lucide-react';
 import { useMockData } from '../context/MockDataContext';
+import TankBoundaryEditor from './TankBoundaryEditor';
 
 const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgentId = null }) => {
   const { addTank, editTank, deleteTank, db } = useMockData();
@@ -22,9 +23,17 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
     abw: '12g',
     biomass: '800kg',
     fcr: '1.2',
-    testStatus: 'Due'
+    testStatus: 'Due',
+    boundaryCoordinates: null,
+    boundaryMethod: null,
+    boundaryAreaAcres: null,
+    boundaryQuality: null,
+    boundaryCapturedAt: null,
   });
 
+  const [showBoundaryEditor, setShowBoundaryEditor] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const isEditing = Boolean(tank);
 
   useEffect(() => {
@@ -46,7 +55,12 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         abw: tank.abw || '12g',
         biomass: tank.biomass || '800kg',
         fcr: tank.fcr || '1.2',
-        testStatus: tank.testStatus || 'Due'
+        testStatus: tank.testStatus || 'Due',
+        boundaryCoordinates: tank.boundaryCoordinates || null,
+        boundaryMethod: tank.boundaryMethod || null,
+        boundaryAreaAcres: tank.boundaryAreaAcres != null ? tank.boundaryAreaAcres : null,
+        boundaryQuality: tank.boundaryQuality || null,
+        boundaryCapturedAt: tank.boundaryCapturedAt || null,
       });
     } else {
       const targetFarmerId = farmerId || (db?.farmers?.[0]?.id || '');
@@ -70,15 +84,23 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         abw: '12g',
         biomass: '800kg',
         fcr: '1.2',
-        testStatus: 'Due'
+        testStatus: 'Due',
+        boundaryCoordinates: null,
+        boundaryMethod: null,
+        boundaryAreaAcres: null,
+        boundaryQuality: null,
+        boundaryCapturedAt: null,
       });
     }
+    setErrorMsg('');
   }, [tank, farmerId, defaultAgentId, db]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+
     if (!formData.name) {
       alert('Please enter a Tank Name.');
       return;
@@ -91,23 +113,66 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
 
     const payload = {
       ...formData,
+      stockingDate: formData.seedDate || formData.stockingDate,
+      seedDate: formData.seedDate || formData.stockingDate,
       brooder: (formData.brooder === 'Others' || formData.brooder === 'Other')
         ? (formData.customBrooder?.trim() || 'Others')
-        : formData.brooder
+        : formData.brooder,
+      ...(formData.boundaryCoordinates !== undefined ? {
+        boundaryCoordinates: formData.boundaryCoordinates,
+        boundaryMethod: formData.boundaryMethod,
+        boundaryAreaAcres: formData.boundaryAreaAcres,
+        boundaryQuality: formData.boundaryQuality,
+        boundaryCapturedAt: formData.boundaryCapturedAt,
+      } : {}),
     };
 
-    if (isEditing) {
-      editTank(tank.id, payload);
-    } else {
-      addTank(payload);
+    setSaving(true);
+    setErrorMsg('');
+    try {
+      if (isEditing) {
+        await editTank(tank.id, payload);
+      } else {
+        await addTank(payload);
+      }
+      setSaving(false);
+      onClose();
+    } catch (err) {
+      console.error('[TankModal] Save operation failed:', err);
+      setSaving(false);
+      const msg = err.response?.data?.message || err.message || 'Failed to save tank to database';
+      setErrorMsg(msg);
+      alert(`Error saving tank: ${msg}`);
     }
-    onClose();
   };
 
-  const handleDelete = () => {
+  const handleSaveBoundary = (boundaryData) => {
+    setFormData(prev => ({
+      ...prev,
+      boundaryCoordinates: boundaryData.boundaryCoordinates,
+      boundaryMethod: boundaryData.boundaryMethod,
+      boundaryAreaAcres: boundaryData.boundaryAreaAcres,
+      boundaryQuality: boundaryData.boundaryQuality,
+      boundaryCapturedAt: boundaryData.boundaryCapturedAt,
+    }));
+  };
+
+  const handleDelete = async () => {
+    if (saving) return;
     if (window.confirm(`Are you sure you want to remove Tank "${tank.name}"? This action cannot be undone.`)) {
-      deleteTank(tank.id);
-      onClose();
+      setSaving(true);
+      setErrorMsg('');
+      try {
+        await deleteTank(tank.id);
+        setSaving(false);
+        onClose();
+      } catch (err) {
+        console.error('[TankModal] Delete operation failed:', err);
+        setSaving(false);
+        const msg = err.response?.data?.message || err.message || 'Failed to delete tank from database';
+        setErrorMsg(msg);
+        alert(`Error deleting tank: ${msg}`);
+      }
     }
   };
 
@@ -335,11 +400,97 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
             </div>
           </div>
 
+          {/* Tank Boundary (Satellite / GPS Walk) Section */}
+          <div style={{
+            backgroundColor: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            marginTop: '4px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MapPin size={18} color="#2563EB" />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>Tank Boundary Registration</div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>
+                    {formData.boundaryCoordinates
+                      ? `Captured via ${formData.boundaryMethod === 'gps_walk' ? 'GPS Walk' : 'Satellite Map'} (${formData.boundaryAreaAcres || '--'} Acres)`
+                      : 'Capture boundary via Satellite or GPS Walk (Optional)'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBoundaryEditor(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  backgroundColor: formData.boundaryCoordinates ? '#EFF6FF' : '#2563EB',
+                  color: formData.boundaryCoordinates ? '#2563EB' : '#FFFFFF',
+                  border: formData.boundaryCoordinates ? '1px solid #BFDBFE' : 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                {formData.boundaryCoordinates ? 'Edit Boundary' : '+ Set Boundary'}
+              </button>
+            </div>
+            {formData.boundaryCoordinates && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                fontSize: '11px',
+                color: '#15803D'
+              }}>
+                <span>✓ Verified Boundary: <strong>{formData.boundaryAreaAcres} Acres</strong> ({formData.boundaryQuality || 'High'})</span>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({
+                    ...prev,
+                    boundaryCoordinates: null,
+                    boundaryMethod: null,
+                    boundaryAreaAcres: null,
+                    boundaryQuality: null,
+                    boundaryCapturedAt: null,
+                  }))}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#DC2626',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+
+          {errorMsg && (
+            <div style={{ color: '#DC2626', fontSize: '13px', marginTop: '8px', padding: '8px', backgroundColor: '#FEE2E2', borderRadius: '6px' }}>
+              {errorMsg}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
             {isEditing ? (
               <button
                 type="button"
                 onClick={handleDelete}
+                disabled={saving}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -349,12 +500,13 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                   color: '#DC3F3F',
                   border: '1px solid #DC3F3F',
                   borderRadius: '8px',
-                  cursor: 'pointer',
+                  cursor: saving ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
-                  fontSize: '13px'
+                  fontSize: '13px',
+                  opacity: saving ? 0.6 : 1
                 }}
               >
-                <Trash2 size={16} /> Remove Tank
+                <Trash2 size={16} /> {saving ? 'Deleting...' : 'Remove Tank'}
               </button>
             ) : <div></div>}
 
@@ -362,13 +514,14 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
               <button
                 type="button"
                 onClick={onClose}
+                disabled={saving}
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#FFFFFF',
                   border: '1px solid #DCE4EE',
                   color: '#17233C',
                   borderRadius: '8px',
-                  cursor: 'pointer',
+                  cursor: saving ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: '500'
                 }}
@@ -377,15 +530,41 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 className="btn-primary"
-                style={{ width: 'auto', padding: '8px 20px', fontSize: '14px', gap: '6px', backgroundColor: '#2563D9', color: '#FFFFFF' }}
+                style={{
+                  width: 'auto',
+                  padding: '8px 20px',
+                  fontSize: '14px',
+                  gap: '6px',
+                  backgroundColor: '#2563D9',
+                  color: '#FFFFFF',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.7 : 1
+                }}
               >
-                <Save size={16} /> {isEditing ? 'Save Changes' : 'Create Tank'}
+                <Save size={16} /> {saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Tank')}
               </button>
             </div>
           </div>
         </form>
       </div>
+
+      {showBoundaryEditor && (
+        <TankBoundaryEditor
+          isOpen={showBoundaryEditor}
+          onClose={() => setShowBoundaryEditor(false)}
+          onSaveBoundary={handleSaveBoundary}
+          initialBoundary={formData.boundaryCoordinates ? {
+            coordinates: formData.boundaryCoordinates.coordinates,
+            boundaryMethod: formData.boundaryMethod,
+            points: formData.boundaryCoordinates.points || null,
+          } : null}
+          tankName={formData.name || 'Tank'}
+          enteredAcres={formData.acres}
+          initialLocation={null}
+        />
+      )}
     </div>,
     document.body
   );

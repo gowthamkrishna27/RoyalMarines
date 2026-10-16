@@ -31,9 +31,65 @@ export const getTankById = async (req, res) => {
   }
 };
 
+export const validateGeoJSONPolygon = (boundary) => {
+  if (!boundary) return { valid: true, sanitized: null };
+  let poly = boundary;
+  if (typeof poly === 'string') {
+    try {
+      poly = JSON.parse(poly);
+    } catch {
+      return { valid: false, error: 'boundaryCoordinates must be valid JSON' };
+    }
+  }
+
+  if (typeof poly !== 'object' || poly === null) {
+    return { valid: false, error: 'boundaryCoordinates must be an object' };
+  }
+
+  if (poly.type !== 'Polygon') {
+    return { valid: false, error: 'boundaryCoordinates.type must be "Polygon"' };
+  }
+
+  if (!Array.isArray(poly.coordinates) || poly.coordinates.length === 0) {
+    return { valid: false, error: 'Polygon must have a coordinates array with at least one ring' };
+  }
+
+  const ring = poly.coordinates[0];
+  if (!Array.isArray(ring) || ring.length < 4) {
+    return { valid: false, error: 'Polygon exterior ring must have at least 4 coordinates (closed ring of 3+ unique points)' };
+  }
+
+  for (let i = 0; i < ring.length; i++) {
+    const pt = ring[i];
+    if (!Array.isArray(pt) || pt.length < 2) {
+      return { valid: false, error: `Invalid coordinate pair at index ${i}` };
+    }
+    const [lng, lat] = pt;
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+      return { valid: false, error: `Coordinates must be valid numbers at index ${i}` };
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return { valid: false, error: `Coordinate out of bounds at index ${i}: [${lng}, ${lat}]` };
+    }
+  }
+
+  // Ensure closed ring (first coordinate equals last coordinate)
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) {
+    ring.push([first[0], first[1]]);
+  }
+
+  return { valid: true, sanitized: poly };
+};
+
 export const createTank = async (req, res) => {
   try {
-    const { name, farmerId, size, abw, biomass, fcr, doc } = req.body;
+    const { 
+      name, farmerId, size, abw, biomass, fcr, doc, acres, areaAcres,
+      salinity, species, waterSource, cultureType, stockingDate, seedDate,
+      boundaryCoordinates, boundaryMethod, boundaryAreaAcres, boundaryQuality, boundaryCapturedAt 
+    } = req.body;
 
     if (!name || !farmerId) {
       return sendError(res, 'Tank name and farmerId are required', 400);
@@ -43,6 +99,18 @@ export const createTank = async (req, res) => {
     if (!farmer) {
       return sendError(res, `Farmer with ID ${farmerId} does not exist`, 400);
     }
+
+    let sanitizedBoundary = boundaryCoordinates || null;
+    if (boundaryCoordinates) {
+      const validation = validateGeoJSONPolygon(boundaryCoordinates);
+      if (!validation.valid) {
+        return sendError(res, `Invalid boundary format: ${validation.error}`, 400);
+      }
+      sanitizedBoundary = validation.sanitized;
+    }
+
+    const resolvedStockingDate = stockingDate || seedDate || new Date().toISOString().split('T')[0];
+    const resolvedSeedDate = seedDate || stockingDate || null;
 
     const newTank = await store.createTank({
       name,
@@ -57,6 +125,20 @@ export const createTank = async (req, res) => {
       doc: doc != null && doc !== '' ? Number(doc) : 0,
       lastTest: null,
       nextTest: null,
+      acres: acres || null,
+      areaAcres: areaAcres || null,
+      salinity: salinity || null,
+      species: species || null,
+      waterSource: waterSource || null,
+      cultureType: cultureType || null,
+      stockingDate: resolvedStockingDate,
+      seedDate: resolvedSeedDate,
+      seedStockingLak: req.body.seedStockingLak || req.body.seed_stocking_lak || req.body.seedStocked || req.body.seed || null,
+      boundaryCoordinates: sanitizedBoundary,
+      boundaryMethod: boundaryMethod || null,
+      boundaryAreaAcres: boundaryAreaAcres != null ? boundaryAreaAcres : null,
+      boundaryQuality: boundaryQuality || null,
+      boundaryCapturedAt: boundaryCapturedAt || null,
     });
 
     return sendSuccess(res, newTank, 'Tank created successfully', 201);
@@ -69,7 +151,17 @@ export const createTank = async (req, res) => {
 export const updateTank = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await store.updateTank(id, req.body);
+    const updates = { ...req.body };
+
+    if (updates.boundaryCoordinates) {
+      const validation = validateGeoJSONPolygon(updates.boundaryCoordinates);
+      if (!validation.valid) {
+        return sendError(res, `Invalid boundary format: ${validation.error}`, 400);
+      }
+      updates.boundaryCoordinates = validation.sanitized;
+    }
+
+    const updated = await store.updateTank(id, updates);
 
     if (!updated) {
       return sendError(res, `Tank with ID ${id} not found`, 404);

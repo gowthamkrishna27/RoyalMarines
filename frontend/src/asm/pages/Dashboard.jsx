@@ -13,7 +13,7 @@ import FarmLeafletMap from '../../agent/components/FarmLeafletMap';
 import HarvestCompletedModal from '../components/HarvestCompletedModal';
 import WeeklyRoutineScheduleModal from '../components/WeeklyRoutineScheduleModal';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
-import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS } from '../../agent/utils/gpsService';
+import { getStoredGPS, captureDeviceGPS, generateVerifiedFallbackGPS, getDistanceMeters } from '../../agent/utils/gpsService';
 import { getTankWeeklySchedule } from '../../agent/utils/testScheduleHelper';
 import { getInchargeSession } from '../utils/inchargeAuth';
 
@@ -403,40 +403,52 @@ const Dashboard = () => {
     setTimeout(() => setBroadcastSuccess(false), 4000);
   };
 
-  // Map Coordinates for Incharge cluster ponds fallback
-  const mapTanks = [
-    { id: 'T003', name: 'Tank 1', farmer: 'Ravi', x: 28, y: 35, distance: '450m', status: 'Optimal', due: false, species: 'Vannamei' },
-    { id: 'T008', name: 'Tank 1', farmer: 'Siva', x: 72, y: 30, distance: '620m', status: 'Test Due', due: true, species: 'Vannamei' },
-    { id: 'T001', name: 'Tank 1', farmer: 'Ashok', x: 35, y: 72, distance: '480m', status: 'Optimal', due: false, species: 'Monodon' },
-    { id: 'T002', name: 'Tank 2', farmer: 'Ashok', x: 78, y: 75, distance: '750m', status: 'Optimal', due: false, species: 'Vannamei' },
-  ];
-
-  // Dynamic Map Coordinates for ASM personal ponds vs Supervised team ponds with exact coordinates
+  // Dynamic Map Coordinates for ASM personal ponds vs Supervised team ponds with exact database coordinates and boundaries
   const personalMapTanks = useMemo(() => {
     if (!personalTanksDetails || personalTanksDetails.length === 0) return [];
-    return personalTanksDetails.map((item, idx) => {
-      const lat = item.tank?.latitude != null ? Number(item.tank.latitude) : (item.farmer?.latitude != null ? Number(item.farmer.latitude) : null);
-      const lng = item.tank?.longitude != null ? Number(item.tank.longitude) : (item.farmer?.longitude != null ? Number(item.farmer.longitude) : null);
+    return personalTanksDetails.map((item) => {
+      const rawTank = (db?.tanks || []).find(rt => rt.id === item.tank?.id) || item.tank;
+      const farmer = item.farmer || (db?.farmers || []).find(f => f.id === rawTank?.farmerId);
+      const lat = (rawTank?.latitude != null && !isNaN(Number(rawTank.latitude)))
+        ? Number(rawTank.latitude)
+        : ((farmer?.latitude != null && !isNaN(Number(farmer.latitude))) ? Number(farmer.latitude) : null);
+      const lng = (rawTank?.longitude != null && !isNaN(Number(rawTank.longitude)))
+        ? Number(rawTank.longitude)
+        : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
+
+      let distanceStr = '';
+      if (gps?.latitude && gps?.longitude && lat && lng) {
+        const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
+        distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+      }
+
       return {
         id: item.tank.id,
         name: item.tank.name,
-        farmer: item.farmer.name,
+        farmer: item.farmer?.name || rawTank?.farmerName || 'Farmer',
+        farmerId: item.farmer?.id || rawTank?.farmerId,
         latitude: lat,
         longitude: lng,
-        location: item.tank.location || item.farmer.location || 'Aquaculture Zone',
-        distance: `${350 + (idx * 220)}m away`,
+        boundaryCoordinates: rawTank?.boundaryCoordinates || rawTank?.boundary_coordinates,
+        boundaryMethod: rawTank?.boundaryMethod || rawTank?.boundary_method,
+        boundaryAreaAcres: rawTank?.boundaryAreaAcres || rawTank?.boundary_area_acres,
+        location: rawTank?.location || item.farmer?.location || 'Aquaculture Zone',
+        locality: item.farmer?.village || item.farmer?.location || rawTank?.location || 'Aquaculture Zone',
+        distance: distanceStr,
         status: item.isHarvested ? 'Harvested' : (item.isOverdue ? 'Overdue' : (item.isDue ? 'Test Due' : 'Optimal')),
         due: item.isDue || item.isOverdue,
-        species: item.species,
+        species: item.species || rawTank?.species || 'Vannamei',
+        size: rawTank?.size || (rawTank?.acres ? `${rawTank.acres} Acres` : '1.5 Acres'),
+        acres: rawTank?.acres || rawTank?.area_acres || 1.5,
         agentName: 'Self (ASM / Field Tech)',
         isPersonal: true
       };
     });
-  }, [personalTanksDetails]);
+  }, [personalTanksDetails, db, gps]);
 
   const teamMapTanks = useMemo(() => {
     if (!allDashboardTanks || allDashboardTanks.length === 0) return [];
-    return allDashboardTanks.slice(0, 16).map((t, idx) => {
+    return allDashboardTanks.map((t) => {
       const rawTank = (db?.tanks || []).find(rt => rt.id === t.id);
       const farmer = (db?.farmers || []).find(f => f.id === t.farmerId);
       const lat = (rawTank?.latitude != null && !isNaN(Number(rawTank.latitude)))
@@ -446,28 +458,41 @@ const Dashboard = () => {
         ? Number(rawTank.longitude)
         : ((farmer?.longitude != null && !isNaN(Number(farmer.longitude))) ? Number(farmer.longitude) : null);
 
+      let distanceStr = '';
+      if (gps?.latitude && gps?.longitude && lat && lng) {
+        const distM = getDistanceMeters(Number(gps.latitude), Number(gps.longitude), lat, lng);
+        distanceStr = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+      }
+
       return {
         id: t.id,
         name: t.name,
         farmer: t.farmer,
+        farmerId: t.farmerId,
         latitude: lat,
         longitude: lng,
+        boundaryCoordinates: rawTank?.boundaryCoordinates || rawTank?.boundary_coordinates,
+        boundaryMethod: rawTank?.boundaryMethod || rawTank?.boundary_method,
+        boundaryAreaAcres: rawTank?.boundaryAreaAcres || rawTank?.boundary_area_acres,
         location: rawTank?.location || farmer?.location || t.locality,
-        distance: `${450 + (idx * 160)}m away`,
+        locality: farmer?.village || farmer?.location || rawTank?.location || t.locality || 'Aquaculture Zone',
+        distance: distanceStr,
         status: t.status === 'Harvested' ? 'Harvested' : (t.status === 'Overdue' ? 'Overdue' : (t.status === 'Test Due' || t.status === 'Due' ? 'Test Due' : 'Optimal')),
         due: t.status === 'Test Due' || t.status === 'Due' || t.status === 'Overdue',
-        species: t.species,
+        species: t.species || rawTank?.species || 'Vannamei',
+        size: rawTank?.size || (rawTank?.acres ? `${rawTank.acres} Acres` : '1.5 Acres'),
+        acres: rawTank?.acres || rawTank?.area_acres || 1.5,
         agentName: t.agent || 'Field Tech',
         isPersonal: false
       };
     });
-  }, [allDashboardTanks, db]);
+  }, [allDashboardTanks, db, gps]);
 
   const activeDisplayedMapTanks = useMemo(() => {
     if (mapScope === 'PERSONAL') {
-      return personalMapTanks.length > 0 ? personalMapTanks : mapTanks;
+      return personalMapTanks;
     }
-    return teamMapTanks.length > 0 ? teamMapTanks : mapTanks;
+    return teamMapTanks;
   }, [mapScope, personalMapTanks, teamMapTanks]);
 
   useEffect(() => {
@@ -559,6 +584,13 @@ const Dashboard = () => {
               tanks={activeDisplayedMapTanks}
               selectedTank={selectedMapTank}
               onSelectTank={(tank) => setSelectedMapTank(tank)}
+              onRecordTank={(tank) => {
+                const tMatch = (db?.tanks || []).find(t => t.id === tank.id) || tank;
+                setModalInitialTank(tMatch.id);
+                setModalInitialType('WATER_QUALITY');
+                setIsQuickRecordOpen(true);
+              }}
+              onViewDetails={(tank) => navigate(`${getAsmBasePath(window.location.pathname)}/tanks/${tank.id}`)}
             />
 
             {selectedMapTank && (
@@ -576,7 +608,7 @@ const Dashboard = () => {
                     )}
                   </div>
                   <div style={styles.drawerSub}>
-                    {selectedMapTank.farmer} • {selectedMapTank.distance} away • {selectedMapTank.species || 'Vannamei'}
+                    {selectedMapTank.farmer} {selectedMapTank.distance ? `• ${selectedMapTank.distance}` : ''} • {selectedMapTank.species || 'Vannamei'}
                   </div>
                 </div>
 

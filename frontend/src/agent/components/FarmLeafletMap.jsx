@@ -1,6 +1,67 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
-import { LocateFixed, Maximize2, Minimize2, X } from 'lucide-react';
+import { 
+  LocateFixed, Maximize2, Minimize2, X, Search, Filter, 
+  MapPin, Eye, Plus, Layers, AlertCircle, CheckCircle2, ChevronDown 
+} from 'lucide-react';
+
+/**
+ * Validates and converts GeoJSON polygon coordinates [lng, lat] to Leaflet [lat, lng].
+ * Enforces valid geographic range and closed coordinate rings.
+ */
+function parseBoundaryPolygon(boundary) {
+  if (!boundary) return null;
+  let poly = boundary;
+  if (typeof poly === 'string') {
+    try {
+      poly = JSON.parse(poly);
+    } catch {
+      return null;
+    }
+  }
+  if (!poly || typeof poly !== 'object') return null;
+  if (poly.type !== 'Polygon' || !Array.isArray(poly.coordinates) || !Array.isArray(poly.coordinates[0])) {
+    return null;
+  }
+  const ring = poly.coordinates[0];
+  if (ring.length < 3) return null;
+
+  const latLngs = [];
+  for (const pt of ring) {
+    if (!Array.isArray(pt) || pt.length < 2) return null;
+    const lng = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return null;
+    }
+    latLngs.push([lat, lng]);
+  }
+  return latLngs.length >= 3 ? latLngs : null;
+}
+
+/**
+ * Calculates the centroid [lat, lng] of a valid polygon ring.
+ */
+function getPolygonCentroid(latLngs) {
+  if (!latLngs || latLngs.length === 0) return null;
+  const pts = (latLngs.length > 3 && latLngs[0][0] === latLngs[latLngs.length - 1][0] && latLngs[0][1] === latLngs[latLngs.length - 1][1])
+    ? latLngs.slice(0, -1)
+    : latLngs;
+  const sumLat = pts.reduce((acc, p) => acc + p[0], 0);
+  const sumLng = pts.reduce((acc, p) => acc + p[1], 0);
+  return [sumLat / pts.length, sumLng / pts.length];
+}
+
+/**
+ * Validates point coordinates [lat, lng].
+ */
+function isValidPointCoords(lat, lng) {
+  if (lat == null || lng == null) return false;
+  const nLat = Number(lat);
+  const nLng = Number(lng);
+  return !isNaN(nLat) && !isNaN(nLng) && nLat >= -90 && nLat <= 90 && nLng >= -180 && nLng <= 180 && (nLat !== 0 || nLng !== 0);
+}
 
 const FarmLeafletMap = ({ 
   gps, 
@@ -9,48 +70,113 @@ const FarmLeafletMap = ({
   onSelectTank,
   ponds, 
   selectedPond, 
-  onSelectPond 
+  onSelectPond,
+  onRecordTank,
+  showFilters = true
 }) => {
+  const navigate = useNavigate();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const polygonsLayerRef = useRef(null);
 
-  const activeTanks = (tanks && tanks.length > 0) ? tanks : (ponds || []);
+  const rawActiveTanks = (tanks && tanks.length > 0) ? tanks : (ponds || []);
   const [internalSelectedTank, setInternalSelectedTank] = useState(null);
   const activeSelectedTank = selectedTank || selectedPond || internalSelectedTank;
   const handleSelect = onSelectTank || onSelectPond;
 
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' | 'satellite'
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // Look for valid coordinates from activeTanks if available
-  const tanksWithCoords = (activeTanks || []).filter(t => t.latitude != null && t.longitude != null && !isNaN(Number(t.latitude)) && !isNaN(Number(t.longitude)));
-  
-  const defaultCenterLat = tanksWithCoords.length > 0 ? Number(tanksWithCoords[0].latitude) : 16.5412;
-  const defaultCenterLng = tanksWithCoords.length > 0 ? Number(tanksWithCoords[0].longitude) : 81.5234;
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFarmer, setSelectedFarmer] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedBoundaryFilter, setSelectedBoundaryFilter] = useState('ALL');
 
-  const centerLat = (gps?.latitude != null && !isNaN(Number(gps.latitude))) ? Number(gps.latitude) : defaultCenterLat;
-  const centerLng = (gps?.longitude != null && !isNaN(Number(gps.longitude))) ? Number(gps.longitude) : defaultCenterLng;
+  // Parse and categorize actual registered tanks without generating fabricated data
+  const processedTanks = useMemo(() => {
+    return (rawActiveTanks || []).map((tank) => {
+      const boundaryLatLngs = parseBoundaryPolygon(tank.boundaryCoordinates || tank.boundary_coordinates);
+      const hasDirectCoords = isValidPointCoords(tank.latitude, tank.longitude);
+      const pointCoords = hasDirectCoords ? [Number(tank.latitude), Number(tank.longitude)] : null;
+      const centroid = boundaryLatLngs ? getPolygonCentroid(boundaryLatLngs) : null;
+      const effectiveCoords = pointCoords || centroid;
+      const hasLocation = Boolean(effectiveCoords);
+      const hasBoundary = Boolean(boundaryLatLngs);
 
-  const handleRecenter = () => {
-    if (mapInstanceRef.current) {
-      if (tanksWithCoords.length > 0) {
-        const allPoints = tanksWithCoords.map(t => [Number(t.latitude), Number(t.longitude)]);
-        if (gps?.latitude && gps?.longitude) {
-          allPoints.push([Number(gps.latitude), Number(gps.longitude)]);
-        }
-        const bounds = L.latLngBounds(allPoints);
-        mapInstanceRef.current.fitBounds(bounds, { padding: [45, 45], maxZoom: 16.2, animate: true });
-      } else {
-        mapInstanceRef.current.flyTo([centerLat, centerLng], 15.5, {
-          animate: true,
-          duration: 0.6,
-        });
+      let boundaryStatus = 'Not Registered';
+      if (hasBoundary) {
+        boundaryStatus = 'Registered (Polygon)';
+      } else if (hasLocation) {
+        boundaryStatus = 'Coordinates Only';
       }
-    }
-  };
+
+      return {
+        ...tank,
+        id: String(tank.id),
+        name: tank.name || `Tank ${tank.id}`,
+        farmer: tank.farmer || tank.farmerName || 'Farmer',
+        locality: tank.locality || tank.location || 'Aquaculture Zone',
+        boundaryLatLngs,
+        effectiveCoords,
+        hasLocation,
+        hasBoundary,
+        boundaryStatus,
+        status: tank.status || 'Active',
+        testStatus: tank.testStatus || tank.test_status || 'Optimal',
+      };
+    });
+  }, [rawActiveTanks]);
+
+  // Unique farmers among the authorised tanks for filtering dropdown
+  const uniqueFarmers = useMemo(() => {
+    const set = new Set();
+    processedTanks.forEach(t => {
+      if (t.farmer) set.add(t.farmer);
+    });
+    return Array.from(set).sort();
+  }, [processedTanks]);
+
+  // Filter tanks strictly according to user selections
+  const filteredTanks = useMemo(() => {
+    return processedTanks.filter(t => {
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
+        const match = (t.name || '').toLowerCase().includes(term) ||
+                      (t.id || '').toLowerCase().includes(term) ||
+                      (t.farmer || '').toLowerCase().includes(term) ||
+                      (t.locality || '').toLowerCase().includes(term);
+        if (!match) return false;
+      }
+      if (selectedFarmer !== 'ALL' && t.farmer !== selectedFarmer) {
+        return false;
+      }
+      if (selectedStatus !== 'ALL') {
+        const isHarvested = (t.status || '').toLowerCase() === 'harvested';
+        const isOverdue = ((t.testStatus || t.status || '').toLowerCase() === 'overdue' || t.isOverdue) && !isHarvested;
+        const isDue = (t.due || (t.testStatus || t.status || '').toLowerCase() === 'due' || t.isDue) && !isHarvested && !isOverdue;
+        if (selectedStatus === 'HARVESTED' && !isHarvested) return false;
+        if (selectedStatus === 'OVERDUE' && !isOverdue) return false;
+        if (selectedStatus === 'DUE' && !isDue) return false;
+        if (selectedStatus === 'OPTIMAL' && (isHarvested || isOverdue || isDue)) return false;
+      }
+      if (selectedBoundaryFilter === 'WITH_BOUNDARY' && !t.hasBoundary) return false;
+      if (selectedBoundaryFilter === 'COORDS_ONLY' && (!t.hasLocation || t.hasBoundary)) return false;
+      return true;
+    });
+  }, [processedTanks, searchTerm, selectedFarmer, selectedStatus, selectedBoundaryFilter]);
+
+  // Visible tanks that actually have valid database location or polygon coordinates
+  const visibleMapTanks = useMemo(() => {
+    return filteredTanks.filter(t => t.hasLocation);
+  }, [filteredTanks]);
+
+  const unregisteredCount = useMemo(() => {
+    return processedTanks.filter(t => !t.hasLocation).length;
+  }, [processedTanks]);
 
   const cartoApiKey = import.meta.env.VITE_CARTO_API_KEY || 'cb1_49o0_1_b86e406055a2af5dc773fb51';
   const cartoParam = cartoApiKey ? `?key=${cartoApiKey}` : '';
@@ -82,38 +208,40 @@ const FarmLeafletMap = ({
     }
   }, [isFullscreen]);
 
+  // Initialize Leaflet Map only once
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Initialize Leaflet Map with clean default view
     if (!mapInstanceRef.current) {
+      // Default initial view: Center on first registered tank or technician GPS if available
+      const firstValidTank = visibleMapTanks[0];
+      const initialLat = firstValidTank?.effectiveCoords?.[0] || (gps?.latitude ? Number(gps.latitude) : 16.5412);
+      const initialLng = firstValidTank?.effectiveCoords?.[1] || (gps?.longitude ? Number(gps.longitude) : 81.5234);
+
       const map = L.map(mapContainerRef.current, {
-        center: [centerLat, centerLng],
+        center: [initialLat, initialLng],
         zoom: 14.8,
         zoomControl: false,
         attributionControl: false,
       });
 
-      // Clean Basemap: CartoDB Voyager with API key support or Google Satellite
       const initialUrl = mapType === 'satellite' ? satelliteUrl : cartoVoyagerUrl;
       const tileLayer = L.tileLayer(initialUrl, {
         maxZoom: 20,
         subdomains: 'abcd',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       }).addTo(map);
 
-      // Clean Zoom Control positioned at bottom right
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
       const polygonsLayer = L.layerGroup().addTo(map);
       const markersLayer = L.layerGroup().addTo(map);
-      
+
       polygonsLayerRef.current = polygonsLayer;
       markersLayerRef.current = markersLayer;
       tileLayerRef.current = tileLayer;
       mapInstanceRef.current = map;
 
-      // Handle orientation change and container resize
       const handleResize = () => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize();
@@ -134,18 +262,14 @@ const FarmLeafletMap = ({
     };
   }, []);
 
-  // Switch between Clean Basemap (CartoDB Voyager) and High-Res Satellite
+  // Switch between Roadmap and Satellite layer
   useEffect(() => {
     if (!tileLayerRef.current || !mapInstanceRef.current) return;
-
-    const tileUrl = mapType === 'satellite'
-      ? satelliteUrl
-      : cartoVoyagerUrl;
-
+    const tileUrl = mapType === 'satellite' ? satelliteUrl : cartoVoyagerUrl;
     tileLayerRef.current.setUrl(tileUrl);
   }, [mapType, cartoVoyagerUrl]);
 
-  // Update center, technician beacon, and tank markers with solid big colour dots
+  // Render actual registered tanks and polygons (ZERO fabricated locations)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const markersLayer = markersLayerRef.current;
@@ -157,94 +281,73 @@ const FarmLeafletMap = ({
 
     const pointsToFit = [];
 
-    // 1. LIVE TECHNICIAN GPS RADAR BEACON (Pulsating Dot)
-    const cleanUserBeacon = L.divIcon({
-      className: 'clean-user-beacon',
-      html: `
-        <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center; transform:translate(-50%, -50%); pointer-events:none;">
-          <div style="position:absolute; width:100%; height:100%; border-radius:50%; background:rgba(26, 47, 184, 0.22); animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;"></div>
-          <div style="width:13px; height:13px; border-radius:50%; background:#1A2FB8; border:2.5px solid #FFFFFF; box-shadow:0 2px 5px rgba(0,0,0,0.22); z-index:2;"></div>
+    // Optional: Render live technician beacon as user reference point (NOT as a tank location)
+    if (gps?.latitude && gps?.longitude && !isNaN(Number(gps.latitude)) && !isNaN(Number(gps.longitude))) {
+      const uLat = Number(gps.latitude);
+      const uLng = Number(gps.longitude);
+      const userBeacon = L.divIcon({
+        className: 'clean-user-beacon',
+        html: `
+          <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center; transform:translate(-50%, -50%); pointer-events:none;">
+            <div style="position:absolute; width:100%; height:100%; border-radius:50%; background:rgba(26, 47, 184, 0.22); animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;"></div>
+            <div style="width:13px; height:13px; border-radius:50%; background:#1A2FB8; border:2.5px solid #FFFFFF; box-shadow:0 2px 5px rgba(0,0,0,0.22); z-index:2;"></div>
+          </div>
+        `,
+        iconSize: [0, 0],
+      });
+      const userMarker = L.marker([uLat, uLng], { icon: userBeacon, zIndexOffset: 1000 }).addTo(markersLayer);
+      userMarker.bindTooltip(`
+        <div style="font-family:sans-serif; font-size:11px; padding:2px;">
+          <strong>Your Current Position</strong><br/>
+          <span style="color:#64748B;">GPS: ${uLat.toFixed(5)}°N, ${uLng.toFixed(5)}°E</span>
         </div>
-      `,
-      iconSize: [0, 0],
-    });
+      `, { direction: 'top', offset: [0, -10] });
+      pointsToFit.push([uLat, uLng]);
+    }
 
-    const userMarker = L.marker([centerLat, centerLng], { icon: cleanUserBeacon, zIndexOffset: 1000 }).addTo(markersLayer);
-    userMarker.bindTooltip(`
-      <div style="font-family:sans-serif; font-size:11px; padding:2px;">
-        <strong>Live Position (Field Agent)</strong><br/>
-        <span style="color:#64748B;">GPS: ${centerLat.toFixed(6)}°N, ${centerLng.toFixed(6)}°E</span>
-      </div>
-    `, { direction: 'top', offset: [0, -10] });
-    pointsToFit.push([centerLat, centerLng]);
-
-    // 2. REALISTIC POND POLYGONS + CENTER STATUS BADGES
-    const fallbackGeometries = [
-      { offsetLat: 0.0035, offsetLng: -0.0042 },
-      { offsetLat: 0.0042, offsetLng: 0.0050 },
-      { offsetLat: -0.0038, offsetLng: -0.0035 },
-      { offsetLat: -0.0045, offsetLng: 0.0048 },
-    ];
-
-    activeTanks.forEach((tank, idx) => {
-      // Strictly use actual database GPS coordinates when present
-      let pLat = (tank.latitude != null && !isNaN(Number(tank.latitude))) ? Number(tank.latitude) : null;
-      let pLng = (tank.longitude != null && !isNaN(Number(tank.longitude))) ? Number(tank.longitude) : null;
-
-      // Fallback only if no coordinates provided in database
-      if (pLat == null || pLng == null) {
-        const geom = fallbackGeometries[idx % fallbackGeometries.length];
-        pLat = centerLat + geom.offsetLat;
-        pLng = centerLng + geom.offsetLng;
-      }
-
+    // Render registered tanks that have valid coordinates or boundaries
+    visibleMapTanks.forEach((tank) => {
+      const [pLat, pLng] = tank.effectiveCoords;
       pointsToFit.push([pLat, pLng]);
 
       const isSelected = activeSelectedTank?.id === tank.id || activeSelectedTank?.name === tank.name;
-      const isHarvested = tank.status === 'Harvested';
-      const isOverdue = (tank.testStatus === 'Overdue' || tank.isOverdue || tank.status === 'Overdue') && !isHarvested;
-      const isDue = (tank.due || tank.testStatus === 'Due' || tank.status === 'Due') && !isHarvested && !isOverdue;
+      const isHarvested = (tank.status || '').toLowerCase() === 'harvested';
+      const isOverdue = ((tank.testStatus || tank.status || '').toLowerCase() === 'overdue' || tank.isOverdue) && !isHarvested;
+      const isDue = (tank.due || (tank.testStatus || tank.status || '').toLowerCase() === 'due' || tank.isDue) && !isHarvested && !isOverdue;
 
-      // Aquaculture Theme Colors based on Status & Map Layer
-      const statusKey = isHarvested ? 'harvested' : (isOverdue ? 'overdue' : (isDue ? 'due' : 'optimal'));
-      const themeColors = {
-        optimal: {
-          fill: mapType === 'satellite' ? '#0284C7' : '#38BDF8',
-          stroke: mapType === 'satellite' ? '#38BDF8' : '#0284C7',
-          dot: '#0284C7',
-          glow: 'rgba(2, 132, 199, 0.4)',
-          tagBg: '#EFF6FF',
-          tagText: '#1D4ED8',
-          label: 'Optimal',
-        },
-        due: {
-          fill: '#F59E0B',
-          stroke: '#D97706',
-          dot: '#D97706',
-          glow: 'rgba(217, 119, 6, 0.4)',
-          tagBg: '#FEF3C7',
-          tagText: '#B45309',
-          label: 'Due',
-        },
-        overdue: {
-          fill: '#EF4444',
-          stroke: '#DC2626',
-          dot: '#DC2626',
-          glow: 'rgba(220, 38, 38, 0.4)',
-          tagBg: '#FEE2E2',
-          tagText: '#B91C1C',
-          label: 'Overdue',
-        },
-        harvested: {
-          fill: '#64748B',
-          stroke: '#475569',
-          dot: '#64748B',
-          glow: 'rgba(100, 116, 139, 0.3)',
-          tagBg: '#F1F5F9',
-          tagText: '#475569',
-          label: 'Harvested',
-        },
-      }[statusKey];
+      const themeColors = isHarvested ? {
+        fill: '#64748B',
+        stroke: '#475569',
+        dot: '#64748B',
+        glow: 'rgba(100, 116, 139, 0.3)',
+        tagBg: '#F1F5F9',
+        tagText: '#475569',
+        label: 'Harvested',
+      } : isOverdue ? {
+        fill: '#EF4444',
+        stroke: '#DC2626',
+        dot: '#DC2626',
+        glow: 'rgba(220, 38, 38, 0.4)',
+        tagBg: '#FEE2E2',
+        tagText: '#B91C1C',
+        label: 'Overdue',
+      } : isDue ? {
+        fill: '#F59E0B',
+        stroke: '#D97706',
+        dot: '#D97706',
+        glow: 'rgba(217, 119, 6, 0.4)',
+        tagBg: '#FEF3C7',
+        tagText: '#B45309',
+        label: 'Due',
+      } : {
+        fill: mapType === 'satellite' ? '#0284C7' : '#38BDF8',
+        stroke: mapType === 'satellite' ? '#38BDF8' : '#0284C7',
+        dot: '#0284C7',
+        glow: 'rgba(2, 132, 199, 0.4)',
+        tagBg: '#EFF6FF',
+        tagText: '#1D4ED8',
+        label: 'Optimal',
+      };
 
       const onSelect = () => {
         setInternalSelectedTank(tank);
@@ -254,30 +357,40 @@ const FarmLeafletMap = ({
         }
       };
 
-      // B. CENTER STATUS BADGE (Floating Aquaculture Card Pin)
+      // 1. RENDER ACTUAL SAVED TANK POLYGON (IF PRESENT)
+      if (tank.boundaryLatLngs) {
+        L.polygon(tank.boundaryLatLngs, {
+          color: isSelected ? '#1A2FB8' : themeColors.stroke,
+          weight: isSelected ? 3.5 : 2,
+          fillColor: themeColors.fill,
+          fillOpacity: isSelected ? 0.45 : 0.25,
+        }).addTo(polygonsLayer).on('click', onSelect);
+
+        tank.boundaryLatLngs.forEach(pt => pointsToFit.push(pt));
+      }
+
+      // 2. TANK BADGE PIN / MARKER AT REGISTERED LOCATION OR CENTROID
       const badgeIcon = L.divIcon({
-        className: 'aquaculture-center-badge-marker',
+        className: 'aquaculture-tank-marker',
         html: `
           <div style="position:relative; display:flex; align-items:center; justify-content:center; transform:translate(-50%, -50%); cursor:pointer; pointer-events:auto;">
             ${isSelected ? `
-              <div style="position:absolute; width:52px; height:52px; border-radius:50%; background:${themeColors.glow}; animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; pointer-events:none;"></div>
+              <div style="position:absolute; width:54px; height:54px; border-radius:50%; background:${themeColors.glow}; animation:mapBeaconPulse 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; pointer-events:none;"></div>
             ` : ''}
 
-            <!-- Floating Pond Pill Badge -->
             <div style="
               display:flex;
               align-items:center;
               gap:6px;
               background:rgba(255, 255, 255, 0.96);
               backdrop-filter:blur(8px);
-              border:${isSelected ? '2px solid #1A2FB8' : '1.5px solid #E2E8F0'};
+              border:${isSelected ? '2px solid #1A2FB8' : '1.5px solid #CBD5E1'};
               border-radius:18px;
               padding:3px 8px 3px 6px;
               box-shadow:0 3px 12px rgba(15, 23, 42, ${isSelected ? '0.35' : '0.18'});
-              transition:transform 0.15s ease, box-shadow 0.15s ease;
+              transition:transform 0.15s ease;
               z-index:2;
             ">
-              <!-- Water Status Indicator Dot -->
               <span style="
                 width:8px;
                 height:8px;
@@ -287,19 +400,16 @@ const FarmLeafletMap = ({
                 flex-shrink:0;
               "></span>
 
-              <!-- Pond Name -->
               <span style="
                 font-size:11px;
                 font-weight:700;
                 color:#0F172A;
-                letter-spacing:-0.2px;
                 white-space:nowrap;
                 line-height:1.2;
               ">
                 ${tank.name}
               </span>
 
-              <!-- Mini Acre / Metric Tag -->
               <span style="
                 font-size:9.5px;
                 font-weight:600;
@@ -310,7 +420,7 @@ const FarmLeafletMap = ({
                 white-space:nowrap;
                 line-height:1.2;
               ">
-                ${tank.size ? String(tank.size).split(' ')[0] + ' Ac' : '1.5 Ac'}
+                ${tank.size ? String(tank.size).split(' ')[0] + ' Ac' : (tank.acres ? `${tank.acres} Ac` : '1.5 Ac')}
               </span>
             </div>
           </div>
@@ -318,151 +428,345 @@ const FarmLeafletMap = ({
         iconSize: [0, 0],
       });
 
-      const marker = L.marker([pLat, pLng], { 
+      const marker = L.marker([pLat, pLng], {
         icon: badgeIcon,
-        zIndexOffset: isSelected ? 500 : 100 
+        zIndexOffset: isSelected ? 500 : 100
       }).addTo(markersLayer);
 
-      // Tooltip with comprehensive aquaculture telemetry
-      const telemetryDetails = [
-        `<strong>${tank.name}</strong> • <span style="color:${themeColors.tagText}; font-weight:700;">${themeColors.label}</span>`,
-        `Farmer: <strong>${tank.farmer || 'Farmer'}</strong>`,
-        `Area: <strong>${tank.size || '1.5 Acres'}</strong>${tank.doc ? ` • DOC <strong>${tank.doc}</strong>` : ''}${tank.abw ? ` • ABW <strong>${tank.abw}</strong>` : ''}`,
-        `<span style="color:#64748B; font-size:10px;">GPS: ${pLat.toFixed(6)}°N, ${pLng.toFixed(6)}°E</span>`
-      ].join('<br/>');
-
-      marker.bindTooltip(`
-        <div style="font-family:-apple-system, BlinkMacSystemFont, sans-serif; font-size:11px; padding:3px 1px; line-height:1.45; min-width:130px;">
-          ${telemetryDetails}
+      const tooltipContent = `
+        <div style="font-family:-apple-system, BlinkMacSystemFont, sans-serif; font-size:11px; padding:3px 1px; line-height:1.45; min-width:140px;">
+          <strong>${tank.name}</strong> • <span style="color:${themeColors.tagText}; font-weight:700;">${themeColors.label}</span><br/>
+          Farmer: <strong>${tank.farmer}</strong><br/>
+          Area: <strong>${tank.size || (tank.acres ? `${tank.acres} Acres` : 'N/A')}</strong><br/>
+          Boundary: <strong>${tank.boundaryStatus}</strong><br/>
+          <span style="color:#64748B; font-size:10px;">Location: ${pLat.toFixed(5)}°N, ${pLng.toFixed(5)}°E</span>
         </div>
-      `, { direction: 'top', offset: [0, -14] });
+      `;
 
+      marker.bindTooltip(tooltipContent, { direction: 'top', offset: [0, -14] });
       marker.on('click', onSelect);
     });
 
-    // Auto-fit bounds so all assigned ponds and live technician location fit in view
-    if (pointsToFit.length > 0) {
+    // Auto-fit bounds strictly to actual registered locations
+    if (pointsToFit.length > 1) {
       try {
         const bounds = L.latLngBounds(pointsToFit);
         if (bounds.isValid()) {
           map.fitBounds(bounds, {
-            padding: [45, 45],
-            maxZoom: 16.2,
+            padding: [40, 40],
+            maxZoom: 16.5,
             animate: true,
           });
         }
       } catch (e) {
         console.warn('Map fitBounds error:', e);
       }
+    } else if (pointsToFit.length === 1) {
+      map.setView(pointsToFit[0], 16, { animate: true });
     }
-  }, [centerLat, centerLng, gps, activeTanks, activeSelectedTank, handleSelect, mapType]);
+  }, [visibleMapTanks, activeSelectedTank, handleSelect, mapType, gps]);
+
+  // Recenter handler
+  const handleRecenter = () => {
+    if (!mapInstanceRef.current) return;
+    const allPts = visibleMapTanks.map(t => t.effectiveCoords);
+    if (gps?.latitude && gps?.longitude) {
+      allPts.push([Number(gps.latitude), Number(gps.longitude)]);
+    }
+    if (allPts.length > 1) {
+      mapInstanceRef.current.fitBounds(L.latLngBounds(allPts), { padding: [45, 45], maxZoom: 16.2, animate: true });
+    } else if (allPts.length === 1) {
+      mapInstanceRef.current.setView(allPts[0], 16, { animate: true });
+    }
+  };
+
+  const getDetailUrl = (tankId) => {
+    if (typeof window === 'undefined') return `/tanks/${tankId}`;
+    const path = window.location.pathname;
+    if (path.startsWith('/incharge')) return `/incharge/tanks/${tankId}`;
+    if (path.startsWith('/asm')) return `/asm/tanks/${tankId}`;
+    return `/tanks/${tankId}`;
+  };
 
   return (
     <div style={isFullscreen ? styles.fullscreenWrapper : styles.mapWrapper}>
-      {/* Clean Segmented Map/Satellite Control */}
-      <div style={isFullscreen ? styles.mapTypeControlsFullscreen : styles.mapTypeControls}>
-        <button
-          type="button"
-          style={{
-            ...styles.typeBtn,
-            backgroundColor: mapType === 'roadmap' ? '#1A2FB8' : 'transparent',
-            color: mapType === 'roadmap' ? '#FFFFFF' : '#64748B',
-            fontWeight: mapType === 'roadmap' ? '600' : '500',
-          }}
-          onClick={() => setMapType('roadmap')}
-        >
-          Map
-        </button>
-        <button
-          type="button"
-          style={{
-            ...styles.typeBtn,
-            backgroundColor: mapType === 'satellite' ? '#1A2FB8' : 'transparent',
-            color: mapType === 'satellite' ? '#FFFFFF' : '#64748B',
-            fontWeight: mapType === 'satellite' ? '600' : '500',
-          }}
-          onClick={() => setMapType('satellite')}
-        >
-          Satellite
-        </button>
-      </div>
-
-      {/* Top Right Actions: Full Screen Toggle + Recenter */}
-      <div style={isFullscreen ? styles.topRightControlsFullscreen : styles.topRightControls}>
-        {isFullscreen ? (
+      {/* Top Map Toolbar: Map/Satellite + Filters + Fullscreen + Recenter */}
+      <div style={isFullscreen ? styles.topToolbarFullscreen : styles.topToolbar}>
+        {/* Layer Controls */}
+        <div style={styles.layerControls}>
           <button
             type="button"
-            className="transition-all duration-150 hover:bg-slate-100 active:scale-95 cursor-pointer"
-            style={styles.exitFullscreenBtn}
-            onClick={() => setIsFullscreen(false)}
-            title="Exit Full Screen (Esc)"
+            style={{
+              ...styles.typeBtn,
+              backgroundColor: mapType === 'roadmap' ? '#1A2FB8' : 'transparent',
+              color: mapType === 'roadmap' ? '#FFFFFF' : '#64748B',
+              fontWeight: mapType === 'roadmap' ? '700' : '500',
+            }}
+            onClick={() => setMapType('roadmap')}
           >
-            <Minimize2 size={14} color="#0F172A" strokeWidth={2.4} />
-            <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#0F172A' }}>Exit Full Screen</span>
+            Map
           </button>
-        ) : (
           <button
             type="button"
-            className="transition-all duration-150 hover:bg-slate-50 active:scale-95 cursor-pointer"
+            style={{
+              ...styles.typeBtn,
+              backgroundColor: mapType === 'satellite' ? '#1A2FB8' : 'transparent',
+              color: mapType === 'satellite' ? '#FFFFFF' : '#64748B',
+              fontWeight: mapType === 'satellite' ? '700' : '500',
+            }}
+            onClick={() => setMapType('satellite')}
+          >
+            Satellite
+          </button>
+        </div>
+
+        {/* Action Controls */}
+        <div style={styles.actionControls}>
+          {showFilters && (
+            <button
+              type="button"
+              style={{
+                ...styles.toolbarBtn,
+                backgroundColor: (selectedFarmer !== 'ALL' || selectedStatus !== 'ALL' || selectedBoundaryFilter !== 'ALL' || searchTerm) ? '#EFF6FF' : 'rgba(255, 255, 255, 0.95)',
+                color: (selectedFarmer !== 'ALL' || selectedStatus !== 'ALL' || selectedBoundaryFilter !== 'ALL' || searchTerm) ? '#1A2FB8' : '#0F172A',
+                border: (selectedFarmer !== 'ALL' || selectedStatus !== 'ALL' || selectedBoundaryFilter !== 'ALL' || searchTerm) ? '1px solid #93C5FD' : '1px solid #E2E8F0',
+              }}
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              title="Filter Tanks on Map"
+            >
+              <Filter size={13} />
+              <span style={{ fontSize: '11px', fontWeight: '700' }}>Filters</span>
+            </button>
+          )}
+
+          <button
+            type="button"
             style={styles.iconBtn}
-            onClick={() => setIsFullscreen(true)}
-            title="View Full Screen"
-            aria-label="View Full Screen"
+            onClick={handleRecenter}
+            title="Re-center to registered tanks"
           >
-            <Maximize2 size={15} color="#1A2FB8" strokeWidth={2.2} />
+            <LocateFixed size={14} color="#1A2FB8" strokeWidth={2.2} />
           </button>
-        )}
 
-        <button
-          type="button"
-          className="transition-all duration-150 hover:bg-slate-50 active:scale-95 cursor-pointer"
-          style={styles.iconBtn}
-          onClick={handleRecenter}
-          title="Re-center to my location"
-          aria-label="Re-center to my location"
-        >
-          <LocateFixed size={15} color="#1A2FB8" strokeWidth={2.2} />
-        </button>
+          {isFullscreen ? (
+            <button
+              type="button"
+              style={styles.exitFullscreenBtn}
+              onClick={() => setIsFullscreen(false)}
+              title="Exit Full Screen (Esc)"
+            >
+              <Minimize2 size={13} color="#0F172A" strokeWidth={2.4} />
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#0F172A' }}>Exit</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              style={styles.iconBtn}
+              onClick={() => setIsFullscreen(true)}
+              title="View Full Screen"
+            >
+              <Maximize2 size={14} color="#1A2FB8" strokeWidth={2.2} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Inline Filters Panel */}
+      {showFilters && isFilterOpen && (
+        <div style={styles.filterPanel}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative', flex: '1 1 140px', minWidth: '120px' }}>
+              <Search size={13} color="#94A3B8" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search tank / farmer..."
+                style={styles.filterInput}
+              />
+            </div>
+
+            {/* Farmer Filter */}
+            {uniqueFarmers.length > 1 && (
+              <select
+                value={selectedFarmer}
+                onChange={(e) => setSelectedFarmer(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Farmers ({uniqueFarmers.length})</option>
+                {uniqueFarmers.map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Status Filter */}
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="OPTIMAL">Optimal</option>
+              <option value="DUE">Test Due</option>
+              <option value="OVERDUE">Overdue</option>
+              <option value="HARVESTED">Harvested</option>
+            </select>
+
+            {/* Boundary Filter */}
+            <select
+              value={selectedBoundaryFilter}
+              onChange={(e) => setSelectedBoundaryFilter(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Boundaries</option>
+              <option value="WITH_BOUNDARY">With Polygon Boundary</option>
+              <option value="COORDS_ONLY">Coordinates Only</option>
+            </select>
+
+            {(selectedFarmer !== 'ALL' || selectedStatus !== 'ALL' || selectedBoundaryFilter !== 'ALL' || searchTerm) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFarmer('ALL');
+                  setSelectedStatus('ALL');
+                  setSelectedBoundaryFilter('ALL');
+                  setSearchTerm('');
+                }}
+                style={styles.resetFilterBtn}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '11px', color: '#64748B' }}>
+            <span>
+              Showing <strong>{visibleMapTanks.length}</strong> of <strong>{processedTanks.length}</strong> assigned tanks on map
+            </span>
+            {unregisteredCount > 0 && (
+              <span style={{ color: '#D97706' }}>
+                ({unregisteredCount} without GPS location)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Leaflet Map DOM Canvas */}
       <div ref={mapContainerRef} style={styles.mapElement} />
 
-      {/* Floating Bottom Drawer in Fullscreen Mode */}
-      {isFullscreen && activeSelectedTank && (
-        <div style={styles.fullscreenDrawer} className="animate-fade-in">
-          <div style={styles.drawerLeft}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
-                {activeSelectedTank.name}
-              </span>
+      {/* Empty State Overlay when no registered tanks have location coordinates */}
+      {visibleMapTanks.length === 0 && (
+        <div style={styles.emptyStateOverlay}>
+          <div style={styles.emptyCard}>
+            <div style={styles.emptyIconCircle}>
+              <MapPin size={24} color="#D97706" />
+            </div>
+            <h4 style={styles.emptyTitle}>
+              {processedTanks.length === 0 ? 'No Assigned Tanks Found' : 'No Registered Tank Locations'}
+            </h4>
+            <p style={styles.emptyDesc}>
+              {processedTanks.length === 0
+                ? 'There are currently no tanks assigned to your account in the database.'
+                : filteredTanks.length === 0
+                  ? 'No tanks match the selected filters. Try resetting the filters.'
+                  : `None of your ${processedTanks.length} assigned tanks currently have registered GPS coordinates or polygon boundaries in the database.`}
+            </p>
+            <span style={styles.emptyTip}>
+              When tanks and their boundaries are registered with GPS coordinates, they will automatically appear here on the map.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Detail Drawer for Selected Tank */}
+      {activeSelectedTank && (
+        <div style={isFullscreen ? styles.fullscreenDrawer : styles.bottomDrawer}>
+          <div style={styles.drawerHeaderRow}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={styles.drawerTankTitle}>{activeSelectedTank.name}</span>
               <span style={{
                 fontSize: '11px',
                 fontWeight: '700',
                 padding: '2px 8px',
                 borderRadius: '6px',
-                backgroundColor: activeSelectedTank.due ? '#FEF3C7' : '#DCFCE7',
-                color: activeSelectedTank.due ? '#B45309' : '#15803D',
+                backgroundColor: activeSelectedTank.status === 'Harvested' ? '#F1F5F9' : (activeSelectedTank.due ? '#FEF3C7' : '#DCFCE7'),
+                color: activeSelectedTank.status === 'Harvested' ? '#475569' : (activeSelectedTank.due ? '#B45309' : '#15803D'),
               }}>
                 {activeSelectedTank.status || 'Optimal'}
               </span>
+              <span style={{
+                fontSize: '10.5px',
+                fontWeight: '600',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor: activeSelectedTank.hasBoundary ? '#ECFDF5' : '#FEF3C7',
+                color: activeSelectedTank.hasBoundary ? '#059669' : '#D97706',
+                border: activeSelectedTank.hasBoundary ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+              }}>
+                {activeSelectedTank.hasBoundary ? <CheckCircle2 size={11} /> : <MapPin size={11} />}
+                {activeSelectedTank.hasBoundary ? 'Boundary: Polygon Registered' : 'Boundary: Coords Only'}
+              </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
-              {activeSelectedTank.farmer || 'Assigned Tank'} • {activeSelectedTank.distance || '0.8 km away'}
+
+            <button
+              type="button"
+              onClick={() => {
+                setInternalSelectedTank(null);
+                if (handleSelect) handleSelect(null);
+              }}
+              style={styles.closeDrawerBtn}
+              title="Close details"
+            >
+              <X size={16} color="#64748B" />
+            </button>
+          </div>
+
+          <div style={styles.drawerMetadataGrid}>
+            <div>
+              <span style={styles.metaLabel}>Tank ID:</span>
+              <span style={styles.metaValue}>{activeSelectedTank.id}</span>
+            </div>
+            <div>
+              <span style={styles.metaLabel}>Farmer:</span>
+              <span style={styles.metaValue}>{activeSelectedTank.farmer || 'Farmer'}</span>
+            </div>
+            <div>
+              <span style={styles.metaLabel}>Area:</span>
+              <span style={styles.metaValue}>{activeSelectedTank.size || (activeSelectedTank.acres ? `${activeSelectedTank.acres} Acres` : '1.5 Acres')}</span>
+            </div>
+            <div>
+              <span style={styles.metaLabel}>Locality:</span>
+              <span style={styles.metaValue}>{activeSelectedTank.locality || activeSelectedTank.location || 'Aquaculture Zone'}</span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setInternalSelectedTank(null);
-              if (handleSelect) handleSelect(null);
-            }}
-            style={styles.closeDrawerBtn}
-            title="Close details"
-          >
-            <X size={16} color="#64748B" />
-          </button>
+          <div style={styles.drawerActions}>
+            <button
+              type="button"
+              onClick={() => navigate(getDetailUrl(activeSelectedTank.id))}
+              style={styles.viewTankBtn}
+            >
+              <Eye size={13} />
+              <span>View Tank Details</span>
+            </button>
+
+            {onRecordTank ? (
+              <button
+                type="button"
+                onClick={() => onRecordTank(activeSelectedTank)}
+                style={styles.recordTankBtn}
+              >
+                <Plus size={13} />
+                <span>Record Test</span>
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
     </div>
@@ -472,14 +776,14 @@ const FarmLeafletMap = ({
 const styles = {
   mapWrapper: {
     width: '100%',
-    height: 'clamp(240px, 38vh, 360px)',
+    height: 'clamp(280px, 44vh, 420px)',
     borderRadius: '12px',
     overflow: 'hidden',
-    border: 'none',
     position: 'relative',
     zIndex: 1,
-    boxShadow: 'none',
-    outline: 'none',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#0F172A',
   },
   fullscreenWrapper: {
     position: 'fixed',
@@ -491,59 +795,69 @@ const styles = {
     height: '100vh',
     zIndex: 99999,
     backgroundColor: '#0F172A',
-    borderRadius: 0,
     overflow: 'hidden',
-    outline: 'none',
   },
   mapElement: {
     width: '100%',
     height: '100%',
     outline: 'none',
-    border: 'none',
   },
-  mapTypeControls: {
+  topToolbar: {
     position: 'absolute',
     top: '10px',
     left: '10px',
+    right: '10px',
     zIndex: 999,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '8px',
+    pointerEvents: 'none',
+  },
+  topToolbarFullscreen: {
+    position: 'absolute',
+    top: '16px',
+    left: '16px',
+    right: '16px',
+    zIndex: 999,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '8px',
+    pointerEvents: 'none',
+  },
+  layerControls: {
     display: 'flex',
     borderRadius: '8px',
     padding: '2px',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(8px)',
-    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
-    border: '1px solid #E2E8F0',
-  },
-  mapTypeControlsFullscreen: {
-    position: 'absolute',
-    top: '16px',
-    left: '16px',
-    zIndex: 999,
-    display: 'flex',
-    borderRadius: '10px',
-    padding: '3px',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(8px)',
-    boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.1)',
     border: '1px solid #CBD5E1',
+    pointerEvents: 'auto',
   },
-  topRightControls: {
-    position: 'absolute',
-    top: '10px',
-    right: '10px',
-    zIndex: 999,
+  actionControls: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    pointerEvents: 'auto',
   },
-  topRightControlsFullscreen: {
-    position: 'absolute',
-    top: '16px',
-    right: '16px',
-    zIndex: 999,
-    display: 'flex',
+  typeBtn: {
+    border: 'none',
+    padding: '4px 10px',
+    fontSize: '11px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  toolbarBtn: {
+    display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '4px',
+    padding: '6px 10px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
   },
   iconBtn: {
     width: '32px',
@@ -551,7 +865,7 @@ const styles = {
     borderRadius: '8px',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(8px)',
-    border: '1px solid #E2E8F0',
+    border: '1px solid #CBD5E1',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -569,48 +883,200 @@ const styles = {
     boxShadow: '0 2px 8px rgba(15, 23, 42, 0.12)',
     cursor: 'pointer',
   },
-  typeBtn: {
-    border: 'none',
-    padding: '4px 10px',
+  filterPanel: {
+    position: 'absolute',
+    top: '48px',
+    left: '10px',
+    right: '10px',
+    zIndex: 998,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '10px',
+    padding: '10px 12px',
+    border: '1px solid #CBD5E1',
+    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.12)',
+  },
+  filterInput: {
+    width: '100%',
+    padding: '5px 8px 5px 26px',
+    fontSize: '11.5px',
+    border: '1px solid #CBD5E1',
+    borderRadius: '6px',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  filterSelect: {
+    padding: '5px 8px',
+    fontSize: '11.5px',
+    border: '1px solid #CBD5E1',
+    borderRadius: '6px',
+    backgroundColor: '#FFFFFF',
+    outline: 'none',
+    cursor: 'pointer',
+  },
+  resetFilterBtn: {
+    padding: '5px 8px',
     fontSize: '11px',
+    fontWeight: '600',
+    border: 'none',
+    backgroundColor: '#F1F5F9',
+    color: '#64748B',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    transition: 'all 0.15s ease',
+  },
+  emptyStateOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    backdropFilter: 'blur(3px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 900,
+    padding: '16px',
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    padding: '20px 24px',
+    maxWidth: '380px',
+    textAlign: 'center',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+  },
+  emptyIconCircle: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    backgroundColor: '#FEF3C7',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 12px auto',
+  },
+  emptyTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#0F172A',
+    margin: '0 0 6px 0',
+  },
+  emptyDesc: {
+    fontSize: '12.5px',
+    color: '#64748B',
+    lineHeight: '1.45',
+    margin: '0 0 10px 0',
+  },
+  emptyTip: {
+    display: 'block',
+    fontSize: '11px',
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  bottomDrawer: {
+    position: 'absolute',
+    bottom: '10px',
+    left: '10px',
+    right: '10px',
+    zIndex: 998,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '10px',
+    padding: '12px 14px',
+    border: '1px solid #CBD5E1',
+    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
   },
   fullscreenDrawer: {
     position: 'absolute',
-    bottom: '24px',
+    bottom: '20px',
     left: '16px',
     right: '16px',
-    maxWidth: '520px',
+    maxWidth: '540px',
     margin: '0 auto',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    zIndex: 1000,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     backdropFilter: 'blur(12px)',
     borderRadius: '14px',
-    padding: '12px 18px',
-    border: '1px solid #E2E8F0',
+    padding: '14px 18px',
+    border: '1px solid #CBD5E1',
     boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  drawerHeaderRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: '12px',
-    zIndex: 1000,
   },
-  drawerLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
+  drawerTankTitle: {
+    fontSize: '14px',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   closeDrawerBtn: {
     background: 'none',
     border: 'none',
-    padding: '6px',
-    borderRadius: '6px',
+    padding: '4px',
     cursor: 'pointer',
+    borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  drawerMetadataGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+    gap: '6px 12px',
+    padding: '6px 0',
+    borderTop: '1px solid #F1F5F9',
+    borderBottom: '1px solid #F1F5F9',
+  },
+  metaLabel: {
+    fontSize: '11px',
+    color: '#64748B',
+    fontWeight: '600',
+    marginRight: '4px',
+  },
+  metaValue: {
+    fontSize: '11.5px',
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  drawerActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '8px',
+  },
+  viewTankBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '600',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #CBD5E1',
+    borderRadius: '6px',
+    color: '#0F172A',
+    cursor: 'pointer',
+  },
+  recordTankBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '6px 12px',
+    fontSize: '12px',
+    fontWeight: '700',
+    backgroundColor: '#1A2FB8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
   },
 };
 

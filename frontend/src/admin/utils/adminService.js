@@ -178,50 +178,80 @@ export const adminService = {
     return Array.isArray(res?.data) ? res.data : [];
   },
 
+  invalidateFarmerCache() {
+    this.clearCache('/farmers');
+    this.clearCache('/analytics/summary');
+    try { sessionStorage.removeItem('royal_admin_dashboard_cache_v1'); } catch {}
+  },
+
+  invalidateTankCache() {
+    this.clearCache('/tanks');
+    this.clearCache('/farmers');
+    this.clearCache('/analytics/summary');
+    try { sessionStorage.removeItem('royal_admin_dashboard_cache_v1'); } catch {}
+  },
+
+  invalidateSubmissionCache() {
+    this.clearCache('/submissions');
+    this.clearCache('/tanks');
+    this.clearCache('/admin/submission-locations?date=today');
+    this.clearCache('/analytics/summary');
+    try { sessionStorage.removeItem('royal_admin_dashboard_cache_v1'); } catch {}
+  },
+
+  invalidateHarvestCache() {
+    this.clearCache('/harvests');
+    this.clearCache('/tanks');
+    this.clearCache('/farmers');
+    this.clearCache('/analytics/summary');
+    try { sessionStorage.removeItem('royal_admin_dashboard_cache_v1'); } catch {}
+  },
+
   async createSubmission(payload) {
-    memoryCache.clear();
+    this.invalidateSubmissionCache();
     const res = await apiClient.post('/submissions', payload);
     return res?.data || null;
   },
 
   async createHarvest(payload) {
-    memoryCache.clear();
+    this.invalidateHarvestCache();
     const res = await apiClient.post('/harvests', payload);
     return res?.data || null;
   },
 
   async createTank(payload) {
-    memoryCache.clear();
+    this.invalidateTankCache();
     const res = await apiClient.post('/tanks', payload);
     return res?.data || null;
   },
 
   async updateTank(id, updates) {
-    memoryCache.clear();
+    this.invalidateTankCache();
     const res = await apiClient.put(`/tanks/${id}`, updates);
     return res?.data || null;
   },
 
   async createFarmer(payload) {
-    memoryCache.clear();
+    this.invalidateFarmerCache();
     const res = await apiClient.post('/farmers', payload);
     return res?.data || null;
   },
 
   async updateFarmer(id, updates) {
-    memoryCache.clear();
+    this.invalidateFarmerCache();
     const res = await apiClient.put(`/farmers/${id}`, updates);
     return res?.data || null;
   },
 
   async deleteFarmer(id) {
-    memoryCache.clear();
+    this.invalidateFarmerCache();
+    this.clearCache('/tanks');
     const res = await apiClient.delete(`/farmers/${id}`);
     return res?.data || null;
   },
 
   async verifySubmission(id, status, notes = '') {
-    memoryCache.clear();
+    this.invalidateSubmissionCache();
     const res = await apiClient.patch(`/submissions/${id}/verify`, { status, notes });
     return res?.data || null;
   }

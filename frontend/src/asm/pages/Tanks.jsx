@@ -35,7 +35,7 @@ const Tanks = () => {
       locality: farmer ? (farmer.location || farmer.village || 'Bhimavaram') : 'Bhimavaram',
       agent: agent ? agent.name : 'Direct Incharge',
       size: t.size || '2.0 Acres',
-      doc: t.doc || 45,
+      doc: t.doc ?? 45,
       lastTest: t.lastTest || '22 Aug',
       nextDue: t.nextTest || '29 Aug',
       status: status

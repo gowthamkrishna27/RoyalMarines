@@ -213,6 +213,7 @@ export const initializeDatabaseSchema = async () => {
     `);
 
     // Ensure all individual & cumulative columns exist on harvests table
+    // Ensure all individual & cumulative columns exist on harvests table
     const harvestColAlters = [
       'ALTER TABLE harvests ADD COLUMN culture_cycle_id VARCHAR(50) NULL',
       'ALTER TABLE harvests ADD COLUMN harvest_code VARCHAR(50) NULL',
@@ -237,40 +238,61 @@ export const initializeDatabaseSchema = async () => {
       'ALTER TABLE harvests ADD COLUMN total_value DECIMAL(16, 2) DEFAULT 0',
       'ALTER TABLE harvests ADD COLUMN buyer_name VARCHAR(150) NULL',
       'ALTER TABLE harvests ADD COLUMN remarks TEXT NULL',
+      'ALTER TABLE harvests ADD COLUMN recorded_by VARCHAR(50) NULL',
+      'ALTER TABLE harvests ADD COLUMN doc INT NULL AFTER harvest_type',
+      'ALTER TABLE harvests ADD COLUMN abw VARCHAR(20) NULL AFTER doc',
+      'ALTER TABLE harvests ADD COLUMN harvested_number INT NULL AFTER abw',
+      'ALTER TABLE harvests ADD COLUMN harvested_biomass DECIMAL(14, 2) NULL AFTER harvested_number',
+      'ALTER TABLE harvests ADD COLUMN total_harvested_seed BIGINT NULL AFTER harvested_biomass',
+      'ALTER TABLE harvests ADD COLUMN total_biomass_kg DECIMAL(14, 2) NULL AFTER total_harvested_seed',
+      'ALTER TABLE harvests ADD COLUMN total_feed_kg DECIMAL(14, 2) NULL AFTER total_biomass_kg',
+      'ALTER TABLE harvests ADD COLUMN fcr DECIMAL(5, 2) NULL AFTER total_feed_kg'
       'ALTER TABLE harvests ADD COLUMN recorded_by VARCHAR(50) NULL'
     ];
     for (const alt of harvestColAlters) {
       try { await query(alt); } catch (e) { }
     }
 
-    // Safely sync legacy and modern harvest columns
+    // Ensure tanks table has seed_date column
+    try {
+      await query('ALTER TABLE tanks ADD COLUMN seed_date VARCHAR(50) NULL AFTER stocking_date');
+    } catch (e) { }
+
+    // Safely sync legacy and modern harvest biomass / quantity columns
     try {
       await query(`
         UPDATE harvests 
         SET harvested_biomass = quantity_kg 
+        WHERE harvested_biomass IS NULL AND quantity_kg IS NOT NULL
+      `);
+      // Safely sync legacy and modern harvest columns
+      try {
+        await query(`
+        UPDATE harvests 
+        SET harvested_biomass = quantity_kg 
         WHERE (harvested_biomass IS NULL OR harvested_biomass = 0) AND quantity_kg IS NOT NULL AND quantity_kg > 0
       `);
-      await query(`
+        await query(`
         UPDATE harvests 
         SET quantity_kg = CAST(REGEXP_REPLACE(COALESCE(harvested_biomass, total_biomass_kg, '0'), '[^0-9.]', '') AS DECIMAL(14, 2))
         WHERE (quantity_kg IS NULL OR quantity_kg = 0) 
           AND (harvested_biomass IS NOT NULL OR total_biomass_kg IS NOT NULL)
       `);
-      await query(`
+        await query(`
         UPDATE harvests 
         SET price_per_kg = 350
         WHERE (price_per_kg IS NULL OR price_per_kg = 0)
       `);
-      await query(`
+        await query(`
         UPDATE harvests 
         SET revenue = quantity_kg * COALESCE(price_per_kg, 350),
             total_value = quantity_kg * COALESCE(price_per_kg, 350)
         WHERE (revenue IS NULL OR revenue = 0) AND quantity_kg > 0
       `);
-    } catch (e) { }
+      } catch (e) { }
 
-    // 10. Audit Logs Table
-    await query(`
+      // 10. Audit Logs Table
+      await query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         action VARCHAR(100),
@@ -287,30 +309,30 @@ export const initializeDatabaseSchema = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
-    return true;
-  } catch (error) {
-    console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
-    return false;
-  }
-};
-
-export const seedDatabase = async () => {
-  try {
-    console.log('\x1b[33m[Database Seed]\x1b[0m Explicit seeding requested...');
-    const defaultPinHash = await bcrypt.hash('1234', 10);
-    const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" OR username = "admin" LIMIT 1');
-    if (!existing) {
-      await query(
-        `INSERT INTO users (id, name, full_name, role, role_id, username, phone, email, password, password_hash, locality, region, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
-        ['ADM001', 'System Administrator', 'System Administrator', 'ADMIN', 1, 'admin', '9999999999', 'admin@royalsmarine.com', defaultPinHash, defaultPinHash, 'HQ', 'Headquarters']
-      );
+      console.log('\x1b[32m[Database Init]\x1b[0m All MySQL tables verified successfully.');
+      return true;
+    } catch (error) {
+      console.error('\x1b[31m[Database Init Error]\x1b[0m', error.message);
+      return false;
     }
-    console.log('\x1b[32m[Database Seed]\x1b[0m Seeding completed successfully.');
-    return true;
-  } catch (error) {
-    console.error('\x1b[31m[Database Seed Error]\x1b[0m', error.message);
-    return false;
-  }
-};
+  };
+
+  export const seedDatabase = async () => {
+    try {
+      console.log('\x1b[33m[Database Seed]\x1b[0m Explicit seeding requested...');
+      const defaultPinHash = await bcrypt.hash('1234', 10);
+      const [existing] = await query('SELECT id FROM users WHERE id = "ADM001" OR username = "admin" LIMIT 1');
+      if (!existing) {
+        await query(
+          `INSERT INTO users (id, name, full_name, role, role_id, username, phone, email, password, password_hash, locality, region, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+          ['ADM001', 'System Administrator', 'System Administrator', 'ADMIN', 1, 'admin', '9999999999', 'admin@royalsmarine.com', defaultPinHash, defaultPinHash, 'HQ', 'Headquarters']
+        );
+      }
+      console.log('\x1b[32m[Database Seed]\x1b[0m Seeding completed successfully.');
+      return true;
+    } catch (error) {
+      console.error('\x1b[31m[Database Seed Error]\x1b[0m', error.message);
+      return false;
+    }
+  };

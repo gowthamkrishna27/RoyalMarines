@@ -777,9 +777,9 @@ export const getDashboardMetrics = async (req, res) => {
 
       // 3e. Harvests
       try {
-        const [hr] = await query('SELECT COUNT(*) as c, COALESCE(SUM(total_value), COALESCE(SUM(revenue), 0)) as rev FROM harvests');
+        const [hr] = await query('SELECT COUNT(*) as c FROM harvests');
         domainStats.harvestsCount = Number(hr?.c || 0);
-        domainStats.totalRevenue = Number(hr?.rev || 0);
+        domainStats.totalRevenue = 0;
       } catch {}
 
       // 3f. Regions
