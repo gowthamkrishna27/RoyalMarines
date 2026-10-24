@@ -95,7 +95,7 @@ export const createTank = async (req, res) => {
   try {
     const { 
       name, farmerId, size, abw, biomass, fcr, doc, acres, areaAcres,
-      salinity, species, waterSource, cultureType, stockingDate,
+      salinity, species, waterSource, cultureType, stockingDate, seedDate,
       boundaryCoordinates, boundaryMethod, boundaryAreaAcres, boundaryQuality, boundaryCapturedAt 
     } = req.body;
 
@@ -117,6 +117,9 @@ export const createTank = async (req, res) => {
       sanitizedBoundary = validation.sanitized;
     }
 
+    const resolvedStockingDate = stockingDate || seedDate || new Date().toISOString().split('T')[0];
+    const resolvedSeedDate = seedDate || stockingDate || null;
+
     const newTank = await store.createTank({
       name,
       farmerId,
@@ -136,7 +139,9 @@ export const createTank = async (req, res) => {
       species: species || null,
       waterSource: waterSource || null,
       cultureType: cultureType || null,
-      stockingDate: stockingDate || null,
+      stockingDate: resolvedStockingDate,
+      seedDate: resolvedSeedDate,
+      seedStockingLak: req.body.seedStockingLak || req.body.seed_stocking_lak || req.body.seedStocked || req.body.seed || null,
       boundaryCoordinates: sanitizedBoundary,
       boundaryMethod: boundaryMethod || null,
       boundaryAreaAcres: boundaryAreaAcres != null ? boundaryAreaAcres : null,

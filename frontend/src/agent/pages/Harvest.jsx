@@ -1016,84 +1016,65 @@ const Harvest = () => {
         <h3 style={styles.sectionTitle}>Tank Baseline Stocking Specs</h3>
         <div style={styles.specsGrid}>
           <div>
-            <label style={styles.miniLabel}>Tank Size (Acres)</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Tank Size (Acres)</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
             <input 
               type="text" 
-              value={currentStore.tankSize || activeTank.acres || '2.5'} 
-              onChange={(e) => updateMetaField('tankSize', e.target.value)}
-              style={styles.specInput}
+              value={activeTank?.acres ? `${activeTank.acres} Acres` : (currentStore.tankSize ? `${currentStore.tankSize} Acres` : '2.5 Acres')} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Tank size is fixed from the pond profile"
             />
           </div>
           <div>
-            <label style={styles.miniLabel}>Seed Stocked (Nos)</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Seed Stocked (Nos)</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
+            <input 
+              type="text" 
+              value={(Number(activeTank?.seedStocked || activeTank?.seedNumber || currentStore.seedNumber || 200000)).toLocaleString()} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Seed stocked is fixed from stocking records"
+            />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Stocking Date</label>
+              <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fixed</span>
+            </div>
+            <input 
+              type="text" 
+              value={activeTank?.stockingDate || activeTank?.seedDate || currentStore.stockingDate || '2026-06-01'} 
+              readOnly
+              disabled
+              style={styles.specInputReadOnly}
+              title="Stocking date is fixed from cycle initialization"
+            />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={styles.miniLabel}>Total Feed Consumed (kg)</label>
+              <span style={{ fontSize: '10px', color: '#1A2FB8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editable</span>
+            </div>
             <input 
               type="number" 
-              value={currentStore.seedNumber || '200000'} 
-              onChange={(e) => updateMetaField('seedNumber', e.target.value)}
-              style={styles.specInput}
-            />
-          </div>
-          <div>
-            <label style={styles.miniLabel}>Stocking Date</label>
-            <input 
-              type="date" 
-              value={currentStore.stockingDate || '2026-06-01'} 
-              onChange={(e) => updateMetaField('stockingDate', e.target.value)}
-              style={styles.specInput}
-            />
-          </div>
-          <div>
-            <label style={styles.miniLabel}>Total Feed Consumed (kg)</label>
-            <input 
-              type="number" 
-              value={currentStore.totalFeed || '3600'} 
+              value={currentStore.totalFeed !== undefined && currentStore.totalFeed !== null ? currentStore.totalFeed : '3600'} 
               onChange={(e) => updateMetaField('totalFeed', e.target.value)}
-              style={styles.specInput}
+              style={{ ...styles.specInput, borderColor: '#1A2FB8', backgroundColor: '#FFFFFF' }}
+              placeholder="Enter feed consumed (kg)"
+              title="Total feed consumed across the crop cycle"
             />
           </div>
         </div>
       </div>
 
-      {/* 4. Automated Harvest Performance Report (KPIs) */}
-      <div style={{ ...styles.card, borderLeft: '4px solid #1A2FB8' }}>
-        <div style={styles.reportHeader}>
-          <div>
-            <h3 style={styles.sectionTitle}>Automated Harvest Performance Summary ({currentCycleId})</h3>
-            <span style={styles.reportSub}>Consolidated biomass and survival metrics for {activeTank.name}</span>
-          </div>
-          <span style={styles.autoCalcTag}>
-            <Sparkles size={13} /> Auto-Computed
-          </span>
-        </div>
-
-        <div style={styles.kpiGrid}>
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Total Harvested Seed</span>
-            <div style={styles.kpiVal}>{totalHarvestedSeed.toLocaleString()}</div>
-            <span style={styles.kpiFoot}>Nos across all stages</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Total Harvested Biomass</span>
-            <div style={{ ...styles.kpiVal, color: '#1A2FB8' }}>{totalHarvestedBiomass.toLocaleString()} kg</div>
-            <span style={styles.kpiFoot}>Aggregate crop yield</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Survival Rate</span>
-            <div style={{ ...styles.kpiVal, color: '#16A34A' }}>{survivalPct}%</div>
-            <span style={styles.kpiFoot}>(Harvested ÷ Stocked) × 100</span>
-          </div>
-
-          <div style={styles.kpiBox}>
-            <span style={styles.kpiLabel}>Calculated FCR</span>
-            <div style={{ ...styles.kpiVal, color: '#D97706' }}>{fcr}</div>
-            <span style={styles.kpiFoot}>Total Feed ÷ Biomass</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Dynamic Sequence Breakdown Table */}
+      {/* 4. Dynamic Sequence Breakdown Table */}
       <div style={styles.card}>
         <div style={styles.tableHeaderSection}>
           <div>
@@ -2128,6 +2109,20 @@ const styles = {
     fontWeight: '600',
     outline: 'none',
     boxSizing: 'border-box'
+  },
+  specInputReadOnly: {
+    width: '100%',
+    height: '40px',
+    padding: '0 12px',
+    borderRadius: '10px',
+    border: '1px solid #E2E8F0',
+    backgroundColor: '#F1F5F9',
+    fontSize: '13.5px',
+    color: '#475569',
+    fontWeight: '600',
+    outline: 'none',
+    boxSizing: 'border-box',
+    cursor: 'not-allowed'
   },
   reportHeader: {
     display: 'flex',

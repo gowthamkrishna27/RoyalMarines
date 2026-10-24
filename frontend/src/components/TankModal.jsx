@@ -71,19 +71,19 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
         name: defaultTankName,
         farmerId: targetFarmerId,
         agentId: defaultAgentId || 'agent001',
-        acres: '3 Acres',
-        salinity: '16 ppt',
-        soilType: 'Loam',
-        hatchery: 'Golden Marine Hatchery',
-        brooder: 'Kona Bay',
+        acres: '',
+        salinity: '',
+        soilType: '',
+        hatchery: '',
+        brooder: '',
         customBrooder: '',
-        seedDate: new Date().toISOString().split('T')[0],
-        seedStockingLak: '2.5',
-        feedType: 'Premium',
-        waterSource: 'Borewell',
-        abw: '12g',
-        biomass: '800kg',
-        fcr: '1.2',
+        seedDate: '',
+        seedStockingLak: '',
+        feedType: '',
+        waterSource: '',
+        abw: '',
+        biomass: '',
+        fcr: '',
         testStatus: 'Due',
         boundaryCoordinates: null,
         boundaryMethod: null,
@@ -113,6 +113,8 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
 
     const payload = {
       ...formData,
+      stockingDate: formData.seedDate || formData.stockingDate,
+      seedDate: formData.seedDate || formData.stockingDate,
       brooder: (formData.brooder === 'Others' || formData.brooder === 'Other')
         ? (formData.customBrooder?.trim() || 'Others')
         : formData.brooder,
@@ -246,6 +248,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                 onChange={(e) => setFormData({ ...formData, soilType: e.target.value })}
                 style={styles.input}
               >
+                <option value="">Select Soil Type</option>
                 <option value="Loam">Loam</option>
                 <option value="Clay">Clay</option>
                 <option value="Sandy">Sandy</option>
@@ -274,12 +277,12 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                 onChange={(e) => setFormData({ ...formData, brooder: e.target.value })}
                 style={styles.input}
               >
+                <option value="">Select Brooder</option>
                 <option value="Syaqua">Syaqua</option>
                 <option value="Kona Bay">Kona Bay</option>
                 <option value="SIS">SIS (Shrimp Improvement Systems)</option>
                 <option value="American Penaeid">American Penaeid</option>
                 <option value="Others">Others</option>
-
               </select>
               {(formData.brooder === 'Others' || formData.brooder === 'Other') && (
                 <div style={{ marginTop: '8px' }}>
@@ -327,6 +330,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                 onChange={(e) => setFormData({ ...formData, feedType: e.target.value })}
                 style={styles.input}
               >
+                <option value="">Select Feed Type</option>
                 <option value="Premium">Premium</option>
                 <option value="Functional">Functional</option>
                 <option value="Hypro">Hypro</option>
@@ -345,6 +349,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
                 onChange={(e) => setFormData({ ...formData, waterSource: e.target.value })}
                 style={styles.input}
               >
+                <option value="">Select Water Source</option>
                 <option value="Borewell">Borewell</option>
                 <option value="Canal">Canal Water</option>
                 <option value="Creek">Creek / Estuary</option>
@@ -370,7 +375,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
               <label style={styles.label}>ABW (g)</label>
               <input
                 type="text"
-                placeholder="12g"
+                placeholder="e.g. 12g"
                 value={formData.abw}
                 onChange={(e) => setFormData({ ...formData, abw: e.target.value })}
                 style={styles.input}
@@ -380,7 +385,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
               <label style={styles.label}>Biomass</label>
               <input
                 type="text"
-                placeholder="800kg"
+                placeholder="e.g. 800kg"
                 value={formData.biomass}
                 onChange={(e) => setFormData({ ...formData, biomass: e.target.value })}
                 style={styles.input}
@@ -390,7 +395,7 @@ const TankModal = ({ isOpen, onClose, tank = null, farmerId = null, defaultAgent
               <label style={styles.label}>FCR Ratio</label>
               <input
                 type="text"
-                placeholder="1.2"
+                placeholder="e.g. 1.2"
                 value={formData.fcr}
                 onChange={(e) => setFormData({ ...formData, fcr: e.target.value })}
                 style={styles.input}

@@ -25,7 +25,7 @@ const getInitialDashboardCache = () => {
         }
       }
     }
-  } catch {}
+  } catch { }
   return null;
 };
 
@@ -99,7 +99,7 @@ const AdminDashboard = () => {
           updatedAt: Date.now()
         });
         sessionStorage.setItem(DASHBOARD_CACHE_KEY, payload);
-      } catch {}
+      } catch { }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Could not connect to live database API. Please check your connection.');
@@ -114,7 +114,7 @@ const AdminDashboard = () => {
     const handleRefresh = () => {
       try {
         sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
-      } catch {}
+      } catch { }
       loadDashboardData(true);
     };
     window.addEventListener('submissionCreated', handleRefresh);
@@ -282,7 +282,7 @@ const AdminDashboard = () => {
 
       {/* 1. Header Section with Today Submissions option */}
       <div style={styles.headerRow}>
-        <h1 style={styles.headerTitle}>Royal's Marine Operational Dashboard</h1>
+        <h1 style={styles.headerTitle}>Dashboard</h1>
 
         <button
           type="button"

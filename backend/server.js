@@ -23,15 +23,35 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   }
 });
 
+// Server socket error handling (e.g. EADDRINUSE on restarts)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\x1b[31m[Port ${PORT} in use]\x1b[0m Address already in use. Please wait a moment or free port ${PORT}.`);
+    process.exit(1);
+  } else {
+    console.error('[Server Error]', err);
+  }
+});
+
 // Process error listeners for stability
 process.on('unhandledRejection', (err) => {
   console.error('[Unhandled Rejection]', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
 });
 
 process.on('SIGTERM', () => {
   console.log('[SIGTERM] Shutting down gracefully...');
   server.close(() => {
     console.log('[Process] Terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  server.close(() => {
     process.exit(0);
   });
 });

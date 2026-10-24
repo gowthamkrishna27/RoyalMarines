@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { getSession } from "../agent/utils/agentAuth";
 import { apiClient } from "../utils/apiClient";
 import { adminService } from "../admin/utils/adminService";
+import { calculateCurrentDoc } from "../utils/docCalculator";
 // Zero mock data - Initial state is empty arrays until populated by MySQL APIs
 const initialRegions = [];
 const initialIncharges = [];
@@ -22,10 +23,16 @@ const normalizeTanks = (tanks) => {
     let fId = tank.farmerId || tank.farmer_id || "UNKNOWN";
     if (fId === "1" || fId === "FAR001") fId = "F001";
     countMap[fId] = (countMap[fId] || 0) + 1;
+    const currentDoc = calculateCurrentDoc(tank);
     return {
       ...tank,
       farmerId: tank.farmerId || tank.farmer_id || fId,
       name: tank.name || `Tank ${countMap[fId]}`,
+      doc: currentDoc,
+      enteredDoc: tank.enteredDoc !== undefined ? tank.enteredDoc : (tank.doc !== undefined && tank.doc !== null ? Number(tank.doc) : 0),
+      baselineDoc: tank.baselineDoc !== undefined ? tank.baselineDoc : (tank.doc !== undefined && tank.doc !== null ? Number(tank.doc) : 0),
+      stockingDate: tank.stockingDate || tank.stocking_date || tank.seedDate || tank.seed_date || null,
+      seedDate: tank.seedDate || tank.seed_date || tank.stockingDate || tank.stocking_date || null,
     };
   });
 };
@@ -1282,7 +1289,10 @@ export const MockDataProvider = ({ children }) => {
         salinity: tankItem.salinity ? `${tankItem.salinity} ppt` : "16 ppt",
         species: tankItem.species || "Vannamei",
         cultureType: tankItem.cultureType || "Semi-Intensive",
-        stockingDate: tankItem.stockingDate || new Date().toISOString().split("T")[0],
+        stockingDate: tankItem.stockingDate || tankItem.seedDate || new Date().toISOString().split("T")[0],
+        seedDate: tankItem.seedDate || tankItem.stockingDate || null,
+        seedStockingLak: tankItem.seedStockingLak || tankItem.seed_stocking_lak || tankItem.seedStocked || "2.5",
+        doc: tankItem.doc != null && tankItem.doc !== "" ? Number(tankItem.doc) : 0,
         abw: tankItem.abw ? String(tankItem.abw) : "12g",
         biomass: tankItem.biomass ? String(tankItem.biomass) : "800kg",
         fcr: tankItem.fcr ? String(tankItem.fcr) : "1.2",
@@ -1943,7 +1953,10 @@ export const MockDataProvider = ({ children }) => {
         salinity: pondData.salinity ? `${pondData.salinity} ppt` : "16 ppt",
         species: pondData.species || "Vannamei",
         cultureType: pondData.cultureType || "Semi-Intensive",
-        stockingDate: pondData.stockingDate || new Date().toISOString().split("T")[0],
+        stockingDate: pondData.stockingDate || pondData.seedDate || new Date().toISOString().split("T")[0],
+        seedDate: pondData.seedDate || pondData.stockingDate || null,
+        seedStockingLak: pondData.seedStockingLak || pondData.seed_stocking_lak || pondData.seedStocked || "2.5",
+        doc: pondData.doc != null && pondData.doc !== "" ? Number(pondData.doc) : 0,
         abw: pondData.abw || "10g",
         biomass: pondData.biomass || "600kg",
         fcr: pondData.fcr || "1.15",

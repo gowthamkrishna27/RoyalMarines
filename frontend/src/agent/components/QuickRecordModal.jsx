@@ -1,16 +1,58 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Droplets, MapPin, CheckCircle, RefreshCw, ChevronDown,
   Check, Plus, Lock, Calendar, Clock, ChevronUp, Scale, Wheat, Bug
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
+import { calculateCurrentDoc } from '../../utils/docCalculator';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../incharge/utils/inchargeAuth';
 import { isAdminAuthenticated, getAdminSession } from '../../admin/utils/adminAuth';
 import { getStoredGPS, captureDeviceGPS, requestSubmissionGPS } from '../utils/gpsService';
 import { queueOfflineRecord } from '../utils/syncService';
 import MarineLoader from '../../components/MarineLoader';
+
+// Helper to reliably extract and format stocked seed count and lakhs representation for any tank
+export const resolveTankSeedStocked = (t) => {
+  if (!t) return { count: 250000, lakhs: '2.5 Lakhs', displayFull: '2,50,000 (2.5 Lakhs)', countFormatted: '2,50,000', raw: 2.5 };
+  
+  let raw = t.seedStocked ?? t.seed_stocking_lak ?? t.seedStockingLak ?? t.seed ?? t.seed_stocked ?? t.seedNumber ?? t.seedCountLac ?? null;
+
+  if (raw == null && t.id) {
+    try {
+      const store = JSON.parse(localStorage.getItem('agent_harvest_store') || '{}');
+      const tankStore = store[t.id];
+      if (tankStore?.seedNumber) raw = tankStore.seedNumber;
+    } catch (e) {}
+  }
+
+  let num = parseFloat(raw);
+  if (isNaN(num) || num <= 0) {
+    const acres = parseFloat(t.acres || t.area || 2.5);
+    num = acres > 0 ? parseFloat((acres * 1.0).toFixed(1)) : 2.5;
+  }
+
+  let seedCount = 0;
+  let lakhsStr = '';
+
+  if (num <= 50) {
+    seedCount = Math.round(num * 100000);
+    lakhsStr = `${num} Lakhs`;
+  } else {
+    seedCount = Math.round(num);
+    const inLakhs = (seedCount / 100000).toFixed(seedCount % 100000 === 0 ? 1 : 2);
+    lakhsStr = `${inLakhs} Lakhs`;
+  }
+
+  return {
+    raw: num,
+    count: seedCount,
+    countFormatted: seedCount.toLocaleString(),
+    lakhs: lakhsStr,
+    displayFull: lakhsStr ? `${seedCount.toLocaleString()} (${lakhsStr})` : seedCount.toLocaleString()
+  };
+};
 
 const QuickRecordModalInner = ({
   isOpen,
@@ -63,6 +105,10 @@ const QuickRecordModalInner = ({
   const tanks = farmerTanks;
   const [selectedTankId, setSelectedTankId] = useState(preselectedTankId || tanks[0]?.id || '');
 
+  // Authoritative selected tank reference and resolved seed stocking metrics
+  const currentTank = tanks.find(x => x.id === selectedTankId) || tanks[0] || null;
+  const tankSeedInfo = useMemo(() => resolveTankSeedStocked(currentTank), [currentTank]);
+
   // GPS & Submission States
   const [gpsData, setGpsData] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -104,14 +150,15 @@ const QuickRecordModalInner = ({
   const [feedForm, setFeedForm] = useState({
     date: new Date().toISOString().split('T')[0],
     doc: '',
-    seed: '',
-    abw: '',
+    seed: '', // Seed Stocked (read-only from original tank details)
+    estimatedStock: '', // Estimated Stock (manual entry)
+    count: '', // Count (manual entry)
+    abw: '', // ABW (read-only, auto-calculated from Count: 1000 / Count)
     dayFeed: '',
     cumulativeFeed: '',
-    totalBiomass: '',
     fcr: '',
     checkTrayFeed: '',
-    checkTrayTime: '10:30',
+    checkTrayTime: '', // CH TR Time (Feed Consumption Time) (manual entry)
     remarks: '',
   });
 
@@ -138,6 +185,7 @@ const QuickRecordModalInner = ({
     // Map of disease name -> status ('Normal', 'Mild', 'Severe')
     status: {},
     affectedShrimpPct: '',
+    others: '',
     remarks: '',
   });
 
@@ -155,17 +203,36 @@ const QuickRecordModalInner = ({
     });
   };
 
-  // Auto-calculate FCR: Cumulative Feed / Total Biomass
+  // Auto-calculate ABW (1000 / Count) and FCR
   const handleFeedChange = (field, val) => {
     setFeedForm(prev => {
       const updated = { ...prev, [field]: val };
+
+      // Requirement 2: Auto-calculate ABW = 1000 / Count immediately
+      if (field === 'count') {
+        const countNum = parseFloat(val);
+        if (!isNaN(countNum) && countNum > 0) {
+          const calcAbw = 1000 / countNum;
+          updated.abw = calcAbw % 1 === 0 ? String(calcAbw) : String(parseFloat(calcAbw.toFixed(2)));
+        } else {
+          updated.abw = '';
+        }
+      }
+
+      // Auto-calculate FCR: Cumulative Feed / Biomass (where Biomass = (Estimated Stock * ABW) / 1000)
       const cumFeed = parseFloat(field === 'cumulativeFeed' ? val : updated.cumulativeFeed);
-      const biomass = parseFloat(field === 'totalBiomass' ? val : updated.totalBiomass);
-      if (!isNaN(cumFeed) && !isNaN(biomass) && biomass > 0) {
-        updated.fcr = (cumFeed / biomass).toFixed(2);
-      } else if (field === 'cumulativeFeed' || field === 'totalBiomass') {
+      const estStock = parseFloat(field === 'estimatedStock' ? val : updated.estimatedStock);
+      const currentAbw = parseFloat(updated.abw);
+
+      if (!isNaN(cumFeed) && cumFeed > 0 && !isNaN(estStock) && estStock > 0 && !isNaN(currentAbw) && currentAbw > 0) {
+        const estBiomassKg = (estStock * currentAbw) / 1000;
+        if (estBiomassKg > 0) {
+          updated.fcr = (cumFeed / estBiomassKg).toFixed(2);
+        }
+      } else if (field === 'cumulativeFeed' || field === 'estimatedStock' || field === 'count') {
         updated.fcr = '';
       }
+
       return updated;
     });
   };
@@ -202,16 +269,19 @@ const QuickRecordModalInner = ({
       prevTankKeyRef.current = tankKey;
 
       let initialDoc = '';
-      if (t.doc !== undefined && t.doc !== null && t.doc !== '') {
-        initialDoc = String(t.doc);
-      } else if (t.stockingDate) {
-        const diffDays = Math.floor((new Date() - new Date(t.stockingDate)) / 86400000);
-        initialDoc = String(Math.max(0, diffDays));
+      try {
+        const currentDoc = typeof calculateCurrentDoc === 'function' ? calculateCurrentDoc(t) : t.doc;
+        if (currentDoc !== undefined && currentDoc !== null && !isNaN(Number(currentDoc))) {
+          initialDoc = String(currentDoc);
+        } else if (t.doc !== undefined && t.doc !== null && t.doc !== '') {
+          initialDoc = String(t.doc);
+        }
+      } catch (docErr) {
+        initialDoc = t.doc != null && t.doc !== '' ? String(t.doc) : '';
       }
 
-      const initialSeed = t.seedStocked 
-        ? String((parseFloat(t.seedStocked) / 100000).toFixed(1)) 
-        : (t.seed ? String(t.seed) : (t.seedStockingLak ? String(t.seedStockingLak) : ''));
+      // Retrieve original Seed Stocked value saved when tank details were entered
+      const seedInfo = resolveTankSeedStocked(t);
 
       setWaterForm(prev => ({
         ...prev,
@@ -220,7 +290,11 @@ const QuickRecordModalInner = ({
       setFeedForm(prev => ({
         ...prev,
         doc: initialDoc,
-        seed: initialSeed
+        seed: seedInfo.displayFull,
+        estimatedStock: '',
+        count: '',
+        abw: '',
+        checkTrayTime: '',
       }));
       setDiseaseForm(prev => ({
         ...prev,
@@ -309,11 +383,11 @@ const QuickRecordModalInner = ({
     const isHarvest = activeTab === 'HARVEST_ENTRY';
     const isFeed = activeTab === 'FEED_ENTRY';
     const isDisease = activeTab === 'DISEASE_ENTRY';
-    const testTypeName = isHarvest 
-      ? 'Harvest' 
+    const testTypeName = isHarvest
+      ? 'Harvest'
       : (isFeed ? 'Feed Check Analysis' : (isDisease ? 'Disease Inspection' : 'Water Analysis'));
-    const recordTypeKey = isHarvest 
-      ? 'HARVEST_ENTRY' 
+    const recordTypeKey = isHarvest
+      ? 'HARVEST_ENTRY'
       : (isFeed ? 'FEED_ENTRY' : (isDisease ? 'DISEASE_ENTRY' : 'WATER_QUALITY'));
     const formData = isHarvest ? harvestForm : (isFeed ? feedForm : (isDisease ? diseaseForm : waterForm));
 
@@ -335,7 +409,19 @@ const QuickRecordModalInner = ({
         ? (inchargeSession?.name || 'Incharge')
         : (session?.name || 'Technician');
 
-    const enrichedData = isHarvest || isFeed || isDisease ? formData : {
+    const enrichedData = isHarvest || isDisease ? formData : (isFeed ? {
+      ...formData,
+      chTrTime: formData.checkTrayTime,
+      checkTrayTime: formData.checkTrayTime,
+      chTrFeed: formData.checkTrayFeed,
+      count: formData.count,
+      abw: formData.abw,
+      estimatedStock: formData.estimatedStock,
+      seed: tankSeedInfo.count,
+      seedStocked: tankSeedInfo.count,
+      seedStockedFormatted: tankSeedInfo.displayFull,
+      seedCountLac: tankSeedInfo.lakhs,
+    } : {
       ...formData,
       ph: formData.ph ?? '',
       ammonia: formData.ammonia ?? '',
@@ -353,7 +439,7 @@ const QuickRecordModalInner = ({
       waterColor: formData.waterColor ?? '',
       waterColour: formData.waterColor ?? '',
       nitrite: formData.nitrate ?? '',
-    };
+    });
 
     const submissionPayload = {
       id: recordId,
@@ -461,16 +547,20 @@ const QuickRecordModalInner = ({
               ) : activeTab === 'FEED_ENTRY' ? (
                 <>
                   <div style={styles.successPill}>
+                    <span style={styles.successPillLabel}>Seed Stocked</span>
+                    <strong style={{ ...styles.successPillVal, color: '#16A34A' }}>{tankSeedInfo.displayFull}</strong>
+                  </div>
+                  <div style={styles.successPill}>
                     <span style={styles.successPillLabel}>Day / Cum Feed</span>
                     <strong style={styles.successPillVal}>{feedForm.dayFeed || '0'} / {feedForm.cumulativeFeed || '0'} kg</strong>
                   </div>
                   <div style={styles.successPill}>
-                    <span style={styles.successPillLabel}>ABW</span>
-                    <strong style={styles.successPillVal}>{feedForm.abw || '0'} g</strong>
+                    <span style={styles.successPillLabel}>Count / ABW</span>
+                    <strong style={styles.successPillVal}>{feedForm.count ? `${feedForm.count} /kg` : '—'} • {feedForm.abw ? `${feedForm.abw}g` : '—'}</strong>
                   </div>
                   <div style={styles.successPill}>
-                    <span style={styles.successPillLabel}>Total Biomass</span>
-                    <strong style={styles.successPillVal}>{feedForm.totalBiomass || '0'} kg</strong>
+                    <span style={styles.successPillLabel}>Estimated Stock</span>
+                    <strong style={styles.successPillVal}>{feedForm.estimatedStock || '—'}</strong>
                   </div>
                   <div style={styles.successPill}>
                     <span style={styles.successPillLabel}>FCR</span>
@@ -553,22 +643,22 @@ const QuickRecordModalInner = ({
             </div>
             <div>
               <h2 style={styles.title}>
-                {activeTab === 'HARVEST_ENTRY' 
-                  ? 'New Harvest Entry' 
-                  : activeTab === 'FEED_ENTRY' 
-                  ? 'New Feed Record' 
-                  : activeTab === 'DISEASE_ENTRY'
-                  ? 'Disease Inspection Log'
-                  : 'New Water Analysis Record'}
+                {activeTab === 'HARVEST_ENTRY'
+                  ? 'New Harvest Entry'
+                  : activeTab === 'FEED_ENTRY'
+                    ? 'New Feed Record'
+                    : activeTab === 'DISEASE_ENTRY'
+                      ? 'Disease Inspection Log'
+                      : 'New Water Analysis Record'}
               </h2>
               <p style={styles.subtitle}>
-                {activeTab === 'HARVEST_ENTRY' 
-                  ? 'Log pond harvest data' 
-                  : activeTab === 'FEED_ENTRY' 
-                  ? 'Log feed check, biomass & FCR data' 
-                  : activeTab === 'DISEASE_ENTRY'
-                  ? 'Assess shrimp symptoms & clinical conditions'
-                  : 'Enter water parameters (pH, Ammonia, Nitrate, Salinity)'}
+                {activeTab === 'HARVEST_ENTRY'
+                  ? 'Log pond harvest data'
+                  : activeTab === 'FEED_ENTRY'
+                    ? 'Log feed check, count, ABW & FCR data'
+                    : activeTab === 'DISEASE_ENTRY'
+                      ? 'Assess shrimp symptoms & clinical conditions'
+                      : 'Enter water parameters (pH, Ammonia, Nitrate, Salinity)'}
               </p>
             </div>
           </div>
@@ -667,47 +757,81 @@ const QuickRecordModalInner = ({
 
               {/* Feed Grid Parameters */}
               <div style={styles.sectionHeader}>
-                <span style={styles.sectionLabel}>FEEDING & BIOMASS PARAMETERS</span>
+                <span style={styles.sectionLabel}>FEEDING & GROWTH PARAMETERS</span>
               </div>
 
               <div style={styles.paramGrid}>
-                {/* 2. Seed (lac) */}
-                <div style={styles.paramCard}>
+                {/* 1. Seed Stocked (Read-only, from original tank details) */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#F1F5F9', border: '1.5px solid #CBD5E1' }}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>Seed Stocked</span>
-                    <span style={styles.paramUnit}>lac</span>
+                    <span style={{ ...styles.paramTitle, color: '#334155' }}>Seed Stocked</span>
+                    <span style={{ ...styles.paramUnit, color: '#166534', fontWeight: 600 }}>{tankSeedInfo.lakhs}</span>
                   </div>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={feedForm.seed}
-                    onChange={(e) => handleFeedChange('seed', e.target.value)}
-                    placeholder="e.g. 2.5"
-                    style={styles.paramInput}
-                    required
+                    type="text"
+                    value={tankSeedInfo.displayFull}
+                    readOnly
+                    placeholder="From tank details"
+                    style={{ ...styles.paramInput, color: '#1E293B', fontWeight: 600, cursor: 'not-allowed' }}
                   />
-                  <span style={styles.paramStatus}>Stocking in Lakhs</span>
+                  <span style={{ ...styles.paramStatus, color: '#64748B' }}>Original Tank Stock (Read-only)</span>
                 </div>
 
-                {/* 3. ABW (Average Body Weight) */}
+                {/* 2. Estimated Stock (Manual Entry) */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>ABW</span>
-                    <span style={styles.paramUnit}>grams</span>
+                    <span style={styles.paramTitle}>Estimated Stock</span>
+                    <span style={styles.paramUnit}>Nos</span>
                   </div>
                   <input
                     type="number"
-                    step="0.1"
+                    min="0"
+                    step="1"
+                    value={feedForm.estimatedStock}
+                    onChange={(e) => handleFeedChange('estimatedStock', e.target.value)}
+                    placeholder={`e.g. ${Math.round(tankSeedInfo.count * 0.95).toLocaleString()}`}
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>Current Estimated Population</span>
+                </div>
+
+                {/* 3. Count (Manual Entry) */}
+                <div style={styles.paramCard}>
+                  <div style={styles.paramHeader}>
+                    <span style={styles.paramTitle}>Count</span>
+                    <span style={styles.paramUnit}>per Kg</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={feedForm.count}
+                    onChange={(e) => handleFeedChange('count', e.target.value)}
+                    placeholder="e.g. 200"
+                    style={styles.paramInput}
+                  />
+                  <span style={styles.paramStatus}>Count per Kg (Count &gt; 0)</span>
+                </div>
+
+                {/* 4. ABW (Average Body Weight - Auto Calculated: 1000 / Count) */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+                  <div style={styles.paramHeader}>
+                    <span style={{ ...styles.paramTitle, color: '#1E40AF', fontWeight: '800' }}>ABW</span>
+                    <span style={{ ...styles.paramUnit, color: '#2563EB', fontWeight: '700' }}>grams</span>
+                  </div>
+                  <input
+                    type="text"
                     value={feedForm.abw}
-                    onChange={(e) => handleFeedChange('abw', e.target.value)}
-                    placeholder="e.g. 18.5"
-                    style={styles.paramInput}
-                    required
+                    readOnly
+                    placeholder="1000 / Count"
+                    style={{ ...styles.paramInput, color: '#1E40AF', fontWeight: '800', cursor: 'default' }}
                   />
-                  <span style={styles.paramStatus}>Average Body Weight</span>
+                  <span style={{ ...styles.paramStatus, color: '#2563EB', fontWeight: '600' }}>
+                    Auto: 1000 ÷ Count
+                  </span>
                 </div>
 
-                {/* 4. Day Feed (Kg) */}
+                {/* 5. Day Feed (Kg) */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
                     <span style={styles.paramTitle}>Day Feed</span>
@@ -725,7 +849,7 @@ const QuickRecordModalInner = ({
                   <span style={styles.paramStatus}>Daily Feed Given</span>
                 </div>
 
-                {/* 5. Cumulative Feed (Kg) */}
+                {/* 6. Cumulative Feed (Kg) */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
                     <span style={styles.paramTitle}>Cumulative Feed</span>
@@ -743,39 +867,21 @@ const QuickRecordModalInner = ({
                   <span style={styles.paramStatus}>Total Feed to Date</span>
                 </div>
 
-                {/* 6. Total Biomass (Kg) */}
-                <div style={styles.paramCard}>
+                {/* 7. FCR - Formula: Cumulative Feed / Biomass */}
+                <div style={{ ...styles.paramCard, backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0' }}>
                   <div style={styles.paramHeader}>
-                    <span style={styles.paramTitle}>Total Biomass</span>
-                    <span style={styles.paramUnit}>Kg</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={feedForm.totalBiomass}
-                    onChange={(e) => handleFeedChange('totalBiomass', e.target.value)}
-                    placeholder="e.g. 14035"
-                    style={styles.paramInput}
-                    required
-                  />
-                  <span style={styles.paramStatus}>Standing Biomass</span>
-                </div>
-
-                {/* 7. FCR - Formula: Cumulative Feed / Total Biomass */}
-                <div style={{ ...styles.paramCard, backgroundColor: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
-                  <div style={styles.paramHeader}>
-                    <span style={{ ...styles.paramTitle, color: '#1E40AF', fontWeight: '800' }}>FCR</span>
-                    <span style={{ ...styles.paramUnit, color: '#2563EB', fontWeight: '700' }}>Formula Ratio</span>
+                    <span style={{ ...styles.paramTitle, color: '#0F172A', fontWeight: '700' }}>FCR</span>
+                    <span style={{ ...styles.paramUnit, color: '#64748B', fontWeight: '600' }}>Ratio</span>
                   </div>
                   <input
                     type="text"
                     value={feedForm.fcr}
                     readOnly
                     placeholder="Auto-calculated"
-                    style={{ ...styles.paramInput, color: '#1E40AF', fontWeight: '800', fontSize: '17px' }}
+                    style={{ ...styles.paramInput, color: '#0F172A', fontWeight: '700', fontSize: '16px' }}
                   />
-                  <span style={{ ...styles.paramStatus, color: '#2563EB', fontWeight: '600' }}>
-                    Cum Feed ÷ Total Biomass
+                  <span style={{ ...styles.paramStatus, color: '#64748B', fontWeight: '500' }}>
+                    Cum Feed ÷ Biomass
                   </span>
                 </div>
 
@@ -796,19 +902,20 @@ const QuickRecordModalInner = ({
                   <span style={styles.paramStatus}>Check-tray Feed</span>
                 </div>
 
-                {/* 9. CH TR Time */}
+                {/* 9. CH TR Time (Feed Consumption Time - Manual Entry) */}
                 <div style={styles.paramCard}>
                   <div style={styles.paramHeader}>
                     <span style={styles.paramTitle}>CH TR Time</span>
-                    <span style={styles.paramUnit}>Check Time</span>
+                    <span style={styles.paramUnit}>Duration</span>
                   </div>
                   <input
-                    type="time"
+                    type="text"
                     value={feedForm.checkTrayTime}
                     onChange={(e) => handleFeedChange('checkTrayTime', e.target.value)}
+                    placeholder="e.g. 01:30 or 90 mins"
                     style={styles.paramInput}
                   />
-                  <span style={styles.paramStatus}>Check-tray Time</span>
+                  <span style={styles.paramStatus}>CH TR Time (Feed Consumption Time)</span>
                 </div>
               </div>
 
@@ -880,16 +987,16 @@ const QuickRecordModalInner = ({
                   const isPresent = Boolean(currentLevel);
 
                   return (
-                    <div 
+                    <div
                       key={disease}
                       style={{
                         padding: '10px 12px',
                         borderRadius: '10px',
-                        border: isPresent 
-                          ? (currentLevel === 'Severe' ? '1.5px solid #EF4444' : '1.5px solid #F59E0B') 
+                        border: isPresent
+                          ? (currentLevel === 'Severe' ? '1.5px solid #EF4444' : '1.5px solid #F59E0B')
                           : '1px solid #E2E8F0',
-                        backgroundColor: isPresent 
-                          ? (currentLevel === 'Severe' ? '#FEF2F2' : '#FFFBEB') 
+                        backgroundColor: isPresent
+                          ? (currentLevel === 'Severe' ? '#FEF2F2' : '#FFFBEB')
                           : '#FFFFFF',
                         display: 'flex',
                         flexDirection: 'column',
@@ -898,10 +1005,10 @@ const QuickRecordModalInner = ({
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ 
-                          fontSize: '13px', 
+                        <span style={{
+                          fontSize: '13px',
                           fontWeight: isPresent ? '700' : '600',
-                          color: isPresent ? (currentLevel === 'Severe' ? '#B91C1C' : '#B45309') : '#1E293B' 
+                          color: isPresent ? (currentLevel === 'Severe' ? '#B91C1C' : '#B45309') : '#1E293B'
                         }}>
                           {disease}
                         </span>
@@ -988,6 +1095,33 @@ const QuickRecordModalInner = ({
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Others - Additional disease-related information */}
+              <div style={{ marginTop: '12px' }}>
+                <label style={styles.label}>Others</label>
+                <textarea
+                  value={diseaseForm.others}
+                  onChange={(e) => setDiseaseForm({ ...diseaseForm, others: e.target.value })}
+                  placeholder="Enter any other observations, symptoms, or disease details not covered above..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '13px',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#F8FAFC',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', display: 'block' }}>
+                  Write descriptions, observations, symptoms, or other relevant details not covered by existing parameters.
+                </span>
               </div>
 
               {/* Affected % and Remarks */}

@@ -12,20 +12,22 @@ import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../components/QuickRecordModal';
 import HarvestCompletedModal from '../../asm/components/HarvestCompletedModal';
 import TakeHarvestModal from '../../asm/components/TakeHarvestModal';
+import SamplingModal from '../components/SamplingModal';
 import { getTankWeeklySchedule } from '../utils/testScheduleHelper';
 import { getSession } from '../utils/agentAuth';
 import { getInchargeSession } from '../../asm/utils/inchargeAuth';
 import adminService from '../../admin/utils/adminService';
+import MarineLoader from '../../components/MarineLoader';
 
 // Standard baseline harvest records for clean state
 const defaultTankHarvests = [];
 
 const TABS = [
   { id: 'OVERVIEW', label: 'Overview', icon: Layers },
+  { id: 'SAMPLING', label: 'Sampling Data', icon: Activity },
   { id: 'WATER', label: 'Water', icon: Droplets },
   { id: 'FEED', label: 'Feed', icon: Wheat },
   { id: 'DISEASE', label: 'Disease', icon: Bug },
-  { id: 'BIOMASS', label: 'Biomass', icon: Fish },
   { id: 'MEDICATION', label: 'Medication', icon: Pill },
   { id: 'MORTALITY', label: 'Mortality', icon: Skull },
   { id: 'ACTIVITY', label: 'Activity', icon: ClipboardList },
@@ -38,6 +40,19 @@ const TankDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (location.pathname.startsWith('/asm')) {
+      navigate('/asm/farmers');
+    } else if (location.pathname.startsWith('/incharge')) {
+      navigate('/incharge/my-tanks');
+    } else {
+      navigate('/farmers');
+    }
+  };
+
   const { getTankById, getFarmerById, db, editTank } = useMockData();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -55,6 +70,18 @@ const TankDetails = () => {
       return {};
     }
   });
+
+  const [samplingStore, setSamplingStore] = useState(() => {
+    try {
+      const saved = localStorage.getItem('agent_sampling_store');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [isSamplingModalOpen, setIsSamplingModalOpen] = useState(false);
+  const [selectedSamplingEntry, setSelectedSamplingEntry] = useState(null);
+  const [isSamplingViewOnly, setIsSamplingViewOnly] = useState(false);
 
   const [tankCompliance, setTankCompliance] = useState(null);
   const [tankFollowups, setTankFollowups] = useState([]);
@@ -158,12 +185,29 @@ const TankDetails = () => {
     return () => window.removeEventListener('harvestStoreUpdated', handleStoreUpdate);
   }, []);
 
+  // Listen for sampling updates
+  useEffect(() => {
+    const handleSamplingUpdate = (e) => {
+      if (e.detail) setSamplingStore(e.detail);
+    };
+    window.addEventListener('samplingStoreUpdated', handleSamplingUpdate);
+    return () => window.removeEventListener('samplingStoreUpdated', handleSamplingUpdate);
+  }, []);
+
   const normalizeId = (id) => String(id || '').trim().toLowerCase().replace(/^t0*/, 't');
   const isTankMatch = (idA, idB) => {
     if (!idA || !idB) return false;
     if (idA === idB) return true;
     return normalizeId(idA) === normalizeId(idB);
   };
+
+  if (!tank && (!db?.tanks || db.tanks.length === 0)) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <MarineLoader message="Loading tank details..." />
+      </div>
+    );
+  }
 
   if (!tank || !farmer) {
     return (
@@ -307,8 +351,17 @@ const TankDetails = () => {
   );
 
   // Present Biomass (Current active standing biomass in pond)
+  let latestFeedBiomass = latestFeedTest?.data?.totalBiomass;
+  if (!latestFeedBiomass && latestFeedTest?.data?.estimatedStock && latestFeedTest?.data?.abw) {
+    const est = parseFloat(latestFeedTest.data.estimatedStock);
+    const abwVal = parseFloat(latestFeedTest.data.abw);
+    if (est > 0 && abwVal > 0) {
+      latestFeedBiomass = ((est * abwVal) / 1000).toFixed(1);
+    }
+  }
+
   const presentBiomass = parseFloat(
-    latestFeedTest?.data?.totalBiomass ||
+    latestFeedBiomass ||
     latestBiomassTest?.data?.totalBiomass ||
     tank.biomass ||
     '14035'
@@ -352,30 +405,81 @@ const TankDetails = () => {
     ? (totalFeedUsed / totalBiomass).toFixed(2)
     : '1.14';
 
-  const cultureDays = 77; // As requested in example
+  const cultureDays = tank?.doc !== undefined && tank?.doc !== null ? tank.doc : 0;
   const weeklySchedule = getTankWeeklySchedule(tank, db?.submissions || []);
 
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else if (location.pathname.startsWith('/asm')) {
-      if (farmer?.id) {
-        navigate(`/asm/farmers/${farmer.id}`);
-      } else {
-        navigate('/asm/farmers');
-      }
-    } else if (location.pathname.startsWith('/incharge')) {
-      if (farmer?.id) {
-        navigate(`/incharge/farmers/${farmer.id}`);
-      } else {
-        navigate('/incharge/my-tanks');
-      }
-    } else {
-      if (farmer?.id) {
-        navigate(`/farmers/${farmer.id}`);
-      } else {
-        navigate('/farmers');
-      }
+  // Sampling data persistence & helpers for this tank
+  const samplingStoreKey = `${farmer?.id || ''}_${tank.id}`;
+  const rawSamplings = samplingStore[samplingStoreKey] || [];
+
+  const defaultBaselineSamplings = [
+    {
+      id: `smp_base_1_${tank.id}`,
+      tankId: tank.id,
+      tankNumber: tank.name || 'Tank 1',
+      acres: tank.acres || '2.5',
+      dateOfStocking: tank.stockingDate || '2026-06-12',
+      doc: Math.max(1, (tank.doc || 65) - 7),
+      stockDensity: '30.9 pcs/sq.m',
+      previousSamplingDate: '2026-07-28',
+      presentSamplingDate: '2026-08-04',
+      date: '2026-08-04',
+      durationBetweenSampling: 7,
+      durationDays: 7,
+      presentCount: 42,
+      lastCount: 48,
+      presentAbw: '23.81g',
+      presentAbwNum: 23.81,
+      lastAbw: '20.83g',
+      lastAbwNum: 20.83,
+      weeklyGrowthIncrement: 2.98,
+      adgWeek: 0.43,
+      overallAdg: 0.41,
+      dayFeed: 185,
+      number: 215000,
+      cumulativeFeed: 5850,
+      noBasedOnTcf: 212000,
+      biomass: 5120,
+      survival: 86.0,
+      fcr: 1.14,
+      createdAt: '2026-08-04T10:00:00.000Z',
+    }
+  ];
+
+  const tankSamplings = (rawSamplings.length > 0 ? rawSamplings : defaultBaselineSamplings).sort(
+    (a, b) => new Date(b.presentSamplingDate || b.date || 0) - new Date(a.presentSamplingDate || a.date || 0)
+  );
+
+  const handleSaveSamplingEntry = (savedEntry) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('agent_sampling_store') || '{}');
+      const list = existing[samplingStoreKey] || (rawSamplings.length === 0 ? defaultBaselineSamplings : []);
+      const updatedList = [savedEntry, ...list.filter(item => item.id !== savedEntry.id)];
+      const nextStore = { ...existing, [samplingStoreKey]: updatedList };
+      localStorage.setItem('agent_sampling_store', JSON.stringify(nextStore));
+      setSamplingStore(nextStore);
+      window.dispatchEvent(new CustomEvent('samplingStoreUpdated', { detail: nextStore }));
+      setIsSamplingModalOpen(false);
+      setSelectedSamplingEntry(null);
+      setIsSamplingViewOnly(false);
+    } catch (err) {
+      console.error('Failed to save sampling entry:', err);
+    }
+  };
+
+  const handleDeleteSamplingEntry = (entryId, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this sampling entry?')) return;
+    try {
+      const existing = JSON.parse(localStorage.getItem('agent_sampling_store') || '{}');
+      const list = existing[samplingStoreKey] || defaultBaselineSamplings;
+      const updatedList = list.filter(item => item.id !== entryId);
+      const nextStore = { ...existing, [samplingStoreKey]: updatedList };
+      localStorage.setItem('agent_sampling_store', JSON.stringify(nextStore));
+      setSamplingStore(nextStore);
+      window.dispatchEvent(new CustomEvent('samplingStoreUpdated', { detail: nextStore }));
+    } catch (err) {
+      console.error('Failed to delete sampling entry:', err);
     }
   };
 
@@ -1002,74 +1106,365 @@ const TankDetails = () => {
       {/* TAB CONTENT: OVERVIEW */}
       {/* ========================================================= */}
       {activeTab === 'OVERVIEW' && (
-        <div style={styles.sectionCard}>
-          <h3 style={styles.sectionTitle}>Tank Biophysical Specifications</h3>
-          <div style={styles.overviewGrid}>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Water Spread</span>
-              <span style={styles.overviewVal}>{tank.acres || '2.5'} Acres</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={styles.sectionCard}>
+            <h3 style={styles.sectionTitle}>Tank Biophysical Specifications</h3>
+            <div style={styles.overviewGrid}>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Water Spread</span>
+                <span style={styles.overviewVal}>{tank.acres || '2.5'} Acres</span>
+              </div>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Water Intake Source</span>
+                <span style={styles.overviewVal}>{tank.waterSource || 'Borewell / Creek'}</span>
+              </div>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Baseline Salinity</span>
+                <span style={styles.overviewVal}>{tank.salinity || '16'} ppt</span>
+              </div>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Soil Texture</span>
+                <span style={styles.overviewVal}>{tank.soilType || 'Clay Loam'}</span>
+              </div>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Stocking Date</span>
+                <span style={styles.overviewVal}>{tank.stockingDate || '2026-06-12'}</span>
+              </div>
+              <div style={styles.overviewItem}>
+                <span style={styles.infoLabel}>Certified Seed Source</span>
+                <span style={styles.overviewVal}>Apex SPF Hatcheries</span>
+              </div>
             </div>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Water Intake Source</span>
-              <span style={styles.overviewVal}>{tank.waterSource || 'Borewell / Creek'}</span>
+          </div>
+
+          {/* Quick Sampling Summary Tile in Overview */}
+          <div style={{
+            ...styles.sectionCard,
+            padding: '16px',
+            backgroundColor: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#1A2FB8',
+                flexShrink: 0
+              }}>
+                <Activity size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
+                  Sampling Data & Growth History
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
+                  {tankSamplings.length > 0 
+                    ? `Latest: ${tankSamplings[0].presentAbw || (tankSamplings[0].presentAbwNum + 'g')} ABW • ${tankSamplings[0].presentCount} count/kg • ${tankSamplings[0].survival}% survival`
+                    : 'Track weekly count, ABW, growth increments, ADG, biomass, and survival.'}
+                </div>
+              </div>
             </div>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Baseline Salinity</span>
-              <span style={styles.overviewVal}>{tank.salinity || '16'} ppt</span>
-            </div>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Soil Texture</span>
-              <span style={styles.overviewVal}>{tank.soilType || 'Clay Loam'}</span>
-            </div>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Stocking Date</span>
-              <span style={styles.overviewVal}>{tank.stockingDate || '2026-06-12'}</span>
-            </div>
-            <div style={styles.overviewItem}>
-              <span style={styles.infoLabel}>Certified Seed Source</span>
-              <span style={styles.overviewVal}>Apex SPF Hatcheries</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('SAMPLING')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#1A2FB8',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(26, 47, 184, 0.2)'
+              }}
+            >
+              <span>View Sampling Data</span>
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       )}
 
       {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
+      {/* TAB CONTENT: SAMPLING DATA */}
       {/* ========================================================= */}
+      {activeTab === 'SAMPLING' && (
+        <div style={styles.sectionCard}>
+          {/* Header */}
+          <div style={styles.sectionHeaderRow}>
+            <div>
+              <h3 style={styles.sectionTitle}>Sampling Data</h3>
+              <span style={styles.sectionSub}>Weekly growth increment, count, ABW, survival, and feed tracking</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {!hasFinalHarvest ? (
+                <button
+                  type="button"
+                  style={styles.addHarvestActionBtn}
+                  onClick={() => {
+                    setSelectedSamplingEntry(null);
+                    setIsSamplingViewOnly(false);
+                    setIsSamplingModalOpen(true);
+                  }}
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>New Entry</span>
+                </button>
+              ) : (
+                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                  <Lock size={12} color="#64748B" /> Tank Locked
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Metrics Strip if entries exist */}
+          {tankSamplings.length > 0 && (() => {
+            const latest = tankSamplings[0];
+            return (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: '10px',
+                marginTop: '14px',
+                marginBottom: '16px',
+              }}>
+                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Latest ABW</span>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803D', marginTop: '4px' }}>
+                    {latest.presentAbw || `${latest.presentAbwNum || '--'}g`}
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#166534', fontWeight: '600' }}>Count: {latest.presentCount} pcs/kg</span>
+                </div>
+
+                <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '12px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#1E40AF', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Weekly Growth</span>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#1A2FB8', marginTop: '4px' }}>
+                    +{latest.weeklyGrowthIncrement}g
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#1E40AF', fontWeight: '600' }}>ADG: {latest.adgWeek} g/day</span>
+                </div>
+
+                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Survival Rate</span>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', marginTop: '4px' }}>
+                    {latest.survival}%
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>Est. Pop: {Number(latest.number || 0).toLocaleString()}</span>
+                </div>
+
+                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px 14px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Current FCR</span>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', marginTop: '4px' }}>
+                    {latest.fcr || '1.14'}
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>Biomass: {Number(latest.biomass || 0).toLocaleString()} kg</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Sampling Entries Table */}
+          <div style={{ marginTop: '8px', overflowX: 'auto' }}>
+            {tankSamplings.length === 0 ? (
+              <div style={styles.emptyStateBoxMinimal}>
+                <Activity size={24} color="#94A3B8" />
+                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '500' }}>
+                  No sampling records logged yet for this tank.
+                </span>
+                {!hasFinalHarvest && (
+                  <button
+                    type="button"
+                    style={{ ...styles.addHarvestActionBtn, marginTop: '8px' }}
+                    onClick={() => {
+                      setSelectedSamplingEntry(null);
+                      setIsSamplingViewOnly(false);
+                      setIsSamplingModalOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> Log First Sampling
+                  </button>
+                )}
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Sampling Date & DOC</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Duration (Days)</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Count / ABW</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Weekly Growth</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>ADG (Wk / Ovr)</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Biomass</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>Survival</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569' }}>FCR</th>
+                    <th style={{ padding: '10px 12px', fontWeight: '700', color: '#475569', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tankSamplings.map((entry, idx) => (
+                    <tr 
+                      key={entry.id || idx}
+                      style={{ 
+                        borderBottom: '1px solid #F1F5F9',
+                        backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFC',
+                      }}
+                    >
+                      <td style={{ padding: '12px 12px' }}>
+                        <div style={{ fontWeight: '700', color: '#0F172A' }}>{entry.presentSamplingDate || entry.date}</div>
+                        <span style={{ fontSize: '11px', color: '#1A2FB8', fontWeight: '700', backgroundColor: '#EFF6FF', padding: '1px 6px', borderRadius: '4px' }}>
+                          DOC {entry.doc}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px', color: '#475569' }}>
+                        <div style={{ fontSize: '12px' }}>{entry.previousSamplingDate || '--'} → {entry.presentSamplingDate}</div>
+                        <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+                          {entry.durationBetweenSampling || entry.durationDays || 7} days
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px' }}>
+                        <div style={{ fontWeight: '700', color: '#16A34A' }}>
+                          {entry.presentAbw || `${entry.presentAbwNum}g`}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748B' }}>
+                          {entry.presentCount} count {entry.lastCount ? `(was ${entry.lastCount})` : ''}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px' }}>
+                        <span style={{ fontWeight: '700', color: '#0F172A' }}>
+                          +{entry.weeklyGrowthIncrement}g
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px', color: '#475569' }}>
+                        <div>Wk: <strong>{entry.adgWeek}g</strong></div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>Ovr: {entry.overallAdg}g</div>
+                      </td>
+                      <td style={{ padding: '12px 12px' }}>
+                        <span style={{ fontWeight: '600', color: '#0F172A' }}>
+                          {Number(entry.biomass || 0).toLocaleString()} kg
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px' }}>
+                        <span style={{ 
+                          fontWeight: '700',
+                          color: entry.survival >= 80 ? '#15803D' : entry.survival >= 65 ? '#B45309' : '#DC2626',
+                          backgroundColor: entry.survival >= 80 ? '#DCFCE7' : entry.survival >= 65 ? '#FEF3C7' : '#FEE2E2',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                        }}>
+                          {entry.survival}%
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px' }}>
+                        <span style={{ fontWeight: '700', color: '#1A2FB8' }}>
+                          {entry.fcr || '--'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 12px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSamplingEntry(entry);
+                              setIsSamplingViewOnly(true);
+                              setIsSamplingModalOpen(true);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #BFDBFE',
+                              backgroundColor: '#EFF6FF',
+                              color: '#1A2FB8',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            View
+                          </button>
+                          {!hasFinalHarvest && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteSamplingEntry(entry.id, e)}
+                              title="Delete sampling entry"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #FECACA',
+                                backgroundColor: '#FEF2F2',
+                                color: '#DC2626',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ========================================================= */}
-      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Biomass, etc.) */}
+      {/* TAB CONTENT: FIELD RECORDS (Water, Feed, Disease, etc.) */}
       {/* ========================================================= */}
-      {['WATER', 'FEED', 'DISEASE', 'BIOMASS', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
+      {['WATER', 'FEED', 'DISEASE', 'MEDICATION', 'MORTALITY', 'ACTIVITY', 'REPORTS'].includes(activeTab) && (() => {
         const tabLabel = TABS.find(t => t.id === activeTab)?.label || 'Test';
         const tabRecords = activeTab === 'REPORTS' ? tankSubmissions : filterSubmissions(activeTab);
 
         return (
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeaderRow}>
-              <h3 style={styles.sectionTitle}>{tabLabel} Records</h3>
+              <h3 style={styles.sectionTitle}>{activeTab === 'REPORTS' ? 'All Telemetry & Field Records' : `${tabLabel} Records`}</h3>
 
-              {!hasFinalHarvest ? (
-                <button
-                  type="button"
-                  style={styles.addHarvestActionBtn}
-                  onClick={() => {
-                    setModalInitialType(
-                      activeTab === 'WATER' ? 'WATER_QUALITY' :
-                        activeTab === 'FEED' ? 'FEED_ENTRY' :
-                          activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
-                            activeTab === 'MEDICATION' ? 'MEDICATION' :
-                              activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
-                                activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
-                    );
-                    setIsRecordModalOpen(true);
-                  }}
-                >
-                  <Plus size={14} /> New Entry
-                </button>
-              ) : (
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
-                  <Lock size={12} color="#64748B" /> Tank Locked
-                </span>
+              {activeTab !== 'REPORTS' && (
+                !hasFinalHarvest ? (
+                  <button
+                    type="button"
+                    style={styles.addHarvestActionBtn}
+                    onClick={() => {
+                      setModalInitialType(
+                        activeTab === 'WATER' ? 'WATER_QUALITY' :
+                          activeTab === 'FEED' ? 'FEED_ENTRY' :
+                            activeTab === 'DISEASE' ? 'DISEASE_ENTRY' :
+                              activeTab === 'MEDICATION' ? 'MEDICATION' :
+                                activeTab === 'MORTALITY' ? 'MORTALITY_LOG' :
+                                  activeTab === 'ACTIVITY' ? 'FARM_ACTIVITY' : 'WATER_QUALITY'
+                      );
+                      setIsRecordModalOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> New Entry
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F1F5F9', padding: '5px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                    <Lock size={12} color="#64748B" /> Tank Locked
+                  </span>
+                )
               )}
             </div>
 
@@ -1207,9 +1602,30 @@ const TankDetails = () => {
                           </div>
                         );
                       }
+                      const formatParamKey = (rawKey) => {
+                        const map = {
+                          checkTrayTime: 'CH TR Time (Feed Consumption Time)',
+                          chTrTime: 'CH TR Time (Feed Consumption Time)',
+                          count: 'Count (per kg)',
+                          estimatedStock: 'Estimated Stock',
+                          seed: 'Seed Stocked',
+                          seedStocked: 'Seed Stocked',
+                          abw: 'ABW (g)',
+                          dayFeed: 'Day Feed (kg)',
+                          cumulativeFeed: 'Cumulative Feed (kg)',
+                          checkTrayFeed: 'CH TR Feed (g)',
+                          chTrFeed: 'CH TR Feed (g)',
+                          fcr: 'FCR',
+                          totalBiomass: 'Total Biomass (kg)',
+                          others: 'Others (Additional Disease Observations)',
+                          doc: 'DOC',
+                        };
+                        return map[rawKey] || rawKey.replace(/([A-Z])/g, ' $1');
+                      };
+
                       return (
                         <div key={k} style={styles.dataRow}>
-                          <span style={styles.dataKey}>{k.replace(/([A-Z])/g, ' $1')}:</span>
+                          <span style={styles.dataKey}>{formatParamKey(k)}:</span>
                           <span style={styles.dataVal}>{String(v)}</span>
                         </div>
                       );
@@ -1503,6 +1919,25 @@ const TankDetails = () => {
           }}
           tank={tank}
           farmer={farmer}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* SAMPLING DATA ENTRY & DETAILS MODAL */}
+      {/* ========================================================= */}
+      {isSamplingModalOpen && (
+        <SamplingModal
+          isOpen={isSamplingModalOpen}
+          onClose={() => {
+            setIsSamplingModalOpen(false);
+            setSelectedSamplingEntry(null);
+            setIsSamplingViewOnly(false);
+          }}
+          tank={tank}
+          farmer={farmer}
+          existingEntry={selectedSamplingEntry}
+          isViewOnly={isSamplingViewOnly}
+          onSave={handleSaveSamplingEntry}
         />
       )}
     </div>

@@ -434,6 +434,52 @@ const FarmLeafletMap = ({
               ">
                 ${tank.size ? String(tank.size).split(' ')[0] + ' Ac' : (tank.acres ? `${tank.acres} Ac` : '1.5 Ac')}
               </span>
+
+              ${tank.hasPending ? `
+                <span style="
+                  font-size:8.5px;
+                  font-weight:700;
+                  color:#B45309;
+                  background:#FEF3C7;
+                  padding:1px 5px;
+                  border-radius:6px;
+                  border:1px solid #FDE68A;
+                  white-space:nowrap;
+                ">Pending</span>
+              ` : (tank.submissionStatus === 'Verified' || !tank.due) ? `
+                <span style="
+                  font-size:8.5px;
+                  font-weight:700;
+                  color:#15803D;
+                  background:#DCFCE7;
+                  padding:1px 5px;
+                  border-radius:6px;
+                  border:1px solid #BBF7D0;
+                  white-space:nowrap;
+                ">Verified</span>
+              ` : isOverdue ? `
+                <span style="
+                  font-size:8.5px;
+                  font-weight:700;
+                  color:#DC2626;
+                  background:#FEE2E2;
+                  padding:1px 5px;
+                  border-radius:6px;
+                  border:1px solid #FECACA;
+                  white-space:nowrap;
+                ">Overdue</span>
+              ` : `
+                <span style="
+                  font-size:8.5px;
+                  font-weight:700;
+                  color:#C2410C;
+                  background:#FFEDD5;
+                  padding:1px 5px;
+                  border-radius:6px;
+                  border:1px solid #FDBA74;
+                  white-space:nowrap;
+                ">Due</span>
+              `}
             </div>
           </div>
         `,
@@ -445,13 +491,31 @@ const FarmLeafletMap = ({
         zIndexOffset: isSelected ? 500 : 100
       }).addTo(markersLayer);
 
+      const subStatusText = tank.hasPending ? 'Pending Verification' : (isOverdue ? 'Overdue' : (tank.due ? 'Test Due' : 'Verified'));
+      const subStatusColor = tank.hasPending ? '#B45309' : (isOverdue ? '#DC2626' : (tank.due ? '#C2410C' : '#15803D'));
+      const subStatusBg = tank.hasPending ? '#FEF3C7' : (isOverdue ? '#FEE2E2' : (tank.due ? '#FFEDD5' : '#DCFCE7'));
+      const subTypeColor = (tank.submissionType || '').includes('Feed') ? '#4338CA' : (tank.submissionType || '').includes('Health') ? '#BE123C' : '#0369A1';
+      const subTypeBg = (tank.submissionType || '').includes('Feed') ? '#EEF2FF' : (tank.submissionType || '').includes('Health') ? '#FFE4E6' : '#E0F2FE';
+      const actorColor = tank.isPersonal ? '#6D28D9' : '#1D4ED8';
+      const actorBg = tank.isPersonal ? '#F5F3FF' : '#EFF6FF';
+      const actorText = tank.isPersonal ? '⚡ ASM / Direct Incharge' : `👤 Agent: ${tank.agentName || 'Field Tech'}`;
+
       const tooltipContent = `
-        <div style="font-family:-apple-system, BlinkMacSystemFont, sans-serif; font-size:11px; padding:3px 1px; line-height:1.45; min-width:140px;">
+        <div style="font-family:-apple-system, BlinkMacSystemFont, sans-serif; font-size:11px; padding:3px 1px; line-height:1.45; min-width:160px;">
           <strong>${tank.name}</strong> • <span style="color:${themeColors.tagText}; font-weight:700;">${themeColors.label}</span><br/>
           Farmer: <strong>${tank.farmer}</strong><br/>
           Area: <strong>${tank.size || (tank.acres ? `${tank.acres} Acres` : 'N/A')}</strong><br/>
           Boundary: <strong>${tank.boundaryStatus}</strong><br/>
-          <span style="color:#64748B; font-size:10px;">Location: ${pLat.toFixed(5)}°N, ${pLng.toFixed(5)}°E</span>
+          <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #CBD5E1; font-size:10.5px;">
+            <div style="margin-bottom:3px;">
+              By: <span style="font-weight:700; color:${actorColor}; background:${actorBg}; padding:1px 6px; border-radius:4px;">${actorText}</span>
+            </div>
+            <div>
+              Test: <span style="font-weight:700; color:${subTypeColor}; background:${subTypeBg}; padding:1px 5px; border-radius:4px;">${tank.submissionType || 'Water Quality Test'}</span>
+              <span style="font-weight:700; color:${subStatusColor}; background:${subStatusBg}; padding:1px 5px; border-radius:4px; margin-left:3px;">${subStatusText}</span>
+            </div>
+          </div>
+          <span style="color:#64748B; font-size:9.5px; display:inline-block; margin-top:3px;">Location: ${pLat.toFixed(5)}°N, ${pLng.toFixed(5)}°E</span>
         </div>
       `;
 
@@ -756,6 +820,56 @@ const FarmLeafletMap = ({
               <span style={styles.metaLabel}>Locality:</span>
               <span style={styles.metaValue}>{activeSelectedTank.locality || activeSelectedTank.location || 'Aquaculture Zone'}</span>
             </div>
+          </div>
+
+          {/* Submission Info Strip with Color Differentiation */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            flexWrap: 'wrap',
+            padding: '6px 10px',
+            backgroundColor: '#F8FAFC',
+            borderRadius: '8px',
+            border: '1px solid #E2E8F0',
+            fontSize: '11px',
+          }}>
+            <span style={{ fontWeight: '800', color: '#475569', textTransform: 'uppercase', fontSize: '10px' }}>
+              Submission:
+            </span>
+            <span style={{
+              fontSize: '10.5px',
+              fontWeight: '700',
+              padding: '2px 7px',
+              borderRadius: '6px',
+              backgroundColor: activeSelectedTank.isPersonal ? '#F5F3FF' : '#EFF6FF',
+              color: activeSelectedTank.isPersonal ? '#6D28D9' : '#1D4ED8',
+              border: `1px solid ${activeSelectedTank.isPersonal ? '#DDD6FE' : '#BFDBFE'}`,
+            }}>
+              {activeSelectedTank.isPersonal ? '⚡ ASM / Incharge' : `👤 Agent: ${activeSelectedTank.agentName || 'Field Tech'}`}
+            </span>
+            <span style={{
+              fontSize: '10.5px',
+              fontWeight: '700',
+              padding: '2px 7px',
+              borderRadius: '6px',
+              backgroundColor: (activeSelectedTank.submissionType || '').includes('Feed') ? '#EEF2FF' : (activeSelectedTank.submissionType || '').includes('Health') ? '#FFE4E6' : '#E0F2FE',
+              color: (activeSelectedTank.submissionType || '').includes('Feed') ? '#4338CA' : (activeSelectedTank.submissionType || '').includes('Health') ? '#BE123C' : '#0369A1',
+              border: `1px solid ${(activeSelectedTank.submissionType || '').includes('Feed') ? '#C7D2FE' : (activeSelectedTank.submissionType || '').includes('Health') ? '#FECDD3' : '#BAE6FD'}`,
+            }}>
+              {activeSelectedTank.submissionType || 'Water Quality Test'}
+            </span>
+            <span style={{
+              fontSize: '10.5px',
+              fontWeight: '700',
+              padding: '2px 7px',
+              borderRadius: '6px',
+              backgroundColor: activeSelectedTank.hasPending ? '#FEF3C7' : (activeSelectedTank.due ? '#FFEDD5' : '#DCFCE7'),
+              color: activeSelectedTank.hasPending ? '#B45309' : (activeSelectedTank.due ? '#C2410C' : '#15803D'),
+              border: `1px solid ${activeSelectedTank.hasPending ? '#FDE68A' : (activeSelectedTank.due ? '#FDBA74' : '#BBF7D0')}`,
+            }}>
+              {activeSelectedTank.hasPending ? '⏳ Pending Verification' : (activeSelectedTank.due ? '⚠️ Test Due' : '✓ Verified')}
+            </span>
           </div>
 
           <div style={styles.drawerActions}>
