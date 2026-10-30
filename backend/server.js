@@ -44,14 +44,22 @@ process.on('uncaughtException', (err) => {
 
 process.on('SIGTERM', () => {
   console.log('[SIGTERM] Shutting down gracefully...');
-  server.close(() => {
+  server.close(async () => {
+    try {
+      const { closePool } = await import('./src/config/database.js');
+      await closePool();
+    } catch {}
     console.log('[Process] Terminated');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  server.close(() => {
+  server.close(async () => {
+    try {
+      const { closePool } = await import('./src/config/database.js');
+      await closePool();
+    } catch {}
     process.exit(0);
   });
 });

@@ -1,11 +1,21 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutGrid, Globe, Users, UserCheck, Tractor,
+  LayoutGrid, Globe, Users, UserCheck, Tractor, MessageSquare,
   ClipboardList, BarChart3, Download, History, Settings, Database, MapPin
 } from 'lucide-react';
 
 const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
+  const location = useLocation();
+
+  const isItemActive = (path) => {
+    const current = (location.pathname || '').toLowerCase();
+    const target = path.toLowerCase();
+    if (current === target || current.startsWith(target + '/')) return true;
+    if (target === '/admin/follow-ups' && (current === '/admin/followups' || current.startsWith('/admin/followups/'))) return true;
+    return false;
+  };
+
   const navSections = [
     {
       title: 'ENTERPRISE ADMIN PORTAL',
@@ -16,6 +26,7 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
         { name: 'ASMs', path: '/admin/incharges', icon: <Users size={20} /> },
         { name: 'Agents', path: '/admin/agents', icon: <UserCheck size={20} /> },
         { name: 'Farmers', path: '/admin/farmers', icon: <Tractor size={20} /> },
+        { name: 'Follow-ups', path: '/admin/follow-ups', icon: <MessageSquare size={20} /> },
         { name: 'Field Data', path: '/admin/field-data', icon: <ClipboardList size={20} /> },
         { name: 'Analytics Suite', path: '/admin/analytics', icon: <BarChart3 size={20} /> },
         { name: 'Export Center', path: '/admin/export-center', icon: <Download size={20} /> },
@@ -47,31 +58,37 @@ const AdminSidebar = ({ onNavigate, isMobileDrawer = false }) => {
                   key={iIdx}
                   to={item.path}
                   onClick={() => onNavigate && onNavigate()}
-                  style={({ isActive }) => ({
-                    ...styles.link,
-                    ...(isActive ? styles.activeLink : styles.inactiveLink)
-                  })}
+                  style={({ isActive }) => {
+                    const active = isActive || isItemActive(item.path);
+                    return {
+                      ...styles.link,
+                      ...(active ? styles.activeLink : styles.inactiveLink)
+                    };
+                  }}
                 >
-                  {({ isActive }) => (
-                    <>
-                      <span style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        color: isActive ? '#FFFFFF' : '#475569',
-                        flexShrink: 0
-                      }}>
-                        {item.icon}
-                      </span>
-                      <span style={{
-                        fontSize: '14.5px',
-                        fontWeight: isActive ? 600 : 500,
-                        color: isActive ? '#FFFFFF' : '#1E293B',
-                        letterSpacing: '-0.01em'
-                      }}>
-                        {item.name}
-                      </span>
-                    </>
-                  )}
+                  {({ isActive }) => {
+                    const active = isActive || isItemActive(item.path);
+                    return (
+                      <>
+                        <span style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: active ? '#FFFFFF' : '#475569',
+                          flexShrink: 0
+                        }}>
+                          {item.icon}
+                        </span>
+                        <span style={{
+                          fontSize: '14.5px',
+                          fontWeight: active ? 600 : 500,
+                          color: active ? '#FFFFFF' : '#1E293B',
+                          letterSpacing: '-0.01em'
+                        }}>
+                          {item.name}
+                        </span>
+                      </>
+                    );
+                  }}
                 </NavLink>
               ))}
             </div>

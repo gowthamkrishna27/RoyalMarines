@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Plus, Calendar, FileText } from 'lucide-react';
+import { Home, Users, Plus, Calendar, FileText, MessageSquare, Bell } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import { getAsmBasePath } from '../utils/asmNavigation';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
@@ -21,6 +21,29 @@ const InchargeBottomNavigation = () => {
     const hasOverdue = tanks.some(t => t.testStatus === 'Overdue' && t.status !== 'Harvested');
     return acc + (hasOverdue ? 1 : 0);
   }, 0);
+
+  // Real unread notification count scoped to ASM
+  const inchargeId = 'INC001';
+  const inchargeAgentIds = (db?.agents || [])
+    .filter(ag => (ag.inchargeId || ag.incharge_id) === inchargeId)
+    .map(ag => ag.id);
+
+  const unreadNotifCount = (db?.notifications || []).filter(n => {
+    const isRead = n.read === true || n.isRead === true || n.is_read === 1 || n.is_read === true;
+    if (isRead) return false;
+    return (
+      !n.agentId ||
+      n.agentId === inchargeId ||
+      n.userId === inchargeId ||
+      inchargeAgentIds.includes(n.agentId) ||
+      inchargeAgentIds.includes(n.userId) ||
+      n.targetRole === 'ASM' ||
+      n.targetRole === 'INCHARGE' ||
+      n.target_role === 'ASM' ||
+      n.target_role === 'INCHARGE' ||
+      n.target_role === 'ALL'
+    );
+  }).length;
 
   const navItems = [
     { 
@@ -88,9 +111,52 @@ const InchargeBottomNavigation = () => {
       ] 
     },
     { 
+      label: 'Follow-ups', 
+      path: `${base}/follow-ups`, 
+      icon: MessageSquare, 
+      exactMatch: [
+        `${base}/follow-ups`, 
+        `${base}/followups`, 
+        '/incharge/follow-ups', 
+        '/incharge/followups', 
+        '/asm/follow-ups', 
+        '/asm/followups', 
+        '/follow-ups', 
+        '/followups'
+      ],
+      matchPrefixes: [
+        `${base}/follow-ups/`, 
+        `${base}/followups/`, 
+        '/incharge/follow-ups/', 
+        '/incharge/followups/', 
+        '/asm/follow-ups/', 
+        '/asm/followups/', 
+        '/follow-ups/', 
+        '/followups/'
+      ] 
+    },
+    { 
       label: 'Record', 
       isAction: true, 
       icon: Plus 
+    },
+    { 
+      label: 'Notifs', 
+      path: `${base}/notifications`, 
+      icon: Bell, 
+      badge: unreadNotifCount > 0 ? unreadNotifCount : null,
+      exactMatch: [
+        `${base}/notifications`, 
+        '/incharge/notifications', 
+        '/asm/notifications', 
+        '/notifications'
+      ],
+      matchPrefixes: [
+        `${base}/notifications/`, 
+        '/incharge/notifications/', 
+        '/asm/notifications/', 
+        '/notifications/'
+      ] 
     },
     { 
       label: 'Tests', 
@@ -381,6 +447,7 @@ const InchargeBottomNavigation = () => {
       <QuickRecordModal 
         isOpen={isRecordModalOpen}
         onClose={() => setIsRecordModalOpen(false)}
+        startWithSelector={true}
       />
     </>
   );
@@ -394,8 +461,8 @@ const styles = {
     right: '0',
     marginLeft: 'auto',
     marginRight: 'auto',
-    width: 'calc(100% - 24px)',
-    maxWidth: '390px',
+    width: 'calc(100% - 20px)',
+    maxWidth: '440px',
     height: '54px',
     backgroundColor: '#FFFFFF',
     borderRadius: '27px',

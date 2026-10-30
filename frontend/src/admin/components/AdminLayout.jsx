@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
+import AdminBottomNavigation from './AdminBottomNavigation';
 import { X } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -44,10 +45,15 @@ const AdminLayout = ({ children }) => {
           <AdminSidebar />
         </div>
         <main style={styles.mainContent}>
-          <div className="w-full max-w-7xl mx-auto animate-fade-in">
+          <div className="w-full max-w-7xl mx-auto animate-fade-in content-inner">
             {children}
           </div>
         </main>
+      </div>
+
+      {/* Mobile Bottom Navigation (< 1024px) */}
+      <div className="mobile-nav-container">
+        <AdminBottomNavigation />
       </div>
     </div>
   );

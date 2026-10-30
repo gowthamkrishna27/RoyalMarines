@@ -6,7 +6,8 @@ import topnavlogo from '../../assets/topnavlogo.png';
 import { getSession, clearSession } from '../utils/agentAuth';
 import { 
   User, Menu, X, Home, Users, Clock, FileText, 
-  Scale, LogOut, Plus, ChevronRight, Shield, Bell, AlertTriangle, CheckCheck 
+  Scale, LogOut, Plus, ChevronRight, Shield, Bell, AlertTriangle, CheckCheck,
+  MessageSquare
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from './QuickRecordModal';
@@ -101,6 +102,8 @@ const HeaderDateTimeBadge = React.memo(({ isMobile = false }) => {
   const drawerNavItems = [
     { name: 'Home', path: prefix ? `${prefix}/dashboard` : '/dashboard', icon: Home },
     { name: 'My Farmers', path: prefix ? `${prefix}/farmers` : '/farmers', icon: Users },
+    { name: 'Follow-ups', path: prefix ? `${prefix}/follow-ups` : '/follow-ups', icon: MessageSquare },
+    { name: 'Notifications', path: prefix ? `${prefix}/notifications` : '/notifications', icon: Bell },
     { name: 'Harvest Management', path: prefix ? `${prefix}/harvest` : '/harvest', icon: Scale },
     { name: 'Field History', path: prefix ? `${prefix}/tests` : '/tests', icon: Clock },
     { name: 'Reports', path: prefix ? `${prefix}/reports` : '/reports', icon: FileText },
@@ -174,7 +177,13 @@ const HeaderDateTimeBadge = React.memo(({ isMobile = false }) => {
               <div style={styles.drawerLinksList}>
                 {drawerNavItems.map((item) => {
                   const Icon = item.icon;
-                  const active = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+                  const isFollowupsMatch = item.name === 'Follow-ups' && (
+                    location.pathname.includes('/follow-up') || location.pathname.includes('/followup')
+                  );
+                  const isNotificationsMatch = item.name === 'Notifications' && (
+                    location.pathname.includes('/notification')
+                  );
+                  const active = isFollowupsMatch || isNotificationsMatch || location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
                   return (
                     <button
                       key={item.name}
@@ -287,6 +296,7 @@ const HeaderDateTimeBadge = React.memo(({ isMobile = false }) => {
           onClose={() => setIsQuickRecordOpen(false)}
           preselectedTankId={selectedTankForQuickRecord}
           initialType={selectedTypeForQuickRecord}
+          startWithSelector={!selectedTypeForQuickRecord}
         />
       )}
 

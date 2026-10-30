@@ -60,12 +60,16 @@ const TankDetails = () => {
   const [isTakeHarvestModalOpen, setIsTakeHarvestModalOpen] = useState(false);
   const [isHarvestTypeChoiceOpen, setIsHarvestTypeChoiceOpen] = useState(false);
   const [selectedHarvestType, setSelectedHarvestType] = useState('Partial Harvest');
-  const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
+  const [modalInitialType, setModalInitialType] = useState(null);
   const [selectedReadRecord, setSelectedReadRecord] = useState(null);
   const [harvestStore, setHarvestStore] = useState(() => {
     try {
+      const cleanSaved = localStorage.getItem('agent_harvest_clean_store');
       const saved = localStorage.getItem('agent_harvest_store');
-      return saved ? JSON.parse(saved) : {};
+      return {
+        ...(saved ? JSON.parse(saved) : {}),
+        ...(cleanSaved ? JSON.parse(cleanSaved) : {})
+      };
     } catch (e) {
       return {};
     }
@@ -259,6 +263,7 @@ const TankDetails = () => {
           fcr: h.fcr || tank.fcr || '1.18',
           buyer: h.buyerName || h.buyer || 'Royals Marine Processing Unit 1',
           remarks: h.remarks || '',
+          abwObservation: h.abwObservation || '',
           harvestType: h.harvestType || 'Partial Harvest',
           isFinal: h.isFinal || (h.harvestType === 'Final Harvest')
         });
@@ -284,7 +289,8 @@ const TankDetails = () => {
           feedConsumed: parseFloat(sData.feedConsumed || 0),
           fcr: sData.fcr || tank.fcr || '1.18',
           buyer: sData.buyer || 'Royals Marine Processing Unit 1',
-          remarks: sData.remarks || '',
+          remarks: sData.remarks || sub.remarks || '',
+          abwObservation: sData.abwObservation || sub.abwObservation || '',
           harvestType: sData.harvestType || (sub.testType === 'Final Harvest' ? 'Final Harvest' : 'Partial Harvest'),
           isFinal: sub.testType === 'Final Harvest' || sData.harvestType === 'Final Harvest' || sData.isFinal
         });
@@ -533,7 +539,7 @@ const TankDetails = () => {
               type="button"
               style={styles.primaryNewRecordBtn}
               onClick={() => {
-                setModalInitialType('WATER_QUALITY');
+                setModalInitialType(null);
                 setIsRecordModalOpen(true);
               }}
               title="New Record"
@@ -980,7 +986,13 @@ const TankDetails = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {sequencedHarvests.map((h, idx) => (
+                {sequencedHarvests.map((h, idx) => {
+                  const prevH = idx > 0 ? sequencedHarvests[idx - 1] : null;
+                  const prevAbw = prevH && parseFloat(prevH.abw) > 0 ? parseFloat(prevH.abw) : null;
+                  const currAbw = parseFloat(h.abw) || 0;
+                  const isAbwDropped = prevAbw !== null && currAbw > 0 && currAbw < prevAbw;
+
+                  return (
                   <div 
                     key={h.id || idx}
                     style={styles.recordListItem}
@@ -997,10 +1009,11 @@ const TankDetails = () => {
                         data: {
                           'Harvest Type': h.harvestType || (h.isFinal ? 'Final Harvest' : 'Partial Harvest'),
                           'DOC (Day of Culture)': `Day ${h.doc}`,
-                          'Harvested Biomass': `${parseFloat(h.harvestedBiomass || 0).toLocaleString()} kg`,
-                          'Average Body Weight (ABW)': `${h.abw} g`,
+                          'Harvested Biomass': `${parseFloat(h.harvestedBiomass ?? h.biomassKg ?? 0).toLocaleString()} kg`,
+                          'Average Body Weight (ABW)': isAbwDropped ? `${h.abw} g (↓ from ${prevAbw} g)` : `${h.abw} g`,
+                          ...(h.abwObservation ? { 'Observation (Lower ABW)': h.abwObservation } : {}),
                           'Shrimp Count / kg': `${h.countPerKg || (h.abw > 0 ? Math.round(1000 / parseFloat(h.abw)) : 40)} count`,
-                          'Est. Shrimp Harvested': `${parseFloat(h.harvestedNumber || 0).toLocaleString()} pcs`,
+                          'Est. Shrimp Harvested': `${parseFloat(h.harvestedNumber ?? h.count ?? 0).toLocaleString()} pcs`,
                           'Cumulative Feed': `${parseFloat(h.feedConsumed || 0).toLocaleString()} kg`,
                           'Batch FCR': h.fcr || '1.18',
                           'Buyer / Processing Unit': h.buyer || 'Royals Marine Processing Unit 1',
@@ -1032,8 +1045,55 @@ const TankDetails = () => {
                           </span>
                         </div>
                         <div style={styles.recordItemTime}>
-                          {h.date} • {parseFloat(h.harvestedBiomass || 0).toLocaleString()} kg • {h.abw}g ABW • DOC {h.doc}
+                          {h.date} • {parseFloat(h.harvestedBiomass ?? h.biomassKg ?? 0).toLocaleString()} kg • {h.abw}g ABW
+                          {isAbwDropped && (
+                            <span style={{
+                              marginLeft: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              color: '#B45309',
+                              backgroundColor: '#FEF3C7',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              border: '1px solid #FDE68A'
+                            }}>
+                              <AlertTriangle size={10} color="#D97706" />
+                              &darr; from {prevAbw}g
+                            </span>
+                          )}
+                          {' '}• DOC {h.doc}
                         </div>
+                        {(h.remarks || h.abwObservation) && (
+                          <div style={{ marginTop: '5px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {h.abwObservation && (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: '#92400E',
+                                backgroundColor: '#FEF3C7',
+                                padding: '2px 7px',
+                                borderRadius: '5px',
+                                border: '1px solid #FDE68A',
+                                width: 'fit-content'
+                              }}>
+                                <AlertTriangle size={10} color="#D97706" />
+                                <span><strong>Observation:</strong> {h.abwObservation}</span>
+                              </div>
+                            )}
+                            {h.remarks && (
+                              <div style={{ color: '#475569', fontSize: '11.5px', lineHeight: '1.3' }}>
+                                <span style={{ fontWeight: '600', color: '#334155' }}>Remarks: </span>
+                                <span>{h.remarks}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1048,7 +1108,8 @@ const TankDetails = () => {
                       <ChevronRight size={15} color="#94A3B8" />
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1661,6 +1722,7 @@ const TankDetails = () => {
           setHarvestStore(updated);
         }}
         initialType={modalInitialType}
+        startWithSelector={!modalInitialType}
         preselectedFarmerId={farmer?.id}
         preselectedTankId={tank.id}
         onSuccess={() => {

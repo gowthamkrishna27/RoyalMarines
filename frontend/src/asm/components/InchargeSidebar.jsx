@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, Users, Plus, Calendar, FileText, UserCheck, 
-  Settings, LogOut, Shield, ChevronRight, Layers, Eye, Scale, User
+  Settings, LogOut, Shield, ChevronRight, Layers, Eye, Scale, User, MessageSquare, Bell
 } from 'lucide-react';
 import { logoutIncharge, getInchargeSession } from '../utils/inchargeAuth';
 import { getAsmBasePath } from '../utils/asmNavigation';
@@ -27,6 +27,29 @@ const InchargeSidebar = () => {
     const hasOverdue = tanks.some(t => t.testStatus === 'Overdue' && t.status !== 'Harvested');
     return acc + (hasOverdue ? 1 : 0);
   }, 0);
+
+  // Real unread notification count scoped to ASM
+  const inchargeId = session?.inchargeId || session?.agentId || 'INC001';
+  const inchargeAgentIds = (db?.agents || [])
+    .filter(ag => (ag.inchargeId || ag.incharge_id) === inchargeId)
+    .map(ag => ag.id);
+
+  const unreadNotifCount = (db?.notifications || []).filter(n => {
+    const isRead = n.read === true || n.isRead === true || n.is_read === 1 || n.is_read === true;
+    if (isRead) return false;
+    return (
+      !n.agentId ||
+      n.agentId === inchargeId ||
+      n.userId === inchargeId ||
+      inchargeAgentIds.includes(n.agentId) ||
+      inchargeAgentIds.includes(n.userId) ||
+      n.targetRole === 'ASM' ||
+      n.targetRole === 'INCHARGE' ||
+      n.target_role === 'ASM' ||
+      n.target_role === 'INCHARGE' ||
+      n.target_role === 'ALL'
+    );
+  }).length;
 
   const handleLogout = () => {
     if (window.confirm('Log out of Area Sales Manager (ASM) Portal?')) {
@@ -66,6 +89,19 @@ const InchargeSidebar = () => {
       path: `${base}/harvest`, 
       icon: Scale, 
       match: [`${base}/harvest`] 
+    },
+    { 
+      name: 'Follow-ups', 
+      path: `${base}/follow-ups`, 
+      icon: MessageSquare, 
+      match: [`${base}/follow-ups`, `${base}/followups`, '/incharge/follow-ups', '/incharge/followups', '/asm/follow-ups', '/asm/followups'] 
+    },
+    { 
+      name: 'Notifications', 
+      path: `${base}/notifications`, 
+      icon: Bell, 
+      badge: unreadNotifCount > 0 ? unreadNotifCount : null,
+      match: [`${base}/notifications`, '/incharge/notifications', '/asm/notifications', '/notifications'] 
     },
     { 
       name: 'Weekly Tests', 
@@ -194,6 +230,7 @@ const InchargeSidebar = () => {
       <QuickRecordModal 
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
+        startWithSelector={true}
       />
     </>
   );

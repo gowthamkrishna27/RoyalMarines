@@ -43,7 +43,8 @@ export default function WeeklyComplianceFollowup({
   agentId = null,
   compact = false,
   variant = 'full', // 'side-column' | 'full'
-  onComplianceUpdated = null
+  onComplianceUpdated = null,
+  style = {}
 }) {
   const isSideColumn = variant === 'side-column' || compact;
   const [activeTab, setActiveTab] = useState('DUE'); // 'DUE' | 'ADDRESSED'
@@ -246,13 +247,14 @@ export default function WeeklyComplianceFollowup({
   };
 
   // Submit follow-up message
+  // Submit follow-up message
   const handleSendFollowup = async (e) => {
     if (e) e.preventDefault();
     const trimmed = (followupText || '').trim();
 
     // Frontend validation: non-empty message
     if (!trimmed) {
-      setActionError('Please enter a follow-up message before submitting.');
+      setActionError(portalType === 'AGENT' ? 'Please enter a reply message before submitting.' : 'Please enter a follow-up message before submitting.');
       return;
     }
     if (!selectedTank) return;
@@ -265,20 +267,38 @@ export default function WeeklyComplianceFollowup({
 
     try {
       const currentUser = getCurrentUser();
+      const isAgent = portalType === 'AGENT';
+
+      // For Agent portal, reply directly to the original supervisor/admin who messaged
+      const originalSupervisor = historyList.find(f => {
+        const r = (f.senderRole || '').toUpperCase();
+        return r === 'ADMIN' || r === 'ASM' || r === 'INCHARGE';
+      }) || (historyList.length > 0 ? historyList[0] : null);
+
+      const recipientId = isAgent 
+        ? (originalSupervisor?.senderId || null) 
+        : (selectedTank.agentId || null);
+      const recipientName = isAgent 
+        ? (originalSupervisor?.senderName || 'Supervisor') 
+        : (selectedTank.agentName || null);
+
       const res = await adminService.submitFollowup({
         tankId: selectedTank.tankId,
         cycleKey: selectedTank.cycleKey,
         senderId: currentUser.id,
         senderName: currentUser.name,
         senderRole: currentUser.role,
-        recipientId: selectedTank.agentId || null,
-        recipientName: selectedTank.agentName || null,
+        recipientId,
+        recipientName,
         message: trimmed
       });
 
       if (res) {
-        // Success feedback as requested
-        setActionSuccess('Follow-up sent successfully. This item has been moved to Addressed — test entry is not required for this cycle.');
+        if (isAgent) {
+          setActionSuccess(`Reply sent successfully to ${recipientName}. Your response has been recorded in the follow-up history.`);
+        } else {
+          setActionSuccess('Follow-up sent successfully. This item has been moved to Addressed — test entry is not required for this cycle.');
+        }
         setFollowupText('');
         setIsComposing(false);
 
@@ -311,7 +331,7 @@ export default function WeeklyComplianceFollowup({
       }
     } catch (err) {
       console.error('[WeeklyComplianceFollowup] Submit error:', err);
-      // Requirement 5: Retain item in Due, preserve text, and display actual error
+      // Retain item in Due, preserve text, and display actual error
       setActionError(err.message || 'Failed to submit follow-up message. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -340,6 +360,20 @@ export default function WeeklyComplianceFollowup({
   // Detail Modal & Message Composer shared across full and side-column views
   const renderDetailModal = () => {
     if (!selectedTank) return null;
+
+    const isAgent = portalType === 'AGENT';
+    const currentUser = getCurrentUser();
+    const isAssignedAgent = !selectedTank.agentId || selectedTank.agentId === currentUser.id;
+
+    // Locate the supervisor/admin who initiated or participated in this follow-up thread
+    const originalSupervisor = historyList.find(f => {
+      const r = (f.senderRole || '').toUpperCase();
+      return r === 'ADMIN' || r === 'ASM' || r === 'INCHARGE';
+    }) || (historyList.length > 0 ? historyList[0] : null);
+
+    const hasSupervisorFollowup = historyList.length > 0;
+    const canAgentReply = isAgent && isAssignedAgent && hasSupervisorFollowup;
+
     return (
       <div style={styles.modalBackdrop} onClick={closeDetailModal}>
         <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
@@ -449,7 +483,11 @@ export default function WeeklyComplianceFollowup({
               <div style={styles.complianceNotice}>
                 <AlertTriangle size={16} color="#D97706" style={{ flexShrink: 0, marginTop: '1px' }} />
                 <div style={{ fontSize: '12px', color: '#92400E', lineHeight: '1.45' }}>
-                  <strong>Action Required:</strong> Routine water testing is overdue for this 7-day cycle. Submit a follow-up directive below to assign or instruct the technician. Once addressed, test entry is no longer required for this cycle.
+                  {isAgent ? (
+                    <><strong>Pond Testing Status:</strong> Routine water testing is overdue for this 7-day cycle. Awaiting supervisor directive.</>
+                  ) : (
+                    <><strong>Action Required:</strong> Routine water testing is overdue for this 7-day cycle. Submit a follow-up directive below to assign or instruct the technician. Once addressed, test entry is no longer required for this cycle.</>
+                  )}
                 </div>
               </div>
             )}
@@ -526,75 +564,169 @@ export default function WeeklyComplianceFollowup({
               </div>
             )}
 
-            {/* Requirement 3 & 4: Two-Step Follow-Up Interaction */}
+            {/* Two-Step Follow-Up / Reply Interaction */}
             <div style={styles.actionSectionWrapper}>
-              {!isComposing ? (
-                /* Prominent Follow Up Button */
-                <div style={styles.followupTriggerBox}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
-                      Send directive to assigned agent
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#64748B' }}>
-                      Notify 👤 <strong>{selectedTank.agentName || 'assigned technician'}</strong> to conduct urgent routine pond water sampling.
-                    </span>
+              {isAgent ? (
+                /* Agent / Technician Portal Actions */
+                !isAssignedAgent ? (
+                  <div style={styles.noticeBoxWarning}>
+                    <Shield size={16} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ fontSize: '12.5px', color: '#92400E', lineHeight: '1.45' }}>
+                      <strong>Access Restricted:</strong> You are not the assigned technician for this pond ({selectedTank.agentName || 'assigned to another staff'}). Only the assigned technician is authorized to reply.
+                    </div>
                   </div>
-
-                  <button
-                    type="button"
-                    style={styles.prominentFollowupBtn}
-                    onClick={handleOpenComposer}
-                  >
-                    <MessageSquare size={16} />
-                    <span>Follow Up</span>
-                  </button>
-                </div>
-              ) : (
-                /* Requirement 4: Follow-up Message Form */
-                <form onSubmit={handleSendFollowup} style={styles.composerCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <label style={styles.composerLabel}>
-                      Follow-up Message
-                    </label>
-                    <span style={{ fontSize: '12px', color: '#64748B' }}>
-                      Sender Identity: <strong>{portalType}</strong>
-                    </span>
+                ) : !hasSupervisorFollowup ? (
+                  <div style={styles.noticeBoxInfo}>
+                    <Info size={16} color="#2563EB" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ fontSize: '12.5px', color: '#1E40AF', lineHeight: '1.45' }}>
+                      <strong>No Supervisor Directive Yet:</strong> An Admin or ASM/Incharge has not issued a follow-up directive for this tank cycle yet. Technicians can reply once an authorized supervisor sends a follow-up.
+                    </div>
                   </div>
+                ) : !isComposing ? (
+                  <div style={styles.followupTriggerBox}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                        Reply to Supervisor Follow-up
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#64748B' }}>
+                        Send a message back to <strong>{originalSupervisor?.senderName || 'Supervisor'}</strong> ({originalSupervisor?.senderRole || 'ADMIN/ASM'}).
+                      </span>
+                    </div>
 
-                  <textarea
-                    rows={3}
-                    value={followupText}
-                    onChange={(e) => setFollowupText(e.target.value)}
-                    disabled={isSubmitting}
-                    placeholder="Write your message to the assigned Agent. Explain what action is required or ask for an update..."
-                    style={styles.composerTextarea}
-                    autoFocus
-                  />
-
-                  <div style={styles.composerActionRow}>
                     <button
                       type="button"
-                      onClick={handleCancelComposer}
-                      disabled={isSubmitting}
-                      style={styles.cancelBtn}
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !followupText.trim()}
                       style={{
-                        ...styles.sendBtn,
-                        opacity: isSubmitting || !followupText.trim() ? 0.6 : 1,
-                        cursor: isSubmitting || !followupText.trim() ? 'not-allowed' : 'pointer'
+                        ...styles.prominentFollowupBtn,
+                        backgroundColor: '#1A2FB8'
                       }}
+                      onClick={handleOpenComposer}
                     >
-                      <Send size={14} className={isSubmitting ? 'animate-spin' : ''} />
-                      <span>{isSubmitting ? 'Sending...' : 'Send Follow-up'}</span>
+                      <MessageSquare size={16} />
+                      <span>Reply</span>
                     </button>
                   </div>
-                </form>
+                ) : (
+                  <form onSubmit={handleSendFollowup} style={styles.composerCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                      <label style={styles.composerLabel}>
+                        Your Reply Message
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {originalSupervisor && (
+                          <span style={{ fontSize: '11.5px', color: '#1E40AF', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, border: '1px solid #BFDBFE' }}>
+                            Replying to: {originalSupervisor.senderName} ({originalSupervisor.senderRole})
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                          From: <strong>{currentUser.name} (AGENT)</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={followupText}
+                      onChange={(e) => setFollowupText(e.target.value)}
+                      disabled={isSubmitting}
+                      placeholder={`Write your reply to ${originalSupervisor?.senderName || 'the supervisor'} (e.g. 'Noted. Visiting pond today at 3 PM to inspect and test water parameters.')...`}
+                      style={styles.composerTextarea}
+                      autoFocus
+                    />
+
+                    <div style={styles.composerActionRow}>
+                      <button
+                        type="button"
+                        onClick={handleCancelComposer}
+                        disabled={isSubmitting}
+                        style={styles.cancelBtn}
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !followupText.trim()}
+                        style={{
+                          ...styles.sendBtn,
+                          backgroundColor: '#1A2FB8',
+                          opacity: isSubmitting || !followupText.trim() ? 0.6 : 1,
+                          cursor: isSubmitting || !followupText.trim() ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <Send size={14} className={isSubmitting ? 'animate-spin' : ''} />
+                        <span>{isSubmitting ? 'Sending...' : 'Send Reply'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )
+              ) : (
+                /* Admin & ASM / Incharge Portal Actions */
+                !isComposing ? (
+                  <div style={styles.followupTriggerBox}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                        Send directive to assigned agent
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#64748B' }}>
+                        Notify 👤 <strong>{selectedTank.agentName || 'assigned technician'}</strong> to conduct urgent routine pond water sampling.
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      style={styles.prominentFollowupBtn}
+                      onClick={handleOpenComposer}
+                    >
+                      <MessageSquare size={16} />
+                      <span>Follow Up</span>
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSendFollowup} style={styles.composerCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={styles.composerLabel}>
+                        Follow-up Message
+                      </label>
+                      <span style={{ fontSize: '12px', color: '#64748B' }}>
+                        Sender Identity: <strong>{portalType}</strong>
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={followupText}
+                      onChange={(e) => setFollowupText(e.target.value)}
+                      disabled={isSubmitting}
+                      placeholder="Write your message to the assigned Agent. Explain what action is required or ask for an update..."
+                      style={styles.composerTextarea}
+                      autoFocus
+                    />
+
+                    <div style={styles.composerActionRow}>
+                      <button
+                        type="button"
+                        onClick={handleCancelComposer}
+                        disabled={isSubmitting}
+                        style={styles.cancelBtn}
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !followupText.trim()}
+                        style={{
+                          ...styles.sendBtn,
+                          opacity: isSubmitting || !followupText.trim() ? 0.6 : 1,
+                          cursor: isSubmitting || !followupText.trim() ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <Send size={14} className={isSubmitting ? 'animate-spin' : ''} />
+                        <span>{isSubmitting ? 'Sending...' : 'Send Follow-up'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )
               )}
             </div>
           </div>
@@ -869,7 +1001,7 @@ export default function WeeklyComplianceFollowup({
                         openDetailModal(tank);
                       }}
                     >
-                      <span>{isDue ? 'Follow Up' : 'History'}</span>
+                      <span>{isDue ? (portalType === 'AGENT' ? 'View Details' : 'Follow Up') : (portalType === 'AGENT' ? 'View & Reply' : 'History')}</span>
                       <ArrowUpRight size={12} />
                     </button>
                   </div>
@@ -886,7 +1018,7 @@ export default function WeeklyComplianceFollowup({
   }
 
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, ...style }}>
       {/* 1. Header & Live Synchronization */}
       <div style={styles.header}>
         <div style={styles.titleGroup}>
@@ -1186,7 +1318,7 @@ export default function WeeklyComplianceFollowup({
                       openDetailModal(tank);
                     }}
                   >
-                    <span>{isDue ? 'Follow Up' : 'View History'}</span>
+                    <span>{isDue ? (portalType === 'AGENT' ? 'View Details' : 'Follow Up') : (portalType === 'AGENT' ? 'View & Reply' : 'View History')}</span>
                     <ArrowUpRight size={13} />
                   </button>
                 </div>
@@ -1359,7 +1491,7 @@ export default function WeeklyComplianceFollowup({
                           openDetailModal(tank);
                         }}
                       >
-                        <span>{isDue ? 'Follow Up' : 'View History'}</span>
+                        <span>{isDue ? (portalType === 'AGENT' ? 'View Details' : 'Follow Up') : (portalType === 'AGENT' ? 'View & Reply' : 'View History')}</span>
                         <ArrowUpRight size={13} />
                       </button>
                     </td>
@@ -2020,6 +2152,24 @@ const styles = {
     fontSize: '13px',
     margin: '12px 0 0',
     border: '1px solid #BBF7D0'
+  },
+  noticeBoxInfo: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    backgroundColor: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    borderRadius: '10px',
+    padding: '12px 14px'
+  },
+  noticeBoxWarning: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    backgroundColor: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: '10px',
+    padding: '12px 14px'
   },
   /* Dedicated Side-Column Layout Styles */
   sideContainer: {

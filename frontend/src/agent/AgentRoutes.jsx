@@ -15,6 +15,8 @@ import Reports from './pages/Reports';
 import Harvest from './pages/Harvest';
 import MyAnalytics from './pages/MyAnalytics';
 import Profile from './pages/Profile';
+import Followups from './pages/Followups';
+import Notifications from './pages/Notifications';
 
 /**
  * Subrouter for Field Agent / Technician Portal
@@ -38,6 +40,11 @@ const AgentRoutes = () => {
       {/* Field Operations & Visits */}
       <Route path="visit/:tankId" element={<SiteVisit />} />
       <Route path="harvest" element={<Harvest />} />
+
+      {/* Weekly Testing Compliance & Follow-ups */}
+      <Route path="follow-ups" element={<Followups />} />
+      <Route path="followups" element={<Followups />} />
+      <Route path="notifications" element={<Notifications />} />
 
       {/* Test Logs & Testing Schedule */}
       <Route path="tests" element={<History />} />
@@ -65,6 +72,9 @@ const AgentRoutes = () => {
       <Route path="technician/weekly-tests" element={<Tests />} />
       <Route path="technician/reports" element={<Reports />} />
       <Route path="technician/harvest" element={<Harvest />} />
+      <Route path="technician/follow-ups" element={<Followups />} />
+      <Route path="technician/followups" element={<Followups />} />
+      <Route path="technician/notifications" element={<Notifications />} />
       <Route path="technician/analytics" element={<MyAnalytics />} />
       <Route path="technician/profile" element={<Profile />} />
 
@@ -83,6 +93,9 @@ const AgentRoutes = () => {
       <Route path="agent/weekly-tests" element={<Tests />} />
       <Route path="agent/reports" element={<Reports />} />
       <Route path="agent/harvest" element={<Harvest />} />
+      <Route path="agent/follow-ups" element={<Followups />} />
+      <Route path="agent/followups" element={<Followups />} />
+      <Route path="agent/notifications" element={<Notifications />} />
       <Route path="agent/analytics" element={<MyAnalytics />} />
       <Route path="agent/profile" element={<Profile />} />
 

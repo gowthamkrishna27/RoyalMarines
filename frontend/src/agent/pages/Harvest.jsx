@@ -66,6 +66,7 @@ const Harvest = () => {
   const [formFeed, setFormFeed] = useState('');
   const [formBuyer, setFormBuyer] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
+  const [formAbwObservation, setFormAbwObservation] = useState('');
 
   // Restock Modal State
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
@@ -307,6 +308,12 @@ const Harvest = () => {
   );
   const relevantHarvests = currentCycleHarvests.length > 0 ? currentCycleHarvests : sequencedHarvests;
 
+  // Previous harvest for ABW progression check
+  const previousHarvest = relevantHarvests.length > 0 ? relevantHarvests[relevantHarvests.length - 1] : (sortedHarvests.length > 0 ? sortedHarvests[sortedHarvests.length - 1] : null);
+  const previousHarvestAbw = previousHarvest && parseFloat(previousHarvest.abw) > 0 ? parseFloat(previousHarvest.abw) : null;
+  const numEnteredAbw = parseFloat(formAbw);
+  const isAbwLowerThanPrevious = previousHarvestAbw !== null && !isNaN(numEnteredAbw) && numEnteredAbw > 0 && numEnteredAbw < previousHarvestAbw;
+
   // Auto-calculated totals
   const totalHarvestedSeed = relevantHarvests.reduce((sum, h) => {
     const num = parseFloat(h.harvestedNumber) || 0;
@@ -471,6 +478,7 @@ const Harvest = () => {
     setFormFeed('');
     setFormBuyer('');
     setFormRemarks('');
+    setFormAbwObservation('');
     setIsHarvestModalOpen(true);
   };
 
@@ -493,6 +501,12 @@ const Harvest = () => {
     const numAbw = parseFloat(formAbw);
     if (!numAbw || numAbw <= 0) {
       alert('Please enter a valid average body weight (ABW) greater than 0.');
+      return;
+    }
+
+    // ABW progression check: if less than previous harvest, observation is required
+    if (isAbwLowerThanPrevious && !formAbwObservation.trim()) {
+      alert(`The entered Average Body Weight (${numAbw}g) is less than the previous harvest (${previousHarvestAbw}g).\n\nPlease provide an observation or explanation in the observation box below.`);
       return;
     }
 
@@ -534,6 +548,11 @@ const Harvest = () => {
       const countPerKg = numAbw > 0 ? Math.round(1000 / numAbw) : 40;
       const calculatedBatchFcr = numBiomass > 0 && numFeed > 0 ? (numFeed / numBiomass).toFixed(2) : '1.18';
 
+      const trimmedObs = formAbwObservation.trim();
+      const finalRemarks = trimmedObs
+        ? (formRemarks.trim() ? `[Observation: ${trimmedObs}] ${formRemarks.trim()}` : `Observation: ${trimmedObs}`)
+        : (formRemarks.trim() || (isFinal ? 'Final drainage harvest and cycle closure' : 'Partial thinning harvest'));
+
       // 1. Submit to Backend API
       const harvestRes = await apiClient.post('/harvests', {
         tankId: activeTank.id,
@@ -542,10 +561,11 @@ const Harvest = () => {
         harvestedBiomass: numBiomass,
         quantityKg: numBiomass,
         abw: `${numAbw}g`,
+        abwObservation: trimmedObs,
         doc: numDoc,
         feedConsumed: numFeed,
         buyerName: formBuyer || (isFinal ? 'Royals Marine Processing Unit 1' : 'Local Harvest Operation'),
-        remarks: formRemarks || (isFinal ? 'Final drainage harvest and cycle closure' : 'Partial thinning harvest'),
+        remarks: finalRemarks,
         harvestType: modalHarvestType,
         isFinal,
         cultureCycleId: currentCycleId,
@@ -574,6 +594,7 @@ const Harvest = () => {
           harvestType: modalHarvestType,
           isFinal,
           abw: numAbw,
+          abwObservation: trimmedObs,
           doc: numDoc,
           harvestedBiomass: numBiomass,
           harvestedNumber: calculatedCount,
@@ -581,7 +602,7 @@ const Harvest = () => {
           fcr: isFinal ? cumulativeFcr : calculatedBatchFcr,
           cultureCycleId: currentCycleId,
           buyer: formBuyer,
-          remarks: formRemarks,
+          remarks: finalRemarks,
           ...(isFinal ? {
             totalBiomass: cumulativeTotalBiomass,
             totalHarvestedSeed: cumulativeTotalSeed,
@@ -602,12 +623,13 @@ const Harvest = () => {
         date: formDate,
         doc: Number(formDoc),
         abw: numAbw,
+        abwObservation: trimmedObs,
         countPerKg,
         harvestedNumber: calculatedCount,
         harvestedBiomass: numBiomass,
         feedConsumed: numFeed,
         fcr: isFinal ? cumulativeFcr : calculatedBatchFcr,
-        remarks: formRemarks,
+        remarks: finalRemarks,
         buyer: formBuyer,
         cultureCycleId: currentCycleId,
         recordedAt: new Date().toISOString(),
@@ -1129,7 +1151,7 @@ const Harvest = () => {
                 </tr>
               </thead>
               <tbody>
-                {sequencedHarvests.map((rec) => (
+                {sequencedHarvests.map((rec, idx) => (
                   <tr key={rec.id} style={styles.tbodyRow}>
                     <td style={styles.td}>
                       <span style={{
@@ -1148,10 +1170,60 @@ const Harvest = () => {
                     </td>
                     <td style={styles.td}>{rec.date || '-'}</td>
                     <td style={{ ...styles.td, fontWeight: '600' }}>{rec.doc} Days</td>
-                    <td style={{ ...styles.td, fontWeight: '600' }}>{rec.abw} g</td>
+                    <td style={{ ...styles.td, fontWeight: '600' }}>
+                      <div style={{ color: '#0F172A', fontWeight: '700' }}>{rec.abw} g</div>
+                      {(() => {
+                        const prevHarvest = idx > 0 ? sequencedHarvests[idx - 1] : null;
+                        const prevAbwVal = prevHarvest ? parseFloat(prevHarvest.abw) : null;
+                        const currAbwVal = parseFloat(rec.abw);
+                        const isLower = prevAbwVal !== null && !isNaN(currAbwVal) && currAbwVal < prevAbwVal;
+                        if (!isLower) return null;
+                        return (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            color: '#B45309',
+                            backgroundColor: '#FEF3C7',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            border: '1px solid #FDE68A',
+                            marginTop: '2px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <AlertTriangle size={10} color="#D97706" />
+                            <span>&darr; from {prevAbwVal}g</span>
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td style={{ ...styles.td, fontWeight: '700' }}>{parseFloat(rec.harvestedNumber || 0).toLocaleString()}</td>
                     <td style={{ ...styles.td, fontWeight: '700', color: '#1A2FB8' }}>{parseFloat(rec.harvestedBiomass || 0).toLocaleString()} kg</td>
-                    <td style={{ ...styles.td, color: '#64748B', maxWidth: '200px' }}>{rec.remarks || 'Standard harvest'}</td>
+                    <td style={{ ...styles.td, maxWidth: '240px' }}>
+                      {rec.abwObservation && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          color: '#92400E',
+                          backgroundColor: '#FEF3C7',
+                          padding: '2px 7px',
+                          borderRadius: '5px',
+                          border: '1px solid #FDE68A',
+                          marginBottom: '4px'
+                        }}>
+                          <AlertTriangle size={10} color="#D97706" />
+                          <span><strong>Observation:</strong> {rec.abwObservation}</span>
+                        </div>
+                      )}
+                      <div style={{ color: '#334155', fontSize: '12px', lineHeight: '1.4' }}>
+                        {rec.remarks || 'Standard harvest'}
+                      </div>
+                    </td>
                     <td style={{ ...styles.td, textAlign: 'center' }}>
                       <button 
                         type="button" 
@@ -1316,11 +1388,18 @@ const Harvest = () => {
                 </div>
 
                 {/* ABW and Harvest Number Row (2-columns) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: isAbwLowerThanPrevious ? '10px' : '14px' }}>
                   <div>
-                    <label style={styles.fieldLabel}>
-                      Average Body Weight (ABW) (g) <span style={{ color: '#DC2626' }}>*</span>
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ ...styles.fieldLabel, marginBottom: 0 }}>
+                        Average Body Weight (ABW) (g) <span style={{ color: '#DC2626' }}>*</span>
+                      </label>
+                      {previousHarvestAbw && (
+                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                          Prev: <strong style={{ color: '#1E293B' }}>{previousHarvestAbw}g</strong>
+                        </span>
+                      )}
+                    </div>
                     <input 
                       type="number"
                       step="0.1"
@@ -1328,7 +1407,11 @@ const Harvest = () => {
                       onChange={(e) => handleAbwChange(e.target.value)}
                       placeholder="e.g. 16.5"
                       min="0.1"
-                      style={styles.fieldInput}
+                      style={{
+                        ...styles.fieldInput,
+                        borderColor: isAbwLowerThanPrevious ? '#F59E0B' : '#CBD5E1',
+                        backgroundColor: isAbwLowerThanPrevious ? '#FFFBEB' : '#FFFFFF'
+                      }}
                       required
                     />
                   </div>
@@ -1360,6 +1443,47 @@ const Harvest = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Observation Text Box when entered ABW is less than previous harvest */}
+                {isAbwLowerThanPrevious && (
+                  <div style={{
+                    marginBottom: '14px',
+                    padding: '12px 14px',
+                    backgroundColor: '#FFFBEB',
+                    border: '1.5px solid #FCD34D',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#B45309', fontWeight: '700', fontSize: '12.5px' }}>
+                      <AlertTriangle size={16} color="#D97706" />
+                      <span>Observation Required: ABW ({numEnteredAbw}g) is less than previous harvest ({previousHarvestAbw}g)</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '11.5px', color: '#78350F', lineHeight: '1.4' }}>
+                      Average body weight is lower than the previous harvest. Please provide field observation / reason for this variance:
+                    </p>
+                    <textarea 
+                      value={formAbwObservation}
+                      onChange={(e) => setFormAbwObservation(e.target.value)}
+                      placeholder="e.g. Selective harvest of smaller stock from shallow area, sample variance, partial molting..."
+                      rows={2}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #F59E0B',
+                        backgroundColor: '#FFFFFF',
+                        fontSize: '12.5px',
+                        color: '#0F172A',
+                        outline: 'none',
+                        resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Harvested Biomass Row (Auto-calculated: Harvest Number * ABW) */}
                 <div style={{ marginBottom: '14px' }}>

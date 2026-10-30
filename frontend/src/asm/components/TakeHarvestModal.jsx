@@ -38,6 +38,7 @@ const TakeHarvestModal = ({
   const [feedConsumed, setFeedConsumed] = useState('');
   const [buyer, setBuyer] = useState('Royals Marine Processing Unit 1');
   const [remarks, setRemarks] = useState('');
+  const [abwObservation, setAbwObservation] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedData, setSavedData] = useState(null);
@@ -49,7 +50,7 @@ const TakeHarvestModal = ({
     }
   }, [initialHarvestType]);
 
-  // Read existing store to compute next partial number
+  // Read existing store to compute next partial number and previous ABW
   const storeKey = `${tank.farmerId || farmer?.id}_${tank.id}`;
   let existingStoreHarvests = [];
   try {
@@ -59,6 +60,10 @@ const TakeHarvestModal = ({
     }
   } catch (e) {}
 
+  const sortedExistingHarvests = [...existingStoreHarvests].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+  const previousHarvest = sortedExistingHarvests.length > 0 ? sortedExistingHarvests[sortedExistingHarvests.length - 1] : null;
+  const previousHarvestAbw = previousHarvest && parseFloat(previousHarvest.abw) > 0 ? parseFloat(previousHarvest.abw) : null;
+
   const existingPartialsCount = existingStoreHarvests.filter(h => !h.isFinal && h.harvestType !== 'Final Harvest').length;
   const currentPartialTitle = existingPartialsCount === 0 ? 'Partial Harvest' : `Partial Harvest ${existingPartialsCount + 1}`;
 
@@ -66,6 +71,8 @@ const TakeHarvestModal = ({
   const numAbw = parseFloat(abw) || 0;
   const numBiomass = parseFloat(biomass) || 0;
   const numFeed = parseFloat(feedConsumed) || 0;
+
+  const isAbwLowerThanPrevious = previousHarvestAbw !== null && numAbw > 0 && numAbw < previousHarvestAbw;
 
   const countPerKg = numAbw > 0 ? Math.round(1000 / numAbw) : 0;
   const calculatedShrimpCount = numBiomass > 0 && numAbw > 0 ? Math.round((numBiomass * 1000) / numAbw) : 0;
@@ -92,9 +99,20 @@ const TakeHarvestModal = ({
       return;
     }
 
+    // ABW progression check: if less than previous harvest, observation is required
+    if (isAbwLowerThanPrevious && !abwObservation.trim()) {
+      alert(`The entered Average Body Weight (${numAbw}g) is less than the previous harvest (${previousHarvestAbw}g).\n\nPlease provide an observation or explanation in the observation box.`);
+      return;
+    }
+
     const isFinal = harvestType === 'Final Harvest';
 
     const displayTitle = isFinal ? 'Final Harvest' : currentPartialTitle;
+
+    const trimmedObs = abwObservation.trim();
+    const finalRemarks = trimmedObs
+      ? (remarks.trim() ? `[Observation: ${trimmedObs}] ${remarks.trim()}` : `Observation: ${trimmedObs}`)
+      : (remarks.trim() || (isFinal ? 'Complete pond harvest and cycle closure' : 'Partial thinning harvest'));
 
     const newHarvestRecord = {
       id: `harvest_${Date.now()}`,
@@ -104,12 +122,13 @@ const TakeHarvestModal = ({
       date: harvestDate,
       doc: parseInt(doc, 10) || currentDoc,
       abw: numAbw,
+      abwObservation: trimmedObs,
       countPerKg: countPerKg,
       harvestedNumber: calculatedShrimpCount,
       harvestedBiomass: numBiomass,
       feedConsumed: numFeed || Math.round(numBiomass * 1.16),
       fcr: calculatedFcr,
-      remarks: remarks || (isFinal ? 'Complete pond harvest and cycle closure' : 'Partial thinning harvest'),
+      remarks: finalRemarks,
       buyer: buyer || 'Royals Marine Processing Unit 1',
       recordedAt: new Date().toISOString()
     };
@@ -125,11 +144,13 @@ const TakeHarvestModal = ({
         date: harvestDate,
         quantityKg: numBiomass,
         countPerKg: countPerKg,
+        abw: `${numAbw}g`,
+        abwObservation: trimmedObs,
         quality: 'Grade A',
         pricePerKg: 380,
         revenue: revenueVal,
         buyerName: buyer || 'Royals Marine Processing Unit 1',
-        remarks: newHarvestRecord.remarks,
+        remarks: finalRemarks,
         harvestType: isFinal ? 'Final Harvest' : 'Partial Harvest',
         isFinal
       });
@@ -299,6 +320,24 @@ const TakeHarvestModal = ({
                   {savedData.date} (Day {savedData.doc})
                 </span>
               </div>
+
+              {savedData.abwObservation && (
+                <div style={{ ...styles.successCard, gridColumn: 'span 2', backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }}>
+                  <span style={{ ...styles.successCardLabel, color: '#B45309' }}>Lower ABW Observation</span>
+                  <span style={{ ...styles.successCardVal, color: '#92400E', fontSize: '12.5px', fontWeight: '600' }}>
+                    {savedData.abwObservation}
+                  </span>
+                </div>
+              )}
+
+              {savedData.remarks && (
+                <div style={{ ...styles.successCard, gridColumn: 'span 2' }}>
+                  <span style={styles.successCardLabel}>Harvest Remarks</span>
+                  <span style={{ ...styles.successCardVal, color: '#334155', fontSize: '12.5px', fontWeight: '500' }}>
+                    {savedData.remarks}
+                  </span>
+                </div>
+              )}
             </div>
 
             {savedData.isFinal && (
@@ -468,9 +507,16 @@ const TakeHarvestModal = ({
 
                 {/* Average Body Weight (ABW) */}
                 <div style={styles.inputGroup}>
-                  <label style={styles.inputLabel}>
-                    Average Body Weight (ABW) <span style={{ color: '#DC2626' }}>*</span>
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label style={{ ...styles.inputLabel, marginBottom: 0 }}>
+                      Average Body Weight (ABW) <span style={{ color: '#DC2626' }}>*</span>
+                    </label>
+                    {previousHarvestAbw && (
+                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                        Prev: <strong style={{ color: '#0F172A' }}>{previousHarvestAbw}g</strong>
+                      </span>
+                    )}
+                  </div>
                   <div style={styles.inputWrapper}>
                     <input 
                       type="number"
@@ -479,7 +525,12 @@ const TakeHarvestModal = ({
                       onChange={(e) => setAbw(e.target.value)}
                       placeholder="e.g. 24.5"
                       min="1"
-                      style={{ ...styles.textInput, paddingLeft: '12px' }}
+                      style={{
+                        ...styles.textInput,
+                        paddingLeft: '12px',
+                        borderColor: isAbwLowerThanPrevious ? '#F59E0B' : '#CBD5E1',
+                        backgroundColor: isAbwLowerThanPrevious ? '#FFFBEB' : '#FFFFFF'
+                      }}
                       required
                     />
                     <span style={styles.inputUnit}>Grams</span>
@@ -554,6 +605,47 @@ const TakeHarvestModal = ({
                   </div>
                 </div>
               </div>
+
+              {/* Observation Box when entered ABW is less than previous harvest */}
+              {isAbwLowerThanPrevious && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '12px 14px',
+                  backgroundColor: '#FFFBEB',
+                  border: '1.5px solid #FCD34D',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#B45309', fontWeight: '700', fontSize: '12.5px' }}>
+                    <AlertCircle size={16} color="#D97706" />
+                    <span>Observation Required: ABW ({numAbw}g) is less than previous harvest ({previousHarvestAbw}g)</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: '#78350F', lineHeight: '1.4' }}>
+                    Average body weight is lower than the previous cut. Please provide field observation / reason for this variance:
+                  </p>
+                  <textarea 
+                    value={abwObservation}
+                    onChange={(e) => setAbwObservation(e.target.value)}
+                    placeholder="e.g. Selective harvest of smaller stock from shallow area, sample variance, partial molting..."
+                    rows={2}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #F59E0B',
+                      backgroundColor: '#FFFFFF',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Remarks / Field Notes */}
               <div style={{ ...styles.inputGroup, marginTop: '12px' }}>

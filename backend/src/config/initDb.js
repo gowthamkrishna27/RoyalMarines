@@ -4,17 +4,17 @@ import { getPool, query } from './database.js';
 export const initializeDatabaseSchema = async () => {
   try {
 
-    // 1. Concurrent Table Verifications
-    await Promise.all([
-      query(`
+    // 1. Table Verifications (sequential to conserve connection pool and avoid metadata lock contention)
+    const coreTables = [
+      `
         CREATE TABLE IF NOT EXISTS roles (
           id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(30) NOT NULL UNIQUE,
           description VARCHAR(255),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS users (
           id VARCHAR(50) PRIMARY KEY,
           username VARCHAR(100) UNIQUE,
@@ -33,8 +33,8 @@ export const initializeDatabaseSchema = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS regions (
           id VARCHAR(50) PRIMARY KEY,
           code VARCHAR(50),
@@ -46,8 +46,8 @@ export const initializeDatabaseSchema = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS localities (
           id VARCHAR(50) PRIMARY KEY,
           region_id VARCHAR(50) NOT NULL,
@@ -56,8 +56,8 @@ export const initializeDatabaseSchema = async () => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_reg (region_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS incharges (
           id VARCHAR(50) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -67,8 +67,8 @@ export const initializeDatabaseSchema = async () => {
           phone VARCHAR(50),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS agents (
           id VARCHAR(50) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -79,8 +79,8 @@ export const initializeDatabaseSchema = async () => {
           active_ponds INT DEFAULT 0,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS farmers (
           id VARCHAR(50) PRIMARY KEY,
           farmer_code VARCHAR(50),
@@ -106,8 +106,8 @@ export const initializeDatabaseSchema = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS tanks (
           id VARCHAR(50) PRIMARY KEY,
           name VARCHAR(100) NOT NULL,
@@ -134,8 +134,8 @@ export const initializeDatabaseSchema = async () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS submissions (
           id VARCHAR(50) PRIMARY KEY,
           agent_id VARCHAR(50),
@@ -157,8 +157,8 @@ export const initializeDatabaseSchema = async () => {
           submitted_ago VARCHAR(50),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS harvests (
           id VARCHAR(50) PRIMARY KEY,
           culture_cycle_id VARCHAR(50) NULL,
@@ -181,8 +181,8 @@ export const initializeDatabaseSchema = async () => {
           recorded_by VARCHAR(50) NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `),
-      query(`
+      `,
+      `
         CREATE TABLE IF NOT EXISTS audit_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           action VARCHAR(100),
@@ -197,8 +197,11 @@ export const initializeDatabaseSchema = async () => {
           details JSON,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-      `)
-    ]);
+      `
+    ];
+    for (const sql of coreTables) {
+      await query(sql);
+    }
 
     // 2. Fetch existing schema columns in parallel (1 network round trip instead of 30)
     const [subCols, harvestCols, tankCols] = await Promise.all([

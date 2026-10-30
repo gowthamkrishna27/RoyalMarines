@@ -1,5 +1,6 @@
-import { store } from 'file:///c:/Users/chora/OneDrive/Desktop/royal/RoyalMarines/backend/src/data/store.js';
-import { query } from 'file:///c:/Users/chora/OneDrive/Desktop/royal/RoyalMarines/backend/src/config/database.js';
+import '../src/config/env.js';
+import { store } from '../src/data/store.js';
+import { query } from '../src/config/database.js';
 
 let passedTests = 0;
 let totalTests = 0;

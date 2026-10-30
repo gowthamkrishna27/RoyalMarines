@@ -2482,6 +2482,7 @@ const Dashboard = () => {
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
         initialType={modalInitialType}
+        startWithSelector={!modalInitialType}
         preselectedTankId={modalInitialTank}
         userRole="INCHARGE"
       />

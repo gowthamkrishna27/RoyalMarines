@@ -2828,25 +2828,56 @@ class DataStore {
       }
     }
 
-    // Role-based authorization enforcement
-    if (senderRole === 'INCHARGE' || senderRole === 'ASM') {
-      const isAuthorizedIncharge = !tank.incharge_id || tank.incharge_id === senderId || (user?.role === 'ADMIN');
-      if (!isAuthorizedIncharge) {
-        throw new Error('Forbidden: You are not authorized to follow up on this tank');
-      }
-    } else if (senderRole === 'AGENT' || senderRole === 'TECHNICIAN') {
-      const isAuthorizedAgent = !tank.agent_id || tank.agent_id === senderId || (user?.role === 'ADMIN' || user?.role === 'ASM' || user?.role === 'INCHARGE');
-      if (!isAuthorizedAgent) {
-        throw new Error('Forbidden: You are not authorized to reply to this tank');
-      }
-    }
-
     // Determine current cycle key for tank
     let cycleKey = data.cycleKey;
     if (!cycleKey) {
       const compliance = await this.getTankComplianceList({ tankId: data.tankId });
       const currentItem = compliance.allTanks?.[0];
       cycleKey = currentItem?.cycleKey || `${data.tankId}_cinitial_w1`;
+    }
+
+    const isAgent = senderRole === 'AGENT' || senderRole === 'TECHNICIAN';
+    let recipientId = null;
+    let recipientName = null;
+
+    // Role-based authorization enforcement
+    if (senderRole === 'INCHARGE' || senderRole === 'ASM') {
+      const isAuthorizedIncharge = !tank.incharge_id || tank.incharge_id === senderId || (user?.role === 'ADMIN');
+      if (!isAuthorizedIncharge) {
+        throw new Error('Forbidden: You are not authorized to follow up on this tank');
+      }
+      recipientId = data.recipientId || tank.agent_id || null;
+      recipientName = data.recipientName || tank.agent_name || 'Assigned Staff';
+    } else if (isAgent) {
+      // 1. Verify tank is assigned to this agent
+      const isAuthorizedAgent = tank.agent_id === senderId || (user?.role === 'ADMIN' || user?.role === 'ASM' || user?.role === 'INCHARGE');
+      if (!isAuthorizedAgent) {
+        throw new Error('Forbidden: You are not authorized to access or reply to follow-ups for this tank');
+      }
+
+      // 2. Technicians can ONLY reply to an existing follow-up sent by an Admin or Incharge
+      const existingThread = await query(
+        `SELECT * FROM tank_due_followups WHERE tank_id = ? AND cycle_key = ? ORDER BY created_at ASC`,
+        [data.tankId, cycleKey]
+      );
+
+      if (!existingThread || existingThread.length === 0) {
+        throw new Error('Forbidden: Technicians cannot create new follow-ups. You can only reply to follow-ups sent by an Admin or Incharge.');
+      }
+
+      // 3. Check authorization against the thread
+      const originalSupervisorFup = existingThread.find(f => f.sender_role === 'ADMIN' || f.sender_role === 'ASM' || f.sender_role === 'INCHARGE') || existingThread[0];
+      if (originalSupervisorFup.recipient_id && originalSupervisorFup.recipient_id !== senderId && originalSupervisorFup.agent_id !== senderId && tank.agent_id !== senderId) {
+        throw new Error('Forbidden: You are not authorized to reply to this follow-up');
+      }
+
+      // 4. Securely set recipient from original supervisor's stored record (do NOT trust client-supplied ID)
+      recipientId = originalSupervisorFup.sender_id;
+      recipientName = originalSupervisorFup.sender_name;
+    } else {
+      // Admin
+      recipientId = data.recipientId || tank.agent_id || null;
+      recipientName = data.recipientName || tank.agent_name || 'Assigned Staff';
     }
 
     // Idempotent submission: prevent duplicate record on double-click or fast retry within 5 seconds
@@ -2871,64 +2902,85 @@ class DataStore {
     }
 
     const id = `FUP_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    const recipientId = data.recipientId || tank.agent_id || null;
-    const recipientName = data.recipientName || tank.agent_name || 'Assigned Staff';
+    const resolvedReason = isAgent ? 'AGENT_REPLY' : 'ADDRESSED_BY_SUPERVISOR';
 
     await query(
       `INSERT INTO tank_due_followups (
         id, tank_id, farmer_id, agent_id, incharge_id, cycle_key, sender_id, sender_name, sender_role,
         recipient_id, recipient_name, message, status, test_waived, resolved_reason, settled_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADDRESSED', 1, 'ADDRESSED_BY_SUPERVISOR', NOW())`,
-      [id, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id, cycleKey, senderId, senderName, senderRole, recipientId, recipientName, message]
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADDRESSED', 1, ?, NOW())`,
+      [id, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id, cycleKey, senderId, senderName, senderRole, recipientId, recipientName, message, resolvedReason]
     );
 
     // Update tanks table compliance status and weekly test waiver
     try {
-      await query(
-        `UPDATE tanks 
-         SET compliance_status = 'ADDRESSED',
-             last_followup_at = NOW(),
-             last_followup_by = ?,
-             last_followup_role = ?,
-             weekly_test_waived = 1
-         WHERE id = ?`,
-        [senderName, senderRole, data.tankId]
-      );
+      if (isAgent) {
+        // Agent reply updates last_followup timestamps without modifying tank test status or falsely completing tests
+        await query(
+          `UPDATE tanks 
+           SET last_followup_at = NOW(),
+               last_followup_by = ?,
+               last_followup_role = ?
+           WHERE id = ?`,
+          [senderName, senderRole, data.tankId]
+        );
+      } else {
+        // Admin or ASM follow-up addresses the cycle and waives weekly routine test
+        await query(
+          `UPDATE tanks 
+           SET compliance_status = 'ADDRESSED',
+               last_followup_at = NOW(),
+               last_followup_by = ?,
+               last_followup_role = ?,
+               weekly_test_waived = 1
+           WHERE id = ?`,
+          [senderName, senderRole, data.tankId]
+        );
+      }
     } catch (tankUpdateErr) { }
 
-    // Upsert into tank_compliance_cycles table
-    try {
-      await query(
-        `INSERT INTO tank_compliance_cycles (
-           id, cycle_key, tank_id, farmer_id, agent_id, incharge_id,
-           status, test_required, addressed_by_id, addressed_by_name, addressed_by_role, addressed_at
-         ) VALUES (?, ?, ?, ?, ?, ?, 'ADDRESSED', 0, ?, ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE
-           status = 'ADDRESSED',
-           test_required = 0,
-           addressed_by_id = VALUES(addressed_by_id),
-           addressed_by_name = VALUES(addressed_by_name),
-           addressed_by_role = VALUES(addressed_by_role),
-           addressed_at = NOW()`,
-        [
-          `CC_${cycleKey}`, cycleKey, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id,
-          senderId, senderName, senderRole
-        ]
-      );
-    } catch (cycleErr) { }
-
-    // Create notification for assigned agent/technician
-    if (recipientId) {
+    // Upsert into tank_compliance_cycles table (only for supervisors/admins waiving the test)
+    if (!isAgent) {
       try {
         await query(
+          `INSERT INTO tank_compliance_cycles (
+             id, cycle_key, tank_id, farmer_id, agent_id, incharge_id,
+             status, test_required, addressed_by_id, addressed_by_name, addressed_by_role, addressed_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'ADDRESSED', 0, ?, ?, ?, NOW())
+           ON DUPLICATE KEY UPDATE
+             status = 'ADDRESSED',
+             test_required = 0,
+             addressed_by_id = VALUES(addressed_by_id),
+             addressed_by_name = VALUES(addressed_by_name),
+             addressed_by_role = VALUES(addressed_by_role),
+             addressed_at = NOW()`,
+          [
+            `CC_${cycleKey}`, cycleKey, data.tankId, tank.farmer_id, tank.agent_id, tank.incharge_id,
+            senderId, senderName, senderRole
+          ]
+        );
+      } catch (cycleErr) { }
+    }
+
+    // Create notification: if agent replies, notify original sender (Admin/ASM); if supervisor, notify agent
+    if (recipientId) {
+      try {
+        const notifTitle = isAgent ? `Reply from Technician (${tank.name})` : `Pond Follow-up (${tank.name})`;
+        const notifMsg = isAgent 
+          ? `${senderName} (AGENT) replied on ${tank.name} (${tank.farmer_name || 'Farmer'}): "${message.slice(0, 120)}"`
+          : `${senderName} (${senderRole}) followed up on ${tank.name} (${tank.farmer_name || 'Farmer'}). Weekly test waived: "${message.slice(0, 120)}"`;
+        const notifType = isAgent ? 'info' : 'warning';
+
+        await query(
           `INSERT INTO notifications (id, user_id, agent_id, title, message, type)
-           VALUES (?, ?, ?, ?, ?, 'warning')`,
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             `NOTIF_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             recipientId,
             tank.agent_id || null,
-            `Pond Follow-up (${tank.name})`,
-            `${senderName} (${senderRole}) followed up on ${tank.name} (${tank.farmer_name || 'Farmer'}). Weekly test waived: "${message.slice(0, 120)}"`
+            notifTitle,
+            notifMsg,
+            notifType
           ]
         );
       } catch (notifErr) { }
@@ -2938,14 +2990,17 @@ class DataStore {
     try {
       await query(
         `INSERT INTO audit_logs (action, module, entity_type, record_id, entity_id, performed_by, user_id, notes, details)
-         VALUES ('FOLLOW_UP_SENT', 'COMPLIANCE', 'TANK', ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, 'COMPLIANCE', 'TANK', ?, ?, ?, ?, ?, ?)`,
         [
+          isAgent ? 'FOLLOW_UP_REPLY' : 'FOLLOW_UP_SENT',
           id,
           data.tankId,
           senderName,
           senderId,
-          `Follow-up submitted by ${senderName} (${senderRole}): "${message.slice(0, 100)}"`,
-          JSON.stringify({ tankId: data.tankId, cycleKey, recipientId, message })
+          isAgent 
+            ? `Reply submitted by ${senderName} (${senderRole}) to ${recipientName}: "${message.slice(0, 100)}"`
+            : `Follow-up submitted by ${senderName} (${senderRole}): "${message.slice(0, 100)}"`,
+          JSON.stringify({ tankId: data.tankId, cycleKey, recipientId, message, isAgentReply: isAgent })
         ]
       );
     } catch (e) { }
@@ -2964,6 +3019,7 @@ class DataStore {
       recipientName,
       message,
       status: 'ADDRESSED',
+      isAgentReply: isAgent,
       createdAt: new Date().toISOString()
     };
   }
@@ -2971,8 +3027,19 @@ class DataStore {
   /**
    * Retrieves full chronological follow-up conversation history for a tank.
    */
-  async getTankFollowupHistory(tankId, cycleKey = null) {
+  async getTankFollowupHistory(tankId, cycleKey = null, user = null) {
     this._ensureDb();
+    // Security check: If requested by an Agent, verify tank is assigned to them
+    if (user) {
+      const uRole = String(user.role || '').toUpperCase();
+      const uId = user.id || user.agentId;
+      if (uRole === 'AGENT' || uRole === 'TECHNICIAN') {
+        const tRows = await query('SELECT agent_id FROM tanks WHERE id = ? LIMIT 1', [tankId]);
+        if (!tRows || tRows.length === 0 || tRows[0].agent_id !== uId) {
+          throw new Error('Forbidden: You are not authorized to view follow-up history for a tank that is not assigned to you');
+        }
+      }
+    }
     let sql = `SELECT * FROM tank_due_followups WHERE tank_id = ?`;
     const params = [tankId];
     if (cycleKey) {
@@ -3007,6 +3074,97 @@ class DataStore {
         hour12: true
       })
     }));
+  }
+
+  // --- Notifications Operations ---
+
+  async getNotifications(filter = {}, user = null) {
+    this._ensureDb();
+    let sql = `SELECT * FROM notifications WHERE 1=1`;
+    const params = [];
+
+    const effectiveRole = String(user?.role || filter.role || '').toUpperCase();
+    const effectiveUserId = user?.id || filter.userId || null;
+    const effectiveAgentId = user?.agentId || filter.agentId || null;
+    const effectiveInchargeId = user?.inchargeId || filter.inchargeId || null;
+
+    if (effectiveRole === 'AGENT' || effectiveRole === 'TECHNICIAN' || effectiveAgentId) {
+      const targetAgent = effectiveAgentId || effectiveUserId;
+      if (targetAgent) {
+        sql += ` AND (user_id = ? OR agent_id = ?)`;
+        params.push(targetAgent, targetAgent);
+      }
+    } else if (effectiveRole === 'ASM' || effectiveRole === 'INCHARGE' || effectiveInchargeId) {
+      const targetInc = effectiveInchargeId || effectiveUserId;
+      if (targetInc) {
+        sql += ` AND (user_id = ? OR agent_id IN (SELECT id FROM agents WHERE incharge_id = ?) OR user_id IN (SELECT id FROM agents WHERE incharge_id = ?))`;
+        params.push(targetInc, targetInc, targetInc);
+      }
+    } else if (effectiveUserId && effectiveRole !== 'ADMIN') {
+      sql += ` AND (user_id = ? OR agent_id = ?)`;
+      params.push(effectiveUserId, effectiveUserId);
+    }
+
+    if (filter.unreadOnly === true || filter.unreadOnly === 'true') {
+      sql += ` AND is_read = 0`;
+    }
+
+    sql += ` ORDER BY created_at DESC LIMIT 150`;
+
+    const rows = await query(sql, params);
+
+    return rows.map((r) => {
+      const createdAtDate = r.created_at ? new Date(r.created_at) : new Date();
+      const time = createdAtDate.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      const date = createdAtDate.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short'
+      });
+      let parsedMeta = {};
+      if (r.meta) {
+        try {
+          parsedMeta = typeof r.meta === 'string' ? JSON.parse(r.meta) : r.meta;
+        } catch {}
+      }
+
+      return {
+        id: r.id,
+        userId: r.user_id,
+        agentId: r.agent_id,
+        title: r.title || 'Notice',
+        message: r.message,
+        type: r.type || 'info',
+        read: Boolean(r.is_read),
+        isRead: Boolean(r.is_read),
+        time,
+        date,
+        createdAt: createdAtDate.toISOString(),
+        ...parsedMeta
+      };
+    });
+  }
+
+  async markNotificationRead(id) {
+    this._ensureDb();
+    if (!id) return false;
+    await query(`UPDATE notifications SET is_read = 1 WHERE id = ?`, [id]);
+    return true;
+  }
+
+  async markAllNotificationsRead(targetId = null) {
+    this._ensureDb();
+    if (targetId) {
+      await query(`UPDATE notifications SET is_read = 1 WHERE user_id = ? OR agent_id = ?`, [targetId, targetId]);
+    } else {
+      await query(`UPDATE notifications SET is_read = 1`);
+    }
+    return true;
   }
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Scale, User, MapPin, Calendar, TrendingUp, Activity, CheckCircle2 } from 'lucide-react';
+import { X, Scale, User, MapPin, Calendar, TrendingUp, Activity, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
   if (!tank) return null;
@@ -132,12 +132,13 @@ const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
                   <th style={styles.th}>FEED (KG)</th>
                   <th style={styles.th}>STAGE FCR</th>
                   <th style={styles.th}>BUYER</th>
+                  <th style={styles.th}>REMARKS &amp; OBSERVATION</th>
                 </tr>
               </thead>
               <tbody>
                 {tankHarvests.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '14px' }}>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '36px 16px', color: '#64748B', fontSize: '14px' }}>
                       No individual harvest weighment logs recorded for this tank.
                     </td>
                   </tr>
@@ -149,6 +150,11 @@ const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
                     const feedKg = h.feedConsumed ? h.feedConsumed : (h.quantityKg && h.fcr ? Math.round(h.quantityKg * Number(h.fcr)) : null);
                     const displayAbw = h.abw ? (String(h.abw).includes('g') ? h.abw : `${h.abw}g`) : (h.countPerKg ? `${(1000 / h.countPerKg).toFixed(1)}g` : '-');
 
+                    const prevH = idx > 0 ? tankHarvests[idx - 1] : null;
+                    const prevAbwVal = prevH ? (parseFloat(prevH.abw) || (prevH.countPerKg ? 1000 / prevH.countPerKg : null)) : null;
+                    const currAbwVal = parseFloat(h.abw) || (h.countPerKg ? 1000 / h.countPerKg : null);
+                    const isAbwDropped = prevAbwVal !== null && currAbwVal !== null && currAbwVal < prevAbwVal;
+
                     return (
                       <tr key={h.id || idx} style={styles.tableRow}>
                         <td style={styles.td}>
@@ -159,7 +165,22 @@ const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
                           {h.doc != null && <div style={styles.textGray}>Day {h.doc} DOC</div>}
                         </td>
                         <td style={styles.td}>
-                          <div style={{ ...styles.fw700, color: '#16A34A' }}>{displayAbw}</div>
+                          <div style={{ ...styles.fw700, color: '#16A34A', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                            <span>{displayAbw}</span>
+                            {isAbwDropped && (
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                color: '#B45309',
+                                backgroundColor: '#FEF3C7',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                border: '1px solid #FDE68A'
+                              }}>
+                                &darr; from {prevAbwVal ? `${Math.round(prevAbwVal)}g` : ''}
+                              </span>
+                            )}
+                          </div>
                           {h.countPerKg ? <div style={styles.textGray}>~{h.countPerKg} Count / kg</div> : null}
                         </td>
                         <td style={styles.td}>
@@ -171,7 +192,30 @@ const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
                         <td style={styles.td}>{feedKg ? `${Number(feedKg).toLocaleString()} kg` : '-'}</td>
                         <td style={styles.td}><span style={styles.fcrBadge}>{h.fcr ? Number(h.fcr).toFixed(2) : '-'}</span></td>
                         <td style={styles.td}>
-                          <div style={styles.fw700}>{h.buyerName || 'Exporter'}</div>
+                          <div style={styles.fw700}>{h.buyerName || h.buyer || 'Exporter'}</div>
+                        </td>
+                        <td style={{ ...styles.td, maxWidth: '240px' }}>
+                          {h.abwObservation && (
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: '#92400E',
+                              backgroundColor: '#FEF3C7',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: '1px solid #FDE68A',
+                              marginBottom: '3px'
+                            }}>
+                              <AlertTriangle size={10} color="#D97706" />
+                              <span><strong>Obs:</strong> {h.abwObservation}</span>
+                            </div>
+                          )}
+                          <div style={{ fontSize: '12px', color: '#334155', lineHeight: '1.3' }}>
+                            {h.remarks || '—'}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -197,6 +241,9 @@ const HarvestReportModal = ({ tank, harvests = [], onClose }) => {
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={styles.fcrTotalBadge}>{tank.fcr || '-'} FCR</span>
+                    </td>
+                    <td style={{ color: '#94A3B8', padding: '12px 14px' }}>
+                      —
                     </td>
                     <td style={{ color: '#94A3B8', padding: '12px 14px' }}>
                       —

@@ -227,6 +227,7 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
       doc: h.doc || (45 + i * 20),
       date: h.date || 'Aug 2026',
       remarks: h.remarks || 'Standard partial drag net protocol.',
+      abwObservation: h.abwObservation || '',
       buyer: h.buyer || 'Royals Marine Processing'
     };
   });
@@ -737,8 +738,29 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
 
                       {/* 3. ABW & Count */}
                       <td style={styles.td}>
-                        <div style={{ fontWeight: '800', color: '#16A34A', fontSize: '13.5px' }}>
-                          {h.abw}g
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '800', color: '#16A34A', fontSize: '13.5px' }}>
+                            {h.abw}g
+                          </span>
+                          {(() => {
+                            const prevH = idx > 0 ? processedHarvests[idx - 1] : null;
+                            const prevAbwVal = prevH && prevH.abw > 0 ? prevH.abw : null;
+                            const isAbwDropped = prevAbwVal !== null && h.abw > 0 && h.abw < prevAbwVal;
+                            if (!isAbwDropped) return null;
+                            return (
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                color: '#B45309',
+                                backgroundColor: '#FEF3C7',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                border: '1px solid #FDE68A'
+                              }}>
+                                &darr; {prevAbwVal}g
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748B' }}>
                           ~{h.countPerKg} Count / kg
@@ -777,11 +799,33 @@ const HarvestCompletedModal = ({ isOpen, onClose, tank, farmer }) => {
                         </span>
                       </td>
 
-                      {/* 8. Buyer */}
-                      <td style={{ ...styles.td, maxWidth: '220px' }}>
+                      {/* 8. Buyer & Remarks */}
+                      <td style={{ ...styles.td, maxWidth: '240px' }}>
                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
                           {h.buyer}
                         </div>
+                        {h.abwObservation && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '10.5px',
+                            fontWeight: '600',
+                            color: '#92400E',
+                            backgroundColor: '#FEF3C7',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            border: '1px solid #FDE68A',
+                            marginTop: '3px'
+                          }}>
+                            <span><strong>Obs:</strong> {h.abwObservation}</span>
+                          </div>
+                        )}
+                        {h.remarks && (
+                          <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', lineHeight: '1.3' }}>
+                            {h.remarks}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Users, Plus, Clock, FileText } from 'lucide-react';
+import { Home, Users, Plus, Clock, FileText, MessageSquare, Bell } from 'lucide-react';
+import { useMockData } from '../../context/MockDataContext';
+import { getSession } from '../utils/agentAuth';
 import QuickRecordModal from './QuickRecordModal';
 
 const BottomNavigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { db } = useMockData();
+  const session = getSession();
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const agentId = session?.agentId || 'agent001';
+  const unreadNotifCount = (db?.notifications || []).filter(n => {
+    const isRead = n.read === true || n.isRead === true || n.is_read === 1 || n.is_read === true;
+    if (isRead) return false;
+    return !n.agentId || n.agentId === agentId || n.userId === agentId;
+  }).length;
 
   const prefix = location.pathname.startsWith('/agent') 
     ? '/agent' 
@@ -49,9 +60,52 @@ const BottomNavigation = () => {
       ] 
     },
     { 
+      label: 'Follow-ups', 
+      path: prefix ? `${prefix}/follow-ups` : '/follow-ups', 
+      icon: MessageSquare, 
+      exactMatch: [
+        prefix ? `${prefix}/follow-ups` : '/follow-ups',
+        prefix ? `${prefix}/followups` : '/followups',
+        '/follow-ups',
+        '/followups',
+        '/agent/follow-ups',
+        '/agent/followups',
+        '/technician/follow-ups',
+        '/technician/followups'
+      ],
+      matchPrefixes: [
+        prefix ? `${prefix}/follow-ups/` : '/follow-ups/',
+        prefix ? `${prefix}/followups/` : '/followups/',
+        '/follow-ups/',
+        '/followups/',
+        '/agent/follow-ups/',
+        '/agent/followups/',
+        '/technician/follow-ups/',
+        '/technician/followups/'
+      ] 
+    },
+    { 
       label: 'Record', 
       isAction: true, 
       icon: Plus 
+    },
+    { 
+      label: 'Notifs', 
+      path: prefix ? `${prefix}/notifications` : '/notifications', 
+      icon: Bell, 
+      badge: unreadNotifCount > 0 ? unreadNotifCount : null,
+      exactMatch: [
+        prefix ? `${prefix}/notifications` : '/notifications',
+        '/notifications',
+        '/agent/notifications',
+        '/technician/notifications'
+      ],
+      matchPrefixes: [
+        prefix ? `${prefix}/notifications/` : '/notifications/',
+        '/notifications/',
+        '/agent/notifications/',
+        '/technician/notifications/'
+      ] 
     },
     { 
       label: 'History', 
@@ -301,6 +355,9 @@ const BottomNavigation = () => {
                         className={`tab-icon ${active ? 'tab-icon-active' : 'tab-icon-inactive'}`}
                         fill={active && item.label === 'Home' ? '#1A2FB8' : 'none'}
                       />
+                      {item.badge && (
+                        <span style={styles.tabAlertBadge}>{item.badge}</span>
+                      )}
                     </div>
                   </div>
 
@@ -322,6 +379,7 @@ const BottomNavigation = () => {
         <QuickRecordModal 
           isOpen={isRecordModalOpen}
           onClose={() => setIsRecordModalOpen(false)}
+          startWithSelector={true}
         />
       )}
     </>
@@ -336,8 +394,8 @@ const styles = {
     right: '0',
     marginLeft: 'auto',
     marginRight: 'auto',
-    width: 'calc(100% - 24px)',
-    maxWidth: '380px',
+    width: 'calc(100% - 20px)',
+    maxWidth: '440px',
     height: '54px',
     backgroundColor: '#FFFFFF',
     borderRadius: '27px',
@@ -396,6 +454,23 @@ const styles = {
     cursor: 'pointer',
     zIndex: 10,
     outline: 'none',
+  },
+  tabAlertBadge: {
+    position: 'absolute',
+    top: '-3px',
+    right: '2px',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
+    fontSize: '9px',
+    fontWeight: '800',
+    minWidth: '15px',
+    height: '15px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 3px',
+    border: '1.5px solid #FFFFFF',
   },
 };
 

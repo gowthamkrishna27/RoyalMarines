@@ -420,6 +420,7 @@ const AgentDashboard = () => {
         isOpen={isQuickRecordOpen}
         onClose={() => setIsQuickRecordOpen(false)}
         initialType={modalInitialType}
+        startWithSelector={!modalInitialType}
         preselectedTankId={modalInitialTank}
       />
     </div>

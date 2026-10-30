@@ -500,6 +500,7 @@ export const MockDataProvider = ({ children }) => {
         agentsRes,
         regionsRes,
         inchargesRes,
+        notifsRes,
       ] = await Promise.allSettled([
         apiClient.get("/farmers"),
         apiClient.get("/tanks"),
@@ -508,6 +509,7 @@ export const MockDataProvider = ({ children }) => {
         apiClient.get("/analytics/agents"),
         apiClient.get("/analytics/regions"),
         apiClient.get("/analytics/incharges"),
+        apiClient.get("/notifications"),
       ]);
 
       const errors = [];
@@ -553,6 +555,10 @@ export const MockDataProvider = ({ children }) => {
           ? inchargesRes.value.data
           : (prev.incharges || []);
 
+        const mergedNotifications = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value?.data)
+          ? notifsRes.value.data
+          : (prev.notifications || []);
+
         return {
           ...prev,
           farmers: mergedFarmers,
@@ -562,6 +568,7 @@ export const MockDataProvider = ({ children }) => {
           agents: mergedAgents,
           regions: mergedRegions,
           incharges: mergedIncharges,
+          notifications: mergedNotifications,
         };
       });
       setDbConnected(errors.length === 0);
@@ -603,6 +610,7 @@ export const MockDataProvider = ({ children }) => {
     window.addEventListener('submissionCreated', handleSubmissionRefresh);
     window.addEventListener('harvestCreated', handleHarvestRefresh);
     window.addEventListener('adminDataChanged', handleAdminRefresh);
+    window.addEventListener('complianceFollowupCreated', refreshNotifications);
 
     return () => {
       window.removeEventListener('farmerCreated', handleFarmerRefresh);
@@ -611,6 +619,7 @@ export const MockDataProvider = ({ children }) => {
       window.removeEventListener('submissionCreated', handleSubmissionRefresh);
       window.removeEventListener('harvestCreated', handleHarvestRefresh);
       window.removeEventListener('adminDataChanged', handleAdminRefresh);
+      window.removeEventListener('complianceFollowupCreated', refreshNotifications);
     };
   }, []);
 
@@ -1527,22 +1536,43 @@ export const MockDataProvider = ({ children }) => {
     }));
   };
 
-  const markNotificationRead = (notificationId) => {
+  const markNotificationRead = async (notificationId) => {
     setDb((prev) => ({
       ...prev,
       notifications: (prev.notifications || []).map((n) =>
-        n.id === notificationId ? { ...n, read: true } : n,
+        n.id === notificationId ? { ...n, read: true, isRead: true } : n,
       ),
     }));
+    try {
+      await apiClient.patch(`/notifications/${notificationId}/read`);
+    } catch (err) {
+      console.warn("[MockDataContext] Error persisting markNotificationRead:", err);
+    }
   };
 
-  const markAllNotificationsRead = (agentId) => {
+  const markAllNotificationsRead = async (targetId) => {
     setDb((prev) => ({
       ...prev,
       notifications: (prev.notifications || []).map((n) =>
-        !agentId || n.agentId === agentId ? { ...n, read: true } : n,
+        !targetId || n.agentId === targetId || n.userId === targetId ? { ...n, read: true, isRead: true } : n,
       ),
     }));
+    try {
+      await apiClient.patch('/notifications/read-all', { userId: targetId });
+    } catch (err) {
+      console.warn("[MockDataContext] Error persisting markAllNotificationsRead:", err);
+    }
+  };
+
+  const refreshNotifications = async () => {
+    try {
+      const res = await apiClient.get('/notifications');
+      if (res && Array.isArray(res.data)) {
+        setDb(prev => ({ ...prev, notifications: res.data }));
+      }
+    } catch (err) {
+      console.warn("[MockDataContext] Error refreshing notifications:", err);
+    }
   };
 
   // --- Technician Field Operations Methods ---
@@ -2066,6 +2096,7 @@ export const MockDataProvider = ({ children }) => {
         addNotification,
         markNotificationRead,
         markAllNotificationsRead,
+        refreshNotifications,
         refreshDb: fetchDataFromDb,
         fetchDataFromDb,
         refreshFarmers,

@@ -86,12 +86,13 @@ export const getComplianceFollowupHistory = async (req, res) => {
       return sendError(res, 'tankId parameter is required', 400);
     }
 
-    const history = await store.getTankFollowupHistory(tankId, cycleKey || null);
+    const history = await store.getTankFollowupHistory(tankId, cycleKey || null, req.user);
     return sendSuccess(res, history, 'Follow-up history retrieved successfully', 200, {
       total: history.length
     });
   } catch (error) {
     console.error('[Error in getComplianceFollowupHistory]', error);
-    return sendError(res, error.message || 'Failed to retrieve follow-up history', 500);
+    const status = error.message?.includes('Forbidden') ? 403 : 500;
+    return sendError(res, error.message || 'Failed to retrieve follow-up history', status);
   }
 };

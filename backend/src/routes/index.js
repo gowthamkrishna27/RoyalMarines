@@ -7,6 +7,7 @@ import harvestRoutes from './harvestRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import dbAdminRoutes from './dbAdminRoutes.js';
 import adminRoutes from './adminRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 import { sendSuccess } from '../utils/response.js';
 
 const apiRouter = Router();
@@ -30,6 +31,7 @@ apiRouter.use('/tanks', tankRoutes);
 apiRouter.use('/submissions', submissionRoutes);
 apiRouter.use('/harvests', harvestRoutes);
 apiRouter.use('/analytics', analyticsRoutes);
+apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/console', dbAdminRoutes);
 apiRouter.use('/db-admin', dbAdminRoutes);
 

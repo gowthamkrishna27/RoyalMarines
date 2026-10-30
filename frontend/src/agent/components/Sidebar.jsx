@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, Users, Plus, Clock, FileText, User, LogOut, Scale
+  Home, Users, Plus, Clock, FileText, User, LogOut, Scale, MessageSquare, Bell
 } from 'lucide-react';
 import { getSession, clearSession } from '../utils/agentAuth';
+import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from './QuickRecordModal';
 import topnavlogo from '../../assets/topnavlogo.png';
 
@@ -11,8 +12,16 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const session = getSession();
+  const { db } = useMockData();
   const [isQuickRecordOpen, setIsQuickRecordOpen] = useState(false);
   const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
+
+  const agentId = session?.agentId || 'agent001';
+  const unreadNotifCount = (db?.notifications || []).filter(n => {
+    const isRead = n.read === true || n.isRead === true || n.is_read === 1 || n.is_read === true;
+    if (isRead) return false;
+    return !n.agentId || n.agentId === agentId || n.userId === agentId;
+  }).length;
 
   const handleLogout = () => {
     if (window.confirm('Log out of Technician Portal?')) {
@@ -29,6 +38,8 @@ const Sidebar = () => {
     { name: 'Home', path: prefix ? `${prefix}/dashboard` : '/dashboard', icon: Home, match: ['/dashboard', '/technician', '/technician/dashboard', '/agent', '/agent/dashboard', `${prefix}/dashboard`, '/'] },
     { name: 'My Farmers', path: prefix ? `${prefix}/farmers` : '/farmers', icon: Users, match: ['/farmers', '/technician/farmers', '/agent/farmers', '/add-farmer', `${prefix}/farmers`, `${prefix}/add-farmer`] },
     { name: 'Harvest', path: prefix ? `${prefix}/harvest` : '/harvest', icon: Scale, match: ['/harvest', '/technician/harvest', '/agent/harvest', `${prefix}/harvest`] },
+    { name: 'Follow-ups', path: prefix ? `${prefix}/follow-ups` : '/follow-ups', icon: MessageSquare, match: ['/follow-ups', '/followups', `${prefix}/follow-ups`, `${prefix}/followups`] },
+    { name: 'Notifications', path: prefix ? `${prefix}/notifications` : '/notifications', icon: Bell, badge: unreadNotifCount > 0 ? unreadNotifCount : null, match: ['/notifications', `${prefix}/notifications`, '/agent/notifications', '/technician/notifications'] },
     { name: 'History', path: prefix ? `${prefix}/tests` : '/tests', icon: Clock, match: ['/tests', '/history', '/technician/tests', '/technician/history', '/agent/tests', '/agent/history', `${prefix}/tests`, `${prefix}/history`] },
     { name: 'Reports', path: prefix ? `${prefix}/reports` : '/reports', icon: FileText, match: ['/reports', '/technician/reports', '/agent/reports', `${prefix}/reports`] },
   ];
@@ -66,6 +77,32 @@ const Sidebar = () => {
         currentPath.startsWith('/agent/harvest/') ||
         currentPath === '/technician/harvest' ||
         currentPath.startsWith('/technician/harvest/')
+      );
+    }
+    if (item.name === 'Follow-ups') {
+      return (
+        currentPath === '/follow-ups' ||
+        currentPath.startsWith('/follow-ups/') ||
+        currentPath === '/followups' ||
+        currentPath.startsWith('/followups/') ||
+        currentPath === '/agent/follow-ups' ||
+        currentPath.startsWith('/agent/follow-ups/') ||
+        currentPath === '/agent/followups' ||
+        currentPath.startsWith('/agent/followups/') ||
+        currentPath === '/technician/follow-ups' ||
+        currentPath.startsWith('/technician/follow-ups/') ||
+        currentPath === '/technician/followups' ||
+        currentPath.startsWith('/technician/followups/')
+      );
+    }
+    if (item.name === 'Notifications') {
+      return (
+        currentPath === '/notifications' ||
+        currentPath.startsWith('/notifications/') ||
+        currentPath === '/agent/notifications' ||
+        currentPath.startsWith('/agent/notifications/') ||
+        currentPath === '/technician/notifications' ||
+        currentPath.startsWith('/technician/notifications/')
       );
     }
     if (item.name === 'History') {
@@ -117,7 +154,7 @@ const Sidebar = () => {
               className="cursor-pointer transition-all duration-150 hover:brightness-110 active:scale-98"
               style={styles.quickRecordBtn}
               onClick={() => {
-                setModalInitialType('WATER_QUALITY');
+                setModalInitialType(null);
                 setIsQuickRecordOpen(true);
               }}
               aria-label="New Field Record"
@@ -155,10 +192,16 @@ const Sidebar = () => {
                   backgroundColor: active ? '#EFF6FF' : 'transparent',
                   color: active ? '#1A2FB8' : '#475569',
                   fontWeight: active ? '700' : '500',
+                  justifyContent: 'space-between',
                 }}
               >
-                <Icon size={18} color={active ? '#1A2FB8' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
-                <span>{item.name}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Icon size={18} color={active ? '#1A2FB8' : '#64748B'} strokeWidth={active ? 2.5 : 1.8} />
+                  <span>{item.name}</span>
+                </div>
+                {item.badge && (
+                  <span style={styles.navBadge}>{item.badge}</span>
+                )}
               </NavLink>
             );
           })}
@@ -191,6 +234,7 @@ const Sidebar = () => {
           isOpen={isQuickRecordOpen}
           onClose={() => setIsQuickRecordOpen(false)}
           initialType={modalInitialType}
+          startWithSelector={!modalInitialType}
         />
       )}
     </>
@@ -345,6 +389,15 @@ const styles = {
     fontSize: '11px',
     fontWeight: '700',
     cursor: 'pointer',
+  },
+  navBadge: {
+    fontSize: '10px',
+    fontWeight: '700',
+    backgroundColor: '#FEE2E2',
+    color: '#DC2626',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    lineHeight: 1,
   },
 };
 

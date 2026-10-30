@@ -19,11 +19,14 @@ import ExportCenter from './pages/ExportCenter';
 import ActivityLog from './pages/ActivityLog';
 import Settings from './pages/Settings';
 import SubmissionLocationMap from './pages/SubmissionLocationMap';
+import Followups from './pages/Followups';
 
 const AdminRoutes = () => {
   return (
     <Routes>
       <Route path="dashboard" element={<AdminDashboard />} />
+      <Route path="follow-ups" element={<Followups />} />
+      <Route path="followups" element={<Followups />} />
       <Route path="submission-locations" element={<SubmissionLocationMap />} />
       <Route path="live-map" element={<SubmissionLocationMap />} />
       <Route path="regions" element={<Regions />} />

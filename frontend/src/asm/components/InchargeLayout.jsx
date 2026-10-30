@@ -7,7 +7,7 @@ import { getInchargeSession, logoutIncharge } from '../utils/inchargeAuth';
 import { getAsmBasePath } from '../utils/asmNavigation';
 import { 
   Shield, Menu, X, Home, Users, Calendar, FileText, 
-  UserCheck, LogOut, Plus, ChevronRight, Bell, CheckCheck, AlertTriangle, Eye, Scale, User
+  UserCheck, LogOut, Plus, ChevronRight, Bell, CheckCheck, AlertTriangle, Eye, Scale, User, MessageSquare
 } from 'lucide-react';
 import { useMockData } from '../../context/MockDataContext';
 import QuickRecordModal from '../../agent/components/QuickRecordModal';
@@ -94,6 +94,8 @@ const InchargeLayout = ({ children }) => {
     { name: 'My Agents', path: `${base}/agents`, icon: Users },
     { name: 'My Farmers', path: `${base}/my-farmers`, icon: UserCheck },
     { name: 'Harvest Management', path: `${base}/harvest`, icon: Scale },
+    { name: 'Follow-ups', path: `${base}/follow-ups`, icon: MessageSquare },
+    { name: 'Notifications', path: `${base}/notifications`, icon: Bell },
     { name: 'Weekly Tests', path: `${base}/weekly-tests`, icon: Calendar },
     { name: 'Reports', path: `${base}/reports`, icon: FileText },
     { name: 'ASM Settings', path: `${base}/settings`, icon: Shield },
@@ -173,7 +175,13 @@ const InchargeLayout = ({ children }) => {
               <div style={styles.drawerLinksList}>
                 {drawerNavItems.map((item) => {
                   const Icon = item.icon;
-                  const active = location.pathname === item.path || (item.path !== `${base}/dashboard` && location.pathname.startsWith(item.path));
+                  const isFollowupsMatch = item.name === 'Follow-ups' && (
+                    location.pathname.includes('/follow-up') || location.pathname.includes('/followup')
+                  );
+                  const isNotificationsMatch = item.name === 'Notifications' && (
+                    location.pathname.includes('/notification')
+                  );
+                  const active = isFollowupsMatch || isNotificationsMatch || location.pathname === item.path || (item.path !== `${base}/dashboard` && location.pathname.startsWith(item.path));
                   return (
                     <button
                       key={item.name}
@@ -294,6 +302,7 @@ const InchargeLayout = ({ children }) => {
         onClose={() => setIsQuickRecordOpen(false)}
         preselectedTankId={selectedTankForQuickRecord}
         initialType={selectedTypeForQuickRecord}
+        startWithSelector={!selectedTypeForQuickRecord}
       />
 
       {/* Slide-out Notification Drawer */}

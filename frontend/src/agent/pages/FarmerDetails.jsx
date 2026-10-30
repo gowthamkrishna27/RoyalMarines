@@ -17,7 +17,7 @@ const FarmerDetails = () => {
 
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [selectedTankId, setSelectedTankId] = useState(null);
-  const [modalInitialType, setModalInitialType] = useState('WATER_QUALITY');
+  const [modalInitialType, setModalInitialType] = useState(null);
 
   const rawFarmer = getFarmerById(farmerId) || db?.farmers?.find(f => f.id === farmerId);
   const isIncharge = location.pathname.startsWith('/incharge') || location.pathname.startsWith('/asm');
@@ -57,7 +57,7 @@ const FarmerDetails = () => {
 
   const handleOpenRecord = (tankId = null) => {
     setSelectedTankId(tankId || (tanks[0]?.id || ''));
-    setModalInitialType('WATER_QUALITY');
+    setModalInitialType(null);
     setIsRecordModalOpen(true);
   };
 
@@ -224,6 +224,7 @@ const FarmerDetails = () => {
         isOpen={isRecordModalOpen}
         onClose={() => setIsRecordModalOpen(false)}
         initialType={modalInitialType}
+        startWithSelector={!modalInitialType}
         preselectedFarmerId={farmer.id}
         preselectedTankId={selectedTankId}
       />

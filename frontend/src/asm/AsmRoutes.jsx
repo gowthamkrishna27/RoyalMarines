@@ -16,6 +16,8 @@ import Reports from './pages/Reports';
 import ExportData from './pages/ExportData';
 import ActivityLog from './pages/ActivityLog';
 import Settings from './pages/Settings';
+import Followups from './pages/Followups';
+import Notifications from './pages/Notifications';
 
 // Shared Pages for Farmer & Tank Operations (Supervisor view)
 import FarmerDetails from '../agent/pages/FarmerDetails';
@@ -48,6 +50,9 @@ const AsmRoutes = () => {
       <Route path="verifications" element={<Verifications />} />
       <Route path="verifications/:id" element={<RecordReview />} />
       <Route path="weekly-tests" element={<WeeklyTests />} />
+      <Route path="follow-ups" element={<Followups />} />
+      <Route path="followups" element={<Followups />} />
+      <Route path="notifications" element={<Notifications />} />
       <Route path="reports" element={<Reports />} />
       <Route path="reports/farmers" element={<Reports defaultView="FARMERS" />} />
       <Route path="reports/agents" element={<Reports defaultView="AGENTS" />} />
